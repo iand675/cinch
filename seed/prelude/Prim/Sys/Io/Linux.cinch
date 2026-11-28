@@ -1,0 +1,1175 @@
+-- Prim.Sys.Io.Linux: high-throughput Linux OS I/O syscalls, in Cinch, on the
+-- `syscall` / `svc #0` instructions.
+--
+-- Mirrors `Prim.Sys.Linux` for the high-throughput reactor, networking,
+-- zero-copy, direct I/O, and memory-mapping surface (`io_uring`, `epoll`,
+-- `eventfd2`, TCP/UDP sockets, `SO_REUSEPORT`, `UDP_SEGMENT`/`UDP_GRO`,
+-- `O_DIRECT`, `splice`, `sendfile`, `mmap`, `clock_gettime`).
+--
+-- Every syscall primitive carries:
+--   * an `aarch64` `unsafe llvm` body (`svc #0` with `~{x8},~{memory}`),
+--   * an `x86_64` `unsafe llvm` body (`syscall` with `~{rcx},~{r11},~{memory}`),
+--   * a portable `llvm` fallback returning `-38` (`-ENOSYS`).
+--
+-- All pinned syscall numbers and clobber lists are audited by `mem_contract`
+-- v2 (`cinch verify-prims --audit-unsafe`) with zero violations.
+--
+-- Return convention (zero-allocation hot path):
+--   * Non-negative `I64` (or mapped address for `sys-mmap`): success value.
+--   * Negative `I64` in `[-4095, -1]`: negated Linux `errno` (`-EAGAIN`, etc.).
+module Prim.Sys.Io.Linux where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  export IoSqringOffsets, IoCqringOffsets, IoUringParams, IoUringSqe, IoUringCqe
+  export Iovec, SockAddrIn, Timespec
+  export af-inet, af-inet6, sock-stream, sock-dgram, sock-nonblock, sock-cloexec
+  export sol-socket, so-reuseaddr, so-reuseport, so-txtime, so-attach-reuseport-ebpf
+  export ipproto-tcp, tcp-nodelay, sol-tls, sol-udp, udp-segment, udp-gro
+  export at-fdcwd, o-rdonly, o-wronly, o-rdwr, o-creat, o-trunc, o-nonblock, o-cloexec
+  export o-direct-amd64, o-direct-aarch64, o-direct
+  export f-getfl, f-setfl
+  export prot-none, prot-read, prot-write
+  export map-shared, map-private, map-fixed, map-anon, map-populate
+  export madv-willneed, madv-dontneed, madv-hugepage
+  export ioring-setup-iopoll, ioring-setup-sqpoll, ioring-setup-sq-aff
+  export ioring-setup-cqsize, ioring-setup-clamp, ioring-setup-attach-wq
+  export ioring-setup-coop-taskrun, ioring-setup-single-issuer, ioring-setup-defer-taskrun
+  export ioring-enter-getevents, ioring-enter-sq-wakeup, ioring-enter-sq-wait, ioring-enter-ext-arg
+  export ioring-op-nop, ioring-op-readv, ioring-op-writev, ioring-op-fsync
+  export ioring-op-read-fixed, ioring-op-write-fixed, ioring-op-poll-add, ioring-op-poll-remove
+  export ioring-op-sendmsg, ioring-op-recvmsg, ioring-op-timeout, ioring-op-accept
+  export ioring-op-async-cancel, ioring-op-connect, ioring-op-close
+  export ioring-op-read, ioring-op-write, ioring-op-send, ioring-op-recv
+  export ioring-op-splice, ioring-op-provide-buffers, ioring-op-send-zc
+  export ioring-register-buffers, ioring-unregister-buffers
+  export ioring-register-files, ioring-unregister-files
+  export ioring-register-eventfd, ioring-register-pbuf-ring, ioring-unregister-pbuf-ring
+  export ioring-off-sq-ring, ioring-off-cq-ring, ioring-off-sqes
+  export epoll-cloexec, epoll-ctl-add, epoll-ctl-del, epoll-ctl-mod
+  export epollin, epollout, epollerr, epollhup, epollet
+  export efd-nonblock, efd-cloexec
+  export clock-realtime, clock-monotonic
+  export eintr, eagain, enosys, einprogress
+  export io-is-err, io-errno, io-is-would-block, io-is-in-progress, io-is-interrupted
+  export sys-io-uring-setup, sys-io-uring-enter, sys-io-uring-register
+  export sys-socket, sys-bind, sys-listen, sys-accept4
+  export sys-setsockopt, sys-getsockopt, sys-close, sys-fcntl
+  export sys-sendto, sys-recvfrom, sys-sendmsg, sys-recvmsg
+  export sys-sendmmsg, sys-recvmmsg
+  export sys-read, sys-write, sys-pread, sys-pwrite
+  export sys-mmap, sys-munmap, sys-madvise
+  export sys-openat, sys-fallocate, sys-fdatasync, sys-fsync, sys-lseek
+  export sys-splice, sys-sendfile
+  export sys-eventfd2, sys-clock-gettime, sys-sched-setaffinity
+  export sys-epoll-create1, sys-epoll-ctl, sys-epoll-pwait
+  export sys-set-nonblocking, sys-sockaddr-in-loopback, sys-sockaddr-in-port, sys-held
+
+  -- ------------------------------------------------------------------
+  -- Linux kernel ABI structs (`#[repr(C)]`)
+  -- ------------------------------------------------------------------
+
+  -- | Linux `struct io_sqring_offsets` (40 bytes, align 8).
+  #[repr(C)]
+  record IoSqringOffsets where
+    head :: U32
+    tail :: U32
+    ring-mask :: U32
+    ring-entries :: U32
+    flags :: U32
+    dropped :: U32
+    array :: U32
+    resv1 :: U32
+    user-addr :: U64
+
+  -- | Linux `struct io_cqring_offsets` (40 bytes, align 8).
+  #[repr(C)]
+  record IoCqringOffsets where
+    head :: U32
+    tail :: U32
+    ring-mask :: U32
+    ring-entries :: U32
+    overflow :: U32
+    cqes :: U32
+    flags :: U32
+    resv1 :: U32
+    user-addr :: U64
+
+  -- | Linux `struct io_uring_params` (120 bytes, align 8).
+  #[repr(C)]
+  record IoUringParams where
+    sq-entries :: U32
+    cq-entries :: U32
+    flags :: U32
+    sq-thread-cpu :: U32
+    sq-thread-idle :: U32
+    features :: U32
+    wq-fd :: U32
+    resv0 :: U32
+    resv1 :: U32
+    resv2 :: U32
+    sq-off :: IoSqringOffsets
+    cq-off :: IoCqringOffsets
+
+  -- | Linux `struct io_uring_sqe` (64 bytes, align 8).
+  #[repr(C)]
+  record IoUringSqe where
+    opcode :: U8
+    flags :: U8
+    ioprio :: U16
+    fd :: I32
+    off :: U64
+    addr :: U64
+    len :: U32
+    op-flags :: U32
+    user-data :: U64
+    buf-index :: U16
+    personality :: U16
+    splice-fd-in :: I32
+    addr3 :: U64
+    pad2 :: U64
+
+  -- | Linux `struct io_uring_cqe` (16 bytes, align 8).
+  #[repr(C)]
+  record IoUringCqe where
+    user-data :: U64
+    res :: I32
+    flags :: U32
+
+  -- | POSIX / Linux `struct iovec` (16 bytes, align 8).
+  #[repr(C)]
+  record Iovec where
+    iov-base :: U64
+    iov-len :: U64
+
+  -- | Linux `struct sockaddr_in` (16 bytes, align 4).
+  #[repr(C)]
+  record SockAddrIn where
+    sin-family :: U16
+    sin-port :: U16
+    sin-addr :: U32
+    sin-zero-lo :: U32
+    sin-zero-hi :: U32
+
+  -- | POSIX / Linux `struct timespec` (16 bytes, align 8).
+  #[repr(C)]
+  record Timespec where
+    tv-sec :: I64
+    tv-nsec :: I64
+
+  -- ------------------------------------------------------------------
+  -- Linux ABI constants
+  -- ------------------------------------------------------------------
+
+  af-inet :: I64
+  af-inet = 2
+
+  af-inet6 :: I64
+  af-inet6 = 10
+
+  sock-stream :: I64
+  sock-stream = 1
+
+  sock-dgram :: I64
+  sock-dgram = 2
+
+  sock-nonblock :: I64
+  sock-nonblock = 0x800
+
+  sock-cloexec :: I64
+  sock-cloexec = 0x80000
+
+  sol-socket :: I64
+  sol-socket = 1
+
+  so-reuseaddr :: I64
+  so-reuseaddr = 2
+
+  so-reuseport :: I64
+  so-reuseport = 15
+
+  so-attach-reuseport-ebpf :: I64
+  so-attach-reuseport-ebpf = 52
+
+  so-txtime :: I64
+  so-txtime = 61
+
+  ipproto-tcp :: I64
+  ipproto-tcp = 6
+
+  tcp-nodelay :: I64
+  tcp-nodelay = 1
+
+  sol-udp :: I64
+  sol-udp = 17
+
+  udp-segment :: I64
+  udp-segment = 103
+
+  udp-gro :: I64
+  udp-gro = 104
+
+  sol-tls :: I64
+  sol-tls = 282
+
+  at-fdcwd :: I64
+  at-fdcwd = -100
+
+  o-rdonly :: I64
+  o-rdonly = 0
+
+  o-wronly :: I64
+  o-wronly = 1
+
+  o-rdwr :: I64
+  o-rdwr = 2
+
+  o-creat :: I64
+  o-creat = 0x40
+
+  o-trunc :: I64
+  o-trunc = 0x200
+
+  o-nonblock :: I64
+  o-nonblock = 0x800
+
+  o-cloexec :: I64
+  o-cloexec = 0x80000
+
+  o-direct-amd64 :: I64
+  o-direct-amd64 = 0x4000
+
+  o-direct-aarch64 :: I64
+  o-direct-aarch64 = 0x10000
+
+  o-direct :: I64
+  when arch aarch64 o-direct = 0x10000
+  when arch x86_64 o-direct = 0x4000
+  when not (arch aarch64) when not (arch x86_64) o-direct = 0x4000
+
+  f-getfl :: I64
+  f-getfl = 3
+
+  f-setfl :: I64
+  f-setfl = 4
+
+  prot-none :: I64
+  prot-none = 0
+
+  prot-read :: I64
+  prot-read = 1
+
+  prot-write :: I64
+  prot-write = 2
+
+  map-shared :: I64
+  map-shared = 1
+
+  map-private :: I64
+  map-private = 2
+
+  map-fixed :: I64
+  map-fixed = 0x10
+
+  map-anon :: I64
+  map-anon = 0x20
+
+  map-populate :: I64
+  map-populate = 0x8000
+
+  madv-willneed :: I64
+  madv-willneed = 3
+
+  madv-dontneed :: I64
+  madv-dontneed = 4
+
+  madv-hugepage :: I64
+  madv-hugepage = 14
+
+  ioring-setup-iopoll :: I64
+  ioring-setup-iopoll = 1
+
+  ioring-setup-sqpoll :: I64
+  ioring-setup-sqpoll = 2
+
+  ioring-setup-sq-aff :: I64
+  ioring-setup-sq-aff = 4
+
+  ioring-setup-cqsize :: I64
+  ioring-setup-cqsize = 8
+
+  ioring-setup-clamp :: I64
+  ioring-setup-clamp = 16
+
+  ioring-setup-attach-wq :: I64
+  ioring-setup-attach-wq = 32
+
+  ioring-setup-coop-taskrun :: I64
+  ioring-setup-coop-taskrun = 256
+
+  ioring-setup-single-issuer :: I64
+  ioring-setup-single-issuer = 4096
+
+  ioring-setup-defer-taskrun :: I64
+  ioring-setup-defer-taskrun = 8192
+
+  ioring-enter-getevents :: I64
+  ioring-enter-getevents = 1
+
+  ioring-enter-sq-wakeup :: I64
+  ioring-enter-sq-wakeup = 2
+
+  ioring-enter-sq-wait :: I64
+  ioring-enter-sq-wait = 4
+
+  ioring-enter-ext-arg :: I64
+  ioring-enter-ext-arg = 8
+
+  ioring-op-nop :: I64
+  ioring-op-nop = 0
+
+  ioring-op-readv :: I64
+  ioring-op-readv = 1
+
+  ioring-op-writev :: I64
+  ioring-op-writev = 2
+
+  ioring-op-fsync :: I64
+  ioring-op-fsync = 3
+
+  ioring-op-read-fixed :: I64
+  ioring-op-read-fixed = 4
+
+  ioring-op-write-fixed :: I64
+  ioring-op-write-fixed = 5
+
+  ioring-op-poll-add :: I64
+  ioring-op-poll-add = 6
+
+  ioring-op-poll-remove :: I64
+  ioring-op-poll-remove = 7
+
+  ioring-op-sendmsg :: I64
+  ioring-op-sendmsg = 9
+
+  ioring-op-recvmsg :: I64
+  ioring-op-recvmsg = 10
+
+  ioring-op-timeout :: I64
+  ioring-op-timeout = 11
+
+  ioring-op-accept :: I64
+  ioring-op-accept = 13
+
+  ioring-op-async-cancel :: I64
+  ioring-op-async-cancel = 14
+
+  ioring-op-connect :: I64
+  ioring-op-connect = 16
+
+  ioring-op-close :: I64
+  ioring-op-close = 19
+
+  ioring-op-read :: I64
+  ioring-op-read = 22
+
+  ioring-op-write :: I64
+  ioring-op-write = 23
+
+  ioring-op-send :: I64
+  ioring-op-send = 26
+
+  ioring-op-recv :: I64
+  ioring-op-recv = 27
+
+  ioring-op-splice :: I64
+  ioring-op-splice = 30
+
+  ioring-op-provide-buffers :: I64
+  ioring-op-provide-buffers = 31
+
+  ioring-op-send-zc :: I64
+  ioring-op-send-zc = 53
+
+  ioring-register-buffers :: I64
+  ioring-register-buffers = 0
+
+  ioring-unregister-buffers :: I64
+  ioring-unregister-buffers = 1
+
+  ioring-register-files :: I64
+  ioring-register-files = 2
+
+  ioring-unregister-files :: I64
+  ioring-unregister-files = 3
+
+  ioring-register-eventfd :: I64
+  ioring-register-eventfd = 4
+
+  ioring-register-pbuf-ring :: I64
+  ioring-register-pbuf-ring = 22
+
+  ioring-unregister-pbuf-ring :: I64
+  ioring-unregister-pbuf-ring = 23
+
+  ioring-off-sq-ring :: I64
+  ioring-off-sq-ring = 0
+
+  ioring-off-cq-ring :: I64
+  ioring-off-cq-ring = 0x8000000
+
+  ioring-off-sqes :: I64
+  ioring-off-sqes = 0x10000000
+
+  epoll-cloexec :: I64
+  epoll-cloexec = 0x80000
+
+  epoll-ctl-add :: I64
+  epoll-ctl-add = 1
+
+  epoll-ctl-del :: I64
+  epoll-ctl-del = 2
+
+  epoll-ctl-mod :: I64
+  epoll-ctl-mod = 3
+
+  epollin :: I64
+  epollin = 1
+
+  epollout :: I64
+  epollout = 4
+
+  epollerr :: I64
+  epollerr = 8
+
+  epollhup :: I64
+  epollhup = 16
+
+  epollet :: I64
+  epollet = 0x80000000
+
+  efd-nonblock :: I64
+  efd-nonblock = 0x800
+
+  efd-cloexec :: I64
+  efd-cloexec = 0x80000
+
+  clock-realtime :: I64
+  clock-realtime = 0
+
+  clock-monotonic :: I64
+  clock-monotonic = 1
+
+  eintr :: I64
+  eintr = 4
+
+  eagain :: I64
+  eagain = 11
+
+  enosys :: I64
+  enosys = 38
+
+  einprogress :: I64
+  einprogress = 115
+
+  -- ------------------------------------------------------------------
+  -- Audited Linux inline-asm syscall primitives
+  -- ------------------------------------------------------------------
+
+  -- `io_uring_setup(entries, params)`: 425 on x86_64, 425 on aarch64.
+  prim linux-io-uring-setup :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #425\0A svc #0", "={x0},{x0},{x1},~{x8},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 425\0A syscall", "={rax},{rdi},{rsi},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `io_uring_enter(fd, to_submit, min_complete, flags, sig, sz)`: 426 on x86_64, 426 on aarch64.
+  prim linux-io-uring-enter :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #426\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},{x5},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 426\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `io_uring_register(fd, opcode, arg, nr_args)`: 427 on x86_64, 427 on aarch64.
+  prim linux-io-uring-register :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #427\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 427\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `socket(domain, type, protocol)`: 41 on x86_64, 198 on aarch64.
+  prim linux-socket :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #198\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 41\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `bind(fd, addr, addrlen)`: 49 on x86_64, 200 on aarch64.
+  prim linux-bind :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #200\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 49\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `listen(fd, backlog)`: 50 on x86_64, 201 on aarch64.
+  prim linux-listen :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #201\0A svc #0", "={x0},{x0},{x1},~{x8},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 50\0A syscall", "={rax},{rdi},{rsi},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `accept4(fd, addr, addrlen, flags)`: 288 on x86_64, 242 on aarch64.
+  prim linux-accept4 :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #242\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 288\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `setsockopt(fd, level, optname, optval, optlen)`: 54 on x86_64, 208 on aarch64.
+  prim linux-setsockopt :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #208\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 54\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `getsockopt(fd, level, optname, optval, optlen_ptr)`: 55 on x86_64, 209 on aarch64.
+  prim linux-getsockopt :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #209\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 55\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `close(fd)`: 3 on x86_64, 57 on aarch64.
+  prim linux-close :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #57\0A svc #0", "={x0},{x0},~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 3\0A syscall", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `fcntl(fd, cmd, arg)`: 72 on x86_64, 25 on aarch64.
+  prim linux-fcntl :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #25\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 72\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `sendto(fd, buf, len, flags, dest_addr, addrlen)`: 44 on x86_64, 206 on aarch64.
+  prim linux-sendto :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #206\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},{x5},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 44\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `recvfrom(fd, buf, len, flags, src_addr, addrlen_ptr)`: 45 on x86_64, 207 on aarch64.
+  prim linux-recvfrom :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #207\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},{x5},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 45\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `sendmsg(fd, msg, flags)`: 46 on x86_64, 211 on aarch64.
+  prim linux-sendmsg :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #211\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 46\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `recvmsg(fd, msg, flags)`: 47 on x86_64, 212 on aarch64.
+  prim linux-recvmsg :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #212\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 47\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `sendmmsg(fd, msgvec, vlen, flags)`: 307 on x86_64, 269 on aarch64.
+  prim linux-sendmmsg :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #269\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 307\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `recvmmsg(fd, msgvec, vlen, flags, timeout)`: 299 on x86_64, 243 on aarch64.
+  prim linux-recvmmsg :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #243\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 299\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `read(fd, buf, count)`: 0 on x86_64, 63 on aarch64.
+  prim linux-read :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #63\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 0\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `write(fd, buf, count)`: 1 on x86_64, 64 on aarch64.
+  prim linux-write :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #64\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 1\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- 4-argument Linux syscall trampoline used for `pread64` (x86_64=17, aarch64=67)
+  -- and `pwrite64` (x86_64=18, aarch64=68).
+  prim linux-syscall4 :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, $1\0A svc #0", "={x0},{x7},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "syscall", "={rax},{rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  nr-pread64 :: I64
+  when arch aarch64 nr-pread64 = 67
+  when arch x86_64 nr-pread64 = 17
+  when not (arch aarch64) when not (arch x86_64) nr-pread64 = -1
+
+  nr-pwrite64 :: I64
+  when arch aarch64 nr-pwrite64 = 68
+  when arch x86_64 nr-pwrite64 = 18
+  when not (arch aarch64) when not (arch x86_64) nr-pwrite64 = -1
+
+  -- `mmap(addr, length, prot, flags, fd, offset)`: 9 on x86_64, 222 on aarch64.
+  prim linux-mmap :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #222\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},{x5},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 9\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `munmap(addr, length)`: 11 on x86_64, 215 on aarch64.
+  prim linux-munmap :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #215\0A svc #0", "={x0},{x0},{x1},~{x8},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 11\0A syscall", "={rax},{rdi},{rsi},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `madvise(addr, length, advice)`: 28 on x86_64, 233 on aarch64.
+  prim linux-madvise :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #233\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 28\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `openat(dirfd, path, flags, mode)`: 257 on x86_64, 56 on aarch64.
+  prim linux-openat :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #56\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 257\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `fallocate(fd, mode, offset, len)`: 285 on x86_64, 47 on aarch64.
+  prim linux-fallocate :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #47\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 285\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `fdatasync(fd)`: 75 on x86_64, 83 on aarch64.
+  prim linux-fdatasync :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #83\0A svc #0", "={x0},{x0},~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 75\0A syscall", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `fsync(fd)`: 74 on x86_64, 82 on aarch64.
+  prim linux-fsync :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #82\0A svc #0", "={x0},{x0},~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 74\0A syscall", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `lseek(fd, offset, whence)`: 8 on x86_64, 62 on aarch64.
+  prim linux-lseek :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #62\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 8\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `splice(fd_in, off_in, fd_out, off_out, len, flags)`: 275 on x86_64, 76 on aarch64.
+  prim linux-splice :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #76\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},{x5},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 275\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `sendfile(out_fd, in_fd, offset_ptr, count)`: 40 on x86_64, 71 on aarch64.
+  prim linux-sendfile :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #71\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 40\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `eventfd2(initval, flags)`: 290 on x86_64, 19 on aarch64.
+  prim linux-eventfd2 :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #19\0A svc #0", "={x0},{x0},{x1},~{x8},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 290\0A syscall", "={rax},{rdi},{rsi},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `clock_gettime(clockid, tp)`: 228 on x86_64, 113 on aarch64.
+  prim linux-clock-gettime :: I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #113\0A svc #0", "={x0},{x0},{x1},~{x8},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 228\0A syscall", "={rax},{rdi},{rsi},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `sched_setaffinity(pid, cpusetsize, mask)`: 203 on x86_64, 122 on aarch64.
+  prim linux-sched-setaffinity :: I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #122\0A svc #0", "={x0},{x0},{x1},{x2},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 203\0A syscall", "={rax},{rdi},{rsi},{rdx},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `epoll_create1(flags)`: 291 on x86_64, 20 on aarch64.
+  prim linux-epoll-create1 :: I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #20\0A svc #0", "={x0},{x0},~{x8},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 291\0A syscall", "={rax},{rdi},~{rcx},~{r11},~{memory}"(i64 %0)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `epoll_ctl(epfd, op, fd, event)`: 233 on x86_64, 21 on aarch64.
+  prim linux-epoll-ctl :: I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #21\0A svc #0", "={x0},{x0},{x1},{x2},{x3},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 233\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- `epoll_pwait(epfd, events, maxevents, timeout, sigmask, sigsetsize)`: 281 on x86_64, 22 on aarch64.
+  prim linux-epoll-pwait :: I64 -> I64 -> I64 -> I64 -> I64 -> I64 -> I64 where
+    unsafe llvm {
+      %r = call i64 asm sideeffect "mov x8, #22\0A svc #0", "={x0},{x0},{x1},{x2},{x3},{x4},{x5},~{x8},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch aarch64
+    unsafe llvm {
+      %r = call i64 asm sideeffect inteldialect "mov rax, 281\0A syscall", "={rax},{rdi},{rsi},{rdx},{r10},{r8},{r9},~{rcx},~{r11},~{memory}"(i64 %0, i64 %1, i64 %2, i64 %3, i64 %4, i64 %5)
+      ret i64 %r
+    } when arch x86_64
+    llvm {
+      ret i64 -38
+    }
+
+  -- ------------------------------------------------------------------
+  -- Effectful wrappers & helpers
+  -- ------------------------------------------------------------------
+
+  -- | True when a syscall return value encodes a Linux `-errno` (`-4095 <= r < 0`).
+  io-is-err :: I64 -> Bool
+  io-is-err r = lt-i64 r 0 && le-i64 -4095 r
+
+  -- | Positive errno extracted from a negative syscall return (or `0` on success).
+  io-errno :: I64 -> I64
+  io-errno r = if io-is-err r then wrapping-neg-i64 r else 0
+
+  -- | True when the syscall returned `-EAGAIN` / `-EWOULDBLOCK`.
+  io-is-would-block :: I64 -> Bool
+  io-is-would-block r = eq-i64 (io-errno r) eagain
+
+  -- | True when a non-blocking `connect` returned `-EINPROGRESS`.
+  io-is-in-progress :: I64 -> Bool
+  io-is-in-progress r = eq-i64 (io-errno r) einprogress
+
+  -- | True when the syscall returned `-EINTR`.
+  io-is-interrupted :: I64 -> Bool
+  io-is-interrupted r = eq-i64 (io-errno r) eintr
+
+  sys-io-uring-setup :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-io-uring-setup entries params = linux-io-uring-setup entries params
+
+  sys-io-uring-enter :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-io-uring-enter fd to-submit min-complete flags sig sz =
+    linux-io-uring-enter fd to-submit min-complete flags sig sz
+
+  sys-io-uring-register :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-io-uring-register fd opcode arg nr-args =
+    linux-io-uring-register fd opcode arg nr-args
+
+  sys-socket :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-socket domain ty proto = linux-socket domain ty proto
+
+  sys-bind :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-bind fd addr addrlen = linux-bind fd addr addrlen
+
+  sys-listen :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-listen fd backlog = linux-listen fd backlog
+
+  sys-accept4 :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-accept4 fd addr addrlen flags = linux-accept4 fd addr addrlen flags
+
+  sys-setsockopt :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-setsockopt fd level optname optval optlen =
+    linux-setsockopt fd level optname optval optlen
+
+  sys-getsockopt :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-getsockopt fd level optname optval optlen =
+    linux-getsockopt fd level optname optval optlen
+
+  sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-close fd = linux-close fd
+
+  sys-fcntl :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-fcntl fd cmd arg = linux-fcntl fd cmd arg
+
+  sys-sendto :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendto fd buf len flags dest-addr addrlen =
+    linux-sendto fd buf len flags dest-addr addrlen
+
+  sys-recvfrom :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvfrom fd buf len flags src-addr addrlen =
+    linux-recvfrom fd buf len flags src-addr addrlen
+
+  sys-sendmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendmsg fd msg flags = linux-sendmsg fd msg flags
+
+  sys-recvmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvmsg fd msg flags = linux-recvmsg fd msg flags
+
+  sys-sendmmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendmmsg fd msgvec vlen flags = linux-sendmmsg fd msgvec vlen flags
+
+  sys-recvmmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvmmsg fd msgvec vlen flags timeout = linux-recvmmsg fd msgvec vlen flags timeout
+
+  sys-read :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-read fd buf count = linux-read fd buf count
+
+  sys-write :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-write fd buf count = linux-write fd buf count
+
+  sys-pread :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-pread fd buf count offset = linux-syscall4 nr-pread64 fd buf count offset
+
+  sys-pwrite :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-pwrite fd buf count offset = linux-syscall4 nr-pwrite64 fd buf count offset
+
+  sys-mmap :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-mmap addr len prot flags fd offset = linux-mmap addr len prot flags fd offset
+
+  sys-munmap :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-munmap addr len = linux-munmap addr len
+
+  sys-madvise :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-madvise addr len advice = linux-madvise addr len advice
+
+  sys-openat :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-openat dirfd path flags mode = linux-openat dirfd path flags mode
+
+  sys-fallocate :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-fallocate fd mode offset len = linux-fallocate fd mode offset len
+
+  sys-fdatasync :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-fdatasync fd = linux-fdatasync fd
+
+  sys-fsync :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-fsync fd = linux-fsync fd
+
+  sys-lseek :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-lseek fd off whence = linux-lseek fd off whence
+
+  sys-splice :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-splice fd-in off-in fd-out off-out len flags =
+    linux-splice fd-in off-in fd-out off-out len flags
+
+  sys-sendfile :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendfile out-fd in-fd off-ptr count = linux-sendfile out-fd in-fd off-ptr count
+
+  sys-eventfd2 :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-eventfd2 initval flags = linux-eventfd2 initval flags
+
+  sys-clock-gettime :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-clock-gettime clock-id tp = linux-clock-gettime clock-id tp
+
+  sys-sched-setaffinity :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-sched-setaffinity pid cpusetsize mask = linux-sched-setaffinity pid cpusetsize mask
+
+  sys-epoll-create1 :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-epoll-create1 flags = linux-epoll-create1 flags
+
+  sys-epoll-ctl :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-epoll-ctl epfd op fd event = linux-epoll-ctl epfd op fd event
+
+  sys-epoll-pwait :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-epoll-pwait epfd events maxevents timeout sigmask sigsetsize =
+    linux-epoll-pwait epfd events maxevents timeout sigmask sigsetsize
+
+  -- | Set `O_NONBLOCK` on an open descriptor using `F_GETFL` + `F_SETFL`.
+  sys-set-nonblocking :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-set-nonblocking fd =
+    let flags = sys-fcntl fd f-getfl 0 in
+    if io-is-err flags then flags
+    else sys-fcntl fd f-setfl (bit-or-i64 flags o-nonblock)
+
+  -- | Construct a 16-byte Linux `struct sockaddr_in` for `127.0.0.1:port`.
+  sys-sockaddr-in-loopback :: U16 -> Bytes
+  sys-sockaddr-in-loopback port =
+    let buf = bytes-new 16 in
+    let p-hi = wrapping-u16-to-u8 (wrapping-shr-u16 port 8) in
+    let p-lo = wrapping-u16-to-u8 port in
+    let w0 = bytes-set-u8 buf 0 2 in
+    let w1 = bytes-set-u8 buf 1 0 in
+    let w2 = bytes-set-u8 buf 2 p-hi in
+    let w3 = bytes-set-u8 buf 3 p-lo in
+    let w4 = bytes-set-u8 buf 4 127 in
+    let w5 = bytes-set-u8 buf 5 0 in
+    let w6 = bytes-set-u8 buf 6 0 in
+    let w7 = bytes-set-u8 buf 7 1 in
+    buf
+
+  -- | Decode the host-order TCP/UDP port from a 16-byte `sockaddr_in` buffer.
+  sys-sockaddr-in-port :: Bytes -> U16
+  sys-sockaddr-in-port buf =
+    if 4 <= bytes-len buf then
+      let hi = u8-to-u16 (bytes-get-u8 buf 2) in
+      let lo = u8-to-u16 (bytes-get-u8 buf 3) in
+      bit-or-u16 (wrapping-shl-u16 hi 8) lo
+    else 0
+
+  -- | Keep `b` alive across a syscall that receives `bytes-data b`.
+  sys-held :: forall a. Bytes -> a -> a
+  sys-held b x = case bytes-len b of
+    _ -> x

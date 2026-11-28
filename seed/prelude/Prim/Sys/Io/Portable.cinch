@@ -1,0 +1,234 @@
+-- Prim.Sys.Io.Portable: portable fallback for `Prim.Sys.Io` on targets without
+-- a native Linux or Darwin syscall backend (e.g. wasm32).
+--
+-- Pure Cinch with no `prim` and no `foreign import`: every entry point returns
+-- `-38` (`-ENOSYS`), matching the zero-allocation `-errno` convention of
+-- `Prim.Sys.Io.Linux` and `Prim.Sys.Io.Darwin`.
+module Prim.Sys.Io.Portable where
+
+  import Algebra.Arithmetic
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+
+  export Iovec, SockAddrIn, Timespec
+  export af-inet, af-inet6, sock-stream, sock-dgram
+  export sol-socket, so-reuseaddr, so-reuseport
+  export ipproto-tcp, tcp-nodelay
+  export f-getfl, f-setfl
+  export o-rdonly, o-wronly, o-rdwr, o-creat, o-trunc, o-nonblock
+  export clock-realtime, clock-monotonic
+  export prot-none, prot-read, prot-write
+  export map-shared, map-private, map-anon
+  export eintr, eagain, einprogress, enosys
+  export io-is-err, io-errno, io-is-would-block, io-is-in-progress, io-is-interrupted
+  export sys-socket, sys-bind, sys-listen, sys-setsockopt, sys-getsockopt
+  export sys-close, sys-fcntl
+  export sys-read, sys-write, sys-pread, sys-pwrite
+  export sys-sendto, sys-recvfrom, sys-sendmsg, sys-recvmsg
+  export sys-mmap, sys-munmap, sys-clock-gettime
+  export sys-set-nonblocking, sys-sockaddr-in-loopback, sys-sockaddr-in-port, sys-held
+
+  #[repr(C)]
+  record Iovec where
+    iov-base :: U64
+    iov-len :: U64
+
+  #[repr(C)]
+  record SockAddrIn where
+    sin-family :: U16
+    sin-port :: U16
+    sin-addr :: U32
+    sin-zero-lo :: U32
+    sin-zero-hi :: U32
+
+  #[repr(C)]
+  record Timespec where
+    tv-sec :: I64
+    tv-nsec :: I64
+
+  af-inet :: I64
+  af-inet = 2
+
+  af-inet6 :: I64
+  af-inet6 = 10
+
+  sock-stream :: I64
+  sock-stream = 1
+
+  sock-dgram :: I64
+  sock-dgram = 2
+
+  sol-socket :: I64
+  sol-socket = 1
+
+  so-reuseaddr :: I64
+  so-reuseaddr = 2
+
+  so-reuseport :: I64
+  so-reuseport = 15
+
+  ipproto-tcp :: I64
+  ipproto-tcp = 6
+
+  tcp-nodelay :: I64
+  tcp-nodelay = 1
+
+  f-getfl :: I64
+  f-getfl = 3
+
+  f-setfl :: I64
+  f-setfl = 4
+
+  o-rdonly :: I64
+  o-rdonly = 0
+
+  o-wronly :: I64
+  o-wronly = 1
+
+  o-rdwr :: I64
+  o-rdwr = 2
+
+  o-creat :: I64
+  o-creat = 0x40
+
+  o-trunc :: I64
+  o-trunc = 0x200
+
+  o-nonblock :: I64
+  o-nonblock = 0x800
+
+  clock-realtime :: I64
+  clock-realtime = 0
+
+  clock-monotonic :: I64
+  clock-monotonic = 1
+
+  prot-none :: I64
+  prot-none = 0
+
+  prot-read :: I64
+  prot-read = 1
+
+  prot-write :: I64
+  prot-write = 2
+
+  map-shared :: I64
+  map-shared = 1
+
+  map-private :: I64
+  map-private = 2
+
+  map-anon :: I64
+  map-anon = 0x20
+
+  eintr :: I64
+  eintr = 4
+
+  eagain :: I64
+  eagain = 11
+
+  enosys :: I64
+  enosys = 38
+
+  einprogress :: I64
+  einprogress = 115
+
+  io-is-err :: I64 -> Bool
+  io-is-err r = lt-i64 r 0 && le-i64 -4095 r
+
+  io-errno :: I64 -> I64
+  io-errno r = if io-is-err r then wrapping-neg-i64 r else 0
+
+  io-is-would-block :: I64 -> Bool
+  io-is-would-block r = eq-i64 (io-errno r) eagain
+
+  io-is-in-progress :: I64 -> Bool
+  io-is-in-progress r = eq-i64 (io-errno r) einprogress
+
+  io-is-interrupted :: I64 -> Bool
+  io-is-interrupted r = eq-i64 (io-errno r) eintr
+
+  sys-socket :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-socket domain ty proto = -38
+
+  sys-bind :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-bind fd addr addrlen = -38
+
+  sys-listen :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-listen fd backlog = -38
+
+  sys-setsockopt :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-setsockopt fd level optname optval optlen = -38
+
+  sys-getsockopt :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-getsockopt fd level optname optval optlen = -38
+
+  sys-close :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-close fd = -38
+
+  sys-fcntl :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-fcntl fd cmd arg = -38
+
+  sys-read :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-read fd buf count = -38
+
+  sys-write :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-write fd buf count = -38
+
+  sys-pread :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-pread fd buf count offset = -38
+
+  sys-pwrite :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-pwrite fd buf count offset = -38
+
+  sys-sendto :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendto fd buf len flags dest-addr addrlen = -38
+
+  sys-recvfrom :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvfrom fd buf len flags src-addr addrlen = -38
+
+  sys-sendmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-sendmsg fd msg flags = -38
+
+  sys-recvmsg :: forall r. using (io :: Io r) => I64 -> I64 -> I64 ->{IO r} I64
+  sys-recvmsg fd msg flags = -38
+
+  sys-mmap :: forall r. using (io :: Io r) => I64 -> I64 -> I64 -> I64 -> I64 -> I64 ->{IO r} I64
+  sys-mmap addr len prot flags fd offset = -38
+
+  sys-munmap :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-munmap addr len = -38
+
+  sys-clock-gettime :: forall r. using (io :: Io r) => I64 -> I64 ->{IO r} I64
+  sys-clock-gettime clock-id tp = -38
+
+  sys-set-nonblocking :: forall r. using (io :: Io r) => I64 ->{IO r} I64
+  sys-set-nonblocking fd = -38
+
+  sys-sockaddr-in-loopback :: U16 -> Bytes
+  sys-sockaddr-in-loopback port =
+    let buf = bytes-new 16 in
+    let p-hi = wrapping-u16-to-u8 (wrapping-shr-u16 port 8) in
+    let p-lo = wrapping-u16-to-u8 port in
+    let w0 = bytes-set-u8 buf 0 2 in
+    let w1 = bytes-set-u8 buf 1 0 in
+    let w2 = bytes-set-u8 buf 2 p-hi in
+    let w3 = bytes-set-u8 buf 3 p-lo in
+    let w4 = bytes-set-u8 buf 4 127 in
+    let w5 = bytes-set-u8 buf 5 0 in
+    let w6 = bytes-set-u8 buf 6 0 in
+    let w7 = bytes-set-u8 buf 7 1 in
+    buf
+
+  sys-sockaddr-in-port :: Bytes -> U16
+  sys-sockaddr-in-port buf =
+    if 4 <= bytes-len buf then
+      let hi = u8-to-u16 (bytes-get-u8 buf 2) in
+      let lo = u8-to-u16 (bytes-get-u8 buf 3) in
+      bit-or-u16 (wrapping-shl-u16 hi 8) lo
+    else 0
+
+  sys-held :: forall a. Bytes -> a -> a
+  sys-held b x = case bytes-len b of
+    _ -> x

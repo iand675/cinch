@@ -1327,6 +1327,22 @@
     {
       "name": "Prim.Atomic",
       "path": "Prim/Atomic.cinch"
+    },
+    {
+      "name": "Prim.Sys.Io.Darwin",
+      "path": "Prim/Sys/Io/Darwin.cinch"
+    },
+    {
+      "name": "Prim.Sys.Io.Linux",
+      "path": "Prim/Sys/Io/Linux.cinch"
+    },
+    {
+      "name": "Prim.Sys.Io.Portable",
+      "path": "Prim/Sys/Io/Portable.cinch"
+    },
+    {
+      "name": "Prim.Sys.Io",
+      "path": "Prim/Sys/Io.cinch"
     }
   ],
   "order": [
@@ -1660,6 +1676,10 @@
     "Text.User",
     "Effect.User",
     "Prim.SimdExt",
-    "Prim.Atomic"
+    "Prim.Atomic",
+    "Prim.Sys.Io.Darwin",
+    "Prim.Sys.Io.Linux",
+    "Prim.Sys.Io.Portable",
+    "Prim.Sys.Io"
   ]
 }

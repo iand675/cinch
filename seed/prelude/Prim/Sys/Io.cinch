@@ -1,0 +1,16 @@
+-- Prim.Sys.Io: target-selected OS I/O syscall facade.
+--
+-- Mirrors `Prim.Sys`: selects `Prim.Sys.Io.Darwin` (`kqueue` / `libSystem`) on
+-- Darwin targets, `Prim.Sys.Io.Linux` (`io_uring` / `epoll` / inline `syscall`)
+-- on Linux targets, and `Prim.Sys.Io.Portable` (`-ENOSYS` fallback) everywhere
+-- else. Selection is fixed at compile time against the compile target triple,
+-- never the build host.
+module Prim.Sys.Io where
+
+  import Prim.Sys.Io.Darwin when os darwin
+  import Prim.Sys.Io.Linux when os linux
+  import Prim.Sys.Io.Portable when not (os darwin) when not (os linux)
+
+  export module Prim.Sys.Io.Darwin
+  export module Prim.Sys.Io.Linux
+  export module Prim.Sys.Io.Portable
