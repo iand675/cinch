@@ -1,0 +1,772 @@
+-- | O(1) 4-level hierarchical hashed timer wheel (`TimerWheel`) and cached
+-- 1-second RFC 9110 HTTP `Date:` formatter (`CoarseClockCache`).
+--
+-- Memory & allocation contract:
+--   * Both `TimerWheel` and `CoarseClockCache` are 16-byte `#[repr(C, value)]`
+--     POD handles backed by page-aligned DMA slabs (`engine-dma-alloc`).
+--   * Zero heap allocations and zero atomic RC traffic in steady state across
+--     `timer-wheel-schedule`, `timer-wheel-cancel`, `timer-wheel-reschedule`,
+--     `timer-wheel-advance`, `timer-wheel-next-deadline-raw`, and
+--     `coarse-date-refresh`.
+--
+-- Wheel geometry (XOR hierarchical indexing):
+--   * 4 levels x 256 buckets = 1024 wheel buckets + 1 overflow bucket:
+--     - L0: 256 x 1 ms      = 256 ms
+--     - L1: 256 x 256 ms    = 65.536 s
+--     - L2: 256 x 65.536 s  = 4.66 h
+--     - L3: 256 x 4.66 h    = 49.7 d
+--     - Overflow: deadlines beyond the current 2^32 ms epoch
+--   * Intrusive doubly-linked 32-byte timer nodes + intrusive freelist +
+--     4x4 `U64` occupancy bitmaps for O(1) `trailing-zeros-u64` next-deadline
+--     lookup and empty-span skipping during `timer-wheel-advance`.
+--   * Stale-proof `GenHandle`s (`(gen << 32) | idx`, with `gen /= 0`) reject
+--     double-cancel, stale-cancel, and stale-reschedule in O(1).
+module Engine.Timer where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Data.String
+  import Engine.Types
+  import Prim.Atomic
+
+  -- 4-level hierarchical hashed timer wheel
+  export TimerWheel
+  export timer-wheel-new, timer-wheel-destroy
+  export timer-wheel-schedule, timer-wheel-cancel, timer-wheel-reschedule
+  export timer-wheel-next-deadline-ms, timer-wheel-next-deadline-raw
+  export timer-wheel-advance, timer-wheel-active-count
+  export timer-wheel-now-ms, timer-wheel-capacity
+
+  -- 1-second cached RFC 9110 IMF-fixdate formatter
+  export CoarseClockCache
+  export coarse-clock-new, coarse-clock-destroy
+  export coarse-date-refresh, coarse-date-addr, coarse-date-len
+  export coarse-date-byte, coarse-date-last-sec, coarse-date-to-string
+
+  -- =========================================================================
+  -- 1. DMA slab layout constants & unboxed handles
+  -- =========================================================================
+
+  -- | Handle to a DMA-backed 4-level hierarchical hashed timer wheel.
+  -- Allocated once in `timer-wheel-new`; all steady-state operations mutate
+  -- the backing DMA slab in place with zero heap allocations and zero atomic RC.
+  record TimerWheel where
+    tw-base :: U64
+
+  -- | Handle to a DMA-backed 1-second RFC 9110 HTTP Date cache.
+  record CoarseClockCache where
+    ccc-base :: U64
+
+  -- Internal 16-byte POD result for O(1) bitmap scan (avoids tuple boxing).
+  -- `wake-level`: 0..3 = wheel level, 4 = overflow, 5 = empty.
+  #[repr(C, value)]
+  record WakeTarget where
+    wake-level :: U32
+    wake-slot :: U32
+    wake-ms :: U64
+
+  -- Sentinel index for empty intrusive list links and free node buckets.
+  nil-idx :: U32
+  nil-idx = 4294967295
+
+  -- Overflow bucket index (wheel buckets are 0..1023).
+  ovf-bucket :: U32
+  ovf-bucket = 1024
+
+  -- Maximum supported wheel capacity (16M timers = 512 MiB node table).
+  max-wheel-cap :: U32
+  max-wheel-cap = 16777216
+
+  -- Header offsets (cache line 0: bytes 0..63).
+  off-now-ms :: U64
+  off-now-ms = 0
+
+  off-capacity :: U64
+  off-capacity = 8
+
+  off-active-count :: U64
+  off-active-count = 12
+
+  off-free-head :: U64
+  off-free-head = 16
+
+  off-ovf-head :: U64
+  off-ovf-head = 20
+
+  off-ovf-tail :: U64
+  off-ovf-tail = 24
+
+  off-slab-size :: U64
+  off-slab-size = 32
+
+  -- Occupancy bitmaps: 4 levels x 4 U64 words = 128 bytes (bytes 64..191).
+  off-bitmaps :: U64
+  off-bitmaps = 64
+
+  -- Wheel buckets: 1024 x (head: U32, tail: U32) = 8192 bytes (bytes 192..8383).
+  off-buckets :: U64
+  off-buckets = 192
+
+  -- Intrusive node pool: capacity x 32 bytes, 64-byte aligned (bytes 8384..).
+  -- Node layout (32B):
+  --   +0  prev:        U32
+  --   +4  next:        U32
+  --   +8  gen:         U32
+  --   +12 bucket:      U32
+  --   +16 deadline-ms: U64
+  --   +24 token:       U64
+  off-nodes :: U64
+  off-nodes = 8384
+
+  -- =========================================================================
+  -- 2. Low-level DMA field accessors (all zero-alloc)
+  -- =========================================================================
+
+  #[inline(always)]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)]
+  next-gen :: U32 -> U32
+  next-gen g =
+    let g1 = wrapping-add-u32 g 1 in
+    if eq-u32 g1 0 then 1 else g1
+
+  #[inline(always)]
+  bitmap-addr :: U64 -> U32 -> U32 -> I64
+  bitmap-addr base lvl word =
+    let idx = wrapping-add-u32 (wrapping-shl-u32 lvl 2) word in
+    addr-at base (wrapping-add-u64 off-bitmaps (wrapping-shl-u64 (u32-to-u64 idx) 3))
+
+  #[inline(always)]
+  bucket-head-addr :: U64 -> U32 -> I64
+  bucket-head-addr base b =
+    if eq-u32 b ovf-bucket then addr-at base off-ovf-head
+    else addr-at base (wrapping-add-u64 off-buckets (wrapping-shl-u64 (u32-to-u64 b) 3))
+
+  #[inline(always)]
+  bucket-tail-addr :: U64 -> U32 -> I64
+  bucket-tail-addr base b =
+    if eq-u32 b ovf-bucket then addr-at base off-ovf-tail
+    else addr-at base (wrapping-add-u64 off-buckets (wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 b) 3) 4))
+
+  #[inline(always)]
+  node-base :: U64 -> U32 -> U64
+  node-base base idx =
+    wrapping-add-u64 (wrapping-add-u64 base off-nodes) (wrapping-shl-u64 (u32-to-u64 idx) 5)
+
+  #[inline(always)]
+  node-load-prev :: U64 -> U32 ->{MVar} U32
+  node-load-prev base idx = raw-load-u32 (addr-at (node-base base idx) 0)
+
+  #[inline(always)]
+  node-store-prev :: U64 -> U32 -> U32 ->{MVar} Unit
+  node-store-prev base idx v = raw-store-u32 (addr-at (node-base base idx) 0) v
+
+  #[inline(always)]
+  node-load-next :: U64 -> U32 ->{MVar} U32
+  node-load-next base idx = raw-load-u32 (addr-at (node-base base idx) 4)
+
+  #[inline(always)]
+  node-store-next :: U64 -> U32 -> U32 ->{MVar} Unit
+  node-store-next base idx v = raw-store-u32 (addr-at (node-base base idx) 4) v
+
+  #[inline(always)]
+  node-load-gen :: U64 -> U32 ->{MVar} U32
+  node-load-gen base idx = raw-load-u32 (addr-at (node-base base idx) 8)
+
+  #[inline(always)]
+  node-store-gen :: U64 -> U32 -> U32 ->{MVar} Unit
+  node-store-gen base idx v = raw-store-u32 (addr-at (node-base base idx) 8) v
+
+  #[inline(always)]
+  node-load-bucket :: U64 -> U32 ->{MVar} U32
+  node-load-bucket base idx = raw-load-u32 (addr-at (node-base base idx) 12)
+
+  #[inline(always)]
+  node-store-bucket :: U64 -> U32 -> U32 ->{MVar} Unit
+  node-store-bucket base idx v = raw-store-u32 (addr-at (node-base base idx) 12) v
+
+  #[inline(always)]
+  node-load-deadline :: U64 -> U32 ->{MVar} U64
+  node-load-deadline base idx = raw-load-u64 (addr-at (node-base base idx) 16)
+
+  #[inline(always)]
+  node-store-deadline :: U64 -> U32 -> U64 ->{MVar} Unit
+  node-store-deadline base idx v = raw-store-u64 (addr-at (node-base base idx) 16) v
+
+  #[inline(always)]
+  node-load-token :: U64 -> U32 ->{MVar} U64
+  node-load-token base idx = raw-load-u64 (addr-at (node-base base idx) 24)
+
+  #[inline(always)]
+  node-store-token :: U64 -> U32 -> U64 ->{MVar} Unit
+  node-store-token base idx v = raw-store-u64 (addr-at (node-base base idx) 24) v
+
+  #[inline(always)]
+  bitmap-set :: U64 -> U32 ->{MVar} Unit
+  bitmap-set base b =
+    if ge-u32 b ovf-bucket then ()
+    else
+      let lvl = wrapping-shr-u32 b 8 in
+      let slot = bit-and-u32 b 255 in
+      let word = wrapping-shr-u32 slot 6 in
+      let bit = wrapping-shl-u64 1 (bit-and-u32 slot 63) in
+      let a = bitmap-addr base lvl word in
+      let cur = raw-load-u64 a in
+      raw-store-u64 a (bit-or-u64 cur bit)
+
+  #[inline(always)]
+  bitmap-clear :: U64 -> U32 ->{MVar} Unit
+  bitmap-clear base b =
+    if ge-u32 b ovf-bucket then ()
+    else
+      let lvl = wrapping-shr-u32 b 8 in
+      let slot = bit-and-u32 b 255 in
+      let word = wrapping-shr-u32 slot 6 in
+      let bit = wrapping-shl-u64 1 (bit-and-u32 slot 63) in
+      let a = bitmap-addr base lvl word in
+      let cur = raw-load-u64 a in
+      raw-store-u64 a (bit-and-u64 cur (bit-not-u64 bit))
+
+  -- Compute target bucket (0..1023 for L0..L3, 1024 for overflow) using XOR
+  -- hierarchical placement so no level ever wraps past `now`.
+  #[inline(always)]
+  compute-bucket :: U64 -> U64 -> U32
+  compute-bucket now deadline =
+    if le-u64 deadline now then
+      wrapping-u64-to-u32 (bit-and-u64 now 255)
+    else
+      let x = bit-xor-u64 now deadline in
+      if eq-u64 (wrapping-shr-u64 x 8) 0 then
+        wrapping-u64-to-u32 (bit-and-u64 deadline 255)
+      else if eq-u64 (wrapping-shr-u64 x 16) 0 then
+        wrapping-add-u32 256 (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 deadline 8) 255))
+      else if eq-u64 (wrapping-shr-u64 x 24) 0 then
+        wrapping-add-u32 512 (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 deadline 16) 255))
+      else if eq-u64 (wrapping-shr-u64 x 32) 0 then
+        wrapping-add-u32 768 (wrapping-u64-to-u32 (bit-and-u64 (wrapping-shr-u64 deadline 24) 255))
+      else
+        ovf-bucket
+
+  -- Append `idx` to the tail of bucket `b` in O(1) and mark occupancy bitmap.
+  link-into-bucket :: U64 -> U32 -> U32 ->{MVar} Unit
+  link-into-bucket base idx b =
+    let ha = bucket-head-addr base b in
+    let ta = bucket-tail-addr base b in
+    let tail = raw-load-u32 ta in
+    let _ = node-store-prev base idx tail in
+    let _ = node-store-next base idx nil-idx in
+    let _ = node-store-bucket base idx b in
+    if eq-u32 tail nil-idx then
+      let _ = raw-store-u32 ha idx in
+      let _ = raw-store-u32 ta idx in
+      bitmap-set base b
+    else
+      let _ = node-store-next base tail idx in
+      raw-store-u32 ta idx
+
+  -- Unlink `idx` from its current bucket `b` in O(1), clearing bitmap bit when empty.
+  unlink-from-bucket :: U64 -> U32 -> U32 ->{MVar} Unit
+  unlink-from-bucket base idx b =
+    let prev = node-load-prev base idx in
+    let nxt = node-load-next base idx in
+    let ha = bucket-head-addr base b in
+    let ta = bucket-tail-addr base b in
+    let _ = (if eq-u32 prev nil-idx then raw-store-u32 ha nxt else node-store-next base prev nxt) in
+    let _ = (if eq-u32 nxt nil-idx then raw-store-u32 ta prev else node-store-prev base nxt prev) in
+    let _ = node-store-prev base idx nil-idx in
+    let _ = node-store-next base idx nil-idx in
+    let _ = node-store-bucket base idx nil-idx in
+    if eq-u32 prev nil-idx then
+      if eq-u32 nxt nil-idx then bitmap-clear base b else ()
+    else ()
+
+  -- Return lowest occupied slot in `lvl` (`0..255`), or `256` if level is empty.
+  level-first-slot :: U64 -> U32 ->{MVar} U32
+  level-first-slot base lvl =
+    let w0 = raw-load-u64 (bitmap-addr base lvl 0) in
+    if ne-u64 w0 0 then trailing-zeros-u64 w0
+    else
+      let w1 = raw-load-u64 (bitmap-addr base lvl 1) in
+      if ne-u64 w1 0 then wrapping-add-u32 64 (trailing-zeros-u64 w1)
+      else
+        let w2 = raw-load-u64 (bitmap-addr base lvl 2) in
+        if ne-u64 w2 0 then wrapping-add-u32 128 (trailing-zeros-u64 w2)
+        else
+          let w3 = raw-load-u64 (bitmap-addr base lvl 3) in
+          if ne-u64 w3 0 then wrapping-add-u32 192 (trailing-zeros-u64 w3)
+          else 256
+
+  -- O(1) bitmap scan returning the earliest wake boundary across L0..L3 & overflow.
+  find-next-wake :: U64 -> U64 ->{MVar} WakeTarget
+  find-next-wake base now =
+    let s0 = level-first-slot base 0 in
+    if lt-u32 s0 256 then
+      let ms = bit-or-u64 (bit-and-u64 now (bit-not-u64 255)) (u32-to-u64 s0) in
+      WakeTarget 0 s0 ms
+    else
+      let s1 = level-first-slot base 1 in
+      if lt-u32 s1 256 then
+        let ms = bit-or-u64 (bit-and-u64 now (bit-not-u64 65535)) (wrapping-shl-u64 (u32-to-u64 s1) 8) in
+        WakeTarget 1 s1 ms
+      else
+        let s2 = level-first-slot base 2 in
+        if lt-u32 s2 256 then
+          let ms = bit-or-u64 (bit-and-u64 now (bit-not-u64 16777215)) (wrapping-shl-u64 (u32-to-u64 s2) 16) in
+          WakeTarget 2 s2 ms
+        else
+          let s3 = level-first-slot base 3 in
+          if lt-u32 s3 256 then
+            let ms = bit-or-u64 (bit-and-u64 now (bit-not-u64 4294967295)) (wrapping-shl-u64 (u32-to-u64 s3) 24) in
+            WakeTarget 3 s3 ms
+          else
+            let ovf = raw-load-u32 (addr-at base off-ovf-head) in
+            if ne-u32 ovf nil-idx then
+              let ms = wrapping-shl-u64 (wrapping-add-u64 (wrapping-shr-u64 now 32) 1) 32 in
+              WakeTarget 4 0 ms
+            else
+              WakeTarget 5 0 max-bound-u64
+
+  -- =========================================================================
+  -- 3. TimerWheel lifecycle & public operations
+  -- =========================================================================
+
+  init-buckets-loop :: U64 -> U32 ->{MVar} Unit
+  init-buckets-loop base b =
+    if ge-u32 b 1024 then ()
+    else
+      let _ = raw-store-u32 (bucket-head-addr base b) nil-idx in
+      let _ = raw-store-u32 (bucket-tail-addr base b) nil-idx in
+      init-buckets-loop base (wrapping-add-u32 b 1)
+
+  init-nodes-loop :: U64 -> U32 -> U32 ->{MVar} Unit
+  init-nodes-loop base i cap =
+    if ge-u32 i cap then ()
+    else
+      let nxt = if lt-u32 (wrapping-add-u32 i 1) cap then wrapping-add-u32 i 1 else nil-idx in
+      let _ = node-store-prev base i nil-idx in
+      let _ = node-store-next base i nxt in
+      let _ = node-store-gen base i 1 in
+      let _ = node-store-bucket base i nil-idx in
+      init-nodes-loop base (wrapping-add-u32 i 1) cap
+
+  -- | Allocate and initialize a 4-level hierarchical timer wheel with capacity
+  -- `cap` timers starting at `start-now-ms`. Returns `None` if `cap == 0`,
+  -- `cap > 16777216`, or DMA allocation fails.
+  timer-wheel-new :: U32 -> U64 ->{IO, MVar} Option TimerWheel
+  timer-wheel-new cap start-now-ms =
+    if eq-u32 cap 0 then None
+    else if gt-u32 cap max-wheel-cap then None
+    else
+      let raw-bytes = wrapping-add-u64 off-nodes (wrapping-shl-u64 (u32-to-u64 cap) 5) in
+      let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc aligned 4096 in
+      if eq-u64 base 0 then None
+      else
+        let _ = raw-store-u64 (addr-at base off-now-ms) start-now-ms in
+        let _ = raw-store-u32 (addr-at base off-capacity) cap in
+        let _ = raw-store-u32 (addr-at base off-active-count) 0 in
+        let _ = raw-store-u32 (addr-at base off-free-head) 0 in
+        let _ = raw-store-u32 (addr-at base off-ovf-head) nil-idx in
+        let _ = raw-store-u32 (addr-at base off-ovf-tail) nil-idx in
+        let _ = raw-store-u64 (addr-at base off-slab-size) aligned in
+        let _ = init-buckets-loop base 0 in
+        let _ = init-nodes-loop base 0 cap in
+        Some (TimerWheel base)
+
+  -- | Release the DMA slab owned by `tw`.
+  timer-wheel-destroy :: TimerWheel ->{IO, MVar} Unit
+  timer-wheel-destroy tw =
+    if eq-u64 tw.tw-base 0 then ()
+    else
+      let sz = raw-load-u64 (addr-at tw.tw-base off-slab-size) in
+      let _ = engine-dma-free tw.tw-base sz in
+      ()
+
+  -- | Return the wheel's current monotonic time in milliseconds.
+  timer-wheel-now-ms :: TimerWheel ->{MVar} U64
+  timer-wheel-now-ms tw = raw-load-u64 (addr-at tw.tw-base off-now-ms)
+
+  -- | Return the wheel's fixed timer capacity.
+  timer-wheel-capacity :: TimerWheel ->{MVar} U32
+  timer-wheel-capacity tw = raw-load-u32 (addr-at tw.tw-base off-capacity)
+
+  -- | Return the number of currently active (scheduled, uncancelled, unfired) timers.
+  timer-wheel-active-count :: TimerWheel ->{MVar} U32
+  timer-wheel-active-count tw = raw-load-u32 (addr-at tw.tw-base off-active-count)
+
+  -- | O(1) schedule a timer to fire at `deadline-ms` with payload `tok`.
+  -- Returns a stale-proof `GenHandle`, or `gen-handle-null ()` if the wheel is full.
+  timer-wheel-schedule :: TimerWheel -> U64 -> IoToken ->{MVar} GenHandle
+  timer-wheel-schedule tw deadline-ms tok =
+    let base = tw.tw-base in
+    let idx = raw-load-u32 (addr-at base off-free-head) in
+    if eq-u32 idx nil-idx then gen-handle-null ()
+    else
+      let nxt-free = node-load-next base idx in
+      let _ = raw-store-u32 (addr-at base off-free-head) nxt-free in
+      let gen = node-load-gen base idx in
+      let _ = node-store-deadline base idx deadline-ms in
+      let _ = node-store-token base idx tok.io-token-raw in
+      let now = raw-load-u64 (addr-at base off-now-ms) in
+      let b = compute-bucket now deadline-ms in
+      let _ = link-into-bucket base idx b in
+      let active = raw-load-u32 (addr-at base off-active-count) in
+      let _ = raw-store-u32 (addr-at base off-active-count) (wrapping-add-u32 active 1) in
+      gen-handle-pack gen idx
+
+  -- | O(1) cancel an active timer handle, unlinking it and bumping its slot generation.
+  -- Returns `False` for null, out-of-range, already-fired, or already-cancelled handles.
+  timer-wheel-cancel :: TimerWheel -> GenHandle ->{MVar} Bool
+  timer-wheel-cancel tw h =
+    if gen-handle-is-null h then eq-u32 0 1
+    else
+      let base = tw.tw-base in
+      let idx = gen-handle-idx h in
+      let cap = raw-load-u32 (addr-at base off-capacity) in
+      if ge-u32 idx cap then eq-u32 0 1
+      else
+        let want-gen = gen-handle-gen h in
+        let cur-gen = node-load-gen base idx in
+        if ne-u32 cur-gen want-gen then eq-u32 0 1
+        else
+          let b = node-load-bucket base idx in
+          if eq-u32 b nil-idx then eq-u32 0 1
+          else
+            let _ = unlink-from-bucket base idx b in
+            let _ = node-store-gen base idx (next-gen cur-gen) in
+            let old-free = raw-load-u32 (addr-at base off-free-head) in
+            let _ = node-store-next base idx old-free in
+            let _ = raw-store-u32 (addr-at base off-free-head) idx in
+            let active = raw-load-u32 (addr-at base off-active-count) in
+            let _ = raw-store-u32 (addr-at base off-active-count) (wrapping-sub-u32 active 1) in
+            eq-u32 0 0
+
+  -- | O(1) reschedule an active timer in place (e.g. HTTP keep-alive refresh)
+  -- without touching the freelist. Bumps slot generation so the old handle becomes
+  -- stale and returns the refreshed `GenHandle` (or `gen-handle-null ()` if stale).
+  timer-wheel-reschedule :: TimerWheel -> GenHandle -> U64 ->{MVar} GenHandle
+  timer-wheel-reschedule tw h new-deadline-ms =
+    if gen-handle-is-null h then gen-handle-null ()
+    else
+      let base = tw.tw-base in
+      let idx = gen-handle-idx h in
+      let cap = raw-load-u32 (addr-at base off-capacity) in
+      if ge-u32 idx cap then gen-handle-null ()
+      else
+        let want-gen = gen-handle-gen h in
+        let cur-gen = node-load-gen base idx in
+        if ne-u32 cur-gen want-gen then gen-handle-null ()
+        else
+          let old-b = node-load-bucket base idx in
+          if eq-u32 old-b nil-idx then gen-handle-null ()
+          else
+            let _ = unlink-from-bucket base idx old-b in
+            let g2 = next-gen cur-gen in
+            let _ = node-store-gen base idx g2 in
+            let _ = node-store-deadline base idx new-deadline-ms in
+            let now = raw-load-u64 (addr-at base off-now-ms) in
+            let new-b = compute-bucket now new-deadline-ms in
+            let _ = link-into-bucket base idx new-b in
+            gen-handle-pack g2 idx
+
+  -- | Zero-alloc O(1) bitmap scan returning the next wake deadline in ms,
+  -- or `max-bound-u64` when the wheel is empty.
+  timer-wheel-next-deadline-raw :: TimerWheel ->{MVar} U64
+  timer-wheel-next-deadline-raw tw =
+    let base = tw.tw-base in
+    let active = raw-load-u32 (addr-at base off-active-count) in
+    if eq-u32 active 0 then max-bound-u64
+    else
+      let now = raw-load-u64 (addr-at base off-now-ms) in
+      let wt = find-next-wake base now in
+      wt.wake-ms
+
+  -- | O(1) bitmap scan returning the next wake deadline for `io_uring` / `kqueue`
+  -- reactor wait timeouts (`None` iff no active timers). Exact for L0 timers;
+  -- conservative bucket start (`now < d <= min-deadline`) for higher levels.
+  timer-wheel-next-deadline-ms :: TimerWheel ->{MVar} Option U64
+  timer-wheel-next-deadline-ms tw =
+    let base = tw.tw-base in
+    let active = raw-load-u32 (addr-at base off-active-count) in
+    if eq-u32 active 0 then None
+    else
+      let now = raw-load-u64 (addr-at base off-now-ms) in
+      let wt = find-next-wake base now in
+      if ge-u32 wt.wake-level 5 then None
+      else Some wt.wake-ms
+
+  -- Re-insert every node from a detached higher-level list at `now`.
+  cascade-chain :: U64 -> U64 -> U32 ->{MVar} Unit
+  cascade-chain base now idx =
+    if eq-u32 idx nil-idx then ()
+    else
+      let nxt = node-load-next base idx in
+      let dl = node-load-deadline base idx in
+      let dst-b = compute-bucket now dl in
+      let _ = link-into-bucket base idx dst-b in
+      cascade-chain base now nxt
+
+  -- Detach bucket `b` and cascade all of its nodes down to finer levels at `now`.
+  cascade-bucket :: U64 -> U64 -> U32 ->{MVar} Unit
+  cascade-bucket base now b =
+    let ha = bucket-head-addr base b in
+    let ta = bucket-tail-addr base b in
+    let head = raw-load-u32 ha in
+    let _ = raw-store-u32 ha nil-idx in
+    let _ = raw-store-u32 ta nil-idx in
+    let _ = bitmap-clear base b in
+    cascade-chain base now head
+
+  -- Pop and fire all nodes in L0 bucket `slot` one-by-one (re-entrancy safe:
+  -- callbacks may cancel or schedule other timers safely).
+  drain-l0-bucket :: U64 -> U32 -> (IoToken ->{MVar} Unit) -> U32 ->{MVar} U32
+  drain-l0-bucket base slot cb fired =
+    let head = raw-load-u32 (bucket-head-addr base slot) in
+    if eq-u32 head nil-idx then fired
+    else
+      let tok-raw = node-load-token base head in
+      let cur-gen = node-load-gen base head in
+      let _ = unlink-from-bucket base head slot in
+      let _ = node-store-gen base head (next-gen cur-gen) in
+      let old-free = raw-load-u32 (addr-at base off-free-head) in
+      let _ = node-store-next base head old-free in
+      let _ = raw-store-u32 (addr-at base off-free-head) head in
+      let active = raw-load-u32 (addr-at base off-active-count) in
+      let _ = raw-store-u32 (addr-at base off-active-count) (wrapping-sub-u32 active 1) in
+      let _ = cb (IoToken tok-raw) in
+      drain-l0-bucket base slot cb (wrapping-add-u32 fired 1)
+
+  advance-loop :: U64 -> U64 -> (IoToken ->{MVar} Unit) -> U32 ->{MVar} U32
+  advance-loop base target-ms cb fired =
+    let active = raw-load-u32 (addr-at base off-active-count) in
+    if eq-u32 active 0 then
+      let _ = raw-store-u64 (addr-at base off-now-ms) target-ms in
+      fired
+    else
+      let now = raw-load-u64 (addr-at base off-now-ms) in
+      let wt = find-next-wake base now in
+      if ge-u32 wt.wake-level 5 then
+        let _ = raw-store-u64 (addr-at base off-now-ms) target-ms in
+        fired
+      else if gt-u64 wt.wake-ms target-ms then
+        let _ = raw-store-u64 (addr-at base off-now-ms) target-ms in
+        fired
+      else
+        let next-now = wt.wake-ms in
+        let _ = raw-store-u64 (addr-at base off-now-ms) next-now in
+        if eq-u32 wt.wake-level 0 then
+          let fired2 = drain-l0-bucket base wt.wake-slot cb fired in
+          advance-loop base target-ms cb fired2
+        else if eq-u32 wt.wake-level 4 then
+          let _ = cascade-bucket base next-now ovf-bucket in
+          advance-loop base target-ms cb fired
+        else
+          let b = wrapping-add-u32 (wrapping-shl-u32 wt.wake-level 8) wt.wake-slot in
+          let _ = cascade-bucket base next-now b in
+          advance-loop base target-ms cb fired
+
+  -- | Advance the timer wheel to `target-now-ms`, cascading higher levels cleanly
+  -- and invoking `cb` for every expired timer in deadline + FIFO order.
+  -- Returns the number of expired timers fired. If `target-now-ms < now-ms`,
+  -- returns `0` without moving the wheel backward.
+  timer-wheel-advance :: TimerWheel -> U64 -> (IoToken ->{MVar} Unit) ->{MVar} U32
+  timer-wheel-advance tw target-now-ms cb =
+    let base = tw.tw-base in
+    let now = raw-load-u64 (addr-at base off-now-ms) in
+    if lt-u64 target-now-ms now then 0
+    else advance-loop base target-now-ms cb 0
+
+  -- =========================================================================
+  -- 4. CoarseClockCache: 1-second cached RFC 9110 IMF-fixdate (29 bytes)
+  -- =========================================================================
+
+  -- Layout in 4096-byte DMA slab:
+  --   +0  last-sec :: U64
+  --   +8  valid    :: U64 (0 = uninitialized, 1 = initialized)
+  --   +16 buf[29]  :: ASCII "Sat, 28 Nov 2026 14:00:00 GMT"
+  ccc-off-last-sec :: U64
+  ccc-off-last-sec = 0
+
+  ccc-off-valid :: U64
+  ccc-off-valid = 8
+
+  ccc-off-buf :: U64
+  ccc-off-buf = 16
+
+  -- | Allocate a DMA-backed `CoarseClockCache`.
+  coarse-clock-new :: Unit ->{IO, MVar} Option CoarseClockCache
+  coarse-clock-new _ =
+    let base = engine-dma-alloc 4096 4096 in
+    if eq-u64 base 0 then None
+    else
+      let _ = raw-store-u64 (addr-at base ccc-off-last-sec) max-bound-u64 in
+      let _ = raw-store-u64 (addr-at base ccc-off-valid) 0 in
+      Some (CoarseClockCache base)
+
+  -- | Free the DMA slab owned by `cache`.
+  coarse-clock-destroy :: CoarseClockCache ->{IO, MVar} Unit
+  coarse-clock-destroy cache =
+    if eq-u64 cache.ccc-base 0 then ()
+    else
+      let _ = engine-dma-free cache.ccc-base 4096 in
+      ()
+
+  -- | Raw address of the 29-byte RFC 9110 IMF-fixdate buffer in DMA memory.
+  #[no-alloc]
+  coarse-date-addr :: CoarseClockCache -> U64
+  coarse-date-addr cache = wrapping-add-u64 cache.ccc-base ccc-off-buf
+
+  -- | Fixed length (29 bytes) of an RFC 9110 IMF-fixdate header value.
+  #[no-alloc]
+  coarse-date-len :: Unit -> U32
+  coarse-date-len _ = 29
+
+  -- | Return the cached Unix timestamp in seconds.
+  coarse-date-last-sec :: CoarseClockCache ->{MVar} U64
+  coarse-date-last-sec cache = raw-load-u64 (addr-at cache.ccc-base ccc-off-last-sec)
+
+  -- | Read byte `idx` (`0..28`) from the cached 29-byte RFC 9110 date buffer.
+  coarse-date-byte :: CoarseClockCache -> U32 ->{MVar} U8
+  coarse-date-byte cache idx =
+    if ge-u32 idx 29 then 0
+    else raw-load-u8 (addr-at cache.ccc-base (wrapping-add-u64 ccc-off-buf (u32-to-u64 idx)))
+
+  #[inline(always)]
+  store-ascii3 :: U64 -> U64 -> U8 -> U8 -> U8 ->{MVar} Unit
+  store-ascii3 buf off c0 c1 c2 =
+    let _ = raw-store-u8 (addr-at buf off) c0 in
+    let _ = raw-store-u8 (addr-at buf (wrapping-add-u64 off 1)) c1 in
+    raw-store-u8 (addr-at buf (wrapping-add-u64 off 2)) c2
+
+  store-wday :: U64 -> U64 ->{MVar} Unit
+  store-wday buf wday =
+    if eq-u64 wday 0 then store-ascii3 buf 0 83 117 110       -- Sun
+    else if eq-u64 wday 1 then store-ascii3 buf 0 77 111 110  -- Mon
+    else if eq-u64 wday 2 then store-ascii3 buf 0 84 117 101  -- Tue
+    else if eq-u64 wday 3 then store-ascii3 buf 0 87 101 100  -- Wed
+    else if eq-u64 wday 4 then store-ascii3 buf 0 84 104 117  -- Thu
+    else if eq-u64 wday 5 then store-ascii3 buf 0 70 114 105  -- Fri
+    else store-ascii3 buf 0 83 97 116                         -- Sat
+
+  store-month :: U64 -> U64 ->{MVar} Unit
+  store-month buf m =
+    if eq-u64 m 1 then store-ascii3 buf 8 74 97 110           -- Jan
+    else if eq-u64 m 2 then store-ascii3 buf 8 70 101 98      -- Feb
+    else if eq-u64 m 3 then store-ascii3 buf 8 77 97 114      -- Mar
+    else if eq-u64 m 4 then store-ascii3 buf 8 65 112 114     -- Apr
+    else if eq-u64 m 5 then store-ascii3 buf 8 77 97 121      -- May
+    else if eq-u64 m 6 then store-ascii3 buf 8 74 117 110     -- Jun
+    else if eq-u64 m 7 then store-ascii3 buf 8 74 117 108     -- Jul
+    else if eq-u64 m 8 then store-ascii3 buf 8 65 117 103     -- Aug
+    else if eq-u64 m 9 then store-ascii3 buf 8 83 101 112     -- Sep
+    else if eq-u64 m 10 then store-ascii3 buf 8 79 99 116     -- Oct
+    else if eq-u64 m 11 then store-ascii3 buf 8 78 111 118    -- Nov
+    else store-ascii3 buf 8 68 101 99                         -- Dec
+
+  #[inline(always)]
+  digit-u8 :: U64 -> U8
+  digit-u8 n = wrapping-add-u8 48 (wrapping-u64-to-u8 n)
+
+  #[inline(always)]
+  store-two-digits :: U64 -> U64 -> U64 ->{MVar} Unit
+  store-two-digits buf off v =
+    let hi = div-u64 v 10 in
+    let lo = rem-u64 v 10 in
+    let _ = raw-store-u8 (addr-at buf off) (digit-u8 hi) in
+    raw-store-u8 (addr-at buf (wrapping-add-u64 off 1)) (digit-u8 lo)
+
+  #[inline(always)]
+  store-four-digits :: U64 -> U64 -> U64 ->{MVar} Unit
+  store-four-digits buf off v =
+    let d0 = rem-u64 (div-u64 v 1000) 10 in
+    let d1 = rem-u64 (div-u64 v 100) 10 in
+    let d2 = rem-u64 (div-u64 v 10) 10 in
+    let d3 = rem-u64 v 10 in
+    let _ = raw-store-u8 (addr-at buf off) (digit-u8 d0) in
+    let _ = raw-store-u8 (addr-at buf (wrapping-add-u64 off 1)) (digit-u8 d1) in
+    let _ = raw-store-u8 (addr-at buf (wrapping-add-u64 off 2)) (digit-u8 d2) in
+    raw-store-u8 (addr-at buf (wrapping-add-u64 off 3)) (digit-u8 d3)
+
+  -- Format `unix-sec` (seconds since 1970-01-01T00:00:00Z) as exact 29-byte
+  -- RFC 9110 IMF-fixdate into `buf` using Howard Hinnant's civil-from-days.
+  format-imf-fixdate :: U64 -> U64 ->{MVar} Unit
+  format-imf-fixdate buf unix-sec =
+    let days = div-u64 unix-sec 86400 in
+    let rem-day = rem-u64 unix-sec 86400 in
+    let hour = div-u64 rem-day 3600 in
+    let rem-hr = rem-u64 rem-day 3600 in
+    let minute = div-u64 rem-hr 60 in
+    let second = rem-u64 rem-hr 60 in
+    let wday = rem-u64 (wrapping-add-u64 days 4) 7 in
+    -- Howard Hinnant civil-from-days (exact for all proleptic Gregorian dates >= 1970-01-01)
+    let z = wrapping-add-u64 days 719468 in
+    let era = div-u64 z 146097 in
+    let doe = wrapping-sub-u64 z (wrapping-mul-u64 era 146097) in
+    let yoe-num = wrapping-sub-u64 (wrapping-add-u64 (wrapping-sub-u64 doe (div-u64 doe 1460)) (div-u64 doe 36524)) (div-u64 doe 146096) in
+    let yoe = div-u64 yoe-num 365 in
+    let y0 = wrapping-add-u64 yoe (wrapping-mul-u64 era 400) in
+    let doy = wrapping-sub-u64 doe (wrapping-sub-u64 (wrapping-add-u64 (wrapping-mul-u64 365 yoe) (div-u64 yoe 4)) (div-u64 yoe 100)) in
+    let mp = div-u64 (wrapping-add-u64 (wrapping-mul-u64 5 doy) 2) 153 in
+    let day = wrapping-add-u64 (wrapping-sub-u64 doy (div-u64 (wrapping-add-u64 (wrapping-mul-u64 153 mp) 2) 5)) 1 in
+    let month = if lt-u64 mp 10 then wrapping-add-u64 mp 3 else wrapping-sub-u64 mp 9 in
+    let year = if le-u64 month 2 then wrapping-add-u64 y0 1 else y0 in
+    let _ = store-wday buf wday in
+    let _ = raw-store-u8 (addr-at buf 3) 44 in        -- ','
+    let _ = raw-store-u8 (addr-at buf 4) 32 in        -- ' '
+    let _ = store-two-digits buf 5 day in
+    let _ = raw-store-u8 (addr-at buf 7) 32 in        -- ' '
+    let _ = store-month buf month in
+    let _ = raw-store-u8 (addr-at buf 11) 32 in       -- ' '
+    let _ = store-four-digits buf 12 year in
+    let _ = raw-store-u8 (addr-at buf 16) 32 in       -- ' '
+    let _ = store-two-digits buf 17 hour in
+    let _ = raw-store-u8 (addr-at buf 19) 58 in       -- ':'
+    let _ = store-two-digits buf 20 minute in
+    let _ = raw-store-u8 (addr-at buf 22) 58 in       -- ':'
+    let _ = store-two-digits buf 23 second in
+    let _ = raw-store-u8 (addr-at buf 25) 32 in       -- ' '
+    store-ascii3 buf 26 71 77 84                      -- "GMT"
+
+  -- | Refresh the cached 29-byte RFC 9110 `Date:` value if and only if
+  -- `unix-sec /= last-sec` (or on initial call). Returns `True` when reformatted
+  -- and `False` immediately in 1 compare on a same-second cache hit. Zero-alloc.
+  coarse-date-refresh :: CoarseClockCache -> U64 ->{MVar} Bool
+  coarse-date-refresh cache unix-sec =
+    let base = cache.ccc-base in
+    let last = raw-load-u64 (addr-at base ccc-off-last-sec) in
+    let valid = raw-load-u64 (addr-at base ccc-off-valid) in
+    if eq-u64 valid 1 then
+      if eq-u64 unix-sec last then eq-u32 0 1
+      else
+        let _ = format-imf-fixdate (wrapping-add-u64 base ccc-off-buf) unix-sec in
+        let _ = raw-store-u64 (addr-at base ccc-off-last-sec) unix-sec in
+        eq-u32 0 0
+    else
+      let _ = format-imf-fixdate (wrapping-add-u64 base ccc-off-buf) unix-sec in
+      let _ = raw-store-u64 (addr-at base ccc-off-last-sec) unix-sec in
+      let _ = raw-store-u64 (addr-at base ccc-off-valid) 1 in
+      eq-u32 0 0
+
+  copy-date-loop :: CoarseClockCache -> Bytes -> I64 ->{MVar} Unit
+  copy-date-loop cache dst i =
+    if i >= 29 then ()
+    else if i >= 0 && i < bytes-len-i64 dst then
+      let b = coarse-date-byte cache (wrapping-i64-to-u32 i) in
+      let _ = bytes-set-u8-at dst i b in
+      copy-date-loop cache dst (wrapping-add-i64 i 1)
+    else ()
+
+  -- | Copy the cached 29-byte RFC 9110 IMF-fixdate into a `String` (helper for
+  -- diagnostics and tests; steady-state HTTP writers read `coarse-date-addr`).
+  coarse-date-to-string :: CoarseClockCache ->{MVar} String
+  coarse-date-to-string cache =
+    let buf = bytes-new 29 in
+    let _ = copy-date-loop cache buf 0 in
+    case string-from-bytes buf of
+      Some s -> s
+      None -> ""

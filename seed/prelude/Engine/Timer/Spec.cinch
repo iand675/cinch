@@ -1,0 +1,445 @@
+-- | Formal Model M4 (`TimerWheelMachine`) for `Engine.Timer`.
+--
+-- Verifies the exact XOR hierarchical level-placement and multi-level cascade
+-- algorithm on a miniature 2-level hierarchical wheel (4 slots x 2 levels =
+-- 16 ticks, 2 bounded timer slots `Slot0`, `Slot1`):
+--
+--   * `noEarlyFireAndExactCount` (safety):
+--       - No timer ever fires before (or after) its exact `deadline`.
+--       - No cancelled timer ever fires.
+--       - `activeCount == countArmed` and `wheelLinks == activeCount`.
+--       - Every armed timer satisfies the exact XOR level/slot placement invariant.
+--   * `timerDeadlockFree` (safety): `deadlock_free = (True)`.
+--   * `allTimersFire` & `allActiveDrain` (liveness, `fair = [tw-step-tick]`):
+--       - Every uncancelled armed timer eventually fires at its exact deadline.
+--   * `refines TimerWheelMachine AbstractTimerSet` (stuttering simulation with
+--     ranking `measure`):
+--       - Every cascade step is a pure stuttering step that strictly decreases
+--         `tw-cascade-measure` (pending L1 timers), proving cascades strictly
+--         terminate with zero stuttering livelock.
+module Engine.Timer.Spec where
+
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  export TimerSlot, Slot0, Slot1
+  export DeltaChoice, D0, D1, D3, D4, D8
+  export WheelTimer, WtIdle, WtArmed, WtFired, WtCancelled
+  export WheelState, AbsTimer, AbsIdle, AbsArmed, AbsFired, AbsCancelled, AbsWheelState
+  export tw-place-level, tw-place-slot
+  export tw-schedule, tw-cancel, tw-step-tick
+  export tw-view, tw-cascade-measure
+  export abs-schedule, abs-cancel, abs-step-tick
+
+  -- Bounded 2-timer domain (`Fin 2`).
+  data TimerSlot where
+    Slot0 :: TimerSlot
+    Slot1 :: TimerSlot
+
+  -- Representative delay choices exercising L0 immediate, L0 near, L0/L1 wrap
+  -- boundary, L1 +1 bucket cascade, and L1 +2 bucket cascade.
+  data DeltaChoice where
+    D0 :: DeltaChoice
+    D1 :: DeltaChoice
+    D3 :: DeltaChoice
+    D4 :: DeltaChoice
+    D8 :: DeltaChoice
+
+  delta-value :: DeltaChoice -> Nat
+  delta-value d = case d of
+    D0 -> 0
+    D1 -> 1
+    D3 -> 3
+    D4 -> 4
+    D8 -> 8
+
+  -- Concrete per-timer wheel state:
+  --   WtArmed deadline level slot
+  -- where `level` is 0 (L0, 1 tick/slot) or 1 (L1, 4 ticks/slot) and `slot` in 0..3.
+  data WheelTimer where
+    WtIdle :: WheelTimer
+    WtArmed :: Nat -> Nat -> Nat -> WheelTimer
+    WtFired :: WheelTimer
+    WtCancelled :: WheelTimer
+
+  -- Exact 2-level XOR hierarchical placement (identical to `Engine.Timer.compute-bucket`):
+  --   * L0 iff `deadline / 4 == now / 4` (same 4-tick L1 bucket), slot = `deadline % 4`.
+  --   * L1 iff `deadline / 4 > now / 4`, slot = `deadline / 4`.
+  tw-place-level :: Nat -> Nat -> Nat
+  tw-place-level now deadline =
+    if deadline <= now then 0
+    else if nat-div deadline 4 == nat-div now 4 then 0
+    else 1
+
+  tw-place-slot :: Nat -> Nat -> Nat
+  tw-place-slot now deadline =
+    if deadline <= now then nat-rem now 4
+    else if nat-div deadline 4 == nat-div now 4 then nat-rem deadline 4
+    else nat-div deadline 4
+
+  record WheelState where
+    now :: Nat
+    t0 :: WheelTimer
+    t1 :: WheelTimer
+    activeCount :: Nat
+    wheelLinks :: Nat
+    earlyFire :: Bool
+    lateFire :: Bool
+    cancelledFire :: Bool
+
+  is-armed :: WheelTimer -> Bool
+  is-armed wt = case wt of
+    WtArmed _ _ _ -> True
+    _ -> False
+
+  is-idle :: WheelTimer -> Bool
+  is-idle wt = case wt of
+    WtIdle -> True
+    _ -> False
+
+  is-l1-at :: Nat -> WheelTimer -> Bool
+  is-l1-at bucket wt = case wt of
+    WtArmed _ lvl slot -> lvl == 1 && slot == bucket
+    _ -> False
+
+  is-l0-at :: Nat -> WheelTimer -> Bool
+  is-l0-at slot wt = case wt of
+    WtArmed _ lvl sl -> lvl == 0 && sl == slot
+    _ -> False
+
+  count-armed :: WheelState -> Nat
+  count-armed s =
+    (if is-armed s.t0 then 1 else 0) + (if is-armed s.t1 then 1 else 0)
+
+  timer-inv-ok :: Nat -> WheelTimer -> Bool
+  timer-inv-ok cur wt = case wt of
+    WtIdle -> True
+    WtFired -> True
+    WtCancelled -> True
+    WtArmed dl lvl slot ->
+      dl >= cur && dl <= 15 &&
+      (if lvl == 0
+       then nat-div dl 4 == nat-div cur 4 && slot == nat-rem dl 4
+       else lvl == 1 && nat-div dl 4 >= nat-div cur 4 && slot == nat-div dl 4 && slot <= 3)
+
+  -- Action 1: Schedule an idle timer slot with delay `d` (within the 16-tick epoch).
+  tw-schedule :: TimerSlot -> DeltaChoice -> WheelState -> Option WheelState
+  tw-schedule sid dc s =
+    let dl = s.now + delta-value dc in
+    if dl > 15 then None
+    else
+      let lvl = tw-place-level s.now dl in
+      let slot = tw-place-slot s.now dl in
+      let armed = WtArmed dl lvl slot in
+      case sid of
+        Slot0 ->
+          if is-idle s.t0 then
+            Some (WheelState {
+              now = s.now,
+              t0 = armed,
+              t1 = s.t1,
+              activeCount = s.activeCount + 1,
+              wheelLinks = s.wheelLinks + 1,
+              earlyFire = s.earlyFire,
+              lateFire = s.lateFire,
+              cancelledFire = s.cancelledFire
+            })
+          else None
+        Slot1 ->
+          if is-idle s.t1 then
+            Some (WheelState {
+              now = s.now,
+              t0 = s.t0,
+              t1 = armed,
+              activeCount = s.activeCount + 1,
+              wheelLinks = s.wheelLinks + 1,
+              earlyFire = s.earlyFire,
+              lateFire = s.lateFire,
+              cancelledFire = s.cancelledFire
+            })
+          else None
+
+  -- Action 2: Cancel an armed timer slot (unlinks immediately; cancelled timer never fires).
+  tw-cancel :: TimerSlot -> WheelState -> Option WheelState
+  tw-cancel sid s =
+    let ac = s.activeCount in
+    let wl = s.wheelLinks in
+    if ac == 0 || wl == 0 then None
+    else case sid of
+      Slot0 ->
+        if is-armed s.t0 then
+          Some (WheelState {
+            now = s.now,
+            t0 = WtCancelled,
+            t1 = s.t1,
+            activeCount = ac - 1,
+            wheelLinks = wl - 1,
+            earlyFire = s.earlyFire,
+            lateFire = s.lateFire,
+            cancelledFire = s.cancelledFire
+          })
+        else None
+      Slot1 ->
+        if is-armed s.t1 then
+          Some (WheelState {
+            now = s.now,
+            t0 = s.t0,
+            t1 = WtCancelled,
+            activeCount = ac - 1,
+            wheelLinks = wl - 1,
+            earlyFire = s.earlyFire,
+            lateFire = s.lateFire,
+            cancelledFire = s.cancelledFire
+          })
+        else None
+
+  cascade-one :: WheelTimer -> WheelTimer
+  cascade-one wt = case wt of
+    WtArmed dl _ _ -> WtArmed dl 0 (nat-rem dl 4)
+    other -> other
+
+  fire-check-early :: Nat -> WheelTimer -> Bool
+  fire-check-early cur wt = case wt of
+    WtArmed dl _ _ -> cur < dl
+    _ -> False
+
+  fire-check-late :: Nat -> WheelTimer -> Bool
+  fire-check-late cur wt = case wt of
+    WtArmed dl _ _ -> cur > dl
+    _ -> False
+
+  fire-check-cancelled :: WheelTimer -> Bool
+  fire-check-cancelled wt = case wt of
+    WtCancelled -> True
+    _ -> False
+
+  -- Action 3: Step the timer wheel (continuously enabled -> deadlock-free):
+  --   1. Cascade one L1 timer in current L1 bucket `(now / 4)` down to L0 (stuttering step).
+  --   2. Fire all due L0 timers in current L0 bucket `(now % 4)`.
+  --   3. Advance `now -> now + 1` while `now < 15`.
+  --   4. Roll over epoch `now: 15 -> 0` (all timers drained) resetting `Fired`/`Cancelled` to `Idle`.
+  tw-step-tick :: WheelState -> Option WheelState
+  tw-step-tick s =
+    let l1-cur = nat-div s.now 4 in
+    let l0-cur = nat-rem s.now 4 in
+    if is-l1-at l1-cur s.t0 then
+      Some (WheelState {
+        now = s.now,
+        t0 = cascade-one s.t0,
+        t1 = s.t1,
+        activeCount = s.activeCount,
+        wheelLinks = s.wheelLinks,
+        earlyFire = s.earlyFire,
+        lateFire = s.lateFire,
+        cancelledFire = s.cancelledFire
+      })
+    else if is-l1-at l1-cur s.t1 then
+      Some (WheelState {
+        now = s.now,
+        t0 = s.t0,
+        t1 = cascade-one s.t1,
+        activeCount = s.activeCount,
+        wheelLinks = s.wheelLinks,
+        earlyFire = s.earlyFire,
+        lateFire = s.lateFire,
+        cancelledFire = s.cancelledFire
+      })
+    else
+      let fire0 = is-l0-at l0-cur s.t0 in
+      let fire1 = is-l0-at l0-cur s.t1 in
+      if fire0 || fire1 then
+        let fired-n = (if fire0 then 1 else 0) + (if fire1 then 1 else 0) in
+        let e0 = if fire0 then fire-check-early s.now s.t0 else False in
+        let e1 = if fire1 then fire-check-early s.now s.t1 else False in
+        let l0 = if fire0 then fire-check-late s.now s.t0 else False in
+        let l1 = if fire1 then fire-check-late s.now s.t1 else False in
+        let c0 = if fire0 then fire-check-cancelled s.t0 else False in
+        let c1 = if fire1 then fire-check-cancelled s.t1 else False in
+        let ac = s.activeCount in
+        let wl = s.wheelLinks in
+        let next-ac = if ac >= fired-n then ac - fired-n else 0 in
+        let next-wl = if wl >= fired-n then wl - fired-n else 0 in
+        Some (WheelState {
+          now = s.now,
+          t0 = if fire0 then WtFired else s.t0,
+          t1 = if fire1 then WtFired else s.t1,
+          activeCount = next-ac,
+          wheelLinks = next-wl,
+          earlyFire = s.earlyFire || e0 || e1,
+          lateFire = s.lateFire || l0 || l1,
+          cancelledFire = s.cancelledFire || c0 || c1
+        })
+      else if s.now < 15 then
+        Some (WheelState {
+          now = s.now + 1,
+          t0 = s.t0,
+          t1 = s.t1,
+          activeCount = s.activeCount,
+          wheelLinks = s.wheelLinks,
+          earlyFire = s.earlyFire,
+          lateFire = s.lateFire,
+          cancelledFire = s.cancelledFire
+        })
+      else
+        Some (WheelState {
+          now = 0,
+          t0 = WtIdle,
+          t1 = WtIdle,
+          activeCount = 0,
+          wheelLinks = 0,
+          earlyFire = s.earlyFire,
+          lateFire = s.lateFire,
+          cancelledFire = s.cancelledFire
+        })
+
+  machine TimerWheelMachine where
+    state = WheelState
+    init = WheelState {
+      now = 0,
+      t0 = WtIdle,
+      t1 = WtIdle,
+      activeCount = 0,
+      wheelLinks = 0,
+      earlyFire = False,
+      lateFire = False,
+      cancelledFire = False
+    }
+    actions = [tw-schedule, tw-cancel, tw-step-tick]
+    fair = [tw-step-tick]
+    max_states = 65536
+
+  contract safety noEarlyFireAndExactCount for TimerWheelMachine where
+    always = (\s ->
+      not s.earlyFire
+        && not s.lateFire
+        && not s.cancelledFire
+        && s.activeCount == count-armed s
+        && s.wheelLinks == s.activeCount
+        && timer-inv-ok s.now s.t0
+        && timer-inv-ok s.now s.t1)
+
+  contract safety timerDeadlockFree for TimerWheelMachine where
+    deadlock_free = (True)
+
+  contract liveness allTimersFire for TimerWheelMachine where
+    leads_to = (\s -> is-armed s.t0) ~> (\s -> not (is-armed s.t0))
+    fair = [tw-step-tick]
+
+  contract liveness allActiveDrain for TimerWheelMachine where
+    leads_to = (\s -> s.activeCount > 0) ~> (\s -> s.activeCount == 0)
+    fair = [tw-step-tick]
+
+  -- =========================================================================
+  -- Abstract reference specification: `AbstractTimerSet` + refinement proof
+  -- =========================================================================
+
+  data AbsTimer where
+    AbsIdle :: AbsTimer
+    AbsArmed :: Nat -> AbsTimer
+    AbsFired :: AbsTimer
+    AbsCancelled :: AbsTimer
+
+  record AbsWheelState where
+    absNow :: Nat
+    absT0 :: AbsTimer
+    absT1 :: AbsTimer
+
+  abs-is-idle :: AbsTimer -> Bool
+  abs-is-idle t = case t of
+    AbsIdle -> True
+    _ -> False
+
+  abs-is-armed :: AbsTimer -> Bool
+  abs-is-armed t = case t of
+    AbsArmed _ -> True
+    _ -> False
+
+  abs-is-due :: Nat -> AbsTimer -> Bool
+  abs-is-due cur t = case t of
+    AbsArmed dl -> dl == cur
+    _ -> False
+
+  abs-schedule :: TimerSlot -> DeltaChoice -> AbsWheelState -> Option AbsWheelState
+  abs-schedule sid dc s =
+    let dl = s.absNow + delta-value dc in
+    if dl > 15 then None
+    else case sid of
+      Slot0 ->
+        if abs-is-idle s.absT0
+        then Some (AbsWheelState { absNow = s.absNow, absT0 = AbsArmed dl, absT1 = s.absT1 })
+        else None
+      Slot1 ->
+        if abs-is-idle s.absT1
+        then Some (AbsWheelState { absNow = s.absNow, absT0 = s.absT0, absT1 = AbsArmed dl })
+        else None
+
+  abs-cancel :: TimerSlot -> AbsWheelState -> Option AbsWheelState
+  abs-cancel sid s = case sid of
+    Slot0 ->
+      if abs-is-armed s.absT0
+      then Some (AbsWheelState { absNow = s.absNow, absT0 = AbsCancelled, absT1 = s.absT1 })
+      else None
+    Slot1 ->
+      if abs-is-armed s.absT1
+      then Some (AbsWheelState { absNow = s.absNow, absT0 = s.absT0, absT1 = AbsCancelled })
+      else None
+
+  abs-step-tick :: AbsWheelState -> Option AbsWheelState
+  abs-step-tick s =
+    let due0 = abs-is-due s.absNow s.absT0 in
+    let due1 = abs-is-due s.absNow s.absT1 in
+    if due0 || due1 then
+      Some (AbsWheelState {
+        absNow = s.absNow,
+        absT0 = if due0 then AbsFired else s.absT0,
+        absT1 = if due1 then AbsFired else s.absT1
+      })
+    else if s.absNow < 15 then
+      Some (AbsWheelState {
+        absNow = s.absNow + 1,
+        absT0 = s.absT0,
+        absT1 = s.absT1
+      })
+    else
+      Some (AbsWheelState {
+        absNow = 0,
+        absT0 = AbsIdle,
+        absT1 = AbsIdle
+      })
+
+  machine AbstractTimerSet where
+    state = AbsWheelState
+    init = AbsWheelState { absNow = 0, absT0 = AbsIdle, absT1 = AbsIdle }
+    actions = [abs-schedule, abs-cancel, abs-step-tick]
+    fair = [abs-step-tick]
+    max_states = 65536
+
+  project-timer :: WheelTimer -> AbsTimer
+  project-timer wt = case wt of
+    WtIdle -> AbsIdle
+    WtArmed dl _ _ -> AbsArmed dl
+    WtFired -> AbsFired
+    WtCancelled -> AbsCancelled
+
+  tw-view :: WheelState -> AbsWheelState
+  tw-view s = AbsWheelState {
+    absNow = s.now,
+    absT0 = project-timer s.t0,
+    absT1 = project-timer s.t1
+  }
+
+  -- Ranking measure over concrete wheel states: number of timers currently in L1.
+  -- Every cascade moves one timer from L1 -> L0, strictly decreasing this measure
+  -- (`2 -> 1 -> 0`) and proving cascades strictly terminate with zero stuttering livelock.
+  is-in-l1 :: WheelTimer -> Nat
+  is-in-l1 wt = case wt of
+    WtArmed _ lvl _ -> if lvl == 1 then 1 else 0
+    _ -> 0
+
+  tw-cascade-measure :: WheelState -> Nat
+  tw-cascade-measure s = is-in-l1 s.t0 + is-in-l1 s.t1
+
+  refines TimerWheelMachine AbstractTimerSet where
+    view = tw-view
+    measure = tw-cascade-measure

@@ -1379,6 +1379,14 @@
     {
       "name": "Engine.Ring.Spec",
       "path": "Engine/Ring/Spec.cinch"
+    },
+    {
+      "name": "Engine.Timer",
+      "path": "Engine/Timer.cinch"
+    },
+    {
+      "name": "Engine.Timer.Spec",
+      "path": "Engine/Timer/Spec.cinch"
     }
   ],
   "order": [
@@ -1725,6 +1733,8 @@
     "Engine.Ring.Spsc",
     "Engine.Ring.Disruptor",
     "Engine.Ring.Shm",
-    "Engine.Ring.Spec"
+    "Engine.Ring.Spec",
+    "Engine.Timer",
+    "Engine.Timer.Spec"
   ]
 }
