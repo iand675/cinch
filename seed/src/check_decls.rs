@@ -13588,8 +13588,20 @@ impl Checker {
                 ));
             }
             if is_call && line.contains(" asm ") {
-                // An inline-asm call is opaque code (section 12).
-                opaque_calls = true;
+                // Pure register-only crypto/SIMD/CRC inline `asm` modeled by `prim_verify`
+                // is admitted without `unsafe` strictly when:
+                // 1. the body carries `justify verify`,
+                // 2. the call has no `sideeffect` and no `~{memory}` / memory clobbers, and
+                // 3. the instruction matches the verified register-only whitelist.
+                let has_verify = b
+                    .justify
+                    .as_ref()
+                    .and_then(Self::prim_verify_strategy)
+                    .is_some();
+                if !(has_verify && is_verified_register_asm_call(&line)) {
+                    // Any other inline-asm call is opaque code (section 12).
+                    opaque_calls = true;
+                }
             }
         }
         Ok((
@@ -30321,6 +30333,141 @@ fn strip_llvm_comment(line: &str) -> String {
         }
     }
     out
+}
+
+/// Pure register-only crypto/SIMD/CRC inline-asm whitelist modeled by `prim_verify`.
+/// Admitted inside a non-`unsafe` `llvm` body strictly when the body carries `justify verify`
+/// and the call has no `sideeffect` or memory clobber.
+fn is_verified_register_asm_call(line: &str) -> bool {
+    let code = strip_llvm_comment(line);
+    let code = code.trim();
+    if code.contains("~{memory}") {
+        return false;
+    }
+    let parts: Vec<&str> = code.split('"').collect();
+    if parts.len() != 5 {
+        return false;
+    }
+    let (prefix, tpl_raw, comma, cons_raw, suffix) = (parts[0], parts[1], parts[2], parts[3], parts[4]);
+    if comma.trim() != "," {
+        return false;
+    }
+    let pwords: Vec<&str> = prefix
+        .split(|c: char| c.is_whitespace() || matches!(c, '(' | ')' | ',' | '='))
+        .filter(|w| !w.is_empty())
+        .collect();
+    if pwords.contains(&"sideeffect") || prefix.contains('@') || suffix.contains('@') {
+        return false;
+    }
+    let is_intel = pwords.contains(&"inteldialect");
+    let suf = suffix.trim();
+    if !suf.starts_with('(') || !suf.ends_with(')') || suf.contains("asm") || suf.contains("call") {
+        return false;
+    }
+    let cons = cons_raw.trim();
+    let tpl_trimmed = tpl_raw.trim();
+    let stripped = tpl_trimmed
+        .strip_prefix(".arch_extension aes\\0A")
+        .or_else(|| tpl_trimmed.strip_prefix(".arch_extension aes\n"))
+        .or_else(|| tpl_trimmed.strip_prefix(".arch_extension crc\\0A"))
+        .or_else(|| tpl_trimmed.strip_prefix(".arch_extension crc\n"))
+        .unwrap_or(tpl_trimmed)
+        .trim();
+    let compact: String = stripped.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    // 1. x86_64 SSSE3/AVX `pshufb` / `vpshufb`
+    if (!is_intel
+        && ((compact == "pshufb $2, $0" && cons == "=x,0,x")
+            || (compact == "vpshufb $2, $1, $0" && cons == "=x,x,x")))
+        || (is_intel
+            && ((compact == "pshufb $0, $2" && cons == "=x,0,x")
+                || (compact == "vpshufb $0, $1, $2" && cons == "=x,x,x")))
+    {
+        return true;
+    }
+    // 2. aarch64 NEON `tbl`
+    let compact_tbl = compact.replace("{ ", "{").replace(" }", "}");
+    if compact_tbl == "tbl $0.16b, {$1.16b}, $2.16b" && matches!(cons, "=w,w,w" | "=&w,w,w") {
+        return true;
+    }
+    // 3. x86_64 SSE4.2 `crc32b`/`crc32l`/`crc32q` (register-only constraints)
+    if matches!(cons, "=r,0,r" | "=r,0,q") {
+        let ok = if !is_intel {
+            matches!(compact.as_str(), "crc32b $2, $0" | "crc32l $2, $0" | "crc32q $2, $0")
+        } else {
+            matches!(
+                compact.as_str(),
+                "crc32b $0, $2" | "crc32l $0, $2" | "crc32q $0, $2" | "crc32 $0, $2"
+            )
+        };
+        if ok {
+            return true;
+        }
+    }
+    // 4. aarch64 ARMv8 CRC `crc32cb`/`crc32cw`/`crc32cx`
+    if matches!(cons, "=r,r,r" | "=r,0,r") {
+        let mut ws = compact.splitn(2, char::is_whitespace);
+        let mnem = ws.next().unwrap_or("");
+        let rest_ops = ws.next().unwrap_or("").trim();
+        let dbits = match mnem {
+            "crc32cb" => Some(8u16),
+            "crc32cw" => Some(32u16),
+            "crc32cx" => Some(64u16),
+            _ => None,
+        };
+        if let Some(dbits) = dbits {
+            let ops: Vec<&str> = rest_ops.split(',').map(|s| s.trim()).collect();
+            let dst_ok = ops.first().is_some_and(|&o| matches!(o, "$0" | "${0:w}"));
+            let acc_ok = ops.get(1).is_some_and(|&o| {
+                matches!(o, "$1" | "${1:w}")
+                    || (cons == "=r,0,r" && matches!(o, "$0" | "${0:w}"))
+            });
+            let data_ok = ops.get(2).is_some_and(|&o| match dbits {
+                64 => matches!(o, "$2" | "${2:x}"),
+                _ => matches!(o, "$2" | "${2:w}"),
+            });
+            if ops.len() == 3 && dst_ok && acc_ok && data_ok {
+                return true;
+            }
+        }
+    }
+    // 5. x86_64 AES-NI & PCLMULQDQ
+    if cons == "=x,0,x" {
+        if matches!(
+            compact.as_str(),
+            "aesenc $2, $0" | "aesenclast $2, $0" | "aesdec $2, $0" | "aesdeclast $2, $0"
+        ) {
+            return true;
+        }
+        if let Some(rest) = compact.strip_prefix("pclmulqdq ") {
+            let ops: Vec<&str> = rest.split(',').map(|s| s.trim()).collect();
+            if ops.len() == 3 && ops[1] == "$2" && ops[2] == "$0" {
+                let imm_str = ops[0]
+                    .strip_prefix("$$")
+                    .or_else(|| ops[0].strip_prefix('$'))
+                    .unwrap_or(ops[0]);
+                if imm_str.parse::<u8>().is_ok() {
+                    return true;
+                }
+            }
+        }
+    }
+    // 6. aarch64 ARMv8 AES & PMULL
+    if cons == "=w,0,w"
+        && matches!(
+            compact.as_str(),
+            "aese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b"
+                | "aese $0.16b, $2.16b"
+                | "aesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b"
+                | "aesd $0.16b, $2.16b"
+        )
+    {
+        return true;
+    }
+    if cons == "=w,w,w" && compact == "pmull $0.1q, $1.1d, $2.1d" {
+        return true;
+    }
+    false
 }
 
 /// Every `@symbol` reference in one LLVM text line (`@"..."` quoted or

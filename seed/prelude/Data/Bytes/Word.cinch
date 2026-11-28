@@ -10,7 +10,7 @@ module Data.Bytes.Word where
   import Data.Machine
   import Data.Nat
 
-  export bytes-read-le32, bytes-read-le64, bytes-write-le32, bytes-write-le64
+  export bytes-read-le32, bytes-read-le64, bytes-read-le128, bytes-write-le32, bytes-write-le64, bytes-write-le128
 
   -- | Read exactly 4 bytes as a little-endian U32. Alignment is unrestricted. The caller must prove pos + 4 <= bytes-len b; no tail bytes are read.
   bytes-read-le32 :: using (pos + 4 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U32
@@ -27,3 +27,11 @@ module Data.Bytes.Word where
   -- | Write exactly 8 low-to-high bytes of a U64. The caller must prove pos + 8 <= bytes-len b; bytes outside that range are preserved.
   bytes-write-le64 :: using (pos + 8 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U64 -> Unit
   bytes-write-le64 b pos x = bytes-store-le64 b pos x
+
+  -- | Read exactly 16 bytes as a little-endian U128. Alignment is unrestricted. The caller must prove pos + 16 <= bytes-len b; no tail bytes are read.
+  bytes-read-le128 :: using (pos + 16 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U128
+  bytes-read-le128 b pos = bytes-load-u128 b pos
+
+  -- | Write exactly 16 low-to-high bytes of a U128. The caller must prove pos + 16 <= bytes-len b; bytes outside that range are preserved.
+  bytes-write-le128 :: using (pos + 16 <= bytes-len b) => (b :: Bytes) -> (pos :: Nat) -> U128 -> Unit
+  bytes-write-le128 b pos x = bytes-store-u128 b pos x

@@ -498,17 +498,85 @@ module Cinch.Foreign where
         && string-starts-with "%" f-dst && string-length f-dst > 1 && has (string-slice f-dst 1 (string-length f-dst)) future-labels
     other -> False
 
+  -- | Pure register-only crypto/SIMD/CRC inline-asm whitelist modeled by `Cinch.PrimVerify`.
+  -- Admitted inside a non-`unsafe` `llvm` body strictly when the body carries `justify verify`
+  -- and has no `sideeffect` or memory clobber.
+  strip-asm-arch-ext :: String -> String
+  strip-asm-arch-ext tpl =
+    let s = string-strip tpl in
+    if string-starts-with ".arch_extension aes\\0A" s then string-strip (string-slice s 23 (string-length s))
+    else if string-starts-with ".arch_extension crc\\0A" s then string-strip (string-slice s 23 (string-length s))
+    else s
+
+  normalize-asm-ws :: String -> String
+  normalize-asm-ws s = string-unwords (string-words s)
+
+  is-verified-arm-crc-ops :: Nat -> String -> String -> Bool
+  is-verified-arm-crc-ops dbits cons rest = case string-split-on "," rest of
+    [o0, o1, o2] ->
+      let a0 = string-strip o0 in
+      let a1 = string-strip o1 in
+      let a2 = string-strip o2 in
+      let dst-ok = a0 == "$0" || a0 == "${0:w}" in
+      let acc-ok = a1 == "$1" || a1 == "${1:w}" || (cons == "=r,0,r" && (a1 == "$0" || a1 == "${0:w}")) in
+      let data-ok = if dbits == 64 then a2 == "$2" || a2 == "${2:x}" else a2 == "$2" || a2 == "${2:w}" in
+      dst-ok && acc-ok && data-ok
+    other -> False
+
+  is-verified-pclmulqdq :: String -> Bool
+  is-verified-pclmulqdq compact =
+    if string-starts-with "pclmulqdq " compact then
+      case string-split-on "," (string-slice compact 10 (string-length compact)) of
+        [imm-raw, op1, op2] ->
+          let imm0 = string-strip imm-raw in
+          let imm = if string-starts-with "$$" imm0 then string-slice imm0 2 (string-length imm0)
+                    else if string-starts-with "$" imm0 then string-slice imm0 1 (string-length imm0)
+                    else imm0 in
+          decimal-digits imm && string-strip op1 == "$2" && string-strip op2 == "$0"
+        other -> False
+    else False
+
+  verified-register-asm-call :: String -> Bool
+  verified-register-asm-call raw-line =
+    let code = case string-split-on ";" raw-line of [] -> ""; c : _ -> string-strip c in
+    if string-contains "~{memory}" code then False
+    else case string-split-on "\"" code of
+      [prefix, tpl-raw, comma, cons-raw, suffix] ->
+        let pwords = string-words (pack (ir-token-chars (unpack prefix))) in
+        let is-intel = has "inteldialect" pwords in
+        let no-sideeffect = not (has "sideeffect" pwords) && not (string-contains "@" prefix) && not (string-contains "@" suffix) in
+        let cons = string-strip cons-raw in
+        let suf = string-strip suffix in
+        let suf-ok = string-starts-with "(" suf && string-ends-with ")" suf && not (string-contains "asm" suf) && not (string-contains "call" suf) in
+        let compact = normalize-asm-ws (strip-asm-arch-ext tpl-raw) in
+        if string-strip comma /= "," || not no-sideeffect || not suf-ok then False
+        else if (not is-intel && ((compact == "pshufb $2, $0" && cons == "=x,0,x") || (compact == "vpshufb $2, $1, $0" && cons == "=x,x,x")))
+             || (is-intel && ((compact == "pshufb $0, $2" && cons == "=x,0,x") || (compact == "vpshufb $0, $1, $2" && cons == "=x,x,x"))) then True
+        else if (compact == "tbl $0.16b, {$1.16b}, $2.16b" || compact == "tbl $0.16b, { $1.16b }, $2.16b") && (cons == "=w,w,w" || cons == "=&w,w,w") then True
+        else if (cons == "=r,0,r" || cons == "=r,0,q") && (
+          (not is-intel && has compact ["crc32b $2, $0", "crc32l $2, $0", "crc32q $2, $0"])
+          || (is-intel && has compact ["crc32b $0, $2", "crc32l $0, $2", "crc32q $0, $2", "crc32 $0, $2"])) then True
+        else if (cons == "=r,r,r" || cons == "=r,0,r") && (
+          (string-starts-with "crc32cb " compact && is-verified-arm-crc-ops 8 cons (string-slice compact 8 (string-length compact)))
+          || (string-starts-with "crc32cw " compact && is-verified-arm-crc-ops 32 cons (string-slice compact 8 (string-length compact)))
+          || (string-starts-with "crc32cx " compact && is-verified-arm-crc-ops 64 cons (string-slice compact 8 (string-length compact)))) then True
+        else if cons == "=x,0,x" && (has compact ["aesenc $2, $0", "aesenclast $2, $0", "aesdec $2, $0", "aesdeclast $2, $0"] || is-verified-pclmulqdq compact) then True
+        else if cons == "=w,0,w" && has compact ["aese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b", "aese $0.16b, $2.16b", "aesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b", "aesd $0.16b, $2.16b"] then True
+        else if cons == "=w,w,w" && compact == "pmull $0.1q, $1.1d, $2.1d" then True
+        else False
+      other -> False
+
   -- | Validate one straight-line or acyclic forward-branching LLVM fragment.
-  contained-ir :: String -> Bool -> Bool -> List String -> List String -> Bool -> List String -> Result String (List String)
-  contained-ir result pure trusted use-symbols lines returned symbols = case lines of
+  contained-ir :: String -> Bool -> Bool -> Bool -> List String -> List String -> Bool -> List String -> Result String (List String)
+  contained-ir result pure trusted verified use-symbols lines returned symbols = case lines of
     [] -> if returned then Ok symbols else Err "containment (grammar): an LLVM fragment needs one final return"
     line : rest ->
       case ir-label-name line of
-        Some lbl -> contained-ir result pure trusted use-symbols rest False symbols
+        Some lbl -> contained-ir result pure trusted verified use-symbols rest False symbols
         None ->
           let words = ir-line-words line in
           (case ir-instruction words of
-            [] -> if list-length words == 0 then contained-ir result pure trusted use-symbols rest returned symbols
+            [] -> if list-length words == 0 then contained-ir result pure trusted verified use-symbols rest returned symbols
               else Err "containment (grammar): an LLVM result binding needs an instruction"
             operation : arguments ->
               if ir-has-word ["invoke", "callbr", "resume", "catchswitch", "catchpad", "cleanuppad", "cleanupret", "catchret", "landingpad"] words then
@@ -519,23 +587,24 @@ module Cinch.Foreign where
                 Err "containment (determinism of effects): this LLVM memory operation has no checked buffer contract"
               else if returned then Err "containment (grammar): an instruction follows the return"
               else if operation == "call" && has "asm" arguments then
-                if not trusted then Err "containment: mark an embedded assembly call unsafe to trust its effects"
-                else contained-ir result pure trusted use-symbols rest False symbols
+                if not trusted && not (verified && verified-register-asm-call line) then
+                  Err "containment: mark an embedded assembly call unsafe to trust its effects"
+                else contained-ir result pure trusted verified use-symbols rest False symbols
               else if not (ir-no-unsafe-punctuation line) then Err "containment (no-escape): unsupported LLVM labels, metadata or quoted operands"
               else if operation == "br" then
                 if ir-valid-forward-br words (ir-remaining-labels rest) then
-                  contained-ir result pure trusted use-symbols rest False symbols
+                  contained-ir result pure trusted verified use-symbols rest False symbols
                 else Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
               else if ir-has-word ["br", "switch", "indirectbr", "alloca", "unreachable", "asm", "va_arg"] words || (not trusted && ir-has-word ["getelementptr", "ptr", "inttoptr", "ptrtoint"] words) then
                 Err "containment (no-escape): jumps, allocation, pointers and embedded assembly are forbidden"
               else if operation == "ret" then
-                if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result pure trusted use-symbols rest True symbols
+                if first-ir-return result words && list-length (ir-symbols arguments) == 0 then contained-ir result pure trusted verified use-symbols rest True symbols
                 else Err "containment (signature discipline): LLVM return disagrees with the declared result"
               else if operation == "call" && not (has "call" arguments) then (case ir-symbols arguments of
                 [symbol] -> if has symbol use-symbols then
-                    (if trusted then contained-ir result pure trusted use-symbols rest False symbols
+                    (if trusted then contained-ir result pure trusted verified use-symbols rest False symbols
                      else Err "containment: mark a call through uses unsafe to trust its declared effect row")
-                  else if allowed-intrinsic symbol then contained-ir result pure trusted use-symbols rest False (if has symbol symbols then symbols else symbol : symbols)
+                  else if allowed-intrinsic symbol then contained-ir result pure trusted verified use-symbols rest False (if has symbol symbols then symbols else symbol : symbols)
                   else Err "containment (no-escape): the call has no checked intrinsic or uses contract"
                 other -> Err "containment (no-escape): an indirect or ambiguous call is forbidden")
               else if has "call" arguments || list-length (ir-symbols arguments) /= 0 then
@@ -546,7 +615,7 @@ module Cinch.Foreign where
                   "extractelement", "insertelement", "shufflevector"]
                   || (trusted && has operation ["inttoptr", "ptrtoint", "getelementptr", "load"])
                   || (trusted && not pure && has operation ["store", "atomicrmw", "cmpxchg", "fence"]) then
-                contained-ir result pure trusted use-symbols rest False symbols
+                contained-ir result pure trusted verified use-symbols rest False symbols
               else Err (string-concat "containment (grammar): unsupported LLVM instruction " operation))
   -- Unprojected declarations can also enter through a host-side checked splice.
   checked-target :: PrimTarget -> String -> List Expr -> Result String PrimTarget
@@ -635,7 +704,8 @@ module Cinch.Foreign where
             let holds = case matched of ApplicablePrimitive -> True; other -> False in
             let reason = case matched of InapplicablePrimitive detail -> detail : missing; other -> missing in
             let body-result = if ptr-sized then (if bbits == 32 then "i32" else "i64") else result in
-            if family == "llvm" then (case contained-ir body-result pure unverified (prim-use-symbols contracts) (string-split-on "\n" fragment) False [] of
+            let has-verify = case verify-justification-word justification of Some w -> True; None -> False in
+            if family == "llvm" then (case contained-ir body-result pure unverified has-verify (prim-use-symbols contracts) (string-split-on "\n" fragment) False [] of
               Err message -> Err message
               Ok symbols -> (case record-candidate family when holds (PrimitiveFragment fragment symbols immediates contracts) llvm of
                 Err message -> Err message

@@ -1319,6 +1319,10 @@
     {
       "name": "Effect.User",
       "path": "Effect/User.cinch"
+    },
+    {
+      "name": "Prim.SimdExt",
+      "path": "Prim/SimdExt.cinch"
     }
   ],
   "order": [
@@ -1650,6 +1654,7 @@
     "Effect.Rpc",
     "Text.Strconv",
     "Text.User",
-    "Effect.User"
+    "Effect.User",
+    "Prim.SimdExt"
   ]
 }
