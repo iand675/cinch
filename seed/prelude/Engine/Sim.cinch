@@ -1,0 +1,1741 @@
+-- | Single-threaded Deterministic Simulation Testing (DST) engine implementing
+-- the exact `Engine.Types` capability interface (`ReactorOps`, `ClockOps`,
+-- `EntropyOps`).
+--
+-- A `SimWorld r` replaces live OS sockets, disks, timers, clocks, and entropy
+-- with an in-memory discrete-event simulator driven by a 4-ary min-heap
+-- ordered strictly by `(deliver-ns, tie-break-seq)`:
+--
+-- * **Virtual monotonic & wall clocks:** Time jumps directly to the next
+--   scheduled event without wall-clock sleeps or jitter.
+-- * **Simulated TCP stream pairs:** Bidirectional byte ring buffers with
+--   FIFO ordering, configurable partial read/write splitting, RST injection,
+--   half-close EOF delivery, and asymmetric node partition filtering.
+-- * **Simulated UDP endpoints:** Datagram delivery with programmable drop,
+--   duplication, reordering, latency jitter, byte corruption, NAT port
+--   rebinding (for connection migration), and asymmetric node partitions.
+-- * **Simulated `O_DIRECT` virtual disks:** Strict separation between
+--   `durable-sectors` (written and `fsync`ed) and `volatile-pending` (written
+--   but not yet `fsync`ed). Calling `sim-disk-crash-power-loss!` discards all
+--   volatile sectors and optionally writes half-sector torn writes per
+--   `disk-torn-sector-ppm`, reproducing missing `fsync` bugs deterministically.
+-- * **Trace digest:** Every scheduled/delivered event, clock jump, I/O result,
+--   and fault decision folds into `sim-world-trace-hash` for instant replay
+--   verification.
+module Engine.Sim where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Hash
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.Mutable.Deque
+  import Data.Mutable.HashTable
+  import Data.Mutable.Heap
+  import Data.Mutable.Var
+  import Data.Mutable.Vec
+  import Engine.Types
+  import Engine.Sim.Faults
+
+  -- World construction, virtual clock, fault control, stepping, trace digest
+  export SimWorld, sim-world-new, sim-world-now, sim-world-now-ns
+  export sim-world-wall-now, sim-world-set-wall-base
+  export sim-world-set-faults, sim-world-get-faults
+  export sim-world-set-partition, sim-world-block-link, sim-world-heal-link, sim-world-heal-all
+  export sim-world-step, sim-world-advance-to, sim-world-run-for, sim-world-run-until-idle
+  export sim-world-pending-events, sim-world-events-processed
+  export sim-world-trace-hash, sim-world-next-u64, sim-world-schedule-timer
+
+  -- Simulated TCP stream pairs
+  export sim-tcp-pair, sim-tcp-send, sim-tcp-recv, sim-tcp-shutdown-write
+  export sim-tcp-inject-rst, sim-tcp-available, sim-tcp-is-eof, sim-tcp-is-reset, sim-tcp-close
+
+  -- Simulated UDP endpoints & NAT rebinding
+  export SimUdpAddr, SimUdpDatagram
+  export sim-udp-addr-make, sim-udp-addr-eq, sim-udp-addr-pack, sim-udp-addr-unpack
+  export sim-udp-bind, sim-udp-addr, sim-udp-nat-rebind
+  export sim-udp-send, sim-udp-recv, sim-udp-pending-count, sim-udp-close
+
+  -- Simulated O_DIRECT virtual disks & crash injection
+  export sim-disk-open, sim-disk-sector-size, sim-disk-sector-count
+  export sim-disk-write-sector, sim-disk-read-sector
+  export sim-disk-pwrite, sim-disk-pread
+  export sim-disk-fsync, sim-disk-crash-power-loss!
+  export sim-disk-durable-count, sim-disk-volatile-count, sim-disk-close
+
+  -- Bridge to Engine.Types capability dictionaries
+  export sim-reactor-ops, sim-clock-ops, sim-entropy-ops
+
+  -- =========================================================================
+  -- 1. Raw memory bridge for `IoSqe.sqe-buf-addr`
+  -- =========================================================================
+
+  -- | libc `memmove` used solely to copy bytes between `Bytes` buffers and
+  -- caller-supplied `IoSqe.sqe-buf-addr` pointers inside `ReactorOps`.
+  foreign import ccall "memmove" c-memmove :: forall r. I64 -> I64 -> I64 ->{IO r} I64
+
+  -- | Copy `len` bytes from a raw caller pointer into a fresh `Bytes` buffer.
+  -- When `addr == 0`, returns a zeroed buffer of length `len`.
+  read-raw-buf :: forall r. U64 -> U32 ->{IO r} Bytes
+  read-raw-buf addr len =
+    let n = u32-to-nat len in
+    let out = bytes-new n in
+    if eq-u64 addr 0 || eq-u32 len 0 then out
+    else
+      let _ = c-memmove (bytes-data out) (wrapping-u64-to-i64 addr) (u32-to-i64 len) in
+      let _ = bytes-len out in
+      out
+
+  -- | Copy up to `max-len` bytes from `src` into a raw caller pointer `addr`.
+  -- Returns the number of bytes copied.
+  write-raw-buf :: forall r. U64 -> U32 -> Bytes ->{IO r} U32
+  write-raw-buf addr max-len src =
+    let src-len = nat-to-u32 (bytes-len src) in
+    let copy-len = if lt-u32 src-len max-len then src-len else max-len in
+    if eq-u64 addr 0 || eq-u32 copy-len 0 then copy-len
+    else
+      let _ = c-memmove (wrapping-u64-to-i64 addr) (bytes-data src) (u32-to-i64 copy-len) in
+      let _ = bytes-len src in
+      copy-len
+
+  -- =========================================================================
+  -- 2. Private numeric & Bytes helpers
+  -- =========================================================================
+
+  -- | Non-inlined `Result` identity barrier keeping `Fd`-taking functions on
+  -- the uniform boxed `Result` ABI.
+  #[inline(never)]
+  id-res :: forall e a. Result e a -> Result e a
+  id-res r = r
+
+  -- | Non-inlined `Option` identity barrier keeping `Fd`-taking functions on
+  -- the uniform boxed `Option` ABI.
+  #[inline(never)]
+  id-opt :: forall a. Option a -> Option a
+  id-opt o = o
+
+  -- | Non-inlined `HashTable` lookup barrier preserving exact `Option` ABI across
+  -- callers returning boxed `Result` or `Unit`.
+  #[inline(never)]
+  ht-get :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Option v
+  ht-get ht k = hash-table-lookup ht k
+
+  -- | Non-inlined `HashTable` delete barrier.
+  #[inline(never)]
+  ht-del :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Option v
+  ht-del ht k = hash-table-delete ht k
+
+  -- | Non-inlined `Deque` pop-front barrier.
+  #[inline(never)]
+  dq-pop-front :: forall r a. Deque r a ->{Mut r} Option a
+  dq-pop-front q = deque-pop-front q
+
+  -- | Non-inlined `Deque` front-peek barrier.
+  #[inline(never)]
+  dq-front :: forall r a. Deque r a ->{Mut r} Option a
+  dq-front q = deque-front q
+
+  -- | Non-inlined `Heap` pop barrier for `SimEvent`.
+  #[inline(never)]
+  ev-heap-pop :: forall r. Heap r SimEvent ->{Mut r} Option SimEvent
+  ev-heap-pop hp = heap-pop-by event-comes-first hp
+
+  -- | Non-inlined `Heap` peek barrier for `SimEvent`.
+  #[inline(never)]
+  ev-heap-peek :: forall r. Heap r SimEvent ->{Mut r} Option SimEvent
+  ev-heap-peek hp = heap-peek hp
+
+  -- | Non-inlined `Vec` indexed read barrier.
+  #[inline(never)]
+  vec-at :: forall r a. Vec r a -> Nat ->{Mut r} Option a
+  vec-at v i = vec-get v i
+
+  -- | Non-inlined `HashTable` insert barrier.
+  #[inline(never)]
+  ht-put :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k -> v ->{Mut r} Unit
+  ht-put ht k v = hash-table-insert ht k v
+
+  -- | Non-inlined `HashTable` membership barrier.
+  #[inline(never)]
+  ht-has :: forall r k v. using (h :: Hash k, eq :: Eq k) => HashTable r k v -> k ->{Mut r} Bool
+  ht-has ht k = hash-table-member ht k
+
+  -- | Non-inlined `HashTable` clear barrier.
+  #[inline(never)]
+  ht-clear :: forall r k v. HashTable r k v ->{Mut r} Unit
+  ht-clear ht = hash-table-clear ht
+
+  -- | Non-inlined `HashTable` size barrier.
+  #[inline(never)]
+  ht-size :: forall r k v. HashTable r k v ->{Mut r} Nat
+  ht-size ht = hash-table-size ht
+
+  -- | Convert an unsigned 64-bit integer to `Nat` (clamping top bit).
+  u64-to-nat :: U64 -> Nat
+  u64-to-nat w = nat-from-i64 (mask-i64 (wrapping-u64-to-i64 w) 9223372036854775807)
+
+  -- | Convert a `Nat` to `U64` (saturating to low 63 bits).
+  nat-to-u64 :: Nat -> U64
+  nat-to-u64 n =
+    if n < 9223372036854775807 then wrapping-i64-to-u64 (nat-to-i64 n)
+    else 9223372036854775807
+
+  -- | Convert a `Nat` to `U32` (clamping to `max-bound-u32`).
+  nat-to-u32 :: Nat -> U32
+  nat-to-u32 n =
+    if n < 4294967295 then wrapping-i64-to-u32 (nat-to-i64 n)
+    else 4294967295
+
+  -- | Convert a non-negative `Fd` to a `HashTable` `Nat` key.
+  fd-to-nat :: Fd -> Nat
+  fd-to-nat fd =
+    if lt-i32 fd.fd-raw 0 then 0
+    else u32-to-nat (wrapping-i32-to-u32 fd.fd-raw)
+
+  -- | Encode an `IoError` as a negated `I32` reactor `cqe-res` value.
+  neg-io-err :: IoError -> I32
+  neg-io-err err =
+    let code = u8-to-i32 (io-error-to-u8 err) in
+    if eq-i32 code 0 then 0 else wrapping-neg-i32 code
+
+  -- | Allocate an independent deep copy of `src`.
+  clone-bytes :: Bytes -> Bytes
+  clone-bytes src =
+    let n = bytes-len src in
+    let out = bytes-new n in
+    let _ = if n <= bytes-len out && n <= bytes-len src then bytes-copy-range out src 0 0 n else () in
+    out
+
+  -- | Copy a sub-slice `[off, off + len)` out of `src`.
+  slice-bytes :: Bytes -> Nat -> Nat -> Bytes
+  slice-bytes src off len =
+    let out = bytes-new len in
+    let _ = if len <= bytes-len out && off + len <= bytes-len src then bytes-copy-range out src 0 off len else () in
+    out
+
+  -- | Fold a `U64` value into an incremental 64-bit trace digest.
+  mix-digest :: U64 -> U64 -> U64
+  mix-digest acc word =
+    sim-mix-u64 (bit-xor-u64 (wrapping-mul-u64 acc 0x9E3779B97F4A7C15) (wrapping-add-u64 word 0x517CC1B727220A95))
+
+  -- | Fold a `Bytes` buffer's length and content hash into a trace digest.
+  mix-bytes-digest :: U64 -> Bytes -> U64
+  mix-bytes-digest acc b =
+    let h = nat-to-u64 (hash b) in
+    let n = nat-to-u64 (bytes-len b) in
+    mix-digest (mix-digest acc n) h
+
+  -- =========================================================================
+  -- 3. Public UDP address & datagram types
+  -- =========================================================================
+
+  -- | Simulated UDP endpoint address `(node-id, port)` across node IDs `0..7`.
+  record SimUdpAddr where
+    -- | Simulated node identifier (`0..7`).
+    udp-node :: U8
+    -- | UDP port number on the simulated node.
+    udp-port :: U16
+
+  -- | Construct a `SimUdpAddr` from a simulated node ID and UDP port.
+  sim-udp-addr-make :: U8 -> U16 -> SimUdpAddr
+  sim-udp-addr-make node port = SimUdpAddr node port
+
+  -- | Compare two `SimUdpAddr` values for equality.
+  sim-udp-addr-eq :: SimUdpAddr -> SimUdpAddr -> Bool
+  sim-udp-addr-eq a b = eq-u8 a.udp-node b.udp-node && eq-u16 a.udp-port b.udp-port
+
+  -- | Pack a `SimUdpAddr` into a 32-bit word `(node << 16) | port` for
+  -- `IoSqe.sqe-aux` and `Completion.cqe-flags`.
+  sim-udp-addr-pack :: SimUdpAddr -> U32
+  sim-udp-addr-pack addr =
+    bit-or-u32 (wrapping-shl-u32 (u8-to-u32 addr.udp-node) 16) (u16-to-u32 addr.udp-port)
+
+  -- | Unpack a `SimUdpAddr` from a 32-bit word `(node << 16) | port`.
+  sim-udp-addr-unpack :: U32 -> SimUdpAddr
+  sim-udp-addr-unpack word =
+    let node = wrapping-u32-to-u8 (wrapping-shr-u32 word 16) in
+    let port = wrapping-u32-to-u16 word in
+    SimUdpAddr node port
+
+  -- | Hash-table key for a UDP address `(node, port)`.
+  udp-addr-key :: SimUdpAddr -> Nat
+  udp-addr-key addr = u32-to-nat (sim-udp-addr-pack addr)
+
+  -- | Delivered UDP datagram carrying its source address, destination address,
+  -- and payload bytes.
+  record SimUdpDatagram where
+    -- | Source endpoint address at the time the datagram was sent.
+    dgram-src :: SimUdpAddr
+    -- | Destination endpoint address.
+    dgram-dst :: SimUdpAddr
+    -- | Datagram payload bytes.
+    dgram-payload :: Bytes
+
+  -- =========================================================================
+  -- 4. Internal endpoint, disk, and discrete-event types
+  -- =========================================================================
+
+  -- | One side of a simulated bidirectional TCP stream pair.
+  record SimTcpEnd (r :: Region) where
+    -- | Local descriptor for this TCP endpoint.
+    tcp-fd :: Fd
+    -- | Peer descriptor for the opposite TCP endpoint.
+    tcp-peer-fd :: Fd
+    -- | Local simulated node identifier (`0..7`).
+    tcp-node :: U8
+    -- | Peer simulated node identifier (`0..7`).
+    tcp-peer-node :: U8
+    -- | Ring buffer of delivered unread bytes.
+    tcp-rx-buf :: Deque r U8
+    -- | Whether the local write half has been shut down.
+    tcp-tx-closed :: Var r Bool
+    -- | Whether the peer has delivered half-close EOF.
+    tcp-rx-eof :: Var r Bool
+    -- | Whether the connection has been reset via TCP RST.
+    tcp-reset :: Var r Bool
+    -- | Whether this endpoint descriptor has been closed.
+    tcp-closed :: Var r Bool
+    -- | Monotonic delivery watermark preserving per-stream FIFO ordering.
+    tcp-last-deliver-ns :: Var r U64
+
+  -- | Simulated UDP socket endpoint supporting NAT port rebinding.
+  record SimUdpEnd (r :: Region) where
+    -- | Local descriptor for this UDP endpoint.
+    udp-fd :: Fd
+    -- | Current bound `(node, port)` address (mutated on NAT rebind).
+    udp-cur-addr :: Var r SimUdpAddr
+    -- | FIFO queue of delivered datagrams awaiting receive.
+    udp-rx-queue :: Deque r SimUdpDatagram
+    -- | Whether this endpoint descriptor has been closed.
+    udp-closed :: Var r Bool
+
+  -- | Simulated `O_DIRECT` virtual disk separating durable `fsync`ed sectors
+  -- from uncommitted volatile sectors.
+  record SimDisk (r :: Region) where
+    -- | Descriptor identifying this virtual disk.
+    disk-fd :: Fd
+    -- | Sector size in bytes (e.g., 512 or 4096).
+    disk-sec-size :: U32
+    -- | Total sector capacity of the virtual disk.
+    disk-sec-count :: U64
+    -- | Sectors promoted to durable storage via `fsync`.
+    disk-durable :: HashTable r Nat Bytes
+    -- | Dirty sectors written but not yet `fsync`ed.
+    disk-volatile :: HashTable r Nat Bytes
+    -- | Deterministic insertion-ordered list of dirty sector keys.
+    disk-volatile-keys :: Vec r Nat
+    -- | Crash epoch incremented on every power-loss crash to invalidate stale in-flight I/O.
+    disk-epoch :: Var r U64
+    -- | Whether this virtual disk descriptor has been closed.
+    disk-closed :: Var r Bool
+
+  -- | Payload variants for discrete-event delivery in `SimWorld`.
+  data SimEventKind where
+    -- | TCP byte segment arriving at `dst-fd`.
+    EvTcpData :: Fd -> Bytes -> SimEventKind
+    -- | TCP half-close FIN/EOF arriving at `dst-fd`.
+    EvTcpEof :: Fd -> SimEventKind
+    -- | TCP RST arriving at `dst-fd`.
+    EvTcpRst :: Fd -> SimEventKind
+    -- | UDP datagram arriving at `dst-addr` from `src-addr`.
+    EvUdpDatagram :: SimUdpAddr -> SimUdpAddr -> Bytes -> SimEventKind
+    -- | Virtual disk async write completion `(fd, epoch, off, payload, tok)`.
+    EvDiskWrite :: Fd -> U64 -> U64 -> Bytes -> IoToken -> SimEventKind
+    -- | Virtual disk async read completion `(fd, epoch, off, buf-addr, len, tok)`.
+    EvDiskRead :: Fd -> U64 -> U64 -> U64 -> U32 -> IoToken -> SimEventKind
+    -- | Virtual disk async fsync completion `(fd, epoch, tok)`.
+    EvDiskFsync :: Fd -> U64 -> IoToken -> SimEventKind
+    -- | Scheduled timeout completion `(tok)`.
+    EvTimer :: IoToken -> SimEventKind
+
+  -- | Scheduled discrete event ordered strictly by `(ev-deliver-ns, ev-seq)`.
+  record SimEvent where
+    -- | Virtual monotonic delivery timestamp in nanoseconds.
+    ev-deliver-ns :: U64
+    -- | Strictly increasing tie-break sequence number.
+    ev-seq :: U64
+    -- | Discrete event payload variant.
+    ev-kind :: SimEventKind
+
+  -- | Strict total ordering on scheduled events: earliest timestamp first,
+  -- breaking ties by strictly increasing sequence number.
+  event-comes-first :: SimEvent -> SimEvent -> Bool
+  event-comes-first a b =
+    if lt-u64 a.ev-deliver-ns b.ev-deliver-ns then True
+    else if eq-u64 a.ev-deliver-ns b.ev-deliver-ns then lt-u64 a.ev-seq b.ev-seq
+    else False
+
+  -- | Boxed wrapper allowing 40-byte `#[repr(C, value)]` `IoSqe` entries to
+  -- live inside uniform-word `Deque` containers.
+  data BoxedSqe where
+    -- | Wrapped submission queue entry.
+    BoxedSqe :: IoSqe -> BoxedSqe
+
+  -- | Boxed wrapper allowing 16-byte `#[repr(C, value)]` `Completion` entries
+  -- to live inside uniform-word `Deque` containers.
+  data BoxedCqe where
+    -- | Wrapped completion queue entry.
+    BoxedCqe :: Completion -> BoxedCqe
+
+  -- | Single-threaded Deterministic Simulation Testing (DST) world.
+  --
+  -- Owns the virtual clock, min-heap event scheduler, fault configuration,
+  -- seeded PRNG streams, TCP pairs, UDP endpoints, virtual disks, reactor
+  -- SQE/CQE queues, and incremental replay trace digest.
+  record SimWorld (r :: Region) where
+    -- | Virtual monotonic clock in nanoseconds.
+    sim-now-ns :: Var r U64
+    -- | Deterministic wall-clock epoch offset in nanoseconds.
+    sim-wall-base-ns :: Var r U64
+    -- | Monotonic event tie-break sequence counter.
+    sim-next-seq :: Var r U64
+    -- | Next unique simulated file/socket descriptor to allocate.
+    sim-next-fd :: Var r I32
+    -- | Active programmable fault-injection configuration.
+    sim-faults :: Var r SimFaultConfig
+    -- | Seeded PRNG stream driving fault injection and latency jitter.
+    sim-rng :: Var r SimRng
+    -- | Dedicated forked PRNG stream backing `EntropyOps`.
+    sim-entropy-rng :: Var r SimRng
+    -- | Incremental 64-bit replay trace digest.
+    sim-trace-hash :: Var r U64
+    -- | Total number of discrete events dispatched so far.
+    sim-events-done :: Var r U64
+    -- | Whether the simulated reactor has been closed.
+    sim-closed :: Var r Bool
+    -- | 4-ary min-heap priority queue ordered by `(ev-deliver-ns, ev-seq)`.
+    sim-heap :: Heap r SimEvent
+    -- | Queued `IoSqe` submissions awaiting flush.
+    sim-sqes :: Deque r BoxedSqe
+    -- | Ready `Completion` entries awaiting pop.
+    sim-cqes :: Deque r BoxedCqe
+    -- | Canceled `IoToken` table populated by `OpCancel`.
+    sim-canceled :: HashTable r Nat Bool
+    -- | Simulated TCP stream endpoints indexed by `Fd`.
+    sim-tcps :: HashTable r Nat (SimTcpEnd r)
+    -- | Simulated UDP endpoints indexed by `Fd`.
+    sim-udps :: HashTable r Nat (SimUdpEnd r)
+    -- | Active `(node, port)` to `Fd` routing table for UDP delivery and NAT rebinding.
+    sim-udp-by-addr :: HashTable r Nat I32
+    -- | Simulated virtual disks indexed by `Fd`.
+    sim-disks :: HashTable r Nat (SimDisk r)
+    -- | Parked async `OpRecv`/`OpRecvMsg` SQEs indexed by `Fd`.
+    sim-pending-recvs :: HashTable r Nat (Deque r BoxedSqe)
+
+  -- =========================================================================
+  -- 5. World construction, virtual clock, RNG, trace & fault controls
+  -- =========================================================================
+
+  -- | Construct a fresh deterministic simulation world from a 64-bit `seed`
+  -- and initial `SimFaultConfig`.
+  sim-world-new :: forall r. U64 -> SimFaultConfig ->{Mut r} SimWorld r
+  sim-world-new seed faults =
+    let base-rng = sim-rng-new seed in
+    let ent-rng = sim-rng-fork base-rng 0x454E54524F505901 in
+    let now-v = var-new (0 :: U64) in
+    let wall-v = var-new (1700000000000000000 :: U64) in
+    let seq-v = var-new (0 :: U64) in
+    let fd-v = var-new (100 :: I32) in
+    let faults-v = var-new faults in
+    let rng-v = var-new base-rng in
+    let ent-v = var-new ent-rng in
+    let trace-v = var-new (sim-mix-u64 (bit-xor-u64 seed 0x53494D574F524C44)) in
+    let done-v = var-new (0 :: U64) in
+    let closed-v = var-new False in
+    let hp = heap-new () in
+    let sqes = deque-new () in
+    let cqes = deque-new () in
+    let canceled = hash-table-new () in
+    let tcps = hash-table-new () in
+    let udps = hash-table-new () in
+    let udp-map = hash-table-new () in
+    let disks = hash-table-new () in
+    let recvs = hash-table-new () in
+    SimWorld now-v wall-v seq-v fd-v faults-v rng-v ent-v trace-v done-v closed-v hp sqes cqes canceled tcps udps udp-map disks recvs
+
+  -- | Fold a tagged event record into the world's deterministic trace digest.
+  record-trace :: forall r. SimWorld r -> U64 -> U64 -> U64 ->{Mut r} Unit
+  record-trace w tag a b =
+    let h0 = var-read w.sim-trace-hash in
+    let now = var-read w.sim-now-ns in
+    let h1 = mix-digest h0 now in
+    let h2 = mix-digest h1 tag in
+    let h3 = mix-digest h2 a in
+    let h4 = mix-digest h3 b in
+    var-write w.sim-trace-hash h4
+
+  -- | Fold a tagged event with payload bytes into the world's trace digest.
+  record-trace-bytes :: forall r. SimWorld r -> U64 -> U64 -> Bytes ->{Mut r} Unit
+  record-trace-bytes w tag a payload =
+    let h0 = var-read w.sim-trace-hash in
+    let now = var-read w.sim-now-ns in
+    let h1 = mix-digest (mix-digest (mix-digest h0 now) tag) a in
+    var-write w.sim-trace-hash (mix-bytes-digest h1 payload)
+
+  -- | Allocate the next unique simulated file/socket descriptor.
+  alloc-fd :: forall r. SimWorld r ->{Mut r} Fd
+  alloc-fd w =
+    let raw = var-read w.sim-next-fd in
+    let _ = var-write w.sim-next-fd (wrapping-add-i32 raw 1) in
+    fd-of raw
+
+  -- | Draw a uniform 64-bit word from the simulator's internal fault PRNG.
+  sim-world-next-u64 :: forall r. SimWorld r ->{Mut r} U64
+  sim-world-next-u64 w =
+    let r = var-read w.sim-rng in
+    case sim-rng-u64 r of
+      (v, r2) ->
+        let _ = var-write w.sim-rng r2 in
+        v
+
+  -- | Draw a uniform value in `[lo, hi)` from the simulator's internal PRNG.
+  world-rng-range :: forall r. SimWorld r -> U64 -> U64 ->{Mut r} U64
+  world-rng-range w lo hi =
+    let r = var-read w.sim-rng in
+    case sim-rng-range r lo hi of
+      (v, r2) ->
+        let _ = var-write w.sim-rng r2 in
+        v
+
+  -- | Sample a parts-per-million fault probability from the internal PRNG.
+  world-chance-ppm :: forall r. SimWorld r -> U32 ->{Mut r} Bool
+  world-chance-ppm w ppm =
+    let r = var-read w.sim-rng in
+    case sim-rng-chance-ppm r ppm of
+      (hit, r2) ->
+        let _ = var-write w.sim-rng r2 in
+        hit
+
+  -- | Sample a network propagation delay in `[min-delay, max-delay]` ns.
+  sample-net-delay :: forall r. SimWorld r ->{Mut r} U64
+  sample-net-delay w =
+    let cfg = var-read w.sim-faults in
+    let lo = cfg.udp-min-delay-ns in
+    let hi = cfg.udp-max-delay-ns in
+    if le-u64 hi lo then lo
+    else
+      let span = wrapping-sub-u64 hi lo in
+      if eq-u64 span 18446744073709551615 then world-rng-range w lo hi
+      else world-rng-range w lo (wrapping-add-u64 hi 1)
+
+  -- | Push a discrete event onto the min-heap with a fresh monotonic tie-break sequence.
+  schedule-event :: forall r. SimWorld r -> U64 -> SimEventKind ->{Mut r} U64
+  schedule-event w deliver-ns kind =
+    let seq = var-read w.sim-next-seq in
+    let _ = var-write w.sim-next-seq (wrapping-add-u64 seq 1) in
+    let _ = heap-push-by event-comes-first w.sim-heap (SimEvent deliver-ns seq kind) in
+    seq
+
+  -- | Schedule a virtual timer event firing after `delay-ns` nanoseconds.
+  sim-world-schedule-timer :: forall r. SimWorld r -> U64 -> IoToken ->{Mut r} Unit
+  sim-world-schedule-timer w delay-ns tok =
+    let now = var-read w.sim-now-ns in
+    let deliver = saturating-add-u64 now delay-ns in
+    let seq = schedule-event w deliver (EvTimer tok) in
+    record-trace w 101 deliver (bit-xor-u64 seq tok.io-token-raw)
+
+  -- | Current virtual monotonic timestamp.
+  sim-world-now :: forall r. SimWorld r ->{Mut r} TimeNs
+  sim-world-now w = time-ns-of (var-read w.sim-now-ns)
+
+  -- | Current virtual monotonic timestamp in raw nanoseconds.
+  sim-world-now-ns :: forall r. SimWorld r ->{Mut r} U64
+  sim-world-now-ns w = var-read w.sim-now-ns
+
+  -- | Current virtual wall-clock timestamp (`wall-base-ns + now-ns`).
+  sim-world-wall-now :: forall r. SimWorld r ->{Mut r} TimeNs
+  sim-world-wall-now w =
+    time-ns-of (saturating-add-u64 (var-read w.sim-wall-base-ns) (var-read w.sim-now-ns))
+
+  -- | Configure the deterministic epoch base for `clock-wall-ns`.
+  sim-world-set-wall-base :: forall r. SimWorld r -> TimeNs ->{Mut r} Unit
+  sim-world-set-wall-base w base = var-write w.sim-wall-base-ns (time-ns-value base)
+
+  -- | Replace the active `SimFaultConfig` mid-simulation.
+  sim-world-set-faults :: forall r. SimWorld r -> SimFaultConfig ->{Mut r} Unit
+  sim-world-set-faults w cfg =
+    let _ = var-write w.sim-faults cfg in
+    record-trace w 102 (u32-to-u64 cfg.udp-drop-ppm) cfg.partition-mask
+
+  -- | Inspect the active `SimFaultConfig`.
+  sim-world-get-faults :: forall r. SimWorld r ->{Mut r} SimFaultConfig
+  sim-world-get-faults w = var-read w.sim-faults
+
+  -- | Replace the active asymmetric 8x8 network partition matrix.
+  sim-world-set-partition :: forall r. SimWorld r -> U64 ->{Mut r} Unit
+  sim-world-set-partition w mask =
+    let cfg = var-read w.sim-faults in
+    sim-world-set-faults w (sim-fault-with-partition cfg mask)
+
+  -- | Block directed traffic from `src` to `dst` in the active partition mask.
+  sim-world-block-link :: forall r. SimWorld r -> U8 -> U8 ->{Mut r} Unit
+  sim-world-block-link w src dst =
+    let cfg = var-read w.sim-faults in
+    sim-world-set-partition w (partition-block-link cfg.partition-mask src dst)
+
+  -- | Heal directed traffic from `src` to `dst` in the active partition mask.
+  sim-world-heal-link :: forall r. SimWorld r -> U8 -> U8 ->{Mut r} Unit
+  sim-world-heal-link w src dst =
+    let cfg = var-read w.sim-faults in
+    sim-world-set-partition w (partition-heal-link cfg.partition-mask src dst)
+
+  -- | Heal all network partitions across all simulated nodes.
+  sim-world-heal-all :: forall r. SimWorld r ->{Mut r} Unit
+  sim-world-heal-all w = sim-world-set-partition w partition-heal-all
+
+  -- | Number of discrete events currently queued in the min-heap.
+  sim-world-pending-events :: forall r. SimWorld r ->{Mut r} U64
+  sim-world-pending-events w = nat-to-u64 (heap-length w.sim-heap)
+
+  -- | Total number of discrete events dispatched so far.
+  sim-world-events-processed :: forall r. SimWorld r ->{Mut r} U64
+  sim-world-events-processed w = var-read w.sim-events-done
+
+  -- | Deterministic 64-bit trace digest summarizing all simulation state
+  -- transitions, clock jumps, I/O operations, and injected faults.
+  sim-world-trace-hash :: forall r. SimWorld r ->{Mut r} U64
+  sim-world-trace-hash w = var-read w.sim-trace-hash
+
+  -- =========================================================================
+  -- 6. Simulated TCP stream pairs
+  -- =========================================================================
+
+  -- | Create a connected bidirectional simulated TCP stream pair `(fd-a, fd-b)`
+  -- attached to simulated node IDs `node-a` and `node-b` (`0..7`).
+  sim-tcp-pair :: forall r. SimWorld r -> U8 -> U8 ->{Mut r} (Fd, Fd)
+  sim-tcp-pair w node-a node-b =
+    let fd-a = alloc-fd w in
+    let fd-b = alloc-fd w in
+    let end-a = SimTcpEnd fd-a fd-b node-a node-b (deque-new ()) (var-new False) (var-new False) (var-new False) (var-new False) (var-new 0) in
+    let end-b = SimTcpEnd fd-b fd-a node-b node-a (deque-new ()) (var-new False) (var-new False) (var-new False) (var-new False) (var-new 0) in
+    let _ = ht-put w.sim-tcps (fd-to-nat fd-a) end-a in
+    let _ = ht-put w.sim-tcps (fd-to-nat fd-b) end-b in
+    let _ = record-trace w 200 (wrapping-i64-to-u64 (i32-to-i64 fd-a.fd-raw)) (wrapping-i64-to-u64 (i32-to-i64 fd-b.fd-raw)) in
+    (fd-a, fd-b)
+
+  -- | Push all bytes of `payload` into a TCP receive ring buffer.
+  tcp-push-bytes :: forall r. Deque r U8 -> Bytes -> Nat -> Nat ->{Mut r} Unit
+  tcp-push-bytes buf payload i n =
+    if i < n && i < bytes-len payload then
+      let _ = deque-push-back buf (bytes-get-u8 payload i) in
+      tcp-push-bytes buf payload (i + 1) n
+    else ()
+
+  -- | Pop `n` bytes from a TCP receive ring buffer into `out`.
+  tcp-pop-bytes :: forall r. Deque r U8 -> Bytes -> Nat -> Nat ->{Mut r} Unit
+  tcp-pop-bytes buf out i n =
+    if i < n && i < bytes-len out then
+      case dq-pop-front buf of
+        Some byte ->
+          let _ = bytes-set-u8 out i byte in
+          tcp-pop-bytes buf out (i + 1) n
+        None -> ()
+    else ()
+
+  -- | Compute the next FIFO delivery timestamp for a TCP sender so byte streams
+  -- and half-close EOFs never reorder even under random latency jitter.
+  next-tcp-deliver-ns :: forall r. SimWorld r -> SimTcpEnd r ->{Mut r} U64
+  next-tcp-deliver-ns w ep =
+    let now = var-read w.sim-now-ns in
+    let delay = sample-net-delay w in
+    let cand = saturating-add-u64 now delay in
+    let prev = var-read ep.tcp-last-deliver-ns in
+    let deliver = if lt-u64 cand prev then prev else cand in
+    let _ = var-write ep.tcp-last-deliver-ns deliver in
+    deliver
+
+  -- | Send bytes over a simulated TCP endpoint.
+  --
+  -- Applies `tcp-rst-ppm` (connection reset), `tcp-partial-io-ppm` (forcing a
+  -- short write of `1..len-1` bytes), and the asymmetric `partition-mask`
+  -- between `ep.tcp-node` and `ep.tcp-peer-node`.
+  sim-tcp-send :: forall r. SimWorld r -> Fd -> Bytes ->{Mut r} Result IoError U32
+  sim-tcp-send w fd data-buf = id-res (sim-tcp-send-body w fd.fd-raw data-buf)
+
+  -- | Internal implementation of `sim-tcp-send` taking raw descriptor word.
+  sim-tcp-send-body :: forall r. SimWorld r -> I32 -> Bytes ->{Mut r} Result IoError U32
+  sim-tcp-send-body w fd-raw data-buf =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some ep ->
+        if var-read ep.tcp-closed then Err IoBadFd
+        else if var-read ep.tcp-reset then Err IoConnReset
+        else if var-read ep.tcp-tx-closed then Err IoBrokenPipe
+        else
+          let cfg = var-read w.sim-faults in
+          let hit-rst = world-chance-ppm w cfg.tcp-rst-ppm in
+          if hit-rst then
+            let _ = var-write ep.tcp-reset True in
+            let deliver = next-tcp-deliver-ns w ep in
+            let _ = schedule-event w deliver (EvTcpRst ep.tcp-peer-fd) in
+            let _ = record-trace w 203 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) deliver in
+            Err IoConnReset
+          else
+            let total = nat-to-u32 (bytes-len data-buf) in
+            if eq-u32 total 0 then Ok 0
+            else
+              let partial = if gt-u32 total 1 then world-chance-ppm w cfg.tcp-partial-io-ppm else False in
+              let send-len = (if partial then wrapping-u64-to-u32 (world-rng-range w 1 (u32-to-u64 total)) else total) in
+              let chunk = slice-bytes data-buf 0 (u32-to-nat send-len) in
+              let blocked = partition-is-blocked cfg.partition-mask ep.tcp-node ep.tcp-peer-node in
+              if blocked then
+                let _ = record-trace-bytes w 204 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) chunk in
+                Ok send-len
+              else
+                let deliver = next-tcp-deliver-ns w ep in
+                let _ = schedule-event w deliver (EvTcpData ep.tcp-peer-fd chunk) in
+                let _ = record-trace-bytes w 201 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) chunk in
+                Ok send-len
+
+  -- | Receive up to `max-len` buffered bytes from a simulated TCP endpoint.
+  --
+  -- Applies `tcp-partial-io-ppm` (short reads of `1..want-1` bytes). Returns
+  -- `Err IoAgain` if no bytes are buffered yet, `Err IoEof` once the peer
+  -- half-closed and the buffer is drained, or `Err IoConnReset` on RST.
+  sim-tcp-recv :: forall r. SimWorld r -> Fd -> U32 ->{Mut r} Result IoError Bytes
+  sim-tcp-recv w fd max-len = id-res (sim-tcp-recv-body w fd.fd-raw max-len)
+
+  -- | Internal implementation of `sim-tcp-recv` taking raw descriptor word.
+  sim-tcp-recv-body :: forall r. SimWorld r -> I32 -> U32 ->{Mut r} Result IoError Bytes
+  sim-tcp-recv-body w fd-raw max-len =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some ep ->
+        if var-read ep.tcp-closed then Err IoBadFd
+        else if var-read ep.tcp-reset then Err IoConnReset
+        else
+          let avail = nat-to-u32 (deque-length ep.tcp-rx-buf) in
+          if eq-u32 avail 0 then
+            if var-read ep.tcp-rx-eof then Err IoEof
+            else Err IoAgain
+          else if eq-u32 max-len 0 then Ok (bytes-new 0)
+          else
+            let want = if lt-u32 max-len avail then max-len else avail in
+            let cfg = var-read w.sim-faults in
+            let partial = if gt-u32 want 1 then world-chance-ppm w cfg.tcp-partial-io-ppm else False in
+            let actual = (if partial then wrapping-u64-to-u32 (world-rng-range w 1 (u32-to-u64 want)) else want) in
+            let n = u32-to-nat actual in
+            let out = bytes-new n in
+            let _ = tcp-pop-bytes ep.tcp-rx-buf out 0 n in
+            let _ = record-trace-bytes w 202 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) out in
+            Ok out
+
+  -- | Half-close the write direction of a simulated TCP endpoint, delivering
+  -- an in-order EOF to the peer after all previously sent bytes.
+  sim-tcp-shutdown-write :: forall r. SimWorld r -> Fd ->{Mut r} IoError
+  sim-tcp-shutdown-write w fd =
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> IoBadFd
+      Some ep ->
+        if var-read ep.tcp-closed then IoBadFd
+        else
+          let _ = var-write ep.tcp-tx-closed True in
+          let deliver = next-tcp-deliver-ns w ep in
+          let _ = schedule-event w deliver (EvTcpEof ep.tcp-peer-fd) in
+          let _ = record-trace w 205 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) deliver in
+          IoOk
+
+  -- | Explicitly inject a TCP RST on `fd` and schedule RST delivery to its peer.
+  sim-tcp-inject-rst :: forall r. SimWorld r -> Fd ->{Mut r} IoError
+  sim-tcp-inject-rst w fd =
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> IoBadFd
+      Some ep ->
+        let _ = var-write ep.tcp-reset True in
+        let deliver = next-tcp-deliver-ns w ep in
+        let _ = schedule-event w deliver (EvTcpRst ep.tcp-peer-fd) in
+        let _ = record-trace w 206 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) deliver in
+        IoOk
+
+  -- | Number of buffered unread bytes currently available on a TCP endpoint.
+  sim-tcp-available :: forall r. SimWorld r -> Fd ->{Mut r} U32
+  sim-tcp-available w fd =
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> 0
+      Some ep -> nat-to-u32 (deque-length ep.tcp-rx-buf)
+
+  -- | Whether the peer has delivered half-close EOF to `fd`.
+  sim-tcp-is-eof :: forall r. SimWorld r -> Fd ->{Mut r} Bool
+  sim-tcp-is-eof w fd =
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> False
+      Some ep -> var-read ep.tcp-rx-eof
+
+  -- | Whether `fd` has entered the TCP RST state.
+  sim-tcp-is-reset :: forall r. SimWorld r -> Fd ->{Mut r} Bool
+  sim-tcp-is-reset w fd =
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> False
+      Some ep -> var-read ep.tcp-reset
+
+  -- | Close a simulated TCP endpoint and deliver half-close EOF to its peer.
+  sim-tcp-close :: forall r. SimWorld r -> Fd ->{Mut r} IoError
+  sim-tcp-close w fd =
+    case ht-get w.sim-tcps (fd-to-nat fd) of
+      None -> IoBadFd
+      Some ep ->
+        let _ = (if not (var-read ep.tcp-tx-closed) then
+                  let _ = var-write ep.tcp-tx-closed True in
+                  let deliver = next-tcp-deliver-ns w ep in
+                  let _ = schedule-event w deliver (EvTcpEof ep.tcp-peer-fd) in
+                  ()
+                else ()) in
+        let _ = var-write ep.tcp-closed True in
+        let _ = deque-clear ep.tcp-rx-buf in
+        let _ = record-trace w 207 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) 0 in
+        IoOk
+
+  -- =========================================================================
+  -- 7. Simulated UDP endpoints & NAT port rebinding
+  -- =========================================================================
+
+  -- | Non-inlined `Ok Fd` constructor keeping `#[repr(value)]` `Fd` out of CSR.
+  #[inline(never)]
+  wrap-fd-ok :: Fd -> Result IoError Fd
+  wrap-fd-ok f = id-res (Ok f)
+
+  -- | Non-inlined `Err IoError` constructor for `Result IoError Fd`.
+  #[inline(never)]
+  wrap-fd-err :: IoError -> Result IoError Fd
+  wrap-fd-err e = id-res (Err e)
+
+  -- | Bind a simulated UDP endpoint to `(node-id, port)`.
+  -- Returns `Err IoAddrInUse` if `(node-id, port)` is already bound.
+  sim-udp-bind :: forall r. SimWorld r -> U8 -> U16 ->{Mut r} Result IoError Fd
+  sim-udp-bind w node port =
+    let addr = SimUdpAddr node port in
+    let key = udp-addr-key addr in
+    if ht-has w.sim-udp-by-addr key then wrap-fd-err IoAddrInUse
+    else
+      let fd = alloc-fd w in
+      let ep = SimUdpEnd fd (var-new addr) (deque-new ()) (var-new False) in
+      let _ = ht-put w.sim-udps (fd-to-nat fd) ep in
+      let _ = ht-put w.sim-udp-by-addr key fd.fd-raw in
+      let _ = record-trace w 300 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) (u32-to-u64 (sim-udp-addr-pack addr)) in
+      wrap-fd-ok fd
+
+  -- | Inspect the current `(node-id, port)` address of a UDP endpoint.
+  sim-udp-addr :: forall r. SimWorld r -> Fd ->{Mut r} Option SimUdpAddr
+  sim-udp-addr w fd = id-opt (sim-udp-addr-body w fd.fd-raw)
+
+  -- | Internal implementation of `sim-udp-addr` taking raw descriptor word.
+  sim-udp-addr-body :: forall r. SimWorld r -> I32 ->{Mut r} Option SimUdpAddr
+  sim-udp-addr-body w fd-raw =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-udps (fd-to-nat fd) of
+      None -> None
+      Some ep -> if var-read ep.udp-closed then None else Some (var-read ep.udp-cur-addr)
+
+  -- | Simulate NAT address/port rebinding (e.g., for QUIC connection migration)
+  -- by moving `fd` to `new-port` on its simulated node.
+  --
+  -- Packets addressed to the old port are no longer delivered to `fd`; future
+  -- sends from `fd` carry `new-port` as their source address.
+  sim-udp-nat-rebind :: forall r. SimWorld r -> Fd -> U16 ->{Mut r} Result IoError SimUdpAddr
+  sim-udp-nat-rebind w fd new-port = id-res (sim-udp-nat-rebind-body w fd.fd-raw new-port)
+
+  -- | Internal implementation of `sim-udp-nat-rebind` taking raw descriptor word.
+  sim-udp-nat-rebind-body :: forall r. SimWorld r -> I32 -> U16 ->{Mut r} Result IoError SimUdpAddr
+  sim-udp-nat-rebind-body w fd-raw new-port =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-udps (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some ep ->
+        if var-read ep.udp-closed then Err IoBadFd
+        else
+          let old-addr = var-read ep.udp-cur-addr in
+          let new-addr = SimUdpAddr old-addr.udp-node new-port in
+          if sim-udp-addr-eq old-addr new-addr then Ok new-addr
+          else
+            let new-key = udp-addr-key new-addr in
+            if ht-has w.sim-udp-by-addr new-key then Err IoAddrInUse
+            else
+              let _ = ht-del w.sim-udp-by-addr (udp-addr-key old-addr) in
+              let _ = ht-put w.sim-udp-by-addr new-key fd.fd-raw in
+              let _ = var-write ep.udp-cur-addr new-addr in
+              let _ = record-trace w 306 (u32-to-u64 (sim-udp-addr-pack old-addr)) (u32-to-u64 (sim-udp-addr-pack new-addr)) in
+              Ok new-addr
+
+  -- | Deterministic single-byte corruption of a freshly cloned datagram.
+  corrupt-payload :: forall r. SimWorld r -> Bytes ->{Mut r} Bytes
+  corrupt-payload w buf =
+    let n = bytes-len buf in
+    if n == 0 then buf
+    else
+      let idx-u64 = world-rng-range w 0 (nat-to-u64 n) in
+      let idx = u64-to-nat idx-u64 in
+      let mask = wrapping-u64-to-u8 (world-rng-range w 1 256) in
+      let _ = (if idx < bytes-len buf then
+                let orig = bytes-get-u8 buf idx in
+                bytes-set-u8 buf idx (bit-xor-u8 orig mask)
+              else ()) in
+      buf
+
+  -- | Send a UDP datagram from `fd` to `dst-addr`.
+  --
+  -- Applies asymmetric `partition-mask` filtering, `udp-drop-ppm`,
+  -- `udp-corrupt-ppm`, `udp-min-delay-ns..udp-max-delay-ns` jitter,
+  -- `udp-reorder-ppm` extra delay, and `udp-dup-ppm` duplicate injection.
+  sim-udp-send :: forall r. SimWorld r -> Fd -> SimUdpAddr -> Bytes ->{Mut r} IoError
+  sim-udp-send w fd dst-addr payload =
+    case ht-get w.sim-udps (fd-to-nat fd) of
+      None -> IoBadFd
+      Some ep ->
+        if var-read ep.udp-closed then IoBadFd
+        else
+          let src-addr = var-read ep.udp-cur-addr in
+          let cfg = var-read w.sim-faults in
+          let packed-pair = bit-or-u64 (wrapping-shl-u64 (u32-to-u64 (sim-udp-addr-pack src-addr)) 32) (u32-to-u64 (sim-udp-addr-pack dst-addr)) in
+          if partition-is-blocked cfg.partition-mask src-addr.udp-node dst-addr.udp-node then
+            let _ = record-trace w 304 packed-pair (nat-to-u64 (bytes-len payload)) in
+            IoOk
+          else if world-chance-ppm w cfg.udp-drop-ppm then
+            let _ = record-trace w 301 packed-pair (nat-to-u64 (bytes-len payload)) in
+            IoOk
+          else
+            let copy0 = clone-bytes payload in
+            let wire-buf = (if world-chance-ppm w cfg.udp-corrupt-ppm then
+                let c = corrupt-payload w copy0 in
+                let _ = record-trace-bytes w 302 packed-pair c in
+                c
+              else copy0) in
+            let now = var-read w.sim-now-ns in
+            let base-delay = sample-net-delay w in
+            let reorder-extra = (if world-chance-ppm w cfg.udp-reorder-ppm then
+                let spread = saturating-sub-u64 cfg.udp-max-delay-ns cfg.udp-min-delay-ns in
+                let max-extra = saturating-add-u64 spread 1000000 in
+                world-rng-range w 1 (saturating-add-u64 max-extra 1)
+              else 0) in
+            let deliver1 = saturating-add-u64 now (saturating-add-u64 base-delay reorder-extra) in
+            let _ = schedule-event w deliver1 (EvUdpDatagram src-addr dst-addr wire-buf) in
+            let _ = record-trace-bytes w 303 packed-pair wire-buf in
+            let _ = (if world-chance-ppm w cfg.udp-dup-ppm then
+                      let dup-buf = clone-bytes wire-buf in
+                      let dup-delay = saturating-add-u64 (sample-net-delay w) (world-rng-range w 1 1000001) in
+                      let deliver2 = saturating-add-u64 now dup-delay in
+                      let _ = schedule-event w deliver2 (EvUdpDatagram src-addr dst-addr dup-buf) in
+                      record-trace w 305 packed-pair deliver2
+                    else ()) in
+            IoOk
+
+  -- | Receive the next delivered datagram queued on UDP endpoint `fd`.
+  -- Returns `Err IoAgain` if no datagram has arrived yet.
+  sim-udp-recv :: forall r. SimWorld r -> Fd ->{Mut r} Result IoError SimUdpDatagram
+  sim-udp-recv w fd = id-res (sim-udp-recv-body w fd.fd-raw)
+
+  -- | Internal implementation of `sim-udp-recv` taking raw descriptor word.
+  sim-udp-recv-body :: forall r. SimWorld r -> I32 ->{Mut r} Result IoError SimUdpDatagram
+  sim-udp-recv-body w fd-raw =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-udps (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some ep ->
+        if var-read ep.udp-closed then Err IoBadFd
+        else case dq-pop-front ep.udp-rx-queue of
+          None -> Err IoAgain
+          Some dgram ->
+            let _ = record-trace-bytes w 307 (u32-to-u64 (sim-udp-addr-pack dgram.dgram-src)) dgram.dgram-payload in
+            Ok dgram
+
+  -- | Number of delivered datagrams currently queued on UDP endpoint `fd`.
+  sim-udp-pending-count :: forall r. SimWorld r -> Fd ->{Mut r} U32
+  sim-udp-pending-count w fd =
+    case ht-get w.sim-udps (fd-to-nat fd) of
+      None -> 0
+      Some ep -> nat-to-u32 (deque-length ep.udp-rx-queue)
+
+  -- | Close a simulated UDP endpoint and release its bound `(node, port)` slot.
+  sim-udp-close :: forall r. SimWorld r -> Fd ->{Mut r} IoError
+  sim-udp-close w fd =
+    case ht-get w.sim-udps (fd-to-nat fd) of
+      None -> IoBadFd
+      Some ep ->
+        let addr = var-read ep.udp-cur-addr in
+        let _ = ht-del w.sim-udp-by-addr (udp-addr-key addr) in
+        let _ = var-write ep.udp-closed True in
+        let _ = deque-clear ep.udp-rx-queue in
+        let _ = record-trace w 308 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) (u32-to-u64 (sim-udp-addr-pack addr)) in
+        IoOk
+
+  -- =========================================================================
+  -- 8. Simulated `O_DIRECT` virtual disks & power-loss crash injection
+  -- =========================================================================
+
+  -- | Open a simulated `O_DIRECT` virtual disk with `sector-size` bytes per
+  -- sector (minimum 512; `0` defaults to 4096) and `sector-count` total sectors.
+  sim-disk-open :: forall r. SimWorld r -> U32 -> U64 ->{Mut r} Fd
+  sim-disk-open w req-sec-size sec-count =
+    let sec-size = if eq-u32 req-sec-size 0 then (4096 :: U32) else if lt-u32 req-sec-size 512 then (512 :: U32) else req-sec-size in
+    let fd = alloc-fd w in
+    let disk = SimDisk fd sec-size sec-count (hash-table-new ()) (hash-table-new ()) (vec-new ()) (var-new 0) (var-new False) in
+    let _ = ht-put w.sim-disks (fd-to-nat fd) disk in
+    let _ = record-trace w 400 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) (wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 sec-size) 32) sec-count) in
+    fd
+
+  -- | Sector size in bytes of a virtual disk (or `0` if invalid).
+  sim-disk-sector-size :: forall r. SimWorld r -> Fd ->{Mut r} U32
+  sim-disk-sector-size w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> 0
+      Some d -> d.disk-sec-size
+
+  -- | Total sector capacity of a virtual disk (or `0` if invalid).
+  sim-disk-sector-count :: forall r. SimWorld r -> Fd ->{Mut r} U64
+  sim-disk-sector-count w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> 0
+      Some d -> d.disk-sec-count
+
+  -- | Read a sector from volatile-pending first, then durable-sectors, or
+  -- return a fresh zeroed sector buffer.
+  disk-read-raw-sector :: forall r. SimDisk r -> Nat ->{Mut r} Bytes
+  disk-read-raw-sector disk sec-key =
+    let sz = u32-to-nat disk.disk-sec-size in
+    case ht-get disk.disk-volatile sec-key of
+      Some b -> clone-bytes b
+      None ->
+        case ht-get disk.disk-durable sec-key of
+          Some b -> clone-bytes b
+          None -> bytes-new sz
+
+  -- | Flip a single deterministic bit in a sector buffer when `disk-bitflip-ppm` hits.
+  maybe-bitflip-sector :: forall r. SimWorld r -> Bytes ->{Mut r} Bytes
+  maybe-bitflip-sector w buf =
+    let cfg = var-read w.sim-faults in
+    let n = bytes-len buf in
+    if n == 0 then buf
+    else if world-chance-ppm w cfg.disk-bitflip-ppm then
+      let byte-idx = u64-to-nat (world-rng-range w 0 (nat-to-u64 n)) in
+      let bit-pos = wrapping-u64-to-u32 (world-rng-range w 0 8) in
+      let mask = wrapping-shl-u8 1 bit-pos in
+      let _ = (if byte-idx < bytes-len buf then
+                bytes-set-u8 buf byte-idx (bit-xor-u8 (bytes-get-u8 buf byte-idx) mask)
+              else ()) in
+      let _ = record-trace w 405 (nat-to-u64 byte-idx) (u8-to-u64 mask) in
+      buf
+    else buf
+
+  -- | Write one sector at `sector-idx` into the disk's volatile (un-fsynced)
+  -- buffer. Data does NOT become durable until `sim-disk-fsync` completes.
+  sim-disk-write-sector :: forall r. SimWorld r -> Fd -> U64 -> Bytes ->{Mut r} IoError
+  sim-disk-write-sector w fd sector-idx payload =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> IoBadFd
+      Some disk ->
+        if var-read disk.disk-closed then IoBadFd
+        else if ge-u64 sector-idx disk.disk-sec-count then IoOther
+        else
+          let sz = u32-to-nat disk.disk-sec-size in
+          let sec-buf = bytes-new sz in
+          let copy-n = if bytes-len payload < sz then bytes-len payload else sz in
+          let _ = (if copy-n <= bytes-len sec-buf && copy-n <= bytes-len payload then
+                    bytes-copy-range sec-buf payload 0 0 copy-n
+                  else ()) in
+          let final-buf = maybe-bitflip-sector w sec-buf in
+          let sec-key = u64-to-nat sector-idx in
+          let already = ht-has disk.disk-volatile sec-key in
+          let _ = ht-put disk.disk-volatile sec-key final-buf in
+          let _ = if not already then vec-push disk.disk-volatile-keys sec-key else () in
+          let _ = record-trace-bytes w 401 sector-idx final-buf in
+          IoOk
+
+  -- | Read one sector at `sector-idx` (observing uncommitted volatile writes
+  -- first, then durable `fsync`ed sectors, then zeroes).
+  sim-disk-read-sector :: forall r. SimWorld r -> Fd -> U64 ->{Mut r} Result IoError Bytes
+  sim-disk-read-sector w fd sector-idx = id-res (sim-disk-read-sector-body w fd.fd-raw sector-idx)
+
+  -- | Internal implementation of `sim-disk-read-sector` taking raw descriptor word.
+  sim-disk-read-sector-body :: forall r. SimWorld r -> I32 -> U64 ->{Mut r} Result IoError Bytes
+  sim-disk-read-sector-body w fd-raw sector-idx =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some disk ->
+        if var-read disk.disk-closed then Err IoBadFd
+        else if ge-u64 sector-idx disk.disk-sec-count then Err IoOther
+        else
+          let out = disk-read-raw-sector disk (u64-to-nat sector-idx) in
+          let _ = record-trace-bytes w 402 sector-idx out in
+          Ok out
+
+  -- | Write an arbitrary byte range starting at `byte-off` across one or more
+  -- sectors into the disk's volatile buffer.
+  sim-disk-pwrite :: forall r. SimWorld r -> Fd -> U64 -> Bytes ->{Mut r} Result IoError U32
+  sim-disk-pwrite w fd byte-off payload = id-res (sim-disk-pwrite-body w fd.fd-raw byte-off payload)
+
+  -- | Internal implementation of `sim-disk-pwrite` taking raw descriptor word.
+  sim-disk-pwrite-body :: forall r. SimWorld r -> I32 -> U64 -> Bytes ->{Mut r} Result IoError U32
+  sim-disk-pwrite-body w fd-raw byte-off payload =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some disk ->
+        if var-read disk.disk-closed then Err IoBadFd
+        else
+          let total = bytes-len payload in
+          let sec-sz-u64 = u32-to-u64 disk.disk-sec-size in
+          let disk-bytes = saturating-mul-u64 disk.disk-sec-count sec-sz-u64 in
+          if ge-u64 byte-off disk-bytes then Err IoOther
+          else
+            let avail = saturating-sub-u64 disk-bytes byte-off in
+            let write-n = if lt-u64 avail (nat-to-u64 total) then u64-to-nat avail else total in
+            let _ = pwrite-loop w disk payload byte-off 0 write-n in
+            Ok (nat-to-u32 write-n)
+
+  -- | Sector-by-sector helper for `sim-disk-pwrite`.
+  pwrite-loop :: forall r. SimWorld r -> SimDisk r -> Bytes -> U64 -> Nat -> Nat ->{Mut r} Unit
+  pwrite-loop w disk payload cur-off pos rem =
+    if rem == 0 then ()
+    else
+      let sec-sz-u64 = u32-to-u64 disk.disk-sec-size in
+      let sec-sz-nat = u32-to-nat disk.disk-sec-size in
+      case checked-div-u64 cur-off sec-sz-u64 of
+        None -> ()
+        Some sec-idx ->
+          case checked-rem-u64 cur-off sec-sz-u64 of
+            None -> ()
+            Some in-sec-u64 ->
+              let in-sec = u64-to-nat in-sec-u64 in
+              let room = if in-sec < sec-sz-nat then sec-sz-nat - in-sec else 0 in
+              let step = if rem < room then rem else room in
+              if step == 0 then ()
+              else
+                let sec-key = u64-to-nat sec-idx in
+                let cur-sec = disk-read-raw-sector disk sec-key in
+                let _ = (if in-sec + step <= bytes-len cur-sec && pos + step <= bytes-len payload then
+                          bytes-copy-range cur-sec payload in-sec pos step
+                        else ()) in
+                let final-sec = maybe-bitflip-sector w cur-sec in
+                let already = ht-has disk.disk-volatile sec-key in
+                let _ = ht-put disk.disk-volatile sec-key final-sec in
+                let _ = if not already then vec-push disk.disk-volatile-keys sec-key else () in
+                let _ = record-trace-bytes w 401 sec-idx final-sec in
+                let next-rem = if step <= rem then rem - step else 0 in
+                pwrite-loop w disk payload (saturating-add-u64 cur-off (nat-to-u64 step)) (pos + step) next-rem
+
+  -- | Read up to `req-len` bytes starting at `byte-off` across one or more
+  -- sectors from the virtual disk.
+  sim-disk-pread :: forall r. SimWorld r -> Fd -> U64 -> U32 ->{Mut r} Result IoError Bytes
+  sim-disk-pread w fd byte-off req-len = id-res (sim-disk-pread-body w fd.fd-raw byte-off req-len)
+
+  -- | Internal implementation of `sim-disk-pread` taking raw descriptor word.
+  sim-disk-pread-body :: forall r. SimWorld r -> I32 -> U64 -> U32 ->{Mut r} Result IoError Bytes
+  sim-disk-pread-body w fd-raw byte-off req-len =
+    let fd = fd-of fd-raw in
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> Err IoBadFd
+      Some disk ->
+        if var-read disk.disk-closed then Err IoBadFd
+        else
+          let sec-sz-u64 = u32-to-u64 disk.disk-sec-size in
+          let disk-bytes = saturating-mul-u64 disk.disk-sec-count sec-sz-u64 in
+          if ge-u64 byte-off disk-bytes then Ok (bytes-new 0)
+          else
+            let avail = saturating-sub-u64 disk-bytes byte-off in
+            let req-u64 = u32-to-u64 req-len in
+            let read-n = u64-to-nat (if lt-u64 avail req-u64 then avail else req-u64) in
+            let out = bytes-new read-n in
+            let _ = pread-loop w disk out byte-off 0 read-n in
+            let _ = record-trace-bytes w 402 byte-off out in
+            Ok out
+
+  -- | Sector-by-sector helper for `sim-disk-pread`.
+  pread-loop :: forall r. SimWorld r -> SimDisk r -> Bytes -> U64 -> Nat -> Nat ->{Mut r} Unit
+  pread-loop w disk out cur-off pos rem =
+    if rem == 0 then ()
+    else
+      let sec-sz-u64 = u32-to-u64 disk.disk-sec-size in
+      let sec-sz-nat = u32-to-nat disk.disk-sec-size in
+      case checked-div-u64 cur-off sec-sz-u64 of
+        None -> ()
+        Some sec-idx ->
+          case checked-rem-u64 cur-off sec-sz-u64 of
+            None -> ()
+            Some in-sec-u64 ->
+              let in-sec = u64-to-nat in-sec-u64 in
+              let room = if in-sec < sec-sz-nat then sec-sz-nat - in-sec else 0 in
+              let step = if rem < room then rem else room in
+              if step == 0 then ()
+              else
+                let sec-buf = disk-read-raw-sector disk (u64-to-nat sec-idx) in
+                let _ = (if pos + step <= bytes-len out && in-sec + step <= bytes-len sec-buf then
+                          bytes-copy-range out sec-buf pos in-sec step
+                        else ()) in
+                let next-rem = if step <= rem then rem - step else 0 in
+                pread-loop w disk out (saturating-add-u64 cur-off (nat-to-u64 step)) (pos + step) next-rem
+
+  -- | Flush every volatile sector in deterministic write order into `disk-durable`.
+  fsync-keys-loop :: forall r. SimDisk r -> Nat -> Nat ->{Mut r} Unit
+  fsync-keys-loop disk i n =
+    if i < n then
+      let _ = (case vec-at disk.disk-volatile-keys i of
+                None -> ()
+                Some sec-key ->
+                  case ht-get disk.disk-volatile sec-key of
+                    None -> ()
+                    Some sec-buf -> ht-put disk.disk-durable sec-key sec-buf) in
+      fsync-keys-loop disk (i + 1) n
+    else ()
+
+  -- | Atomically promote all `volatile-pending` sectors to `durable-sectors`.
+  sim-disk-fsync :: forall r. SimWorld r -> Fd ->{Mut r} IoError
+  sim-disk-fsync w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> IoBadFd
+      Some disk ->
+        if var-read disk.disk-closed then IoBadFd
+        else
+          let count = vec-length disk.disk-volatile-keys in
+          let _ = fsync-keys-loop disk 0 count in
+          let _ = ht-clear disk.disk-volatile in
+          let _ = vec-clear disk.disk-volatile-keys in
+          let _ = record-trace w 403 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) (nat-to-u64 count) in
+          IoOk
+
+  -- | Build a torn sector containing the first half of `new-sec` and the second
+  -- half of `old-sec` (256B/256B for 512B sectors, 2048B/2048B for 4 KiB sectors).
+  make-torn-sector :: U32 -> Bytes -> Bytes -> Bytes
+  make-torn-sector sec-size new-sec old-sec =
+    let sz = u32-to-nat sec-size in
+    let half = u32-to-nat (wrapping-shr-u32 sec-size 1) in
+    let tail = if half <= sz then sz - half else 0 in
+    let out = bytes-new sz in
+    let _ = (if half <= bytes-len out && half <= bytes-len new-sec then
+              bytes-copy-range out new-sec 0 0 half
+            else ()) in
+    let _ = (if half + tail <= bytes-len out && half + tail <= bytes-len old-sec then
+              bytes-copy-range out old-sec half half tail
+            else ()) in
+    out
+
+  -- | Crash loop applying `disk-torn-sector-ppm` to each dirty volatile sector
+  -- in deterministic write order, returning the count of torn sectors written.
+  crash-volatile-loop :: forall r. SimWorld r -> SimDisk r -> Nat -> Nat -> U32 ->{Mut r} U32
+  crash-volatile-loop w disk i n torn-acc =
+    if i < n then
+      let next-acc = (case vec-at disk.disk-volatile-keys i of
+          None -> torn-acc
+          Some sec-key ->
+            case ht-get disk.disk-volatile sec-key of
+              None -> torn-acc
+              Some new-sec ->
+                let cfg = var-read w.sim-faults in
+                if world-chance-ppm w cfg.disk-torn-sector-ppm then
+                  let old-sec = (case ht-get disk.disk-durable sec-key of
+                      Some b -> b
+                      None -> bytes-new (u32-to-nat disk.disk-sec-size)) in
+                  let torn = make-torn-sector disk.disk-sec-size new-sec old-sec in
+                  let _ = ht-put disk.disk-durable sec-key torn in
+                  let _ = record-trace-bytes w 406 (nat-to-u64 sec-key) torn in
+                  wrapping-add-u32 torn-acc 1
+                else torn-acc) in
+      crash-volatile-loop w disk (i + 1) n next-acc
+    else torn-acc
+
+  -- | Simulate an abrupt power-loss crash on virtual disk `fd`.
+  --
+  -- Discards every uncommitted `volatile-pending` sector (leaving all
+  -- `durable-sectors` intact), optionally materializing half-sector torn writes
+  -- per `disk-torn-sector-ppm`, and invalidates any pre-crash in-flight async
+  -- disk events. Returns the number of volatile sectors that were affected
+  -- (discarded or torn).
+  sim-disk-crash-power-loss! :: forall r. SimWorld r -> Fd ->{Mut r} U32
+  sim-disk-crash-power-loss! w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> 0
+      Some disk ->
+        let dirty-count = vec-length disk.disk-volatile-keys in
+        let torn = crash-volatile-loop w disk 0 dirty-count 0 in
+        let _ = ht-clear disk.disk-volatile in
+        let _ = vec-clear disk.disk-volatile-keys in
+        let ep = wrapping-add-u64 (var-read disk.disk-epoch) 1 in
+        let _ = var-write disk.disk-epoch ep in
+        let _ = record-trace w 404 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) (wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 torn) 32) (nat-to-u64 dirty-count)) in
+        nat-to-u32 dirty-count
+
+  -- | Number of `fsync`ed durable sectors currently stored on virtual disk `fd`.
+  sim-disk-durable-count :: forall r. SimWorld r -> Fd ->{Mut r} U32
+  sim-disk-durable-count w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> 0
+      Some disk -> nat-to-u32 (ht-size disk.disk-durable)
+
+  -- | Number of uncommitted volatile sectors currently pending on virtual disk `fd`.
+  sim-disk-volatile-count :: forall r. SimWorld r -> Fd ->{Mut r} U32
+  sim-disk-volatile-count w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> 0
+      Some disk -> nat-to-u32 (ht-size disk.disk-volatile)
+
+  -- | Close a virtual disk descriptor.
+  sim-disk-close :: forall r. SimWorld r -> Fd ->{Mut r} IoError
+  sim-disk-close w fd =
+    case ht-get w.sim-disks (fd-to-nat fd) of
+      None -> IoBadFd
+      Some disk ->
+        let _ = var-write disk.disk-closed True in
+        let _ = record-trace w 407 (wrapping-i64-to-u64 (i32-to-i64 fd.fd-raw)) 0 in
+        IoOk
+
+  -- =========================================================================
+  -- 9. Discrete-event dispatch & parked async reactor completion wakeups
+  -- =========================================================================
+
+  -- | Emit a reactor `Completion` onto `sim-cqes` and fold it into the trace digest.
+  push-cqe :: forall r. SimWorld r -> Completion ->{Mut r} Unit
+  push-cqe w cqe =
+    let _ = deque-push-back w.sim-cqes (BoxedCqe cqe) in
+    record-trace w 500 cqe.cqe-token (wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 cqe.cqe-flags) 32) (wrapping-i64-to-u64 (i32-to-i64 cqe.cqe-res)))
+
+  -- | Check whether `tok` was canceled via `OpCancel`, consuming the tombstone.
+  consume-canceled :: forall r. SimWorld r -> IoToken ->{Mut r} Bool
+  consume-canceled w tok =
+    let key = u64-to-nat tok.io-token-raw in
+    case ht-del w.sim-canceled key of
+      Some _ -> True
+      None -> False
+
+  -- | Park a pending `OpRecv`/`OpRecvMsg` SQE until data arrives on `fd`.
+  park-recv :: forall r. SimWorld r -> Fd -> IoSqe ->{Mut r} Unit
+  park-recv w fd sqe =
+    let key = fd-to-nat fd in
+    let boxed = BoxedSqe sqe in
+    case ht-get w.sim-pending-recvs key of
+      Some q -> deque-push-back q boxed
+      None ->
+        let q = deque-new () in
+        let _ = deque-push-back q boxed in
+        ht-put w.sim-pending-recvs key q
+
+  -- | Complete any parked `OpRecv` SQEs waiting on TCP endpoint `fd`.
+  wake-tcp-recvs :: forall r. SimWorld r -> Fd ->{IO r, Mut r} Unit
+  wake-tcp-recvs w fd =
+    case ht-get w.sim-pending-recvs (fd-to-nat fd) of
+      None -> ()
+      Some q -> wake-tcp-recvs-loop w fd q
+
+  -- | Loop draining parked TCP `OpRecv` SQEs while data, EOF, or RST is ready.
+  wake-tcp-recvs-loop :: forall r. SimWorld r -> Fd -> Deque r BoxedSqe ->{IO r, Mut r} Unit
+  wake-tcp-recvs-loop w fd q =
+    case dq-front q of
+      None -> ()
+      Some boxed ->
+        case boxed of
+          BoxedSqe sqe ->
+            let tok = io-sqe-token-id sqe in
+            if consume-canceled w tok then
+              let _ = dq-pop-front q in
+              let _ = push-cqe w (completion-make tok (neg-io-err IoCanceled) 0) in
+              wake-tcp-recvs-loop w fd q
+            else
+              case sim-tcp-recv w fd sqe.sqe-len of
+                Ok chunk ->
+                  let _ = dq-pop-front q in
+                  let copied = write-raw-buf sqe.sqe-buf-addr sqe.sqe-len chunk in
+                  let _ = push-cqe w (completion-make tok (wrapping-u32-to-i32 copied) 0) in
+                  wake-tcp-recvs-loop w fd q
+                Err IoEof ->
+                  let _ = dq-pop-front q in
+                  let _ = push-cqe w (completion-make tok 0 0) in
+                  wake-tcp-recvs-loop w fd q
+                Err IoAgain -> ()
+                Err err ->
+                  let _ = dq-pop-front q in
+                  let _ = push-cqe w (completion-make tok (neg-io-err err) 0) in
+                  wake-tcp-recvs-loop w fd q
+
+  -- | Complete any parked `OpRecvMsg` SQEs waiting on UDP endpoint `fd`.
+  wake-udp-recvs :: forall r. SimWorld r -> Fd ->{IO r, Mut r} Unit
+  wake-udp-recvs w fd =
+    case ht-get w.sim-pending-recvs (fd-to-nat fd) of
+      None -> ()
+      Some q -> wake-udp-recvs-loop w fd q
+
+  -- | Loop draining parked UDP `OpRecvMsg` SQEs while datagrams are queued.
+  wake-udp-recvs-loop :: forall r. SimWorld r -> Fd -> Deque r BoxedSqe ->{IO r, Mut r} Unit
+  wake-udp-recvs-loop w fd q =
+    case dq-front q of
+      None -> ()
+      Some boxed ->
+        case boxed of
+          BoxedSqe sqe ->
+            let tok = io-sqe-token-id sqe in
+            if consume-canceled w tok then
+              let _ = dq-pop-front q in
+              let _ = push-cqe w (completion-make tok (neg-io-err IoCanceled) 0) in
+              wake-udp-recvs-loop w fd q
+            else
+              case sim-udp-recv w fd of
+                Ok dgram ->
+                  let _ = dq-pop-front q in
+                  let copied = write-raw-buf sqe.sqe-buf-addr sqe.sqe-len dgram.dgram-payload in
+                  let flags = sim-udp-addr-pack dgram.dgram-src in
+                  let _ = push-cqe w (completion-make tok (wrapping-u32-to-i32 copied) flags) in
+                  wake-udp-recvs-loop w fd q
+                Err IoAgain -> ()
+                Err err ->
+                  let _ = dq-pop-front q in
+                  let _ = push-cqe w (completion-make tok (neg-io-err err) 0) in
+                  wake-udp-recvs-loop w fd q
+
+  -- | Execute one popped discrete event at its delivery timestamp.
+  dispatch-event :: forall r. SimWorld r -> SimEvent ->{IO r, Mut r} Unit
+  dispatch-event w ev =
+    let cur = var-read w.sim-now-ns in
+    let _ = if gt-u64 ev.ev-deliver-ns cur then var-write w.sim-now-ns ev.ev-deliver-ns else () in
+    let _ = var-write w.sim-events-done (wrapping-add-u64 (var-read w.sim-events-done) 1) in
+    let _ = record-trace w 100 ev.ev-deliver-ns ev.ev-seq in
+    case ev.ev-kind of
+      EvTcpData dst-fd chunk ->
+        case ht-get w.sim-tcps (fd-to-nat dst-fd) of
+          None -> ()
+          Some ep ->
+            if var-read ep.tcp-closed || var-read ep.tcp-reset then ()
+            else
+              let _ = tcp-push-bytes ep.tcp-rx-buf chunk 0 (bytes-len chunk) in
+              wake-tcp-recvs w dst-fd
+      EvTcpEof dst-fd ->
+        case ht-get w.sim-tcps (fd-to-nat dst-fd) of
+          None -> ()
+          Some ep ->
+            if var-read ep.tcp-closed then ()
+            else
+              let _ = var-write ep.tcp-rx-eof True in
+              wake-tcp-recvs w dst-fd
+      EvTcpRst dst-fd ->
+        case ht-get w.sim-tcps (fd-to-nat dst-fd) of
+          None -> ()
+          Some ep ->
+            if var-read ep.tcp-closed then ()
+            else
+              let _ = var-write ep.tcp-reset True in
+              wake-tcp-recvs w dst-fd
+      EvUdpDatagram src-addr dst-addr payload ->
+        case ht-get w.sim-udp-by-addr (udp-addr-key dst-addr) of
+          None -> ()
+          Some dst-raw ->
+            let dst-fd = fd-of dst-raw in
+            case ht-get w.sim-udps (fd-to-nat dst-fd) of
+              None -> ()
+              Some ep ->
+                if var-read ep.udp-closed then ()
+                else
+                  let _ = deque-push-back ep.udp-rx-queue (SimUdpDatagram src-addr dst-addr payload) in
+                  wake-udp-recvs w dst-fd
+      EvDiskWrite fd epoch off payload tok ->
+        if consume-canceled w tok then
+          push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+        else
+          case ht-get w.sim-disks (fd-to-nat fd) of
+            None -> push-cqe w (completion-make tok (neg-io-err IoBadFd) 0)
+            Some disk ->
+              if ne-u64 (var-read disk.disk-epoch) epoch then
+                push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+              else
+                case sim-disk-pwrite w fd off payload of
+                  Ok written -> push-cqe w (completion-make tok (wrapping-u32-to-i32 written) 0)
+                  Err err -> push-cqe w (completion-make tok (neg-io-err err) 0)
+      EvDiskRead fd epoch off buf-addr len tok ->
+        if consume-canceled w tok then
+          push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+        else
+          case ht-get w.sim-disks (fd-to-nat fd) of
+            None -> push-cqe w (completion-make tok (neg-io-err IoBadFd) 0)
+            Some disk ->
+              if ne-u64 (var-read disk.disk-epoch) epoch then
+                push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+              else
+                case sim-disk-pread w fd off len of
+                  Ok buf ->
+                    let copied = write-raw-buf buf-addr len buf in
+                    push-cqe w (completion-make tok (wrapping-u32-to-i32 copied) 0)
+                  Err err -> push-cqe w (completion-make tok (neg-io-err err) 0)
+      EvDiskFsync fd epoch tok ->
+        if consume-canceled w tok then
+          push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+        else
+          case ht-get w.sim-disks (fd-to-nat fd) of
+            None -> push-cqe w (completion-make tok (neg-io-err IoBadFd) 0)
+            Some disk ->
+              if ne-u64 (var-read disk.disk-epoch) epoch then
+                push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+              else
+                let err = sim-disk-fsync w fd in
+                push-cqe w (completion-make tok (neg-io-err err) 0)
+      EvTimer tok ->
+        if consume-canceled w tok then
+          push-cqe w (completion-make tok (neg-io-err IoCanceled) 0)
+        else
+          push-cqe w (completion-make tok 0 0)
+
+  -- | Pop and execute the single next scheduled discrete event, jumping the
+  -- virtual clock to its delivery timestamp. Returns `False` when no events
+  -- remain in the min-heap.
+  sim-world-step :: forall r. SimWorld r ->{IO r, Mut r} Bool
+  sim-world-step w =
+    case ev-heap-pop w.sim-heap of
+      None -> False
+      Some ev ->
+        let _ = dispatch-event w ev in
+        True
+
+  -- | Helper dispatching all events with `ev-deliver-ns <= goal-ns`.
+  advance-loop :: forall r. SimWorld r -> U64 -> U64 ->{IO r, Mut r} U64
+  advance-loop w goal-ns count =
+    case ev-heap-peek w.sim-heap of
+      None -> count
+      Some ev ->
+        if le-u64 ev.ev-deliver-ns goal-ns then
+          case ev-heap-pop w.sim-heap of
+            None -> count
+            Some popped ->
+              let _ = dispatch-event w popped in
+              advance-loop w goal-ns (wrapping-add-u64 count 1)
+        else count
+
+  -- | Dispatch every event scheduled at or before `goal` and advance the
+  -- virtual clock to `goal` (never moving backwards). Returns the number of
+  -- events dispatched.
+  sim-world-advance-to :: forall r. SimWorld r -> TimeNs ->{IO r, Mut r} U64
+  sim-world-advance-to w goal =
+    let goal-ns = time-ns-value goal in
+    let ran = advance-loop w goal-ns 0 in
+    let cur = var-read w.sim-now-ns in
+    let _ = if gt-u64 goal-ns cur then var-write w.sim-now-ns goal-ns else () in
+    ran
+
+  -- | Advance virtual time by `delta-ns` nanoseconds, executing all events due
+  -- within the interval. Returns the number of events dispatched.
+  sim-world-run-for :: forall r. SimWorld r -> U64 ->{IO r, Mut r} U64
+  sim-world-run-for w delta-ns =
+    let goal-ns = saturating-add-u64 (var-read w.sim-now-ns) delta-ns in
+    sim-world-advance-to w (time-ns-of goal-ns)
+
+  -- | Helper draining the min-heap until empty.
+  run-idle-loop :: forall r. SimWorld r -> U64 ->{IO r, Mut r} U64
+  run-idle-loop w count =
+    if sim-world-step w then run-idle-loop w (wrapping-add-u64 count 1)
+    else count
+
+  -- | Execute all queued discrete events until the simulator becomes idle.
+  -- Returns the total number of events dispatched.
+  sim-world-run-until-idle :: forall r. SimWorld r ->{IO r, Mut r} U64
+  sim-world-run-until-idle w = run-idle-loop w 0
+
+  -- =========================================================================
+  -- 10. Bridge to `Engine.Types` (`ReactorOps`, `ClockOps`, `EntropyOps`)
+  -- =========================================================================
+
+  -- | Dispatch one flushed `IoSqe` against `SimWorld`.
+  exec-sqe :: forall r. SimWorld r -> IoSqe ->{IO r, Mut r} Unit
+  exec-sqe w sqe =
+    let op = io-sqe-op-kind sqe in
+    let fd = fd-of sqe.sqe-fd in
+    let tok = io-sqe-token-id sqe in
+    let cfg = var-read w.sim-faults in
+    let now = var-read w.sim-now-ns in
+    case op of
+      OpNop ->
+        push-cqe w (completion-make tok 0 0)
+      OpTimeout ->
+        let _ = sim-world-schedule-timer w sqe.sqe-off tok in
+        ()
+      OpCancel ->
+        let _ = ht-put w.sim-canceled (u64-to-nat sqe.sqe-off) True in
+        push-cqe w (completion-make tok 0 0)
+      OpClose ->
+        let err = (if ht-has w.sim-tcps (fd-to-nat fd) then sim-tcp-close w fd
+          else if ht-has w.sim-udps (fd-to-nat fd) then sim-udp-close w fd
+          else if ht-has w.sim-disks (fd-to-nat fd) then sim-disk-close w fd
+          else IoBadFd) in
+        push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpSend ->
+        let payload = read-raw-buf sqe.sqe-buf-addr sqe.sqe-len in
+        case sim-tcp-send w fd payload of
+          Ok sent -> push-cqe w (completion-make tok (wrapping-u32-to-i32 sent) 0)
+          Err err -> push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpSendZc ->
+        let payload = read-raw-buf sqe.sqe-buf-addr sqe.sqe-len in
+        case sim-tcp-send w fd payload of
+          Ok sent -> push-cqe w (completion-make tok (wrapping-u32-to-i32 sent) 0)
+          Err err -> push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpRecv ->
+        case sim-tcp-recv w fd sqe.sqe-len of
+          Ok chunk ->
+            let copied = write-raw-buf sqe.sqe-buf-addr sqe.sqe-len chunk in
+            push-cqe w (completion-make tok (wrapping-u32-to-i32 copied) 0)
+          Err IoEof ->
+            push-cqe w (completion-make tok 0 0)
+          Err IoAgain ->
+            park-recv w fd sqe
+          Err err ->
+            push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpRecvMultishot ->
+        case sim-tcp-recv w fd sqe.sqe-len of
+          Ok chunk ->
+            let copied = write-raw-buf sqe.sqe-buf-addr sqe.sqe-len chunk in
+            push-cqe w (completion-make tok (wrapping-u32-to-i32 copied) 0)
+          Err IoEof ->
+            push-cqe w (completion-make tok 0 0)
+          Err IoAgain ->
+            park-recv w fd sqe
+          Err err ->
+            push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpSendMsg ->
+        let dst = sim-udp-addr-unpack sqe.sqe-aux in
+        let payload = read-raw-buf sqe.sqe-buf-addr sqe.sqe-len in
+        let err = sim-udp-send w fd dst payload in
+        if io-error-is-ok err then
+          push-cqe w (completion-make tok (wrapping-u32-to-i32 sqe.sqe-len) 0)
+        else
+          push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpRecvMsg ->
+        case sim-udp-recv w fd of
+          Ok dgram ->
+            let copied = write-raw-buf sqe.sqe-buf-addr sqe.sqe-len dgram.dgram-payload in
+            let flags = sim-udp-addr-pack dgram.dgram-src in
+            push-cqe w (completion-make tok (wrapping-u32-to-i32 copied) flags)
+          Err IoAgain ->
+            park-recv w fd sqe
+          Err err ->
+            push-cqe w (completion-make tok (neg-io-err err) 0)
+      OpWriteDirect ->
+        case ht-get w.sim-disks (fd-to-nat fd) of
+          None -> push-cqe w (completion-make tok (neg-io-err IoBadFd) 0)
+          Some disk ->
+            let payload = read-raw-buf sqe.sqe-buf-addr sqe.sqe-len in
+            let deliver = saturating-add-u64 now cfg.disk-write-delay-ns in
+            let _ = schedule-event w deliver (EvDiskWrite fd (var-read disk.disk-epoch) sqe.sqe-off payload tok) in
+            ()
+      OpReadDirect ->
+        case ht-get w.sim-disks (fd-to-nat fd) of
+          None -> push-cqe w (completion-make tok (neg-io-err IoBadFd) 0)
+          Some disk ->
+            let deliver = saturating-add-u64 now cfg.disk-write-delay-ns in
+            let _ = schedule-event w deliver (EvDiskRead fd (var-read disk.disk-epoch) sqe.sqe-off sqe.sqe-buf-addr sqe.sqe-len tok) in
+            ()
+      OpFsync ->
+        case ht-get w.sim-disks (fd-to-nat fd) of
+          None -> push-cqe w (completion-make tok (neg-io-err IoBadFd) 0)
+          Some disk ->
+            let deliver = saturating-add-u64 now cfg.disk-write-delay-ns in
+            let _ = schedule-event w deliver (EvDiskFsync fd (var-read disk.disk-epoch) tok) in
+            ()
+      _ ->
+        push-cqe w (completion-make tok (neg-io-err IoUnsupported) 0)
+
+  -- | Drain all queued SQEs and return the flushed count.
+  flush-sqes-loop :: forall r. SimWorld r -> I32 ->{IO r, Mut r} I32
+  flush-sqes-loop w count =
+    case dq-pop-front w.sim-sqes of
+      None -> count
+      Some boxed ->
+        case boxed of
+          BoxedSqe sqe ->
+            let _ = exec-sqe w sqe in
+            flush-sqes-loop w (wrapping-add-i32 count 1)
+
+  -- | Step the event heap until at least one CQE is available or the next
+  -- event exceeds `deadline-ns`.
+  wait-until-cqe :: forall r. SimWorld r -> U64 ->{IO r, Mut r} Unit
+  wait-until-cqe w deadline-ns =
+    if not (deque-is-empty w.sim-cqes) then ()
+    else
+      case ev-heap-peek w.sim-heap of
+        None -> ()
+        Some ev ->
+          if le-u64 ev.ev-deliver-ns deadline-ns then
+            case ev-heap-pop w.sim-heap of
+              None -> ()
+              Some popped ->
+                let _ = dispatch-event w popped in
+                wait-until-cqe w deadline-ns
+          else ()
+
+  -- | Helper for `ReactorOps.reactor-pop-cqe`.
+  sim-pop-cqe-impl :: forall r. SimWorld r ->{IO r, Mut r} Completion
+  sim-pop-cqe-impl w =
+    case dq-pop-front w.sim-cqes of
+      Some boxed ->
+        case boxed of
+          BoxedCqe cqe -> cqe
+      None -> completion-empty ()
+
+  -- | Helper for `EntropyOps.entropy-next-u64`.
+  sim-entropy-u64-impl :: forall r. SimWorld r ->{IO r, Mut r} U64
+  sim-entropy-u64-impl w =
+    let r = var-read w.sim-entropy-rng in
+    case sim-rng-u64 r of
+      (v, r2) ->
+        let _ = var-write w.sim-entropy-rng r2 in
+        let _ = record-trace w 600 v 0 in
+        v
+
+  -- | Helper for `EntropyOps.entropy-next-u32`.
+  sim-entropy-u32-impl :: forall r. SimWorld r ->{IO r, Mut r} U32
+  sim-entropy-u32-impl w =
+    let r = var-read w.sim-entropy-rng in
+    case sim-rng-u32 r of
+      (v, r2) ->
+        let _ = var-write w.sim-entropy-rng r2 in
+        let _ = record-trace w 601 (u32-to-u64 v) 0 in
+        v
+
+  -- | Build an `Engine.Types.ReactorOps r` capability backed by `SimWorld r`.
+  --
+  -- Any protocol, transport, consensus, or storage engine written against
+  -- `ReactorOps r` runs unmodified inside deterministic simulation.
+  sim-reactor-ops :: forall r. SimWorld r -> ReactorOps r
+  sim-reactor-ops w = ReactorOps {
+    reactor-submit = (\sqe ->
+      if var-read w.sim-closed then IoBadFd
+      else
+        let _ = deque-push-back w.sim-sqes (BoxedSqe sqe) in
+        let _ = record-trace w 501 (u8-to-u64 sqe.sqe-op) sqe.sqe-token in
+        IoOk),
+    reactor-flush = (\_ ->
+      if var-read w.sim-closed then neg-io-err IoBadFd
+      else flush-sqes-loop w 0),
+    reactor-wait = (\timeout-ns ->
+      if var-read w.sim-closed then neg-io-err IoBadFd
+      else
+        let _ = flush-sqes-loop w 0 in
+        if not (deque-is-empty w.sim-cqes) then
+          wrapping-u32-to-i32 (nat-to-u32 (deque-length w.sim-cqes))
+        else
+          let now = var-read w.sim-now-ns in
+          let deadline = saturating-add-u64 now (time-ns-value timeout-ns) in
+          let _ = wait-until-cqe w deadline in
+          let _ = (if deque-is-empty w.sim-cqes && gt-u64 deadline (var-read w.sim-now-ns) then
+                    var-write w.sim-now-ns deadline
+                  else ()) in
+          wrapping-u32-to-i32 (nat-to-u32 (deque-length w.sim-cqes))),
+    reactor-cqe-count = (\_ -> nat-to-u32 (deque-length w.sim-cqes)),
+    reactor-pop-cqe = (\_ -> sim-pop-cqe-impl w),
+    reactor-close = (\_ ->
+      let _ = var-write w.sim-closed True in
+      let _ = record-trace w 502 0 0 in
+      IoOk)
+  }
+
+  -- | Build an `Engine.Types.ClockOps r` capability backed by `SimWorld r`'s
+  -- virtual monotonic and wall clocks.
+  sim-clock-ops :: forall r. SimWorld r -> ClockOps r
+  sim-clock-ops w = ClockOps {
+    clock-mono-ns = (\_ -> sim-world-now w),
+    clock-wall-ns = (\_ -> sim-world-wall-now w)
+  }
+
+  -- | Build an `Engine.Types.EntropyOps r` capability backed by `SimWorld r`'s
+  -- dedicated forked deterministic PRNG stream.
+  sim-entropy-ops :: forall r. SimWorld r -> EntropyOps r
+  sim-entropy-ops w = EntropyOps {
+    entropy-next-u64 = (\_ -> sim-entropy-u64-impl w),
+    entropy-next-u32 = (\_ -> sim-entropy-u32-impl w)
+  }

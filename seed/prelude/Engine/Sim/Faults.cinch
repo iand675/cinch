@@ -1,0 +1,295 @@
+-- | Fault-injection configuration, presets, asymmetric network partition
+-- helpers, and seedable deterministic PRNG for the Cinch single-threaded
+-- Deterministic Simulation Testing (DST) engine (`Engine.Sim`).
+--
+-- All fault probabilities are expressed in parts per million (`0..1_000_000`)
+-- so fault models compose deterministically with integer arithmetic and zero
+-- floating-point drift across hosts and architectures.
+module Engine.Sim.Faults where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.ChaCha8
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Rand
+  import Data.Result
+
+  -- Fault configuration & presets
+  export SimFaultConfig
+  export faults-clean, faults-lossy-wan, faults-chaos-disk, faults-split-brain
+  export sim-fault-with-partition
+
+  -- Asymmetric 8x8 node partition matrix helpers (nodes 0..7)
+  export partition-bit, partition-is-blocked
+  export partition-block-link, partition-heal-link
+  export partition-isolate-pair, partition-heal-pair, partition-heal-all
+
+  -- Seedable deterministic PRNG wrapping Data.Rand (PCG and ChaCha8)
+  export SimRng, sim-mix-u64
+  export sim-rng-new, sim-rng-chacha8, sim-rng-fork
+  export sim-rng-u64, sim-rng-u32, sim-rng-range, sim-rng-chance-ppm
+
+  -- =========================================================================
+  -- 1. Fault configuration record & named presets
+  -- =========================================================================
+
+  -- | Programmable fault-injection parameters for `Engine.Sim`.
+  --
+  -- Probabilities (`*-ppm`) are parts per million (`0` = never, `1000000` = always).
+  -- `partition-mask` encodes an asymmetric 8x8 reachability matrix across
+  -- simulated node IDs `0..7`: bit `(src * 8) + dst` set drops packets sent
+  -- from `src` to `dst`.
+  record SimFaultConfig where
+    -- | Probability of dropping a UDP datagram, in parts per million.
+    udp-drop-ppm :: U32
+    -- | Probability of duplicating a UDP datagram, in parts per million.
+    udp-dup-ppm :: U32
+    -- | Probability of adding extra reorder delay to a UDP datagram, in parts per million.
+    udp-reorder-ppm :: U32
+    -- | Probability of corrupting one byte of a UDP datagram, in parts per million.
+    udp-corrupt-ppm :: U32
+    -- | Minimum simulated network propagation delay in nanoseconds.
+    udp-min-delay-ns :: U64
+    -- | Maximum simulated network propagation delay in nanoseconds.
+    udp-max-delay-ns :: U64
+    -- | Probability of forcing a short TCP read or write (`1..len-1` bytes), in parts per million.
+    tcp-partial-io-ppm :: U32
+    -- | Probability of injecting a TCP RST on send, in parts per million.
+    tcp-rst-ppm :: U32
+    -- | Simulated `O_DIRECT` disk operation completion latency in nanoseconds.
+    disk-write-delay-ns :: U64
+    -- | Probability of materializing a half-sector torn write on power-loss crash, in parts per million.
+    disk-torn-sector-ppm :: U32
+    -- | Probability of flipping one bit in a written disk sector, in parts per million.
+    disk-bitflip-ppm :: U32
+    -- | Asymmetric 8x8 network partition matrix across simulated node IDs `0..7`.
+    partition-mask :: U64
+
+  -- | Zero-fault baseline preset: zero packet loss, zero jitter, zero disk
+  -- corruption, and full network connectivity.
+  faults-clean :: SimFaultConfig
+  faults-clean = SimFaultConfig {
+    udp-drop-ppm = 0,
+    udp-dup-ppm = 0,
+    udp-reorder-ppm = 0,
+    udp-corrupt-ppm = 0,
+    udp-min-delay-ns = 0,
+    udp-max-delay-ns = 0,
+    tcp-partial-io-ppm = 0,
+    tcp-rst-ppm = 0,
+    disk-write-delay-ns = 0,
+    disk-torn-sector-ppm = 0,
+    disk-bitflip-ppm = 0,
+    partition-mask = 0
+  }
+
+  -- | Adversarial WAN preset: 5% UDP drop, 2% duplication, 15% reordering,
+  -- 0.5% corruption, 5-80 ms latency jitter, 25% TCP partial reads/writes,
+  -- 0.5% TCP RST injection, and 100 us disk write latency.
+  faults-lossy-wan :: SimFaultConfig
+  faults-lossy-wan = SimFaultConfig {
+    udp-drop-ppm = 50000,
+    udp-dup-ppm = 20000,
+    udp-reorder-ppm = 150000,
+    udp-corrupt-ppm = 5000,
+    udp-min-delay-ns = 5000000,
+    udp-max-delay-ns = 80000000,
+    tcp-partial-io-ppm = 250000,
+    tcp-rst-ppm = 5000,
+    disk-write-delay-ns = 100000,
+    disk-torn-sector-ppm = 0,
+    disk-bitflip-ppm = 0,
+    partition-mask = 0
+  }
+
+  -- | Heavy storage chaos preset: 500 us disk write latency, 50% torn-sector
+  -- probability on power-loss crashes, 5% silent sector bitflips, and 10%
+  -- TCP partial I/O splitting.
+  faults-chaos-disk :: SimFaultConfig
+  faults-chaos-disk = SimFaultConfig {
+    udp-drop-ppm = 0,
+    udp-dup-ppm = 0,
+    udp-reorder-ppm = 0,
+    udp-corrupt-ppm = 0,
+    udp-min-delay-ns = 100000,
+    udp-max-delay-ns = 1000000,
+    tcp-partial-io-ppm = 100000,
+    tcp-rst-ppm = 0,
+    disk-write-delay-ns = 500000,
+    disk-torn-sector-ppm = 500000,
+    disk-bitflip-ppm = 50000,
+    partition-mask = 0
+  }
+
+  -- | Split-brain cluster preset: isolates simulated nodes `0..3` from nodes
+  -- `4..7` bidirectionally via `partition-mask = 0x0F0F0F0FF0F0F0F0`, with
+  -- moderate WAN latency and TCP partial I/O.
+  faults-split-brain :: SimFaultConfig
+  faults-split-brain = SimFaultConfig {
+    udp-drop-ppm = 10000,
+    udp-dup-ppm = 5000,
+    udp-reorder-ppm = 50000,
+    udp-corrupt-ppm = 0,
+    udp-min-delay-ns = 2000000,
+    udp-max-delay-ns = 25000000,
+    tcp-partial-io-ppm = 150000,
+    tcp-rst-ppm = 1000,
+    disk-write-delay-ns = 100000,
+    disk-torn-sector-ppm = 0,
+    disk-bitflip-ppm = 0,
+    partition-mask = 0x0F0F0F0FF0F0F0F0
+  }
+
+  -- | Return a copy of `cfg` with its `partition-mask` replaced by `mask`.
+  sim-fault-with-partition :: SimFaultConfig -> U64 -> SimFaultConfig
+  sim-fault-with-partition cfg mask = SimFaultConfig {
+    udp-drop-ppm = cfg.udp-drop-ppm,
+    udp-dup-ppm = cfg.udp-dup-ppm,
+    udp-reorder-ppm = cfg.udp-reorder-ppm,
+    udp-corrupt-ppm = cfg.udp-corrupt-ppm,
+    udp-min-delay-ns = cfg.udp-min-delay-ns,
+    udp-max-delay-ns = cfg.udp-max-delay-ns,
+    tcp-partial-io-ppm = cfg.tcp-partial-io-ppm,
+    tcp-rst-ppm = cfg.tcp-rst-ppm,
+    disk-write-delay-ns = cfg.disk-write-delay-ns,
+    disk-torn-sector-ppm = cfg.disk-torn-sector-ppm,
+    disk-bitflip-ppm = cfg.disk-bitflip-ppm,
+    partition-mask = mask
+  }
+
+  -- =========================================================================
+  -- 2. Asymmetric network partition matrix (nodes 0..7)
+  -- =========================================================================
+
+  -- | Single-bit mask for the directed link `src -> dst` across node IDs `0..7`.
+  -- Returns `0` if either node ID is `>= 8`.
+  partition-bit :: U8 -> U8 -> U64
+  partition-bit src dst =
+    if lt-u8 src 8 && lt-u8 dst 8 then
+      let shift = wrapping-add-u32 (wrapping-shl-u32 (u8-to-u32 src) 3) (u8-to-u32 dst) in
+      wrapping-shl-u64 1 shift
+    else 0
+
+  -- | Test whether traffic sent from `src` to `dst` is dropped by `mask`.
+  partition-is-blocked :: U64 -> U8 -> U8 -> Bool
+  partition-is-blocked mask src dst =
+    let bit = partition-bit src dst in
+    if eq-u64 bit 0 then False
+    else ne-u64 (bit-and-u64 mask bit) 0
+
+  -- | Block the directed link `src -> dst` in `mask` (asymmetric partition).
+  partition-block-link :: U64 -> U8 -> U8 -> U64
+  partition-block-link mask src dst = bit-or-u64 mask (partition-bit src dst)
+
+  -- | Heal the directed link `src -> dst` in `mask`.
+  partition-heal-link :: U64 -> U8 -> U8 -> U64
+  partition-heal-link mask src dst = bit-and-u64 mask (bit-not-u64 (partition-bit src dst))
+
+  -- | Block both directions `a -> b` and `b -> a` in `mask`.
+  partition-isolate-pair :: U64 -> U8 -> U8 -> U64
+  partition-isolate-pair mask a b =
+    partition-block-link (partition-block-link mask a b) b a
+
+  -- | Heal both directions `a -> b` and `b -> a` in `mask`.
+  partition-heal-pair :: U64 -> U8 -> U8 -> U64
+  partition-heal-pair mask a b =
+    partition-heal-link (partition-heal-link mask a b) b a
+
+  -- | Empty partition mask with full reachability across all nodes.
+  partition-heal-all :: U64
+  partition-heal-all = 0
+
+  -- =========================================================================
+  -- 3. Seedable deterministic PRNG (wrapping Data.Rand PCG / ChaCha8)
+  -- =========================================================================
+
+  -- | SplitMix64 avalanche mixer used for seed expansion and trace hashing.
+  sim-mix-u64 :: U64 -> U64
+  sim-mix-u64 z =
+    let a = wrapping-mul-u64 (bit-xor-u64 z (wrapping-shr-u64 z 30)) 0xBF58476D1CE4E5B9 in
+    let b = wrapping-mul-u64 (bit-xor-u64 a (wrapping-shr-u64 a 27)) 0x94D049BB133111EB in
+    bit-xor-u64 b (wrapping-shr-u64 b 31)
+
+  -- | Deterministic PRNG state backed by either `Data.Rand.Pcg` or
+  -- `Data.ChaCha8.ChaCha8`.
+  data SimRng where
+    -- | Fast 128-bit PCG-DXSM generator from `Data.Rand`.
+    SimRngPcg :: Pcg -> SimRng
+    -- | Cryptographic ChaCha8 generator from `Data.ChaCha8`.
+    SimRngChaCha8 :: ChaCha8 -> SimRng
+
+  -- | Construct a deterministic PCG-backed `SimRng` from a 64-bit seed.
+  sim-rng-new :: U64 -> SimRng
+  sim-rng-new seed =
+    let s1 = sim-mix-u64 (wrapping-add-u64 seed 0x9E3779B97F4A7C15) in
+    let s2 = sim-mix-u64 (wrapping-add-u64 seed 0x3C6EF372FE94F82B) in
+    SimRngPcg (pcg-new s1 s2)
+
+  -- | Construct a deterministic ChaCha8-backed `SimRng` from a 64-bit seed.
+  sim-rng-chacha8 :: U64 -> SimRng
+  sim-rng-chacha8 seed =
+    let buf = bytes-new 32 in
+    let w0 = sim-mix-u64 (wrapping-add-u64 seed 0x9E3779B97F4A7C15) in
+    let w1 = sim-mix-u64 (wrapping-add-u64 seed 0x3C6EF372FE94F82B) in
+    let w2 = sim-mix-u64 (wrapping-add-u64 seed 0xDAA66D2C7DDF7441) in
+    let w3 = sim-mix-u64 (wrapping-add-u64 seed 0x78DDE6E5FD29F057) in
+    let _ = bytes-store-le64 buf 0 w0 in
+    let _ = bytes-store-le64 buf 8 w1 in
+    let _ = bytes-store-le64 buf 16 w2 in
+    let _ = bytes-store-le64 buf 24 w3 in
+    case chacha8-new buf of
+      Ok g -> SimRngChaCha8 g
+      Err _ -> sim-rng-new seed
+
+  -- | Draw the next uniform 64-bit unsigned value and updated generator state.
+  sim-rng-u64 :: SimRng -> (U64, SimRng)
+  sim-rng-u64 rng = case rng of
+    SimRngPcg g ->
+      case pcg-uint64 g of
+        (v, g2) -> (v, SimRngPcg g2)
+    SimRngChaCha8 g ->
+      case chacha8-uint64 g of
+        (v, g2) -> (v, SimRngChaCha8 g2)
+
+  -- | Draw the next uniform 32-bit unsigned value and updated generator state.
+  sim-rng-u32 :: SimRng -> (U32, SimRng)
+  sim-rng-u32 rng =
+    case sim-rng-u64 rng of
+      (v, rng2) -> (wrapping-u64-to-u32 (wrapping-shr-u64 v 32), rng2)
+
+  -- | Derive an independent deterministic sub-stream from `rng` and `salt`.
+  sim-rng-fork :: SimRng -> U64 -> SimRng
+  sim-rng-fork rng salt =
+    case sim-rng-u64 rng of
+      (w, _) -> sim-rng-new (bit-xor-u64 w (sim-mix-u64 salt))
+
+  -- | Draw a uniform 64-bit unsigned value in the half-open interval `[lo, hi)`
+  -- using `Data.Rand.rand-uint64-n` (unbiased Lemire reduction).
+  -- Returns `(lo, rng)` unchanged when `hi <= lo`.
+  sim-rng-range :: SimRng -> U64 -> U64 -> (U64, SimRng)
+  sim-rng-range rng lo hi =
+    if le-u64 hi lo then (lo, rng)
+    else
+      let span = wrapping-sub-u64 hi lo in
+      case rng of
+        SimRngPcg g ->
+          case rand-uint64-n g span of
+            Some (offset, g2) -> (wrapping-add-u64 lo offset, SimRngPcg g2)
+            None -> (lo, SimRngPcg g)
+        SimRngChaCha8 g ->
+          case rand-uint64-n g span of
+            Some (offset, g2) -> (wrapping-add-u64 lo offset, SimRngChaCha8 g2)
+            None -> (lo, SimRngChaCha8 g)
+
+  -- | Bernoulli trial with probability `ppm / 1_000_000`.
+  -- Short-circuits at `0` (always `False`) and `>= 1_000_000` (always `True`).
+  sim-rng-chance-ppm :: SimRng -> U32 -> (Bool, SimRng)
+  sim-rng-chance-ppm rng ppm =
+    if eq-u32 ppm 0 then (False, rng)
+    else if ge-u32 ppm 1000000 then (True, rng)
+    else
+      case sim-rng-range rng 0 1000000 of
+        (roll, rng2) -> (lt-u64 roll (u32-to-u64 ppm), rng2)

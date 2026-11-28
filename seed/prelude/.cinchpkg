@@ -1399,6 +1399,14 @@
     {
       "name": "Engine.Simd.Mask",
       "path": "Engine/Simd/Mask.cinch"
+    },
+    {
+      "name": "Engine.Sim.Faults",
+      "path": "Engine/Sim/Faults.cinch"
+    },
+    {
+      "name": "Engine.Sim",
+      "path": "Engine/Sim.cinch"
     }
   ],
   "order": [
@@ -1750,6 +1758,8 @@
     "Engine.Timer.Spec",
     "Engine.Simd.Scan",
     "Engine.Simd.Crc32c",
-    "Engine.Simd.Mask"
+    "Engine.Simd.Mask",
+    "Engine.Sim.Faults",
+    "Engine.Sim"
   ]
 }
