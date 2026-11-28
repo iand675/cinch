@@ -1407,6 +1407,14 @@
     {
       "name": "Engine.Sim",
       "path": "Engine/Sim.cinch"
+    },
+    {
+      "name": "Engine.Reactor.Linux",
+      "path": "Engine/Reactor/Linux.cinch"
+    },
+    {
+      "name": "Engine.Reactor.Spec",
+      "path": "Engine/Reactor/Spec.cinch"
     }
   ],
   "order": [
@@ -1760,6 +1768,8 @@
     "Engine.Simd.Crc32c",
     "Engine.Simd.Mask",
     "Engine.Sim.Faults",
-    "Engine.Sim"
+    "Engine.Sim",
+    "Engine.Reactor.Linux",
+    "Engine.Reactor.Spec"
   ]
 }
