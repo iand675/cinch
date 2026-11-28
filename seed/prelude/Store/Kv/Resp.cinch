@@ -1,0 +1,1713 @@
+-- | Zero-allocation (`#[no-alloc]`) SIMD pipelined RESP2 & RESP3 protocol
+-- parser and coalesced DMA response encoder for the Cinch High-Throughput
+-- KV Engine (`Store.Kv.Resp`).
+--
+-- Built directly over `Engine.Simd.Scan` (`dma-find-crlf`, `dma-find-byte`),
+-- `Engine.Types.ByteSpan`, and `Prim.Atomic` raw DMA memory access:
+--   * **Command Array & Inline Parser (`resp-parse-command`)**: fast-path
+--     parser for pipelined Redis/Valkey client commands (`*<argc>\r\n$<len>\r\n...`
+--     and inline commands like `PING\r\n`, `GET key\r\n`), extracting zero-copy
+--     `ByteSpan` argument slices into a flat caller-provided DMA arg buffer
+--     plus case-insensitive SWAR/U64 `RespCmdKind` recognition (`GET`, `SET`,
+--     `DEL`, `MGET`, `MSET`, `INCR`, `DECR`, `EXPIRE`, `TTL`, `EXISTS`, `PING`,
+--     `HELLO`, `QUIT`, `COMMAND`, `INFO`, `Unknown`).
+--   * **Pipelined Batch Extractor (`resp-extract-pipeline-batch`)**: scans a
+--     DMA receive buffer holding `1..K` pipelined commands in a single zero-copy
+--     pass, reporting `rb-parsed-count`, `rb-bytes-consumed`, `rb-total-args`,
+--     and clean `RespOk` / `RespNeedMore` / `RespErr*` status.
+--   * **General RESP2 & RESP3 Value Parser (`resp-parse-value`)**: parses all
+--     14 RESP2/RESP3 wire types (`+`, `-`, `:`, `$` incl. `$-1`, `*` incl.
+--     `*-1`, `_`, `#`, `,`, `(`, `!`, `=`, `%`, `~`, `>`), validating nested
+--     aggregates up to `resp-max-depth` with zero heap allocation.
+--   * **Strict DoS / Malformed Input Guards**: rejects invalid negative bulk
+--     lengths (`< -1`), integer overflow, missing `\r\n` after bulk payloads,
+--     excessive arg counts (`> max-args`), bare LF / bare CR, and non-digit
+--     lengths.
+--   * **Coalesced DMA Response Encoder**: pre-rendered fast responses
+--     (`+OK\r\n`, `+PONG\r\n`, `$-1\r\n`, `_\r\n`, `:0\r\n`, `:1\r\n`), fast
+--     signed `I64` decimal formatting, and `#[no-alloc]` writers for all
+--     RESP2/RESP3 wire frames directly into DMA output buffers.
+module Store.Kv.Resp where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Simd.Scan
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Protocol limits & DMA slot strides
+  export resp-arg-stride, resp-cmd-stride
+  export resp-max-bulk-len, resp-max-agg-elems, resp-max-depth
+
+  -- Parse status codes & auto-niched RespStatus enum
+  export resp-ok, resp-need-more
+  export resp-err-invalid-prefix, resp-err-bad-int, resp-err-int-overflow
+  export resp-err-bad-bulk-len, resp-err-missing-crlf, resp-err-bare-lf
+  export resp-err-too-many-args, resp-err-bad-bool, resp-err-bad-null
+  export resp-err-bad-verbatim, resp-err-bad-double, resp-err-bad-bignum
+  export resp-err-bad-inline, resp-err-bad-cmd-arg, resp-err-depth-limit
+  export resp-err-buf-overflow
+  export RespStatus, RespOk, RespNeedMore
+  export RespErrInvalidPrefix, RespErrBadInt, RespErrIntOverflow
+  export RespErrBadBulkLen, RespErrMissingCrlf, RespErrBareLf
+  export RespErrTooManyArgs, RespErrBadBool, RespErrBadNull
+  export RespErrBadVerbatim, RespErrBadDouble, RespErrBadBignum
+  export RespErrBadInline, RespErrBadCmdArg, RespErrDepthLimit
+  export RespErrBufOverflow
+  export resp-status-to-u8, resp-status-from-u8, resp-status-eq
+  export resp-status-is-ok, resp-status-is-need-more, resp-status-is-err
+
+  -- RESP2/RESP3 wire value kinds
+  export resp-kind-simple-string, resp-kind-simple-error, resp-kind-integer
+  export resp-kind-bulk-string, resp-kind-null-bulk, resp-kind-array
+  export resp-kind-null-array, resp-kind-null, resp-kind-bool
+  export resp-kind-double, resp-kind-bignum, resp-kind-bulk-error
+  export resp-kind-verbatim, resp-kind-map, resp-kind-set, resp-kind-push
+  export RespValKind, RespSimpleString, RespSimpleError, RespInteger
+  export RespBulkString, RespNullBulk, RespArray, RespNullArray
+  export RespNull, RespBool, RespDouble, RespBigNum, RespBulkError
+  export RespVerbatim, RespMap, RespSet, RespPush
+  export resp-val-kind-to-u8, resp-val-kind-from-u8, resp-val-kind-eq
+
+  -- Fast-path Redis/Valkey command kinds & SWAR/U64 matcher
+  export cmd-unknown, cmd-get, cmd-set, cmd-del, cmd-mget, cmd-mset
+  export cmd-incr, cmd-decr, cmd-expire, cmd-ttl, cmd-exists
+  export cmd-ping, cmd-hello, cmd-quit, cmd-command, cmd-info
+  export RespCmdKind, CmdUnknown, CmdGet, CmdSet, CmdDel, CmdMget, CmdMset
+  export CmdIncr, CmdDecr, CmdExpire, CmdTtl, CmdExists
+  export CmdPing, CmdHello, CmdQuit, CmdCommand, CmdInfo
+  export resp-cmd-kind-to-u8, resp-cmd-kind-from-u8, resp-cmd-kind-eq
+  export resp-match-cmd-dma
+
+  -- Zero-copy POD records & DMA slot helpers
+  export RespCmdView, resp-cmd-view-empty, resp-cmd-view-err
+  export RespBatchResult, resp-batch-empty, resp-batch-err
+  export RespValue, resp-value-empty, resp-value-err, resp-value-span, resp-value-verbatim-enc-span
+  export resp-store-arg, resp-load-arg, resp-store-cmd, resp-load-cmd
+
+  -- Core #[no-alloc] SIMD DMA parsers
+  export resp-parse-command, resp-extract-pipeline-batch
+  export resp-parse-value, resp-parse-value-head
+
+  -- Core #[no-alloc] coalesced DMA response writers
+  export resp-write-ok, resp-write-pong, resp-write-null-v2, resp-write-null-v3
+  export resp-write-zero, resp-write-one, resp-write-null-array
+  export resp-write-simple-str, resp-write-error, resp-write-int, resp-write-bool
+  export resp-write-bulk-raw, resp-write-bulk-error, resp-write-verbatim
+  export resp-write-double-raw, resp-write-bignum-raw
+  export resp-write-array-header, resp-write-map-header
+  export resp-write-set-header, resp-write-push-header
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean, packing & DMA copy helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  load-u8-at :: I64 -> U32 ->{MVar} U8
+  load-u8-at base off = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  put1 base pos b0 =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  put2 base pos b0 b1 =
+    let p1 = put1 base pos b0 in
+    put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  put3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} U32
+  put3 base pos b0 b1 b2 =
+    let p2 = put2 base pos b0 b1 in
+    put1 base p2 b2
+
+  #[inline(always)]
+  #[no-alloc]
+  put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put4 base pos b0 b1 b2 b3 =
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[no-alloc]
+  dma-copy-raw :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-raw dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- =========================================================================
+  -- 1. Constants, Status Codes, Value Kinds & Command Kinds
+  -- =========================================================================
+
+  -- | Exact byte stride of one `ByteSpan` argument slot in DMA memory (16 bytes).
+  #[no-alloc]
+  resp-arg-stride :: U32
+  resp-arg-stride = 16
+
+  -- | Exact byte stride of one `RespCmdView` slot in DMA memory (24 bytes).
+  #[no-alloc]
+  resp-cmd-stride :: U32
+  resp-cmd-stride = 24
+
+  -- | Maximum allowed bulk string / bulk error / verbatim payload length (512 MiB).
+  #[no-alloc]
+  resp-max-bulk-len :: U32
+  resp-max-bulk-len = 536870912
+
+  -- | Maximum allowed aggregate element count in `resp-parse-value` (1,048,576).
+  #[no-alloc]
+  resp-max-agg-elems :: U32
+  resp-max-agg-elems = 1048576
+
+  -- | Maximum recursion depth for nested RESP3 aggregates (64).
+  #[no-alloc]
+  resp-max-depth :: U32
+  resp-max-depth = 64
+
+  -- Status codes
+  #[no-alloc]
+  resp-ok :: U8
+  resp-ok = 0
+
+  #[no-alloc]
+  resp-need-more :: U8
+  resp-need-more = 1
+
+  #[no-alloc]
+  resp-err-invalid-prefix :: U8
+  resp-err-invalid-prefix = 2
+
+  #[no-alloc]
+  resp-err-bad-int :: U8
+  resp-err-bad-int = 3
+
+  #[no-alloc]
+  resp-err-int-overflow :: U8
+  resp-err-int-overflow = 4
+
+  #[no-alloc]
+  resp-err-bad-bulk-len :: U8
+  resp-err-bad-bulk-len = 5
+
+  #[no-alloc]
+  resp-err-missing-crlf :: U8
+  resp-err-missing-crlf = 6
+
+  #[no-alloc]
+  resp-err-bare-lf :: U8
+  resp-err-bare-lf = 7
+
+  #[no-alloc]
+  resp-err-too-many-args :: U8
+  resp-err-too-many-args = 8
+
+  #[no-alloc]
+  resp-err-bad-bool :: U8
+  resp-err-bad-bool = 9
+
+  #[no-alloc]
+  resp-err-bad-null :: U8
+  resp-err-bad-null = 10
+
+  #[no-alloc]
+  resp-err-bad-verbatim :: U8
+  resp-err-bad-verbatim = 11
+
+  #[no-alloc]
+  resp-err-bad-double :: U8
+  resp-err-bad-double = 12
+
+  #[no-alloc]
+  resp-err-bad-bignum :: U8
+  resp-err-bad-bignum = 13
+
+  #[no-alloc]
+  resp-err-bad-inline :: U8
+  resp-err-bad-inline = 14
+
+  #[no-alloc]
+  resp-err-bad-cmd-arg :: U8
+  resp-err-bad-cmd-arg = 15
+
+  #[no-alloc]
+  resp-err-depth-limit :: U8
+  resp-err-depth-limit = 16
+
+  #[no-alloc]
+  resp-err-buf-overflow :: U8
+  resp-err-buf-overflow = 17
+
+  -- | Canonical RESP2/RESP3 parse status vocabulary (auto-niched single-word enum).
+  data RespStatus where
+    RespOk :: RespStatus
+    RespNeedMore :: RespStatus
+    RespErrInvalidPrefix :: RespStatus
+    RespErrBadInt :: RespStatus
+    RespErrIntOverflow :: RespStatus
+    RespErrBadBulkLen :: RespStatus
+    RespErrMissingCrlf :: RespStatus
+    RespErrBareLf :: RespStatus
+    RespErrTooManyArgs :: RespStatus
+    RespErrBadBool :: RespStatus
+    RespErrBadNull :: RespStatus
+    RespErrBadVerbatim :: RespStatus
+    RespErrBadDouble :: RespStatus
+    RespErrBadBignum :: RespStatus
+    RespErrBadInline :: RespStatus
+    RespErrBadCmdArg :: RespStatus
+    RespErrDepthLimit :: RespStatus
+    RespErrBufOverflow :: RespStatus
+
+  #[no-alloc]
+  resp-status-to-u8 :: RespStatus -> U8
+  resp-status-to-u8 s = case s of
+    RespOk -> resp-ok
+    RespNeedMore -> resp-need-more
+    RespErrInvalidPrefix -> resp-err-invalid-prefix
+    RespErrBadInt -> resp-err-bad-int
+    RespErrIntOverflow -> resp-err-int-overflow
+    RespErrBadBulkLen -> resp-err-bad-bulk-len
+    RespErrMissingCrlf -> resp-err-missing-crlf
+    RespErrBareLf -> resp-err-bare-lf
+    RespErrTooManyArgs -> resp-err-too-many-args
+    RespErrBadBool -> resp-err-bad-bool
+    RespErrBadNull -> resp-err-bad-null
+    RespErrBadVerbatim -> resp-err-bad-verbatim
+    RespErrBadDouble -> resp-err-bad-double
+    RespErrBadBignum -> resp-err-bad-bignum
+    RespErrBadInline -> resp-err-bad-inline
+    RespErrBadCmdArg -> resp-err-bad-cmd-arg
+    RespErrDepthLimit -> resp-err-depth-limit
+    RespErrBufOverflow -> resp-err-buf-overflow
+
+  resp-status-from-u8 :: U8 -> RespStatus
+  resp-status-from-u8 c =
+    if eq-u8 c 0 then RespOk
+    else if eq-u8 c 1 then RespNeedMore
+    else if eq-u8 c 2 then RespErrInvalidPrefix
+    else if eq-u8 c 3 then RespErrBadInt
+    else if eq-u8 c 4 then RespErrIntOverflow
+    else if eq-u8 c 5 then RespErrBadBulkLen
+    else if eq-u8 c 6 then RespErrMissingCrlf
+    else if eq-u8 c 7 then RespErrBareLf
+    else if eq-u8 c 8 then RespErrTooManyArgs
+    else if eq-u8 c 9 then RespErrBadBool
+    else if eq-u8 c 10 then RespErrBadNull
+    else if eq-u8 c 11 then RespErrBadVerbatim
+    else if eq-u8 c 12 then RespErrBadDouble
+    else if eq-u8 c 13 then RespErrBadBignum
+    else if eq-u8 c 14 then RespErrBadInline
+    else if eq-u8 c 15 then RespErrBadCmdArg
+    else if eq-u8 c 16 then RespErrDepthLimit
+    else RespErrBufOverflow
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-status-eq :: RespStatus -> RespStatus -> Bool
+  resp-status-eq a b = eq-u8 (resp-status-to-u8 a) (resp-status-to-u8 b)
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-status-is-ok :: U8 -> Bool
+  resp-status-is-ok c = eq-u8 c resp-ok
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-status-is-need-more :: U8 -> Bool
+  resp-status-is-need-more c = eq-u8 c resp-need-more
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-status-is-err :: U8 -> Bool
+  resp-status-is-err c = ge-u8 c resp-err-invalid-prefix
+
+  -- RESP2/RESP3 wire value kind codes
+  #[no-alloc]
+  resp-kind-simple-string :: U8
+  resp-kind-simple-string = 0
+
+  #[no-alloc]
+  resp-kind-simple-error :: U8
+  resp-kind-simple-error = 1
+
+  #[no-alloc]
+  resp-kind-integer :: U8
+  resp-kind-integer = 2
+
+  #[no-alloc]
+  resp-kind-bulk-string :: U8
+  resp-kind-bulk-string = 3
+
+  #[no-alloc]
+  resp-kind-null-bulk :: U8
+  resp-kind-null-bulk = 4
+
+  #[no-alloc]
+  resp-kind-array :: U8
+  resp-kind-array = 5
+
+  #[no-alloc]
+  resp-kind-null-array :: U8
+  resp-kind-null-array = 6
+
+  #[no-alloc]
+  resp-kind-null :: U8
+  resp-kind-null = 7
+
+  #[no-alloc]
+  resp-kind-bool :: U8
+  resp-kind-bool = 8
+
+  #[no-alloc]
+  resp-kind-double :: U8
+  resp-kind-double = 9
+
+  #[no-alloc]
+  resp-kind-bignum :: U8
+  resp-kind-bignum = 10
+
+  #[no-alloc]
+  resp-kind-bulk-error :: U8
+  resp-kind-bulk-error = 11
+
+  #[no-alloc]
+  resp-kind-verbatim :: U8
+  resp-kind-verbatim = 12
+
+  #[no-alloc]
+  resp-kind-map :: U8
+  resp-kind-map = 13
+
+  #[no-alloc]
+  resp-kind-set :: U8
+  resp-kind-set = 14
+
+  #[no-alloc]
+  resp-kind-push :: U8
+  resp-kind-push = 15
+
+  data RespValKind where
+    RespSimpleString :: RespValKind
+    RespSimpleError :: RespValKind
+    RespInteger :: RespValKind
+    RespBulkString :: RespValKind
+    RespNullBulk :: RespValKind
+    RespArray :: RespValKind
+    RespNullArray :: RespValKind
+    RespNull :: RespValKind
+    RespBool :: RespValKind
+    RespDouble :: RespValKind
+    RespBigNum :: RespValKind
+    RespBulkError :: RespValKind
+    RespVerbatim :: RespValKind
+    RespMap :: RespValKind
+    RespSet :: RespValKind
+    RespPush :: RespValKind
+
+  #[no-alloc]
+  resp-val-kind-to-u8 :: RespValKind -> U8
+  resp-val-kind-to-u8 k = case k of
+    RespSimpleString -> resp-kind-simple-string
+    RespSimpleError -> resp-kind-simple-error
+    RespInteger -> resp-kind-integer
+    RespBulkString -> resp-kind-bulk-string
+    RespNullBulk -> resp-kind-null-bulk
+    RespArray -> resp-kind-array
+    RespNullArray -> resp-kind-null-array
+    RespNull -> resp-kind-null
+    RespBool -> resp-kind-bool
+    RespDouble -> resp-kind-double
+    RespBigNum -> resp-kind-bignum
+    RespBulkError -> resp-kind-bulk-error
+    RespVerbatim -> resp-kind-verbatim
+    RespMap -> resp-kind-map
+    RespSet -> resp-kind-set
+    RespPush -> resp-kind-push
+
+  resp-val-kind-from-u8 :: U8 -> RespValKind
+  resp-val-kind-from-u8 c =
+    if eq-u8 c 0 then RespSimpleString
+    else if eq-u8 c 1 then RespSimpleError
+    else if eq-u8 c 2 then RespInteger
+    else if eq-u8 c 3 then RespBulkString
+    else if eq-u8 c 4 then RespNullBulk
+    else if eq-u8 c 5 then RespArray
+    else if eq-u8 c 6 then RespNullArray
+    else if eq-u8 c 7 then RespNull
+    else if eq-u8 c 8 then RespBool
+    else if eq-u8 c 9 then RespDouble
+    else if eq-u8 c 10 then RespBigNum
+    else if eq-u8 c 11 then RespBulkError
+    else if eq-u8 c 12 then RespVerbatim
+    else if eq-u8 c 13 then RespMap
+    else if eq-u8 c 14 then RespSet
+    else RespPush
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-val-kind-eq :: RespValKind -> RespValKind -> Bool
+  resp-val-kind-eq a b = eq-u8 (resp-val-kind-to-u8 a) (resp-val-kind-to-u8 b)
+
+  -- Fast-path command kind codes
+  #[no-alloc]
+  cmd-unknown :: U8
+  cmd-unknown = 0
+
+  #[no-alloc]
+  cmd-get :: U8
+  cmd-get = 1
+
+  #[no-alloc]
+  cmd-set :: U8
+  cmd-set = 2
+
+  #[no-alloc]
+  cmd-del :: U8
+  cmd-del = 3
+
+  #[no-alloc]
+  cmd-mget :: U8
+  cmd-mget = 4
+
+  #[no-alloc]
+  cmd-mset :: U8
+  cmd-mset = 5
+
+  #[no-alloc]
+  cmd-incr :: U8
+  cmd-incr = 6
+
+  #[no-alloc]
+  cmd-decr :: U8
+  cmd-decr = 7
+
+  #[no-alloc]
+  cmd-expire :: U8
+  cmd-expire = 8
+
+  #[no-alloc]
+  cmd-ttl :: U8
+  cmd-ttl = 9
+
+  #[no-alloc]
+  cmd-exists :: U8
+  cmd-exists = 10
+
+  #[no-alloc]
+  cmd-ping :: U8
+  cmd-ping = 11
+
+  #[no-alloc]
+  cmd-hello :: U8
+  cmd-hello = 12
+
+  #[no-alloc]
+  cmd-quit :: U8
+  cmd-quit = 13
+
+  #[no-alloc]
+  cmd-command :: U8
+  cmd-command = 14
+
+  #[no-alloc]
+  cmd-info :: U8
+  cmd-info = 15
+
+  data RespCmdKind where
+    CmdUnknown :: RespCmdKind
+    CmdGet :: RespCmdKind
+    CmdSet :: RespCmdKind
+    CmdDel :: RespCmdKind
+    CmdMget :: RespCmdKind
+    CmdMset :: RespCmdKind
+    CmdIncr :: RespCmdKind
+    CmdDecr :: RespCmdKind
+    CmdExpire :: RespCmdKind
+    CmdTtl :: RespCmdKind
+    CmdExists :: RespCmdKind
+    CmdPing :: RespCmdKind
+    CmdHello :: RespCmdKind
+    CmdQuit :: RespCmdKind
+    CmdCommand :: RespCmdKind
+    CmdInfo :: RespCmdKind
+
+  #[no-alloc]
+  resp-cmd-kind-to-u8 :: RespCmdKind -> U8
+  resp-cmd-kind-to-u8 k = case k of
+    CmdUnknown -> cmd-unknown
+    CmdGet -> cmd-get
+    CmdSet -> cmd-set
+    CmdDel -> cmd-del
+    CmdMget -> cmd-mget
+    CmdMset -> cmd-mset
+    CmdIncr -> cmd-incr
+    CmdDecr -> cmd-decr
+    CmdExpire -> cmd-expire
+    CmdTtl -> cmd-ttl
+    CmdExists -> cmd-exists
+    CmdPing -> cmd-ping
+    CmdHello -> cmd-hello
+    CmdQuit -> cmd-quit
+    CmdCommand -> cmd-command
+    CmdInfo -> cmd-info
+
+  resp-cmd-kind-from-u8 :: U8 -> RespCmdKind
+  resp-cmd-kind-from-u8 c =
+    if eq-u8 c 1 then CmdGet
+    else if eq-u8 c 2 then CmdSet
+    else if eq-u8 c 3 then CmdDel
+    else if eq-u8 c 4 then CmdMget
+    else if eq-u8 c 5 then CmdMset
+    else if eq-u8 c 6 then CmdIncr
+    else if eq-u8 c 7 then CmdDecr
+    else if eq-u8 c 8 then CmdExpire
+    else if eq-u8 c 9 then CmdTtl
+    else if eq-u8 c 10 then CmdExists
+    else if eq-u8 c 11 then CmdPing
+    else if eq-u8 c 12 then CmdHello
+    else if eq-u8 c 13 then CmdQuit
+    else if eq-u8 c 14 then CmdCommand
+    else if eq-u8 c 15 then CmdInfo
+    else CmdUnknown
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-cmd-kind-eq :: RespCmdKind -> RespCmdKind -> Bool
+  resp-cmd-kind-eq a b = eq-u8 (resp-cmd-kind-to-u8 a) (resp-cmd-kind-to-u8 b)
+
+  -- =========================================================================
+  -- 2. Zero-Copy POD Result Records & DMA Slot Accessors
+  -- =========================================================================
+
+  -- | 24-byte POD descriptor for one parsed Redis/Valkey command referencing
+  -- zero-copy `ByteSpan` argument slices in a caller-owned DMA arg array.
+  #[repr(C, value)]
+  record RespCmdView where
+    rc-status :: U8
+    rc-cmd :: U8
+    rc-is-inline :: U8
+    rc-pad0 :: U8
+    rc-argc :: U32
+    rc-arg-offset :: U32
+    rc-consumed :: U32
+    rc-buf-id :: U32
+    rc-pad1 :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-cmd-view-empty :: Unit -> RespCmdView
+  resp-cmd-view-empty _ = RespCmdView resp-need-more cmd-unknown 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-cmd-view-err :: U8 -> RespCmdView
+  resp-cmd-view-err code = RespCmdView code cmd-unknown 0 0 0 0 0 0 0
+
+  -- | 16-byte register-fit POD result of `resp-extract-pipeline-batch`.
+  #[repr(C, value)]
+  record RespBatchResult where
+    rb-status :: U8
+    rb-pad0 :: U8
+    rb-pad1 :: U16
+    rb-parsed-count :: U32
+    rb-bytes-consumed :: U32
+    rb-total-args :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-batch-empty :: Unit -> RespBatchResult
+  resp-batch-empty _ = RespBatchResult resp-need-more 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-batch-err :: U8 -> RespBatchResult
+  resp-batch-err code = RespBatchResult code 0 0 0 0 0
+
+  -- | 32-byte POD descriptor for any parsed RESP2/RESP3 wire value.
+  -- For scalar types, `[rv-data-off, rv-data-off + rv-data-len)` is the zero-copy
+  -- payload slice (and for `RespVerbatim`, `[rv-aux-off, rv-aux-off + 3)` is the
+  -- 3-byte format tag). For aggregate types (`*`, `%`, `~`, `>`), `rv-int` is
+  -- the logical count (`pairs` for maps), `rv-aux-off` is total child count
+  -- (`2 * pairs` for maps), `rv-data-off` is the offset of the first child,
+  -- `rv-data-len` is total child bytes, and `rv-consumed` is total wire bytes.
+  #[repr(C, value)]
+  record RespValue where
+    rv-status :: U8
+    rv-kind :: U8
+    rv-bool :: U8
+    rv-pad0 :: U8
+    rv-buf-id :: U32
+    rv-data-off :: U32
+    rv-data-len :: U32
+    rv-aux-off :: U32
+    rv-consumed :: U32
+    rv-int :: I64
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-value-empty :: Unit -> RespValue
+  resp-value-empty _ = RespValue resp-need-more resp-kind-null 0 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  resp-value-err :: U8 -> RespValue
+  resp-value-err code = RespValue code resp-kind-null 0 0 0 0 0 0 0 0
+
+  -- | Project the primary zero-copy payload slice of a `RespValue` as a `ByteSpan`.
+  #[inline(always)]
+  #[no-alloc]
+  resp-value-span :: RespValue -> ByteSpan
+  resp-value-span rv = byte-span-make rv.rv-buf-id rv.rv-data-off rv.rv-data-len 0
+
+  -- | Project the 3-byte encoding tag of a `RespVerbatim` value as a `ByteSpan`.
+  #[inline(always)]
+  #[no-alloc]
+  resp-value-verbatim-enc-span :: RespValue -> ByteSpan
+  resp-value-verbatim-enc-span rv =
+    if eq-u8 rv.rv-kind resp-kind-verbatim then
+      byte-span-make rv.rv-buf-id rv.rv-aux-off 3 0
+    else byte-span-empty ()
+
+  -- | Store one 16-byte `ByteSpan` argument at slot `idx` of a DMA arg array.
+  #[inline(always)]
+  #[no-alloc]
+  resp-store-arg :: I64 -> U32 -> ByteSpan ->{MVar} Unit
+  resp-store-arg args-addr idx sp =
+    let p = wrapping-add-i64 args-addr (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+    let _0 = raw-store-u32 p sp.span-buf in
+    let _1 = raw-store-u32 (wrapping-add-i64 p 4) sp.span-off in
+    let _2 = raw-store-u32 (wrapping-add-i64 p 8) sp.span-len in
+    raw-store-u32 (wrapping-add-i64 p 12) sp.span-flags
+
+  -- | Load one 16-byte `ByteSpan` argument from slot `idx` of a DMA arg array.
+  #[inline(always)]
+  #[no-alloc]
+  resp-load-arg :: I64 -> U32 ->{MVar} ByteSpan
+  resp-load-arg args-addr idx =
+    let p = wrapping-add-i64 args-addr (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+    let b = raw-load-u32 p in
+    let o = raw-load-u32 (wrapping-add-i64 p 4) in
+    let l = raw-load-u32 (wrapping-add-i64 p 8) in
+    let f = raw-load-u32 (wrapping-add-i64 p 12) in
+    byte-span-make b o l f
+
+  -- | Store one 24-byte `RespCmdView` at slot `idx` of a DMA command array.
+  #[inline(always)]
+  #[no-alloc]
+  resp-store-cmd :: I64 -> U32 -> RespCmdView ->{MVar} Unit
+  resp-store-cmd cmds-addr idx cv =
+    let p = wrapping-add-i64 cmds-addr (u32-to-i64 (wrapping-mul-u32 idx resp-cmd-stride)) in
+    let w0 = pack-le4 cv.rc-status cv.rc-cmd cv.rc-is-inline 0 in
+    let _0 = raw-store-u32 p w0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 p 4) cv.rc-argc in
+    let _2 = raw-store-u32 (wrapping-add-i64 p 8) cv.rc-arg-offset in
+    let _3 = raw-store-u32 (wrapping-add-i64 p 12) cv.rc-consumed in
+    let _4 = raw-store-u32 (wrapping-add-i64 p 16) cv.rc-buf-id in
+    raw-store-u32 (wrapping-add-i64 p 20) 0
+
+  -- | Load one 24-byte `RespCmdView` from slot `idx` of a DMA command array.
+  #[inline(always)]
+  #[no-alloc]
+  resp-load-cmd :: I64 -> U32 ->{MVar} RespCmdView
+  resp-load-cmd cmds-addr idx =
+    let p = wrapping-add-i64 cmds-addr (u32-to-i64 (wrapping-mul-u32 idx resp-cmd-stride)) in
+    let w0 = raw-load-u32 p in
+    let st = wrapping-u32-to-u8 w0 in
+    let cmd = wrapping-u32-to-u8 (wrapping-shr-u32 w0 8) in
+    let inl = wrapping-u32-to-u8 (wrapping-shr-u32 w0 16) in
+    let argc = raw-load-u32 (wrapping-add-i64 p 4) in
+    let aoff = raw-load-u32 (wrapping-add-i64 p 8) in
+    let cons = raw-load-u32 (wrapping-add-i64 p 12) in
+    let bid = raw-load-u32 (wrapping-add-i64 p 16) in
+    RespCmdView st cmd inl 0 argc aoff cons bid 0
+
+  -- =========================================================================
+  -- 3. Case-Insensitive SWAR/U64 Fast-Path Command Recognition (#[no-alloc])
+  -- =========================================================================
+
+  -- | Recognize known Redis/Valkey command names in `[base + off, base + off + len)`
+  -- using exact case-insensitive SWAR/U64 word matching (zero out-of-bounds loads).
+  -- Because every target character is ASCII alphabetic (`0x61..0x7A`), setting
+  -- bit 5 (`| 0x20`) maps ONLY `A..Z` and `a..z` to `a..z` with zero false positives.
+  #[no-alloc]
+  resp-match-cmd-dma :: I64 -> U32 -> U32 ->{MVar} U8
+  resp-match-cmd-dma base off len =
+    let p = wrapping-add-i64 base (u32-to-i64 off) in
+    if eq-u32 len 3 then
+      let b0 = raw-load-u8 p in
+      let b1 = raw-load-u8 (wrapping-add-i64 p 1) in
+      let b2 = raw-load-u8 (wrapping-add-i64 p 2) in
+      let w = bit-or-u32 (pack-le4 b0 b1 b2 0) 2105376 in -- 0x00202020
+      if eq-u32 w (pack-le4 103 101 116 0) then cmd-get       -- "get"
+      else if eq-u32 w (pack-le4 115 101 116 0) then cmd-set  -- "set"
+      else if eq-u32 w (pack-le4 100 101 108 0) then cmd-del  -- "del"
+      else if eq-u32 w (pack-le4 116 116 108 0) then cmd-ttl  -- "ttl"
+      else cmd-unknown
+    else if eq-u32 len 4 then
+      let w = bit-or-u32 (raw-load-u32 p) 538976288 in -- 0x20202020
+      if eq-u32 w (pack-le4 109 103 101 116) then cmd-mget       -- "mget"
+      else if eq-u32 w (pack-le4 109 115 101 116) then cmd-mset  -- "mset"
+      else if eq-u32 w (pack-le4 105 110 99 114) then cmd-incr   -- "incr"
+      else if eq-u32 w (pack-le4 100 101 99 114) then cmd-decr   -- "decr"
+      else if eq-u32 w (pack-le4 112 105 110 103) then cmd-ping  -- "ping"
+      else if eq-u32 w (pack-le4 113 117 105 116) then cmd-quit  -- "quit"
+      else if eq-u32 w (pack-le4 105 110 102 111) then cmd-info  -- "info"
+      else cmd-unknown
+    else if eq-u32 len 5 then
+      let lo = u32-to-u64 (raw-load-u32 p) in
+      let b4 = u8-to-u64 (raw-load-u8 (wrapping-add-i64 p 4)) in
+      let w64 = bit-or-u64 (bit-or-u64 lo (wrapping-shl-u64 b4 32)) 137977929760 in -- 0x0000002020202020
+      if eq-u64 w64 (pack-le8 104 101 108 108 111 0 0 0) then cmd-hello -- "hello"
+      else cmd-unknown
+    else if eq-u32 len 6 then
+      let w0 = u32-to-u64 (raw-load-u32 p) in
+      let w1 = u32-to-u64 (wrapping-shr-u32 (raw-load-u32 (wrapping-add-i64 p 2)) 16) in
+      let w64 = bit-or-u64 (bit-or-u64 w0 (wrapping-shl-u64 w1 32)) 35322350018592 in -- 0x0000202020202020
+      if eq-u64 w64 (pack-le8 101 120 112 105 114 101 0 0) then cmd-expire      -- "expire"
+      else if eq-u64 w64 (pack-le8 101 120 105 115 116 115 0 0) then cmd-exists -- "exists"
+      else cmd-unknown
+    else if eq-u32 len 7 then
+      let w0 = u32-to-u64 (raw-load-u32 p) in
+      let w1 = u32-to-u64 (wrapping-shr-u32 (raw-load-u32 (wrapping-add-i64 p 3)) 8) in
+      let w64 = bit-or-u64 (bit-or-u64 w0 (wrapping-shl-u64 w1 32)) 9042521604759584 in -- 0x0020202020202020
+      if eq-u64 w64 (pack-le8 99 111 109 109 97 110 100 0) then cmd-command -- "command"
+      else cmd-unknown
+    else cmd-unknown
+
+  -- =========================================================================
+  -- 4. Strict SIMD Line Scanner & Integer / Double / BigNum Parsers
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record LineScanRes where
+    ls-status :: U8
+    ls-pad0 :: U8
+    ls-pad1 :: U16
+    ls-cr-pos :: U32
+
+  -- | Strict SIMD line finder in `[base + start, base + end)`:
+  --   * Uses `Engine.Simd.Scan.dma-find-crlf` for `\r\n` discovery.
+  --   * Rejects any bare `\n` (`resp-err-bare-lf`) or bare `\r` (`resp-err-missing-crlf`)
+  --     before `\r\n`, even on partial/truncated inputs.
+  #[no-alloc]
+  scan-line-strict :: I64 -> U32 -> U32 ->{MVar} LineScanRes
+  scan-line-strict base start end =
+    if ge-u32 start end then LineScanRes resp-need-more 0 0 0
+    else
+      let cr = dma-find-crlf base start end in
+      if ge-i32 cr 0 then
+        let cr-u = wrapping-i32-to-u32 cr in
+        let lf-before = dma-find-byte base start cr-u 10 in
+        if ge-i32 lf-before 0 then LineScanRes resp-err-bare-lf 0 0 0
+        else
+          let cr-before = dma-find-byte base start cr-u 13 in
+          if ge-i32 cr-before 0 then LineScanRes resp-err-missing-crlf 0 0 0
+          else LineScanRes resp-ok 0 0 cr-u
+      else
+        let lf-any = dma-find-byte base start end 10 in
+        if ge-i32 lf-any 0 then LineScanRes resp-err-bare-lf 0 0 0
+        else
+          -- A trailing `\r` at `end - 1` may be split across TCP segments (`RespNeedMore`);
+          -- any `\r` before `end - 1` is a bare CR because `dma-find-crlf` found no `\r\n`.
+          let last = wrapping-sub-u32 end 1 in
+          if lt-u32 start last then
+            let cr-bad = dma-find-byte base start last 13 in
+            if ge-i32 cr-bad 0 then LineScanRes resp-err-missing-crlf 0 0 0
+            else LineScanRes resp-need-more 0 0 0
+          else LineScanRes resp-need-more 0 0 0
+
+  #[repr(C, value)]
+  record IntParseRes where
+    ip-status :: U8
+    ip-pad0 :: U8
+    ip-pad1 :: U16
+    ip-pad2 :: U32
+    ip-val :: I64
+
+  -- | Accumulate unsigned digits in `[pos, end)` checking against `limit` (9223372036854775807
+  -- for positive or 9223372036854775808 for negative).
+  #[no-alloc]
+  parse-u64-bounded :: I64 -> U32 -> U32 -> U64 -> U64 -> U8 ->{MVar} IntParseRes
+  parse-u64-bounded base pos end acc max-div10 max-last =
+    if ge-u32 pos end then IntParseRes resp-ok 0 0 0 (wrapping-u64-to-i64 acc)
+    else
+      let ch = load-u8-at base pos in
+      let d = wrapping-sub-u8 ch 48 in
+      if gt-u8 d 9 then IntParseRes resp-err-bad-int 0 0 0 0
+      else if gt-u64 acc max-div10 then IntParseRes resp-err-int-overflow 0 0 0 0
+      else if both (eq-u64 acc max-div10) (gt-u8 d max-last) then IntParseRes resp-err-int-overflow 0 0 0 0
+      else
+        let next-acc = wrapping-add-u64 (wrapping-mul-u64 acc 10) (u8-to-u64 d) in
+        parse-u64-bounded base (wrapping-add-u32 pos 1) end next-acc max-div10 max-last
+
+  -- | Strict signed 64-bit integer parser for RESP `:` integers (allows optional `+`/`-`).
+  #[no-alloc]
+  parse-resp-i64 :: I64 -> U32 -> U32 ->{MVar} IntParseRes
+  parse-resp-i64 base start end =
+    if ge-u32 start end then IntParseRes resp-err-bad-int 0 0 0 0
+    else
+      let c0 = load-u8-at base start in
+      if eq-u8 c0 45 then
+        let s1 = wrapping-add-u32 start 1 in
+        if ge-u32 s1 end then IntParseRes resp-err-bad-int 0 0 0 0
+        else
+          let r = parse-u64-bounded base s1 end 0 922337203685477580 8 in
+          if ne-u8 r.ip-status resp-ok then r
+          else
+            let neg-val = wrapping-u64-to-i64 (wrapping-sub-u64 0 (wrapping-i64-to-u64 r.ip-val)) in
+            IntParseRes resp-ok 0 0 0 neg-val
+      else if eq-u8 c0 43 then
+        let s1 = wrapping-add-u32 start 1 in
+        if ge-u32 s1 end then IntParseRes resp-err-bad-int 0 0 0 0
+        else parse-u64-bounded base s1 end 0 922337203685477580 7
+      else
+        parse-u64-bounded base start end 0 922337203685477580 7
+
+  -- | Check that `[pos, end)` consists exclusively of ASCII digits `'0'..'9'`.
+  #[no-alloc]
+  all-ascii-digits :: I64 -> U32 -> U32 ->{MVar} Bool
+  all-ascii-digits base pos end =
+    if ge-u32 pos end then b-true
+    else
+      let d = wrapping-sub-u8 (load-u8-at base pos) 48 in
+      if gt-u8 d 9 then b-false
+      else all-ascii-digits base (wrapping-add-u32 pos 1) end
+
+  -- | Strict RESP length parser for `$`, `*`, `!`, `=`, `%`, `~`, `>`:
+  --   * Rejects empty, `+`, and non-digits (`resp-err-bad-int`).
+  --   * When `allow-neg1` is true, `"-1"` succeeds with `ip-val = -1`; otherwise
+  --     any negative integer (`< 0`, or `< -1` when `allow-neg1`) returns `resp-err-bad-bulk-len`.
+  --   * Overflow beyond `I64::MAX` returns `resp-err-int-overflow`.
+  #[no-alloc]
+  parse-resp-len :: I64 -> U32 -> U32 -> Bool ->{MVar} IntParseRes
+  parse-resp-len base start end allow-neg1 =
+    if ge-u32 start end then IntParseRes resp-err-bad-int 0 0 0 0
+    else
+      let c0 = load-u8-at base start in
+      if eq-u8 c0 45 then
+        let s1 = wrapping-add-u32 start 1 in
+        if ge-u32 s1 end then IntParseRes resp-err-bad-int 0 0 0 0
+        else if not-b (all-ascii-digits base s1 end) then IntParseRes resp-err-bad-int 0 0 0 0
+        else
+          let dlen = wrapping-sub-u32 end s1 in
+          if both allow-neg1 (both (eq-u32 dlen 1) (eq-u8 (load-u8-at base s1) 49)) then
+            IntParseRes resp-ok 0 0 0 (-1)
+          else
+            IntParseRes resp-err-bad-bulk-len 0 0 0 0
+      else
+        parse-u64-bounded base start end 0 922337203685477580 7
+
+  -- | Validate bulk payload `[payload-off, payload-off + blen)` and trailing `\r\n`.
+  #[no-alloc]
+  check-bulk-trailer :: I64 -> U32 -> U32 -> U32 ->{MVar} U8
+  check-bulk-trailer base payload-off blen end =
+    let avail = saturating-sub-u32 end payload-off in
+    if lt-u32 avail blen then resp-need-more
+    else
+      let tr-off = wrapping-add-u32 payload-off blen in
+      let rem = saturating-sub-u32 end tr-off in
+      if eq-u32 rem 0 then resp-need-more
+      else
+        let b0 = load-u8-at base tr-off in
+        if eq-u8 b0 10 then resp-err-bare-lf
+        else if ne-u8 b0 13 then resp-err-missing-crlf
+        else if lt-u32 rem 2 then resp-need-more
+        else
+          let b1 = load-u8-at base (wrapping-add-u32 tr-off 1) in
+          if eq-u8 b1 10 then resp-ok else resp-err-missing-crlf
+
+  -- | Validate RESP3 BigNumber `([+-]?[0-9]+)`.
+  #[no-alloc]
+  validate-bignum-line :: I64 -> U32 -> U32 ->{MVar} Bool
+  validate-bignum-line base start end =
+    if ge-u32 start end then b-false
+    else
+      let c0 = load-u8-at base start in
+      let s = if either (eq-u8 c0 45) (eq-u8 c0 43) then wrapping-add-u32 start 1 else start in
+      if ge-u32 s end then b-false
+      else all-ascii-digits base s end
+
+  #[no-alloc]
+  skip-digits :: I64 -> U32 -> U32 ->{MVar} U32
+  skip-digits base pos end =
+    if ge-u32 pos end then pos
+    else
+      let d = wrapping-sub-u8 (load-u8-at base pos) 48 in
+      if gt-u8 d 9 then pos
+      else skip-digits base (wrapping-add-u32 pos 1) end
+
+  -- | Validate RESP3 Double syntax: `[+-]?(inf|nan|<digits>(.<digits>)?([eE][+-]?<digits>)?|.<digits>([eE][+-]?<digits>)?)`.
+  #[no-alloc]
+  validate-double-line :: I64 -> U32 -> U32 ->{MVar} Bool
+  validate-double-line base start end =
+    if ge-u32 start end then b-false
+    else
+      let c0 = load-u8-at base start in
+      let s = if either (eq-u8 c0 45) (eq-u8 c0 43) then wrapping-add-u32 start 1 else start in
+      let rem = saturating-sub-u32 end s in
+      if eq-u32 rem 0 then b-false
+      else if eq-u32 rem 3 then
+        let a = load-u8-at base s in
+        let b = load-u8-at base (wrapping-add-u32 s 1) in
+        let c = load-u8-at base (wrapping-add-u32 s 2) in
+        let is-inf = both (eq-u8 a 105) (both (eq-u8 b 110) (eq-u8 c 102)) in
+        let is-nan = both (eq-u8 a 110) (both (eq-u8 b 97) (eq-u8 c 110)) in
+        if either is-inf is-nan then b-true
+        else validate-double-finite base s end
+      else validate-double-finite base s end
+
+  #[no-alloc]
+  validate-double-finite :: I64 -> U32 -> U32 ->{MVar} Bool
+  validate-double-finite base s end =
+    let p1 = skip-digits base s end in
+    let int-digits = wrapping-sub-u32 p1 s in
+    let p2 = (
+      if both (lt-u32 p1 end) (eq-u8 (load-u8-at base p1) 46) then
+        skip-digits base (wrapping-add-u32 p1 1) end
+      else p1) in
+    let frac-digits = (
+      if gt-u32 p2 p1 then wrapping-sub-u32 p2 (wrapping-add-u32 p1 1) else 0) in
+    if both (eq-u32 int-digits 0) (eq-u32 frac-digits 0) then b-false
+    else if eq-u32 p2 end then b-true
+    else
+      let e = load-u8-at base p2 in
+      if either (eq-u8 e 101) (eq-u8 e 69) then
+        let e1 = wrapping-add-u32 p2 1 in
+        if ge-u32 e1 end then b-false
+        else
+          let ec = load-u8-at base e1 in
+          let e2 = if either (eq-u8 ec 45) (eq-u8 ec 43) then wrapping-add-u32 e1 1 else e1 in
+          if ge-u32 e2 end then b-false
+          else eq-u32 (skip-digits base e2 end) end
+      else b-false
+
+  -- =========================================================================
+  -- 5. RESP2/RESP3 Command Array & Inline Parser + Pipelined Batch Extractor
+  -- =========================================================================
+
+  #[no-alloc]
+  parse-cmd-bulk-args
+    :: I64 -> U32 -> U32 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} RespCmdView
+  parse-cmd-bulk-args base start-off pos end buf-id args-out arg-base argc i arg0-off arg0-len =
+    if ge-u32 i argc then
+      let cmd = resp-match-cmd-dma base arg0-off arg0-len in
+      RespCmdView resp-ok cmd 0 0 argc arg-base (wrapping-sub-u32 pos start-off) buf-id 0
+    else if ge-u32 pos end then
+      resp-cmd-view-err resp-need-more
+    else
+      let prefix = load-u8-at base pos in
+      if ne-u8 prefix 36 then
+        resp-cmd-view-err resp-err-bad-cmd-arg
+      else
+        let ls = scan-line-strict base (wrapping-add-u32 pos 1) end in
+        if ne-u8 ls.ls-status resp-ok then
+          resp-cmd-view-err ls.ls-status
+        else
+          let lr = parse-resp-len base (wrapping-add-u32 pos 1) ls.ls-cr-pos b-false in
+          if ne-u8 lr.ip-status resp-ok then
+            resp-cmd-view-err lr.ip-status
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-bulk-len) then
+            resp-cmd-view-err resp-err-bad-bulk-len
+          else
+            let blen = wrapping-i64-to-u32 lr.ip-val in
+            let pay-off = wrapping-add-u32 ls.ls-cr-pos 2 in
+            let tr = check-bulk-trailer base pay-off blen end in
+            if ne-u8 tr resp-ok then
+              resp-cmd-view-err tr
+            else
+              let _st = (
+                if ne-i64 args-out 0 then
+                  resp-store-arg args-out (wrapping-add-u32 arg-base i) (byte-span-make buf-id pay-off blen 0)
+                else ()) in
+              let next-pos = wrapping-add-u32 (wrapping-add-u32 pay-off blen) 2 in
+              let a0-off = if eq-u32 i 0 then pay-off else arg0-off in
+              let a0-len = if eq-u32 i 0 then blen else arg0-len in
+              parse-cmd-bulk-args base start-off next-pos end buf-id args-out arg-base argc (wrapping-add-u32 i 1) a0-off a0-len
+
+  #[inline(always)]
+  #[no-alloc]
+  is-inline-ws :: U8 -> Bool
+  is-inline-ws b = either (eq-u8 b 32) (eq-u8 b 9)
+
+  #[no-alloc]
+  skip-inline-ws :: I64 -> U32 -> U32 ->{MVar} U32
+  skip-inline-ws base pos end =
+    if ge-u32 pos end then pos
+    else if is-inline-ws (load-u8-at base pos) then
+      skip-inline-ws base (wrapping-add-u32 pos 1) end
+    else pos
+
+  #[no-alloc]
+  scan-inline-word :: I64 -> U32 -> U32 ->{MVar} U32
+  scan-inline-word base pos end =
+    if ge-u32 pos end then pos
+    else if is-inline-ws (load-u8-at base pos) then pos
+    else scan-inline-word base (wrapping-add-u32 pos 1) end
+
+  #[repr(C, value)]
+  record InlineTokRes where
+    it-status :: U8
+    it-pad0 :: U8
+    it-pad1 :: U16
+    it-off :: U32
+    it-len :: U32
+    it-next :: U32
+
+  #[no-alloc]
+  scan-one-inline-tok :: I64 -> U32 -> U32 ->{MVar} InlineTokRes
+  scan-one-inline-tok base t-start line-end =
+    let c0 = load-u8-at base t-start in
+    if either (eq-u8 c0 34) (eq-u8 c0 39) then
+      let q-body = wrapping-add-u32 t-start 1 in
+      let q-close = dma-find-byte base q-body line-end c0 in
+      if lt-i32 q-close 0 then
+        InlineTokRes resp-err-bad-inline 0 0 0 0 0
+      else
+        let q-end = wrapping-i32-to-u32 q-close in
+        let t-len = wrapping-sub-u32 q-end q-body in
+        let after-q = wrapping-add-u32 q-end 1 in
+        if both (lt-u32 after-q line-end) (not-b (is-inline-ws (load-u8-at base after-q))) then
+          InlineTokRes resp-err-bad-inline 0 0 0 0 0
+        else
+          InlineTokRes resp-ok 0 0 q-body t-len after-q
+    else
+      let t-end = scan-inline-word base t-start line-end in
+      InlineTokRes resp-ok 0 0 t-start (wrapping-sub-u32 t-end t-start) t-end
+
+  #[no-alloc]
+  parse-inline-tokens
+    :: I64 -> U32 -> U32 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} RespCmdView
+  parse-inline-tokens base start-off pos line-end buf-id args-out arg-base max-args count arg0-off arg0-len =
+    let t-start = skip-inline-ws base pos line-end in
+    if ge-u32 t-start line-end then
+      if eq-u32 count 0 then
+        resp-cmd-view-err resp-err-bad-inline
+      else
+        let cmd = resp-match-cmd-dma base arg0-off arg0-len in
+        let cons = wrapping-sub-u32 (wrapping-add-u32 line-end 2) start-off in
+        RespCmdView resp-ok cmd 1 0 count arg-base cons buf-id 0
+    else if ge-u32 count max-args then
+      resp-cmd-view-err resp-err-too-many-args
+    else
+      let tok = scan-one-inline-tok base t-start line-end in
+      if ne-u8 tok.it-status resp-ok then
+        resp-cmd-view-err tok.it-status
+      else
+        let _st = (
+          if ne-i64 args-out 0 then
+            resp-store-arg args-out (wrapping-add-u32 arg-base count) (byte-span-make buf-id tok.it-off tok.it-len 0)
+          else ()) in
+        let a0-off = if eq-u32 count 0 then tok.it-off else arg0-off in
+        let a0-len = if eq-u32 count 0 then tok.it-len else arg0-len in
+        parse-inline-tokens base start-off tok.it-next line-end buf-id args-out arg-base max-args (wrapping-add-u32 count 1) a0-off a0-len
+
+  -- | Parse one RESP2/RESP3 client command (multibulk `*<argc>\r\n...` or inline
+  -- `PING\r\n`, `GET key\r\n`) from DMA buffer `[rx-base + rx-off, rx-base + rx-end)`.
+  -- Zero-copy `ByteSpan` argument slices are written to `args-out[arg-base-idx ..]`.
+  #[no-alloc]
+  resp-parse-command :: I64 -> U32 -> U32 -> U32 -> I64 -> U32 -> U32 ->{MVar} RespCmdView
+  resp-parse-command rx-base rx-off rx-end buf-id args-out arg-base-idx max-args =
+    if ge-u32 rx-off rx-end then
+      resp-cmd-view-err resp-need-more
+    else
+      let b0 = load-u8-at rx-base rx-off in
+      if eq-u8 b0 42 then
+        -- Multibulk RESP command array `*<argc>\r\n`
+        let ls = scan-line-strict rx-base (wrapping-add-u32 rx-off 1) rx-end in
+        if ne-u8 ls.ls-status resp-ok then
+          resp-cmd-view-err ls.ls-status
+        else
+          let lr = parse-resp-len rx-base (wrapping-add-u32 rx-off 1) ls.ls-cr-pos b-false in
+          if ne-u8 lr.ip-status resp-ok then
+            resp-cmd-view-err lr.ip-status
+          else if eq-i64 lr.ip-val 0 then
+            resp-cmd-view-err resp-err-bad-cmd-arg
+          else if gt-i64 lr.ip-val (u32-to-i64 max-args) then
+            resp-cmd-view-err resp-err-too-many-args
+          else
+            let argc = wrapping-i64-to-u32 lr.ip-val in
+            let body-off = wrapping-add-u32 ls.ls-cr-pos 2 in
+            parse-cmd-bulk-args rx-base rx-off body-off rx-end buf-id args-out arg-base-idx argc 0 0 0
+      else
+        -- Inline command (`PING\r\n`, `GET key\r\n`, ...)
+        let ls = scan-line-strict rx-base rx-off rx-end in
+        if ne-u8 ls.ls-status resp-ok then
+          resp-cmd-view-err ls.ls-status
+        else
+          parse-inline-tokens rx-base rx-off rx-off ls.ls-cr-pos buf-id args-out arg-base-idx max-args 0 0 0
+
+  #[no-alloc]
+  extract-pipeline-loop
+    :: I64 -> U32 -> U32 -> U32 -> U32 -> I64 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} RespBatchResult
+  extract-pipeline-loop rx-base start-off pos rx-end buf-id cmds-out max-cmds args-out max-total-args max-per-cmd parsed total-args =
+    if ge-u32 pos rx-end then
+      RespBatchResult resp-ok 0 0 parsed (wrapping-sub-u32 pos start-off) total-args
+    else if ge-u32 parsed max-cmds then
+      RespBatchResult resp-ok 0 0 parsed (wrapping-sub-u32 pos start-off) total-args
+    else
+      let rem-args = saturating-sub-u32 max-total-args total-args in
+      if eq-u32 rem-args 0 then
+        if gt-u32 parsed 0 then
+          RespBatchResult resp-ok 0 0 parsed (wrapping-sub-u32 pos start-off) total-args
+        else
+          RespBatchResult resp-err-too-many-args 0 0 0 0 0
+      else
+        let eff-max = if lt-u32 rem-args max-per-cmd then rem-args else max-per-cmd in
+        let cv = resp-parse-command rx-base pos rx-end buf-id args-out total-args eff-max in
+        if eq-u8 cv.rc-status resp-ok then
+          let _sc = (
+            if ne-i64 cmds-out 0 then resp-store-cmd cmds-out parsed cv else ()) in
+          extract-pipeline-loop rx-base start-off (wrapping-add-u32 pos cv.rc-consumed) rx-end buf-id
+            cmds-out max-cmds args-out max-total-args max-per-cmd
+            (wrapping-add-u32 parsed 1) (wrapping-add-u32 total-args cv.rc-argc)
+        else if eq-u8 cv.rc-status resp-need-more then
+          RespBatchResult resp-need-more 0 0 parsed (wrapping-sub-u32 pos start-off) total-args
+        else if both (eq-u8 cv.rc-status resp-err-too-many-args) (both (gt-u32 parsed 0) (lt-u32 rem-args max-per-cmd)) then
+          -- Remaining flat arg buffer ran low mid-batch; stop cleanly so caller can flush and continue.
+          RespBatchResult resp-ok 0 0 parsed (wrapping-sub-u32 pos start-off) total-args
+        else
+          RespBatchResult cv.rc-status 0 0 parsed (wrapping-sub-u32 pos start-off) total-args
+
+  -- | Single-pass zero-copy pipelined batch extractor: parses `1..max-cmds`
+  -- pipelined commands from `[rx-base + rx-off, rx-base + rx-end)` into flat
+  -- DMA arrays `cmds-out` and `args-out`.
+  #[no-alloc]
+  resp-extract-pipeline-batch
+    :: I64 -> U32 -> U32 -> U32 -> I64 -> U32 -> I64 -> U32 -> U32 ->{MVar} RespBatchResult
+  resp-extract-pipeline-batch rx-base rx-off rx-end buf-id cmds-out max-cmds args-out max-total-args max-args-per-cmd =
+    if ge-u32 rx-off rx-end then
+      resp-batch-empty ()
+    else
+      extract-pipeline-loop rx-base rx-off rx-off rx-end buf-id cmds-out max-cmds args-out max-total-args max-args-per-cmd 0 0
+
+  -- =========================================================================
+  -- 6. General RESP2 & RESP3 Value Parser (All 14 Wire Types, #[no-alloc])
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record SkipRes where
+    sk-status :: U8
+    sk-pad0 :: U8
+    sk-pad1 :: U16
+    sk-end-pos :: U32
+
+  -- | Parse one RESP2/RESP3 frame header (and scalar payload). For aggregate types
+  -- (`*`, `%`, `~`, `>`), returns header bytes in `rv-consumed` without descending
+  -- into children so callers can stream arbitrarily large aggregates incrementally.
+  #[no-alloc]
+  resp-parse-value-head :: I64 -> U32 -> U32 -> U32 ->{MVar} RespValue
+  resp-parse-value-head rx-base rx-off rx-end buf-id =
+    if ge-u32 rx-off rx-end then
+      resp-value-err resp-need-more
+    else
+      let prefix = load-u8-at rx-base rx-off in
+      let body-start = wrapping-add-u32 rx-off 1 in
+      let ls = scan-line-strict rx-base body-start rx-end in
+      if ne-u8 ls.ls-status resp-ok then
+        resp-value-err ls.ls-status
+      else
+        let cr = ls.ls-cr-pos in
+        let line-len = wrapping-sub-u32 cr body-start in
+        let line-end = wrapping-add-u32 cr 2 in
+        let line-cons = wrapping-sub-u32 line-end rx-off in
+        if eq-u8 prefix 43 then
+          -- '+' Simple String
+          RespValue resp-ok resp-kind-simple-string 0 0 buf-id body-start line-len 0 line-cons 0
+        else if eq-u8 prefix 45 then
+          -- '-' Simple Error
+          RespValue resp-ok resp-kind-simple-error 0 0 buf-id body-start line-len 0 line-cons 0
+        else if eq-u8 prefix 58 then
+          -- ':' Integer
+          let ir = parse-resp-i64 rx-base body-start cr in
+          if ne-u8 ir.ip-status resp-ok then resp-value-err ir.ip-status
+          else RespValue resp-ok resp-kind-integer 0 0 buf-id body-start line-len 0 line-cons ir.ip-val
+        else if eq-u8 prefix 36 then
+          -- '$' Bulk String (or $-1 null bulk)
+          let lr = parse-resp-len rx-base body-start cr b-true in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if lt-i64 lr.ip-val 0 then
+            RespValue resp-ok resp-kind-null-bulk 0 0 buf-id line-end 0 0 line-cons (-1)
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-bulk-len) then
+            resp-value-err resp-err-bad-bulk-len
+          else
+            let blen = wrapping-i64-to-u32 lr.ip-val in
+            let tr = check-bulk-trailer rx-base line-end blen rx-end in
+            if ne-u8 tr resp-ok then resp-value-err tr
+            else
+              let cons = wrapping-sub-u32 (wrapping-add-u32 (wrapping-add-u32 line-end blen) 2) rx-off in
+              RespValue resp-ok resp-kind-bulk-string 0 0 buf-id line-end blen 0 cons lr.ip-val
+        else if eq-u8 prefix 42 then
+          -- '*' Array (or *-1 null array)
+          let lr = parse-resp-len rx-base body-start cr b-true in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if lt-i64 lr.ip-val 0 then
+            RespValue resp-ok resp-kind-null-array 0 0 buf-id line-end 0 0 line-cons (-1)
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-agg-elems) then
+            resp-value-err resp-err-too-many-args
+          else
+            let cnt = wrapping-i64-to-u32 lr.ip-val in
+            RespValue resp-ok resp-kind-array 0 0 buf-id line-end 0 cnt line-cons lr.ip-val
+        else if eq-u8 prefix 95 then
+          -- '_' RESP3 Null (`_\r\n`)
+          if ne-u32 line-len 0 then resp-value-err resp-err-bad-null
+          else RespValue resp-ok resp-kind-null 0 0 buf-id line-end 0 0 line-cons 0
+        else if eq-u8 prefix 35 then
+          -- '#' RESP3 Boolean (`#t\r\n` / `#f\r\n`)
+          if ne-u32 line-len 1 then resp-value-err resp-err-bad-bool
+          else
+            let bch = load-u8-at rx-base body-start in
+            if eq-u8 bch 116 then
+              RespValue resp-ok resp-kind-bool 1 0 buf-id body-start 1 0 line-cons 1
+            else if eq-u8 bch 102 then
+              RespValue resp-ok resp-kind-bool 0 0 buf-id body-start 1 0 line-cons 0
+            else resp-value-err resp-err-bad-bool
+        else if eq-u8 prefix 44 then
+          -- ',' RESP3 Double
+          if validate-double-line rx-base body-start cr then
+            RespValue resp-ok resp-kind-double 0 0 buf-id body-start line-len 0 line-cons 0
+          else resp-value-err resp-err-bad-double
+        else if eq-u8 prefix 40 then
+          -- '(' RESP3 Big Number
+          if validate-bignum-line rx-base body-start cr then
+            RespValue resp-ok resp-kind-bignum 0 0 buf-id body-start line-len 0 line-cons 0
+          else resp-value-err resp-err-bad-bignum
+        else if eq-u8 prefix 33 then
+          -- '!' RESP3 Bulk Error
+          let lr = parse-resp-len rx-base body-start cr b-false in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-bulk-len) then
+            resp-value-err resp-err-bad-bulk-len
+          else
+            let blen = wrapping-i64-to-u32 lr.ip-val in
+            let tr = check-bulk-trailer rx-base line-end blen rx-end in
+            if ne-u8 tr resp-ok then resp-value-err tr
+            else
+              let cons = wrapping-sub-u32 (wrapping-add-u32 (wrapping-add-u32 line-end blen) 2) rx-off in
+              RespValue resp-ok resp-kind-bulk-error 0 0 buf-id line-end blen 0 cons lr.ip-val
+        else if eq-u8 prefix 61 then
+          -- '=' RESP3 Verbatim String (`=<len>\r\n<enc:3>:<data>\r\n`)
+          let lr = parse-resp-len rx-base body-start cr b-false in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if lt-i64 lr.ip-val 4 then resp-value-err resp-err-bad-verbatim
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-bulk-len) then
+            resp-value-err resp-err-bad-bulk-len
+          else
+            let blen = wrapping-i64-to-u32 lr.ip-val in
+            let tr = check-bulk-trailer rx-base line-end blen rx-end in
+            if ne-u8 tr resp-ok then resp-value-err tr
+            else if ne-u8 (load-u8-at rx-base (wrapping-add-u32 line-end 3)) 58 then
+              resp-value-err resp-err-bad-verbatim
+            else
+              let cons = wrapping-sub-u32 (wrapping-add-u32 (wrapping-add-u32 line-end blen) 2) rx-off in
+              RespValue resp-ok resp-kind-verbatim 0 0 buf-id (wrapping-add-u32 line-end 4) (wrapping-sub-u32 blen 4) line-end cons lr.ip-val
+        else if eq-u8 prefix 37 then
+          -- '%' RESP3 Map (`%<pairs>\r\n` -> `2 * pairs` child values)
+          let lr = parse-resp-len rx-base body-start cr b-false in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if gt-i64 lr.ip-val (u32-to-i64 (wrapping-shr-u32 resp-max-agg-elems 1)) then
+            resp-value-err resp-err-too-many-args
+          else
+            let pairs = wrapping-i64-to-u32 lr.ip-val in
+            RespValue resp-ok resp-kind-map 0 0 buf-id line-end 0 (wrapping-shl-u32 pairs 1) line-cons lr.ip-val
+        else if eq-u8 prefix 126 then
+          -- '~' RESP3 Set
+          let lr = parse-resp-len rx-base body-start cr b-false in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-agg-elems) then
+            resp-value-err resp-err-too-many-args
+          else
+            let cnt = wrapping-i64-to-u32 lr.ip-val in
+            RespValue resp-ok resp-kind-set 0 0 buf-id line-end 0 cnt line-cons lr.ip-val
+        else if eq-u8 prefix 62 then
+          -- '>' RESP3 Push
+          let lr = parse-resp-len rx-base body-start cr b-false in
+          if ne-u8 lr.ip-status resp-ok then resp-value-err lr.ip-status
+          else if gt-i64 lr.ip-val (u32-to-i64 resp-max-agg-elems) then
+            resp-value-err resp-err-too-many-args
+          else
+            let cnt = wrapping-i64-to-u32 lr.ip-val in
+            RespValue resp-ok resp-kind-push 0 0 buf-id line-end 0 cnt line-cons lr.ip-val
+        else
+          resp-value-err resp-err-invalid-prefix
+
+  #[inline(always)]
+  #[no-alloc]
+  is-aggregate-kind :: U8 -> Bool
+  is-aggregate-kind k =
+    either
+      (eq-u8 k resp-kind-array)
+      (either (eq-u8 k resp-kind-map) (either (eq-u8 k resp-kind-set) (eq-u8 k resp-kind-push)))
+
+  #[no-alloc]
+  skip-children :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} SkipRes
+  skip-children rx-base pos rx-end rem depth =
+    if eq-u32 rem 0 then SkipRes resp-ok 0 0 pos
+    else if ge-u32 depth resp-max-depth then SkipRes resp-err-depth-limit 0 0 0
+    else
+      let rv = resp-parse-value-head rx-base pos rx-end 0 in
+      if ne-u8 rv.rv-status resp-ok then SkipRes rv.rv-status 0 0 0
+      else
+        let after-head = wrapping-add-u32 pos rv.rv-consumed in
+        if is-aggregate-kind rv.rv-kind then
+          let sub = skip-children rx-base after-head rx-end rv.rv-aux-off (wrapping-add-u32 depth 1) in
+          if ne-u8 sub.sk-status resp-ok then sub
+          else skip-children rx-base sub.sk-end-pos rx-end (wrapping-sub-u32 rem 1) depth
+        else
+          skip-children rx-base after-head rx-end (wrapping-sub-u32 rem 1) depth
+
+  -- | Parse one complete RESP2/RESP3 value from `[rx-base + rx-off, rx-base + rx-end)`.
+  -- For aggregate types (`*`, `%`, `~`, `>`), validates all nested children up to
+  -- `resp-max-depth`, returning full wire bytes in `rv-consumed` while preserving
+  -- `rv-data-off` (first child offset) and `rv-aux-off` (child count) for zero-copy
+  -- iteration.
+  #[no-alloc]
+  resp-parse-value :: I64 -> U32 -> U32 -> U32 ->{MVar} RespValue
+  resp-parse-value rx-base rx-off rx-end buf-id =
+    let head = resp-parse-value-head rx-base rx-off rx-end buf-id in
+    if ne-u8 head.rv-status resp-ok then head
+    else if not-b (is-aggregate-kind head.rv-kind) then head
+    else
+      let child-start = wrapping-add-u32 rx-off head.rv-consumed in
+      let sk = skip-children rx-base child-start rx-end head.rv-aux-off 1 in
+      if ne-u8 sk.sk-status resp-ok then resp-value-err sk.sk-status
+      else
+        let child-bytes = wrapping-sub-u32 sk.sk-end-pos child-start in
+        let total-cons = wrapping-sub-u32 sk.sk-end-pos rx-off in
+        RespValue resp-ok head.rv-kind 0 0 buf-id child-start child-bytes head.rv-aux-off total-cons head.rv-int
+
+  -- =========================================================================
+  -- 7. Coalesced Zero-Alloc DMA Response Encoder (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  u64-dec-digits :: U64 -> U32
+  u64-dec-digits v =
+    if lt-u64 v 10 then 1
+    else if lt-u64 v 100 then 2
+    else if lt-u64 v 1000 then 3
+    else if lt-u64 v 10000 then 4
+    else if lt-u64 v 100000 then 5
+    else if lt-u64 v 1000000 then 6
+    else if lt-u64 v 10000000 then 7
+    else if lt-u64 v 100000000 then 8
+    else if lt-u64 v 1000000000 then 9
+    else if lt-u64 v 10000000000 then 10
+    else if lt-u64 v 100000000000 then 11
+    else if lt-u64 v 1000000000000 then 12
+    else if lt-u64 v 10000000000000 then 13
+    else if lt-u64 v 100000000000000 then 14
+    else if lt-u64 v 1000000000000000 then 15
+    else if lt-u64 v 10000000000000000 then 16
+    else if lt-u64 v 100000000000000000 then 17
+    else if lt-u64 v 1000000000000000000 then 18
+    else if lt-u64 v 10000000000000000000 then 19
+    else 20
+
+  #[no-alloc]
+  write-u64-dec-back :: I64 -> U32 -> U64 -> U32 ->{MVar} Unit
+  write-u64-dec-back base end-pos v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let dst-pos = wrapping-sub-u32 end-pos 1 in
+      let d = wrapping-add-u8 48 (wrapping-u64-to-u8 (rem-u64 v 10)) in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 dst-pos)) d in
+      write-u64-dec-back base dst-pos (div-u64 v 10) (wrapping-sub-u32 rem 1)
+
+  -- | Write pre-rendered `"+OK\r\n"` (5 bytes). Returns updated `pos` or `cap + 1` on overflow.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-ok :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-ok base pos cap =
+    if gt-u32 5 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 43 79 75 13 in -- "+OK\r"
+      put1 base p1 10
+
+  -- | Write pre-rendered `"+PONG\r\n"` (7 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-pong :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-pong base pos cap =
+    if gt-u32 7 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 43 80 79 78 in -- "+PON"
+      put3 base p1 71 13 10                 -- "G\r\n"
+
+  -- | Write pre-rendered RESP2 null bulk string `"$-1\r\n"` (5 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-null-v2 :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-null-v2 base pos cap =
+    if gt-u32 5 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 36 45 49 13 in -- "$-1\r"
+      put1 base p1 10
+
+  -- | Write pre-rendered RESP3 null `"_\r\n"` (3 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-null-v3 :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-null-v3 base pos cap =
+    if gt-u32 3 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else put3 base pos 95 13 10
+
+  -- | Write pre-rendered integer zero `":0\r\n"` (4 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-zero :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-zero base pos cap =
+    if gt-u32 4 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else put4 base pos 58 48 13 10
+
+  -- | Write pre-rendered integer one `":1\r\n"` (4 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-one :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-one base pos cap =
+    if gt-u32 4 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else put4 base pos 58 49 13 10
+
+  -- | Write pre-rendered RESP2 null array `"*-1\r\n"` (5 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-null-array :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-null-array base pos cap =
+    if gt-u32 5 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 42 45 49 13 in -- "*-1\r"
+      put1 base p1 10
+
+  #[inline(always)]
+  #[no-alloc]
+  write-prefixed-line :: I64 -> U32 -> U32 -> U8 -> I64 -> U32 ->{MVar} U32
+  write-prefixed-line base pos cap prefix src-addr len =
+    let rem = saturating-sub-u32 cap pos in
+    if gt-u32 3 rem then wrapping-add-u32 cap 1
+    else if gt-u32 len (wrapping-sub-u32 rem 3) then wrapping-add-u32 cap 1
+    else
+      let p1 = put1 base pos prefix in
+      let _c = if gt-u32 len 0 then dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p1)) src-addr len else () in
+      put2 base (wrapping-add-u32 p1 len) 13 10
+
+  -- | Write Simple String `+<bytes>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-simple-str :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  resp-write-simple-str base pos cap src-addr len =
+    write-prefixed-line base pos cap 43 src-addr len
+
+  -- | Write Simple Error `-<bytes>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-error :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  resp-write-error base pos cap src-addr len =
+    write-prefixed-line base pos cap 45 src-addr len
+
+  -- | Write RESP3 Double `,<bytes>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-double-raw :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  resp-write-double-raw base pos cap src-addr len =
+    write-prefixed-line base pos cap 44 src-addr len
+
+  -- | Write RESP3 Big Number `(<bytes>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-bignum-raw :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  resp-write-bignum-raw base pos cap src-addr len =
+    write-prefixed-line base pos cap 40 src-addr len
+
+  -- | Write signed 64-bit integer `:<val>\r\n` into DMA buffer with fast paths for 0 and 1.
+  #[no-alloc]
+  resp-write-int :: I64 -> U32 -> U32 -> I64 ->{MVar} U32
+  resp-write-int base pos cap val =
+    if eq-i64 val 0 then resp-write-zero base pos cap
+    else if eq-i64 val 1 then resp-write-one base pos cap
+    else if lt-i64 val 0 then
+      let mag = wrapping-sub-u64 0 (wrapping-i64-to-u64 val) in
+      let nd = u64-dec-digits mag in
+      let need = wrapping-add-u32 nd 4 in -- ':' + '-' + digits + '\r\n'
+      if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+      else
+        let p1 = put2 base pos 58 45 in
+        let end-d = wrapping-add-u32 p1 nd in
+        let _d = write-u64-dec-back base end-d mag nd in
+        put2 base end-d 13 10
+    else
+      let mag = wrapping-i64-to-u64 val in
+      let nd = u64-dec-digits mag in
+      let need = wrapping-add-u32 nd 3 in -- ':' + digits + '\r\n'
+      if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+      else
+        let p1 = put1 base pos 58 in
+        let end-d = wrapping-add-u32 p1 nd in
+        let _d = write-u64-dec-back base end-d mag nd in
+        put2 base end-d 13 10
+
+  -- | Write RESP3 Boolean `#t\r\n` or `#f\r\n` (4 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-bool :: I64 -> U32 -> U32 -> Bool ->{MVar} U32
+  resp-write-bool base pos cap v =
+    if gt-u32 4 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else if v then put4 base pos 35 116 13 10 -- "#t\r\n"
+    else put4 base pos 35 102 13 10           -- "#f\r\n"
+
+  #[inline(always)]
+  #[no-alloc]
+  write-prefixed-u32 :: I64 -> U32 -> U32 -> U8 -> U32 ->{MVar} U32
+  write-prefixed-u32 base pos cap prefix count =
+    let c64 = u32-to-u64 count in
+    let nd = u64-dec-digits c64 in
+    let need = wrapping-add-u32 nd 3 in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put1 base pos prefix in
+      let end-d = wrapping-add-u32 p1 nd in
+      let _d = write-u64-dec-back base end-d c64 nd in
+      put2 base end-d 13 10
+
+  #[inline(always)]
+  #[no-alloc]
+  write-bulk-prefixed :: I64 -> U32 -> U32 -> U8 -> I64 -> U32 ->{MVar} U32
+  write-bulk-prefixed base pos cap prefix src-addr len =
+    let l64 = u32-to-u64 len in
+    let nd = u64-dec-digits l64 in
+    let overhead = wrapping-add-u32 nd 5 in -- prefix + digits + \r\n + \r\n
+    let rem = saturating-sub-u32 cap pos in
+    if gt-u32 overhead rem then wrapping-add-u32 cap 1
+    else if gt-u32 len (wrapping-sub-u32 rem overhead) then wrapping-add-u32 cap 1
+    else
+      let p1 = put1 base pos prefix in
+      let end-d = wrapping-add-u32 p1 nd in
+      let _d = write-u64-dec-back base end-d l64 nd in
+      let p2 = put2 base end-d 13 10 in
+      let _c = if gt-u32 len 0 then dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p2)) src-addr len else () in
+      put2 base (wrapping-add-u32 p2 len) 13 10
+
+  -- | Write binary-safe Bulk String `$<len>\r\n<bytes>\r\n` directly into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-bulk-raw :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  resp-write-bulk-raw base pos cap src-addr len =
+    write-bulk-prefixed base pos cap 36 src-addr len
+
+  -- | Write RESP3 Bulk Error `!<len>\r\n<bytes>\r\n` directly into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-bulk-error :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  resp-write-bulk-error base pos cap src-addr len =
+    write-bulk-prefixed base pos cap 33 src-addr len
+
+  -- | Write RESP3 Verbatim String `=<len+4>\r\n<enc3>:<bytes>\r\n` directly into DMA buffer.
+  -- `enc3-addr` points to the 3-byte format tag (e.g. `"txt"` or `"mkd"`).
+  #[no-alloc]
+  resp-write-verbatim :: I64 -> U32 -> U32 -> I64 -> I64 -> U32 ->{MVar} U32
+  resp-write-verbatim base pos cap enc3-addr src-addr len =
+    if gt-u32 len (wrapping-sub-u32 resp-max-bulk-len 4) then wrapping-add-u32 cap 1
+    else
+      let total-len = wrapping-add-u32 len 4 in
+      let l64 = u32-to-u64 total-len in
+      let nd = u64-dec-digits l64 in
+      let overhead = wrapping-add-u32 nd 9 in -- '=' + digits + \r\n + enc3 + ':' + \r\n
+      let rem = saturating-sub-u32 cap pos in
+      if gt-u32 overhead rem then wrapping-add-u32 cap 1
+      else if gt-u32 len (wrapping-sub-u32 rem overhead) then wrapping-add-u32 cap 1
+      else
+        let p1 = put1 base pos 61 in
+        let end-d = wrapping-add-u32 p1 nd in
+        let _d = write-u64-dec-back base end-d l64 nd in
+        let p2 = put2 base end-d 13 10 in
+        let e0 = raw-load-u8 enc3-addr in
+        let e1 = raw-load-u8 (wrapping-add-i64 enc3-addr 1) in
+        let e2 = raw-load-u8 (wrapping-add-i64 enc3-addr 2) in
+        let p3 = put4 base p2 e0 e1 e2 58 in
+        let _c = if gt-u32 len 0 then dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p3)) src-addr len else () in
+        put2 base (wrapping-add-u32 p3 len) 13 10
+
+  -- | Write Array header `*<count>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-array-header :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  resp-write-array-header base pos cap count =
+    write-prefixed-u32 base pos cap 42 count
+
+  -- | Write RESP3 Map header `%<pairs>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-map-header :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  resp-write-map-header base pos cap pairs =
+    write-prefixed-u32 base pos cap 37 pairs
+
+  -- | Write RESP3 Set header `~<count>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-set-header :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  resp-write-set-header base pos cap count =
+    write-prefixed-u32 base pos cap 126 count
+
+  -- | Write RESP3 Push header `><count>\r\n` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-push-header :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  resp-write-push-header base pos cap count =
+    write-prefixed-u32 base pos cap 62 count

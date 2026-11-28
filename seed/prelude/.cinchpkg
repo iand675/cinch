@@ -1519,6 +1519,10 @@
     {
       "name": "Net.Quic.Pacer",
       "path": "Net/Quic/Pacer.cinch"
+    },
+    {
+      "name": "Store.Kv.Resp",
+      "path": "Store/Kv/Resp.cinch"
     }
   ],
   "order": [
@@ -1900,6 +1904,7 @@
     "Net.Quic.AckMap",
     "Net.Quic.Recovery",
     "Net.Quic.Bbr",
-    "Net.Quic.Pacer"
+    "Net.Quic.Pacer",
+    "Store.Kv.Resp"
   ]
 }
