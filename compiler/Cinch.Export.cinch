@@ -1384,7 +1384,8 @@ module Cinch.Export where
       let local = text (field "name" row) in
       let more = module-assertion-rows mod-name rest decls in
       let qwanted = string-concat-all [mod-name, ".", local] in
-      let facts = collect-safety-hints-for local decls (collect-safety-hints-for qwanted decls []) in
+      let mwanted = string-concat-all ["m.", mod-name, ".", local] in
+      let facts = collect-safety-hints-for local decls (collect-safety-hints-for qwanted decls (collect-safety-hints-for mwanted decls [])) in
       case facts of
         [] -> more
         _ -> insert-row "name" (JObj "facts" (sorted-strings (strings facts)) (JObj "name" (JStr local) JObjEnd)) more

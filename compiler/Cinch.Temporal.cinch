@@ -153,7 +153,8 @@ module Cinch.Temporal where
         let seen2 = a : seen in
         let plain-tag = if strong then "strong_fair " else "weak_fair " in
         let each-tag = if strong then "strong_fair_each " else "fair_each " in
-        let rows = (if n == 1 then [cat [plain-tag, a]] else if n == 2 then [cat [each-tag, a]] else [cat [plain-tag, a], cat [each-tag, a]]) in
+        let disp = source-spelling a in
+        let rows = (if n == 1 then [cat [plain-tag, disp]] else if n == 2 then [cat [each-tag, disp]] else [cat [plain-tag, disp], cat [each-tag, disp]]) in
         rows <> fair-assumption-rows-loop strong all rest seen2
 
   -- The formula as the report and manifest rows spell it:

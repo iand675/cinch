@@ -12508,6 +12508,10 @@ module Cinch.Infer where
       || ends-with-text name ".&&" || ends-with-text name ".||" || ends-with-text name ".not"
       || ends-with-text name ".wrapping-add-i64" || ends-with-text name ".wrapping-sub-i64"
       || ends-with-text name ".wrapping-mul-i64" || ends-with-text name ".eq-i64"
+      || string-starts-with "i.Prim$2eMachine$2e" name || string-starts-with "i.Data$2eMachine$2e" name
+      || string-starts-with "i.Prim$2eWide$2e" name || string-starts-with "i.Data$2eWide$2e" name
+      || string-starts-with "Prim.Machine." name || string-starts-with "Data.Machine." name
+      || string-starts-with "Prim.Wide." name || string-starts-with "Data.Wide." name
       || ends-with-text name ".lt-i64" || ends-with-text name ".le-i64"
       || ends-with-text name ".nat-to-int" || ends-with-text name ".int-to-nat"
       || ends-with-text name ".nat-sub" || ends-with-text name ".nat-cmp"
