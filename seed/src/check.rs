@@ -9060,7 +9060,7 @@ impl Checker {
                         .any(|pt| !Self::is_scalar_idx_ty(pt));
                     if pfn.returns_idx || has_non_scalar_param {
                         let arg_owned: Vec<ast::Type> = args.iter().map(|a| (*a).clone()).collect();
-                        if has_non_scalar_param {
+                        if has_non_scalar_param && self.scoped_type_env.borrow().is_empty() {
                             let res = self.conv_promoted_fn_call(&pfn, &arg_owned, vars, n.span)?;
                             if let Ty::Idx(it) = self.uni.zonk(&res) {
                                 return Ok(*it);
