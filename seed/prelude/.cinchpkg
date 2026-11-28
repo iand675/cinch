@@ -1579,6 +1579,14 @@
     {
       "name": "Store.Kv.Resp",
       "path": "Store/Kv/Resp.cinch"
+    },
+    {
+      "name": "Net.Aeron.Protocol",
+      "path": "Net/Aeron/Protocol.cinch"
+    },
+    {
+      "name": "Net.Aeron.Transport",
+      "path": "Net/Aeron/Transport.cinch"
     }
   ],
   "order": [
@@ -1975,6 +1983,8 @@
     "Store.Wal.Format",
     "Store.Wal.Engine",
     "Store.Wal.Spec",
-    "Store.Kv.Resp"
+    "Store.Kv.Resp",
+    "Net.Aeron.Protocol",
+    "Net.Aeron.Transport"
   ]
 }

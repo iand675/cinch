@@ -1,0 +1,877 @@
+-- | Zero-allocation (`#[no-alloc]`) Aeron-inspired binary wire framing over
+-- raw DMA buffers (`Net.Aeron.Protocol`).
+--
+-- Every wire header uses exact `#[repr(C, value)]` POD layout with natural
+-- 4-byte alignment (zero implicit compiler padding) so encoding, decoding,
+-- validation, and LRAT-verified Castagnoli CRC32C checks run with zero heap
+-- allocation and zero reference-counting traffic:
+--   * `AeronDataHeader`   (32 bytes): `DATA` (`0x01`) & `PAD` (`0x00`) frames
+--     with `BEGIN` (`0x80`), `END` (`0x40`), `EOS` (`0x20`), and `CRC` (`0x10`)
+--     flags plus `reserved-crc32c`.
+--   * `AeronStatusHeader` (36 bytes): `SM` (`0x03`) receiver flow-control
+--     Status Messages carrying `consumption-term-id`, `consumption-term-offset`,
+--     `receiver-window-length`, `receiver-id`, `session-id`, and `stream-id`.
+--   * `AeronNakHeader`    (28 bytes): `NAK` (`0x02`) Negative Acknowledgments
+--     requesting retransmission of an exact `(term-id, term-offset, length)`
+--     byte range from the publisher's 3-partition term buffer.
+--   * `AeronSetupHeader`  (32 bytes): `SETUP` (`0x05`) session announcement
+--     carrying `initial-term-id`, `active-term-id`, `term-length`, and `mtu`.
+module Net.Aeron.Protocol where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Simd.Crc32c
+  import Prim.Atomic
+  import Prim.SimdExt
+
+  -- Wire constants, flags, frame types, and validation status codes
+  export aeron-version, aeron-frame-alignment
+  export aeron-data-header-len, aeron-sm-header-len, aeron-nak-header-len, aeron-setup-header-len
+  export aeron-frame-type-pad, aeron-frame-type-data, aeron-frame-type-nak
+  export aeron-frame-type-sm, aeron-frame-type-err, aeron-frame-type-setup, aeron-frame-type-invalid
+  export aeron-flag-begin, aeron-flag-end, aeron-flag-unfragmented, aeron-flag-eos, aeron-flag-crc
+  export aeron-status-ok, aeron-status-truncated, aeron-status-bad-version
+  export aeron-status-bad-type, aeron-status-bad-length, aeron-status-bad-crc, aeron-status-bad-align
+
+  -- Unboxed POD wire headers (`#[repr(C, value)]`)
+  export AeronDataHeader, AeronStatusHeader, AeronNakHeader, AeronSetupHeader
+  export aeron-data-header-make, aeron-pad-header-make
+  export aeron-sm-header-make, aeron-sm-receiver-id
+  export aeron-nak-header-make, aeron-setup-header-make
+
+  -- 32-byte alignment, position math, 3-partition ring math, and DMA helpers
+  export aeron-align32, aeron-align32-i32, aeron-is-power-of-two-u32
+  export aeron-position-bits-to-shift, aeron-partition-index
+  export aeron-compute-position, aeron-term-id-from-position, aeron-term-offset-from-position
+  export aeron-copy-dma, aeron-zero-dma
+
+  -- LRAT-verified Castagnoli CRC32C payload & header integrity
+  export aeron-data-compute-crc, aeron-data-verify-crc, aeron-data-verify-crc-strict
+
+  -- Zero-alloc raw DMA wire codecs (`encode` / `decode` / `validate` / `peek`)
+  export aeron-peek-frame-type, aeron-peek-frame-length
+  export aeron-encode-data-header, aeron-decode-data-header
+  export aeron-encode-data-frame, aeron-validate-data-frame
+  export aeron-encode-sm, aeron-decode-sm, aeron-validate-sm
+  export aeron-encode-nak, aeron-decode-nak, aeron-validate-nak
+  export aeron-encode-setup, aeron-decode-setup, aeron-validate-setup
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & packing helpers
+  -- =========================================================================
+
+  -- | Internal `#[no-alloc]` boolean true avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-true :: Bool
+  na-true = eq-u32 0 0
+
+  -- | Internal `#[no-alloc]` boolean false avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-false :: Bool
+  na-false = eq-u32 0 1
+
+  -- | Internal `#[no-alloc]` boolean negation.
+  #[inline(always)]
+  #[no-alloc]
+  na-not :: Bool -> Bool
+  na-not a = if a then na-false else na-true
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-and :: Bool -> Bool -> Bool
+  na-and a b = if a then b else na-false
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean disjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-or :: Bool -> Bool -> Bool
+  na-or a b = if a then na-true else b
+
+  -- | Pack `(version, flags, frame-type)` into one little-endian `U32` word.
+  #[inline(always)]
+  #[no-alloc]
+  pack-vft :: U8 -> U8 -> U16 -> U32
+  pack-vft ver flags ftype =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 ver) (wrapping-shl-u32 (u8-to-u32 flags) 8))
+      (wrapping-shl-u32 (u16-to-u32 ftype) 16)
+
+  -- =========================================================================
+  -- 1. Wire Constants, Frame Types, Flags, and Validation Status Codes
+  -- =========================================================================
+
+  -- | Aeron wire protocol version (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-version :: U8
+  aeron-version = 0
+
+  -- | Mandatory term-buffer frame alignment in bytes (`32`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-alignment :: U32
+  aeron-frame-alignment = 32
+
+  -- | Fixed wire length of `AeronDataHeader` (`32` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-data-header-len :: U32
+  aeron-data-header-len = 32
+
+  -- | Fixed wire length of `AeronStatusHeader` (`36` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sm-header-len :: U32
+  aeron-sm-header-len = 36
+
+  -- | Fixed wire length of `AeronNakHeader` (`28` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-nak-header-len :: U32
+  aeron-nak-header-len = 28
+
+  -- | Fixed wire length of `AeronSetupHeader` (`32` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-setup-header-len :: U32
+  aeron-setup-header-len = 32
+
+  -- | Wire frame type for term-end padding (`0x00`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-pad :: U16
+  aeron-frame-type-pad = 0x00
+
+  -- | Wire frame type for `DATA` frames (`0x01`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-data :: U16
+  aeron-frame-type-data = 0x01
+
+  -- | Wire frame type for `NAK` retransmission requests (`0x02`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-nak :: U16
+  aeron-frame-type-nak = 0x02
+
+  -- | Wire frame type for `SM` flow-control status messages (`0x03`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-sm :: U16
+  aeron-frame-type-sm = 0x03
+
+  -- | Wire frame type for `ERR` frames (`0x04`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-err :: U16
+  aeron-frame-type-err = 0x04
+
+  -- | Wire frame type for `SETUP` session announcements (`0x05`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-setup :: U16
+  aeron-frame-type-setup = 0x05
+
+  -- | Sentinel frame type returned when peeking a truncated buffer (`0xFFFF`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-frame-type-invalid :: U16
+  aeron-frame-type-invalid = 0xFFFF
+
+  -- | Fragment flag marking the beginning fragment of a message (`0x80`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-flag-begin :: U8
+  aeron-flag-begin = 0x80
+
+  -- | Fragment flag marking the final fragment of a message (`0x40`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-flag-end :: U8
+  aeron-flag-end = 0x40
+
+  -- | Combined `BEGIN | END` flag for a complete unfragmented message (`0xC0`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-flag-unfragmented :: U8
+  aeron-flag-unfragmented = 0xC0
+
+  -- | End-of-stream flag (`0x20`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-flag-eos :: U8
+  aeron-flag-eos = 0x20
+
+  -- | Integrity flag indicating `data-reserved-crc32c` carries a valid Castagnoli CRC32C (`0x10`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-flag-crc :: U8
+  aeron-flag-crc = 0x10
+
+  -- | Validation status: frame is well-formed and integrity-verified (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-ok :: U32
+  aeron-status-ok = 0
+
+  -- | Validation status: buffer length is shorter than required header or payload (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-truncated :: U32
+  aeron-status-truncated = 1
+
+  -- | Validation status: protocol version field does not equal `aeron-version` (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-bad-version :: U32
+  aeron-status-bad-version = 2
+
+  -- | Validation status: frame type field does not match expected frame kind (`3`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-bad-type :: U32
+  aeron-status-bad-type = 3
+
+  -- | Validation status: `frame-length` field is negative or out of bounds (`4`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-bad-length :: U32
+  aeron-status-bad-length = 4
+
+  -- | Validation status: Castagnoli CRC32C checksum mismatch (`5`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-bad-crc :: U32
+  aeron-status-bad-crc = 5
+
+  -- | Validation status: `term-offset` is not 32-byte aligned (`6`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-status-bad-align :: U32
+  aeron-status-bad-align = 6
+
+  -- =========================================================================
+  -- 2. Exact POD Wire Headers (`#[repr(C, value)]`)
+  -- =========================================================================
+
+  -- | Exact 32-byte `#[repr(C, value)]` Aeron `DATA` / `PAD` frame header.
+  --
+  -- Wire layout (little-endian, 32 bytes, natural 4-byte alignment):
+  --   * `+0 ` : `data-frame-length`    (`I32`: `32 + payload_len`, or `0` for heartbeat)
+  --   * `+4 ` : `data-version`         (`U8`: `0`)
+  --   * `+5 ` : `data-flags`           (`U8`: `BEGIN=0x80`, `END=0x40`, `EOS=0x20`, `CRC=0x10`)
+  --   * `+6 ` : `data-frame-type`      (`U16`: `0x01` DATA, `0x00` PAD)
+  --   * `+8 ` : `data-term-offset`     (`U32`: 32-byte aligned offset inside term)
+  --   * `+12` : `data-session-id`      (`I32`)
+  --   * `+16` : `data-stream-id`       (`I32`)
+  --   * `+20` : `data-term-id`         (`I32`)
+  --   * `+24` : `data-reserved-crc32c` (`U32`: optional Castagnoli CRC32C)
+  --   * `+28` : `data-padding`         (`U32`: reserved zero padding)
+  #[repr(C, value)]
+  record AeronDataHeader where
+    -- | Unaligned frame length in bytes (`32 + payload_len`, or `0` for heartbeat).
+    data-frame-length :: I32
+    -- | Wire protocol version (`0`).
+    data-version :: U8
+    -- | Frame flags (`BEGIN=0x80`, `END=0x40`, `EOS=0x20`, `CRC=0x10`).
+    data-flags :: U8
+    -- | Frame type (`0x01` = DATA, `0x00` = PAD).
+    data-frame-type :: U16
+    -- | 32-byte aligned byte offset inside the term buffer.
+    data-term-offset :: U32
+    -- | Logical Aeron session identifier.
+    data-session-id :: I32
+    -- | Logical Aeron stream identifier.
+    data-stream-id :: I32
+    -- | Active term identifier containing this frame.
+    data-term-id :: I32
+    -- | Optional Castagnoli CRC32C over header metadata and payload bytes.
+    data-reserved-crc32c :: U32
+    -- | Reserved 32-bit padding word completing the 32-byte header.
+    data-padding :: U32
+
+  -- | Exact 36-byte `#[repr(C, value)]` Aeron `SM` (Status Message) header.
+  --
+  -- Wire layout (little-endian, 36 bytes, natural 4-byte alignment):
+  --   * `+0 ` : `sm-frame-length`            (`I32`: `36`)
+  --   * `+4 ` : `sm-version`                 (`U8`: `0`)
+  --   * `+5 ` : `sm-flags`                   (`U8`)
+  --   * `+6 ` : `sm-frame-type`              (`U16`: `0x03`)
+  --   * `+8 ` : `sm-session-id`              (`I32`)
+  --   * `+12` : `sm-stream-id`               (`I32`)
+  --   * `+16` : `sm-consumption-term-id`     (`I32`)
+  --   * `+20` : `sm-consumption-term-offset` (`U32`)
+  --   * `+24` : `sm-receiver-window-length`  (`U32`)
+  --   * `+28` : `sm-receiver-id-lo`          (`U32`: low 32 bits of 64-bit `receiver_id`)
+  --   * `+32` : `sm-receiver-id-hi`          (`U32`: high 32 bits of 64-bit `receiver_id`)
+  #[repr(C, value)]
+  record AeronStatusHeader where
+    -- | Wire frame length (`36` bytes).
+    sm-frame-length :: I32
+    -- | Wire protocol version (`0`).
+    sm-version :: U8
+    -- | Status message flags.
+    sm-flags :: U8
+    -- | Frame type (`0x03` = SM).
+    sm-frame-type :: U16
+    -- | Logical Aeron session identifier.
+    sm-session-id :: I32
+    -- | Logical Aeron stream identifier.
+    sm-stream-id :: I32
+    -- | Highest term ID contiguously consumed by the receiver.
+    sm-consumption-term-id :: I32
+    -- | Byte offset within `sm-consumption-term-id` consumed by the receiver.
+    sm-consumption-term-offset :: U32
+    -- | Advertised flow-control receiver window length in bytes.
+    sm-receiver-window-length :: U32
+    -- | Low 32 bits of the 64-bit receiver identifier.
+    sm-receiver-id-lo :: U32
+    -- | High 32 bits of the 64-bit receiver identifier.
+    sm-receiver-id-hi :: U32
+
+  -- | Exact 28-byte `#[repr(C, value)]` Aeron `NAK` (Negative Acknowledgment) header.
+  --
+  -- Wire layout (little-endian, 28 bytes, natural 4-byte alignment):
+  --   * `+0 ` : `nak-frame-length` (`I32`: `28`)
+  --   * `+4 ` : `nak-version`      (`U8`: `0`)
+  --   * `+5 ` : `nak-flags`        (`U8`)
+  --   * `+6 ` : `nak-frame-type`   (`U16`: `0x02`)
+  --   * `+8 ` : `nak-session-id`   (`I32`)
+  --   * `+12` : `nak-stream-id`    (`I32`)
+  --   * `+16` : `nak-term-id`      (`I32`)
+  --   * `+20` : `nak-term-offset`  (`U32`)
+  --   * `+24` : `nak-length`       (`U32`)
+  #[repr(C, value)]
+  record AeronNakHeader where
+    -- | Wire frame length (`28` bytes).
+    nak-frame-length :: I32
+    -- | Wire protocol version (`0`).
+    nak-version :: U8
+    -- | NAK frame flags.
+    nak-flags :: U8
+    -- | Frame type (`0x02` = NAK).
+    nak-frame-type :: U16
+    -- | Logical Aeron session identifier.
+    nak-session-id :: I32
+    -- | Logical Aeron stream identifier.
+    nak-stream-id :: I32
+    -- | Term identifier containing the missing gap.
+    nak-term-id :: I32
+    -- | 32-byte aligned start offset of the missing gap within `nak-term-id`.
+    nak-term-offset :: U32
+    -- | Missing byte range length requested for retransmission.
+    nak-length :: U32
+
+  -- | Exact 32-byte `#[repr(C, value)]` Aeron `SETUP` session announcement header.
+  --
+  -- Wire layout (little-endian, 32 bytes, natural 4-byte alignment):
+  --   * `+0 ` : `setup-frame-length`    (`I32`: `32`)
+  --   * `+4 ` : `setup-version`         (`U8`: `0`)
+  --   * `+5 ` : `setup-flags`           (`U8`)
+  --   * `+6 ` : `setup-frame-type`      (`U16`: `0x05`)
+  --   * `+8 ` : `setup-session-id`      (`I32`)
+  --   * `+12` : `setup-stream-id`       (`I32`)
+  --   * `+16` : `setup-initial-term-id` (`I32`)
+  --   * `+20` : `setup-active-term-id`  (`I32`)
+  --   * `+24` : `setup-term-length`     (`U32`)
+  --   * `+28` : `setup-mtu`             (`U32`)
+  #[repr(C, value)]
+  record AeronSetupHeader where
+    -- | Wire frame length (`32` bytes).
+    setup-frame-length :: I32
+    -- | Wire protocol version (`0`).
+    setup-version :: U8
+    -- | Setup frame flags.
+    setup-flags :: U8
+    -- | Frame type (`0x05` = SETUP).
+    setup-frame-type :: U16
+    -- | Logical Aeron session identifier.
+    setup-session-id :: I32
+    -- | Logical Aeron stream identifier.
+    setup-stream-id :: I32
+    -- | Initial term identifier of the publication.
+    setup-initial-term-id :: I32
+    -- | Currently active term identifier of the publication.
+    setup-active-term-id :: I32
+    -- | Power-of-two term buffer length in bytes.
+    setup-term-length :: U32
+    -- | Maximum transmission unit (including 32B `DATA` header) in bytes.
+    setup-mtu :: U32
+
+  -- | Construct a `DATA` frame header for `payload-len` bytes.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-data-header-make :: U32 -> U8 -> U32 -> I32 -> I32 -> I32 -> U32 -> AeronDataHeader
+  aeron-data-header-make payload-len flags term-off session-id stream-id term-id crc =
+    let flen = wrapping-u32-to-i32 (wrapping-add-u32 aeron-data-header-len payload-len) in
+    AeronDataHeader flen aeron-version flags aeron-frame-type-data term-off session-id stream-id term-id crc 0
+
+  -- | Construct a term-end `PAD` frame header spanning `pad-len` bytes (`>= 32`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pad-header-make :: U32 -> U32 -> I32 -> I32 -> I32 -> AeronDataHeader
+  aeron-pad-header-make pad-len term-off session-id stream-id term-id =
+    AeronDataHeader (wrapping-u32-to-i32 pad-len) aeron-version aeron-flag-unfragmented aeron-frame-type-pad term-off session-id stream-id term-id 0 0
+
+  -- | Construct a 36-byte `SM` flow-control status header from a 64-bit `receiver-id`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sm-header-make :: I32 -> I32 -> I32 -> U32 -> U32 -> I64 -> AeronStatusHeader
+  aeron-sm-header-make session-id stream-id cons-term-id cons-term-off recv-win receiver-id =
+    let rid-u = wrapping-i64-to-u64 receiver-id in
+    let lo = wrapping-u64-to-u32 rid-u in
+    let hi = wrapping-u64-to-u32 (wrapping-shr-u64 rid-u 32) in
+    AeronStatusHeader 36 aeron-version 0 aeron-frame-type-sm session-id stream-id cons-term-id cons-term-off recv-win lo hi
+
+  -- | Reconstruct the 64-bit `receiver-id` from an `AeronStatusHeader`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sm-receiver-id :: AeronStatusHeader -> I64
+  aeron-sm-receiver-id sm =
+    let u = bit-or-u64 (u32-to-u64 sm.sm-receiver-id-lo) (wrapping-shl-u64 (u32-to-u64 sm.sm-receiver-id-hi) 32) in
+    wrapping-u64-to-i64 u
+
+  -- | Construct a 28-byte `NAK` header requesting retransmission of `[term-off .. term-off + len)`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-nak-header-make :: I32 -> I32 -> I32 -> U32 -> U32 -> AeronNakHeader
+  aeron-nak-header-make session-id stream-id term-id term-off len =
+    AeronNakHeader 28 aeron-version 0 aeron-frame-type-nak session-id stream-id term-id term-off len
+
+  -- | Construct a 32-byte `SETUP` session announcement header.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-setup-header-make :: I32 -> I32 -> I32 -> I32 -> U32 -> U32 -> AeronSetupHeader
+  aeron-setup-header-make session-id stream-id init-term-id active-term-id term-length mtu =
+    AeronSetupHeader 32 aeron-version 0 aeron-frame-type-setup session-id stream-id init-term-id active-term-id term-length mtu
+
+  -- =========================================================================
+  -- 3. 32-Byte Alignment, Term Position Math, & Zero-Alloc DMA Helpers
+  -- =========================================================================
+
+  -- | Round an unsigned 32-bit byte length up to a 32-byte Aeron frame boundary.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-align32 :: U32 -> U32
+  aeron-align32 n =
+    bit-and-u32 (wrapping-add-u32 n 31) (bit-not-u32 31)
+
+  -- | Round a signed 32-bit frame length up to a 32-byte Aeron frame boundary (`<= 0 -> 0`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-align32-i32 :: I32 -> U32
+  aeron-align32-i32 n =
+    if le-i32 n 0 then 0
+    else aeron-align32 (wrapping-i32-to-u32 n)
+
+  -- | Return `True` iff `n` is a non-zero power of two.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-is-power-of-two-u32 :: U32 -> Bool
+  aeron-is-power-of-two-u32 n =
+    if eq-u32 n 0 then na-false
+    else eq-u32 (bit-and-u32 n (wrapping-sub-u32 n 1)) 0
+
+  -- | Internal recursive shift counter for `aeron-position-bits-to-shift`.
+  #[no-alloc]
+  pos-bits-loop :: U32 -> U32 -> U32
+  pos-bits-loop v acc =
+    if le-u32 v 1 then acc
+    else pos-bits-loop (wrapping-shr-u32 v 1) (wrapping-add-u32 acc 1)
+
+  -- | Return `log2(term-length)` for a power-of-two `term-length` (e.g. `65536 -> 16`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-position-bits-to-shift :: U32 -> U32
+  aeron-position-bits-to-shift term-length =
+    if eq-u32 term-length 0 then 0
+    else pos-bits-loop term-length 0
+
+  -- | Map `term-id` relative to `initial-term-id` into one of the 3 ring partitions (`0`, `1`, `2`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-partition-index :: I32 -> I32 -> U32
+  aeron-partition-index term-id initial-term-id =
+    let delta = wrapping-i32-to-u32 (wrapping-sub-i32 term-id initial-term-id) in
+    rem-u32 delta 3
+
+  -- | Compute the monotonic 64-bit stream position for `(term-id, term-offset)`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-compute-position :: I32 -> U32 -> U32 -> I32 -> U64
+  aeron-compute-position term-id term-offset pos-bits initial-term-id =
+    let term-count = u32-to-u64 (wrapping-i32-to-u32 (wrapping-sub-i32 term-id initial-term-id)) in
+    wrapping-add-u64 (wrapping-shl-u64 term-count pos-bits) (u32-to-u64 term-offset)
+
+  -- | Extract the `term-id` owning 64-bit stream `position`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-term-id-from-position :: U64 -> U32 -> I32 -> I32
+  aeron-term-id-from-position pos pos-bits initial-term-id =
+    let term-count = wrapping-u64-to-u32 (wrapping-shr-u64 pos pos-bits) in
+    wrapping-add-i32 initial-term-id (wrapping-u32-to-i32 term-count)
+
+  -- | Extract the byte `term-offset` within a term of `term-length` (power-of-two) from `position`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-term-offset-from-position :: U64 -> U32 -> U32
+  aeron-term-offset-from-position pos term-length =
+    let mask = wrapping-sub-u32 term-length 1 in
+    bit-and-u32 (wrapping-u64-to-u32 pos) mask
+
+  -- | Byte-copy tail helper for `aeron-copy-dma`.
+  #[no-alloc]
+  aeron-copy-dma-tail :: I64 -> I64 -> U32 ->{MVar} Unit
+  aeron-copy-dma-tail dst src rem =
+    if eq-u32 rem 0 then ()
+    else
+      let b = raw-load-u8 src in
+      let _ = raw-store-u8 dst b in
+      aeron-copy-dma-tail (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+
+  -- | Copy `len` raw DMA bytes from `src` to `dst` using 8-byte + 1-byte transfers (`#[no-alloc]`).
+  #[no-alloc]
+  aeron-copy-dma :: I64 -> I64 -> U32 ->{MVar} Unit
+  aeron-copy-dma dst src len =
+    if ge-u32 len 8 then
+      let w = raw-load-u64 src in
+      let _ = raw-store-u64 dst w in
+      aeron-copy-dma (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 len 8)
+    else aeron-copy-dma-tail dst src len
+
+  -- | Byte-zero tail helper for `aeron-zero-dma`.
+  #[no-alloc]
+  aeron-zero-dma-tail :: I64 -> U32 ->{MVar} Unit
+  aeron-zero-dma-tail dst rem =
+    if eq-u32 rem 0 then ()
+    else
+      let _ = raw-store-u8 dst 0 in
+      aeron-zero-dma-tail (wrapping-add-i64 dst 1) (wrapping-sub-u32 rem 1)
+
+  -- | Zero-fill `len` raw DMA bytes at `dst` using 8-byte + 1-byte stores (`#[no-alloc]`).
+  #[no-alloc]
+  aeron-zero-dma :: I64 -> U32 ->{MVar} Unit
+  aeron-zero-dma dst len =
+    if ge-u32 len 8 then
+      let _ = raw-store-u64 dst 0 in
+      aeron-zero-dma (wrapping-add-i64 dst 8) (wrapping-sub-u32 len 8)
+    else aeron-zero-dma-tail dst len
+
+  -- =========================================================================
+  -- 4. LRAT-Verified Castagnoli CRC32C Payload & Header Integrity
+  -- =========================================================================
+
+  -- | Compute the finalized Castagnoli CRC32C over `hdr`'s authenticated wire
+  -- metadata (`frame-length`, `version`, `flags`, `frame-type`, `term-offset`,
+  -- `session-id`, `stream-id`, `term-id`, `padding`) and `payload-len` raw DMA
+  -- payload bytes at `payload-addr` using LRAT-verified `Engine.Simd.Crc32c`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-data-compute-crc :: AeronDataHeader -> I64 -> U32 ->{MVar} U32
+  aeron-data-compute-crc hdr payload-addr payload-len =
+    let c0 = hw-crc32c-u32 crc32c-init (wrapping-i32-to-u32 hdr.data-frame-length) in
+    let c1 = hw-crc32c-u32 c0 (pack-vft hdr.data-version hdr.data-flags hdr.data-frame-type) in
+    let c2 = hw-crc32c-u32 c1 hdr.data-term-offset in
+    let c3 = hw-crc32c-u32 c2 (wrapping-i32-to-u32 hdr.data-session-id) in
+    let c4 = hw-crc32c-u32 c3 (wrapping-i32-to-u32 hdr.data-stream-id) in
+    let c5 = hw-crc32c-u32 c4 (wrapping-i32-to-u32 hdr.data-term-id) in
+    let c6 = hw-crc32c-u32 c5 hdr.data-padding in
+    let c7 = crc32c-update-dma c6 payload-addr payload-len in
+    crc32c-finish c7
+
+  -- | Verify the Castagnoli CRC32C of an encoded `DATA` frame at `frame-addr`
+  -- (`frame-buf-len` available bytes) whenever `aeron-flag-crc` (`0x10`) is set.
+  -- Returns `True` if the checksum matches (or if `aeron-flag-crc` is clear and
+  -- bounds are valid), and `False` on truncation or tamper.
+  #[no-alloc]
+  aeron-data-verify-crc :: I64 -> U32 ->{MVar} Bool
+  aeron-data-verify-crc frame-addr frame-buf-len =
+    if lt-u32 frame-buf-len aeron-data-header-len then na-false
+    else
+      let hdr = aeron-decode-data-header frame-addr in
+      if lt-i32 hdr.data-frame-length 32 then na-false
+      else
+        let flen-u = wrapping-i32-to-u32 hdr.data-frame-length in
+        if gt-u32 flen-u frame-buf-len then na-false
+        else if eq-u8 (bit-and-u8 hdr.data-flags aeron-flag-crc) 0 then na-true
+        else
+          let plen = wrapping-sub-u32 flen-u aeron-data-header-len in
+          let expected = aeron-data-compute-crc hdr (wrapping-add-i64 frame-addr 32) plen in
+          eq-u32 hdr.data-reserved-crc32c expected
+
+  -- | Strictly verify the Castagnoli CRC32C of an encoded `DATA` frame at
+  -- `frame-addr`, requiring `aeron-flag-crc` to be set and the checksum to match.
+  #[no-alloc]
+  aeron-data-verify-crc-strict :: I64 -> U32 ->{MVar} Bool
+  aeron-data-verify-crc-strict frame-addr frame-buf-len =
+    if lt-u32 frame-buf-len aeron-data-header-len then na-false
+    else
+      let hdr = aeron-decode-data-header frame-addr in
+      if lt-i32 hdr.data-frame-length 32 then na-false
+      else
+        let flen-u = wrapping-i32-to-u32 hdr.data-frame-length in
+        if gt-u32 flen-u frame-buf-len then na-false
+        else if eq-u8 (bit-and-u8 hdr.data-flags aeron-flag-crc) 0 then na-false
+        else
+          let plen = wrapping-sub-u32 flen-u aeron-data-header-len in
+          let expected = aeron-data-compute-crc hdr (wrapping-add-i64 frame-addr 32) plen in
+          eq-u32 hdr.data-reserved-crc32c expected
+
+  -- =========================================================================
+  -- 5. Zero-Alloc Wire Codecs (`peek`, `DATA`, `SM`, `NAK`, `SETUP`)
+  -- =========================================================================
+
+  -- | Peek the 16-bit Aeron frame type from an incoming datagram at `addr`
+  -- (`len` bytes). Returns `aeron-frame-type-invalid` (`0xFFFF`) if `len < 8`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-peek-frame-type :: I64 -> U32 ->{MVar} U16
+  aeron-peek-frame-type addr len =
+    if lt-u32 len 8 then aeron-frame-type-invalid
+    else
+      let vft = raw-load-u32 (wrapping-add-i64 addr 4) in
+      wrapping-u32-to-u16 (wrapping-shr-u32 vft 16)
+
+  -- | Peek the signed 32-bit `frame-length` field from an incoming datagram at
+  -- `addr` (`len` bytes). Returns `-1` if `len < 4`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-peek-frame-length :: I64 -> U32 ->{MVar} I32
+  aeron-peek-frame-length addr len =
+    if lt-u32 len 4 then -1
+    else wrapping-u32-to-i32 (raw-load-u32 addr)
+
+  -- | Encode a 32-byte `AeronDataHeader` directly into DMA address `dst`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-encode-data-header :: I64 -> AeronDataHeader ->{MVar} Unit
+  aeron-encode-data-header dst hdr =
+    let _0 = raw-store-u32 dst (wrapping-i32-to-u32 hdr.data-frame-length) in
+    let _1 = raw-store-u32 (wrapping-add-i64 dst 4) (pack-vft hdr.data-version hdr.data-flags hdr.data-frame-type) in
+    let _2 = raw-store-u32 (wrapping-add-i64 dst 8) hdr.data-term-offset in
+    let _3 = raw-store-u32 (wrapping-add-i64 dst 12) (wrapping-i32-to-u32 hdr.data-session-id) in
+    let _4 = raw-store-u32 (wrapping-add-i64 dst 16) (wrapping-i32-to-u32 hdr.data-stream-id) in
+    let _5 = raw-store-u32 (wrapping-add-i64 dst 20) (wrapping-i32-to-u32 hdr.data-term-id) in
+    let _6 = raw-store-u32 (wrapping-add-i64 dst 24) hdr.data-reserved-crc32c in
+    raw-store-u32 (wrapping-add-i64 dst 28) hdr.data-padding
+
+  -- | Decode a 32-byte `AeronDataHeader` directly from DMA address `src`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-decode-data-header :: I64 ->{MVar} AeronDataHeader
+  aeron-decode-data-header src =
+    let flen = wrapping-u32-to-i32 (raw-load-u32 src) in
+    let vft = raw-load-u32 (wrapping-add-i64 src 4) in
+    let ver = wrapping-u32-to-u8 vft in
+    let flags = wrapping-u32-to-u8 (wrapping-shr-u32 vft 8) in
+    let ftype = wrapping-u32-to-u16 (wrapping-shr-u32 vft 16) in
+    let toff = raw-load-u32 (wrapping-add-i64 src 8) in
+    let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 12)) in
+    let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 16)) in
+    let tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 20)) in
+    let crc = raw-load-u32 (wrapping-add-i64 src 24) in
+    let pad = raw-load-u32 (wrapping-add-i64 src 28) in
+    AeronDataHeader flen ver flags ftype toff sid stid tid crc pad
+
+  -- | Encode a complete `DATA` frame (32B header + `payload-len` bytes from
+  -- `payload-addr`) into `dst` (capacity `dst-cap`). When `with-crc` is `True`,
+  -- sets `aeron-flag-crc` and computes LRAT-verified Castagnoli CRC32C into
+  -- `data-reserved-crc32c`. Returns wire length (`32 + payload-len`) or `0`
+  -- if `dst-cap` is insufficient.
+  #[no-alloc]
+  aeron-encode-data-frame :: I64 -> U32 -> AeronDataHeader -> I64 -> U32 -> Bool ->{MVar} U32
+  aeron-encode-data-frame dst dst-cap hdr payload-addr payload-len with-crc =
+    let wire-len = wrapping-add-u32 aeron-data-header-len payload-len in
+    if na-or (lt-u32 wire-len aeron-data-header-len) (gt-u32 wire-len dst-cap) then 0
+    else
+      let payload-dst = wrapping-add-i64 dst 32 in
+      let _cp = if gt-u32 payload-len 0 then aeron-copy-dma payload-dst payload-addr payload-len else () in
+      let flags = if with-crc then bit-or-u8 hdr.data-flags aeron-flag-crc else bit-and-u8 hdr.data-flags (bit-xor-u8 aeron-flag-crc 0xFF) in
+      let base-hdr = AeronDataHeader (wrapping-u32-to-i32 wire-len) aeron-version flags aeron-frame-type-data hdr.data-term-offset hdr.data-session-id hdr.data-stream-id hdr.data-term-id 0 0 in
+      let crc = if with-crc then aeron-data-compute-crc base-hdr payload-dst payload-len else 0 in
+      let final-hdr = AeronDataHeader base-hdr.data-frame-length base-hdr.data-version base-hdr.data-flags base-hdr.data-frame-type base-hdr.data-term-offset base-hdr.data-session-id base-hdr.data-stream-id base-hdr.data-term-id crc 0 in
+      let _eh = aeron-encode-data-header dst final-hdr in
+      wire-len
+
+  -- | Validate a `DATA` (or `PAD`) frame at `addr` (`buf-len` bytes).
+  -- When `require-crc` is `True`, rejects frames missing `aeron-flag-crc` or
+  -- failing CRC32C; when `False`, still verifies CRC32C whenever `aeron-flag-crc`
+  -- is set on a `DATA` frame. Returns `aeron-status-ok` (`0`) or an error code.
+  #[no-alloc]
+  aeron-validate-data-frame :: I64 -> U32 -> Bool ->{MVar} U32
+  aeron-validate-data-frame addr buf-len require-crc =
+    if lt-u32 buf-len aeron-data-header-len then aeron-status-truncated
+    else
+      let hdr = aeron-decode-data-header addr in
+      if ne-u8 hdr.data-version aeron-version then aeron-status-bad-version
+      else if ne-u32 (bit-and-u32 hdr.data-term-offset 31) 0 then aeron-status-bad-align
+      else if eq-u16 hdr.data-frame-type aeron-frame-type-pad then
+        if lt-i32 hdr.data-frame-length 32 then aeron-status-bad-length
+        else aeron-status-ok
+      else if ne-u16 hdr.data-frame-type aeron-frame-type-data then aeron-status-bad-type
+      else if eq-i32 hdr.data-frame-length 0 then
+        -- 0-length DATA frame is a valid Aeron heartbeat carrying current tail position.
+        aeron-status-ok
+      else if lt-i32 hdr.data-frame-length 32 then aeron-status-bad-length
+      else
+        let flen-u = wrapping-i32-to-u32 hdr.data-frame-length in
+        if gt-u32 flen-u buf-len then aeron-status-truncated
+        else
+          let has-crc = ne-u8 (bit-and-u8 hdr.data-flags aeron-flag-crc) 0 in
+          if na-and require-crc (na-not has-crc) then aeron-status-bad-crc
+          else if has-crc then
+            let plen = wrapping-sub-u32 flen-u aeron-data-header-len in
+            let expect = aeron-data-compute-crc hdr (wrapping-add-i64 addr 32) plen in
+            if eq-u32 hdr.data-reserved-crc32c expect then aeron-status-ok
+            else aeron-status-bad-crc
+          else aeron-status-ok
+
+  -- | Encode a 36-byte `SM` Status Message frame into `dst` (`dst-cap` bytes).
+  -- Returns `36` on success or `0` if `dst-cap < 36`.
+  #[no-alloc]
+  aeron-encode-sm :: I64 -> U32 -> AeronStatusHeader ->{MVar} U32
+  aeron-encode-sm dst dst-cap sm =
+    if lt-u32 dst-cap aeron-sm-header-len then 0
+    else
+      let _0 = raw-store-u32 dst 36 in
+      let _1 = raw-store-u32 (wrapping-add-i64 dst 4) (pack-vft aeron-version sm.sm-flags aeron-frame-type-sm) in
+      let _2 = raw-store-u32 (wrapping-add-i64 dst 8) (wrapping-i32-to-u32 sm.sm-session-id) in
+      let _3 = raw-store-u32 (wrapping-add-i64 dst 12) (wrapping-i32-to-u32 sm.sm-stream-id) in
+      let _4 = raw-store-u32 (wrapping-add-i64 dst 16) (wrapping-i32-to-u32 sm.sm-consumption-term-id) in
+      let _5 = raw-store-u32 (wrapping-add-i64 dst 20) sm.sm-consumption-term-offset in
+      let _6 = raw-store-u32 (wrapping-add-i64 dst 24) sm.sm-receiver-window-length in
+      let _7 = raw-store-u32 (wrapping-add-i64 dst 28) sm.sm-receiver-id-lo in
+      let _8 = raw-store-u32 (wrapping-add-i64 dst 32) sm.sm-receiver-id-hi in
+      aeron-sm-header-len
+
+  -- | Decode a 36-byte `SM` Status Message header from DMA address `src`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-decode-sm :: I64 ->{MVar} AeronStatusHeader
+  aeron-decode-sm src =
+    let flen = wrapping-u32-to-i32 (raw-load-u32 src) in
+    let vft = raw-load-u32 (wrapping-add-i64 src 4) in
+    let ver = wrapping-u32-to-u8 vft in
+    let flags = wrapping-u32-to-u8 (wrapping-shr-u32 vft 8) in
+    let ftype = wrapping-u32-to-u16 (wrapping-shr-u32 vft 16) in
+    let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 8)) in
+    let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 12)) in
+    let ctid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 16)) in
+    let ctoff = raw-load-u32 (wrapping-add-i64 src 20) in
+    let rwin = raw-load-u32 (wrapping-add-i64 src 24) in
+    let rlo = raw-load-u32 (wrapping-add-i64 src 28) in
+    let rhi = raw-load-u32 (wrapping-add-i64 src 32) in
+    AeronStatusHeader flen ver flags ftype sid stid ctid ctoff rwin rlo rhi
+
+  -- | Validate a 36-byte `SM` Status Message frame at `src` (`buf-len` bytes).
+  #[no-alloc]
+  aeron-validate-sm :: I64 -> U32 ->{MVar} U32
+  aeron-validate-sm src buf-len =
+    if lt-u32 buf-len aeron-sm-header-len then aeron-status-truncated
+    else
+      let sm = aeron-decode-sm src in
+      if ne-u8 sm.sm-version aeron-version then aeron-status-bad-version
+      else if ne-u16 sm.sm-frame-type aeron-frame-type-sm then aeron-status-bad-type
+      else if lt-i32 sm.sm-frame-length 36 then aeron-status-bad-length
+      else if ne-u32 (bit-and-u32 sm.sm-consumption-term-offset 31) 0 then aeron-status-bad-align
+      else aeron-status-ok
+
+  -- | Encode a 28-byte `NAK` frame into `dst` (`dst-cap` bytes).
+  -- Returns `28` on success or `0` if `dst-cap < 28`.
+  #[no-alloc]
+  aeron-encode-nak :: I64 -> U32 -> AeronNakHeader ->{MVar} U32
+  aeron-encode-nak dst dst-cap nak =
+    if lt-u32 dst-cap aeron-nak-header-len then 0
+    else
+      let _0 = raw-store-u32 dst 28 in
+      let _1 = raw-store-u32 (wrapping-add-i64 dst 4) (pack-vft aeron-version nak.nak-flags aeron-frame-type-nak) in
+      let _2 = raw-store-u32 (wrapping-add-i64 dst 8) (wrapping-i32-to-u32 nak.nak-session-id) in
+      let _3 = raw-store-u32 (wrapping-add-i64 dst 12) (wrapping-i32-to-u32 nak.nak-stream-id) in
+      let _4 = raw-store-u32 (wrapping-add-i64 dst 16) (wrapping-i32-to-u32 nak.nak-term-id) in
+      let _5 = raw-store-u32 (wrapping-add-i64 dst 20) nak.nak-term-offset in
+      let _6 = raw-store-u32 (wrapping-add-i64 dst 24) nak.nak-length in
+      aeron-nak-header-len
+
+  -- | Decode a 28-byte `NAK` header from DMA address `src`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-decode-nak :: I64 ->{MVar} AeronNakHeader
+  aeron-decode-nak src =
+    let flen = wrapping-u32-to-i32 (raw-load-u32 src) in
+    let vft = raw-load-u32 (wrapping-add-i64 src 4) in
+    let ver = wrapping-u32-to-u8 vft in
+    let flags = wrapping-u32-to-u8 (wrapping-shr-u32 vft 8) in
+    let ftype = wrapping-u32-to-u16 (wrapping-shr-u32 vft 16) in
+    let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 8)) in
+    let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 12)) in
+    let tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 16)) in
+    let toff = raw-load-u32 (wrapping-add-i64 src 20) in
+    let nlen = raw-load-u32 (wrapping-add-i64 src 24) in
+    AeronNakHeader flen ver flags ftype sid stid tid toff nlen
+
+  -- | Validate a 28-byte `NAK` frame at `src` (`buf-len` bytes).
+  #[no-alloc]
+  aeron-validate-nak :: I64 -> U32 ->{MVar} U32
+  aeron-validate-nak src buf-len =
+    if lt-u32 buf-len aeron-nak-header-len then aeron-status-truncated
+    else
+      let nak = aeron-decode-nak src in
+      if ne-u8 nak.nak-version aeron-version then aeron-status-bad-version
+      else if ne-u16 nak.nak-frame-type aeron-frame-type-nak then aeron-status-bad-type
+      else if lt-i32 nak.nak-frame-length 28 then aeron-status-bad-length
+      else if eq-u32 nak.nak-length 0 then aeron-status-bad-length
+      else if ne-u32 (bit-and-u32 nak.nak-term-offset 31) 0 then aeron-status-bad-align
+      else aeron-status-ok
+
+  -- | Encode a 32-byte `SETUP` frame into `dst` (`dst-cap` bytes).
+  -- Returns `32` on success or `0` if `dst-cap < 32`.
+  #[no-alloc]
+  aeron-encode-setup :: I64 -> U32 -> AeronSetupHeader ->{MVar} U32
+  aeron-encode-setup dst dst-cap setup =
+    if lt-u32 dst-cap aeron-setup-header-len then 0
+    else
+      let _0 = raw-store-u32 dst 32 in
+      let _1 = raw-store-u32 (wrapping-add-i64 dst 4) (pack-vft aeron-version setup.setup-flags aeron-frame-type-setup) in
+      let _2 = raw-store-u32 (wrapping-add-i64 dst 8) (wrapping-i32-to-u32 setup.setup-session-id) in
+      let _3 = raw-store-u32 (wrapping-add-i64 dst 12) (wrapping-i32-to-u32 setup.setup-stream-id) in
+      let _4 = raw-store-u32 (wrapping-add-i64 dst 16) (wrapping-i32-to-u32 setup.setup-initial-term-id) in
+      let _5 = raw-store-u32 (wrapping-add-i64 dst 20) (wrapping-i32-to-u32 setup.setup-active-term-id) in
+      let _6 = raw-store-u32 (wrapping-add-i64 dst 24) setup.setup-term-length in
+      let _7 = raw-store-u32 (wrapping-add-i64 dst 28) setup.setup-mtu in
+      aeron-setup-header-len
+
+  -- | Decode a 32-byte `SETUP` header from DMA address `src`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-decode-setup :: I64 ->{MVar} AeronSetupHeader
+  aeron-decode-setup src =
+    let flen = wrapping-u32-to-i32 (raw-load-u32 src) in
+    let vft = raw-load-u32 (wrapping-add-i64 src 4) in
+    let ver = wrapping-u32-to-u8 vft in
+    let flags = wrapping-u32-to-u8 (wrapping-shr-u32 vft 8) in
+    let ftype = wrapping-u32-to-u16 (wrapping-shr-u32 vft 16) in
+    let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 8)) in
+    let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 12)) in
+    let itid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 16)) in
+    let atid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 src 20)) in
+    let tlen = raw-load-u32 (wrapping-add-i64 src 24) in
+    let mtu = raw-load-u32 (wrapping-add-i64 src 28) in
+    AeronSetupHeader flen ver flags ftype sid stid itid atid tlen mtu
+
+  -- | Validate a 32-byte `SETUP` frame at `src` (`buf-len` bytes).
+  #[no-alloc]
+  aeron-validate-setup :: I64 -> U32 ->{MVar} U32
+  aeron-validate-setup src buf-len =
+    if lt-u32 buf-len aeron-setup-header-len then aeron-status-truncated
+    else
+      let setup = aeron-decode-setup src in
+      if ne-u8 setup.setup-version aeron-version then aeron-status-bad-version
+      else if ne-u16 setup.setup-frame-type aeron-frame-type-setup then aeron-status-bad-type
+      else if lt-i32 setup.setup-frame-length 32 then aeron-status-bad-length
+      else if na-not (aeron-is-power-of-two-u32 setup.setup-term-length) then aeron-status-bad-length
+      else if na-or (lt-u32 setup.setup-term-length 4096) (lt-u32 setup.setup-mtu 64) then aeron-status-bad-length
+      else aeron-status-ok

@@ -1,0 +1,1852 @@
+-- | Zero-allocation (`#[no-alloc]`) reliable NAK-based UDP term-buffer
+-- transport and lock-free local-host Disruptor IPC bridge (`Net.Aeron.Transport`).
+--
+-- Architecture:
+--   * **3-Partition Term Buffer Ring (`active`, `dirty`, `clean`)**: backed by
+--     4 KiB-aligned DMA slabs allocated via `Engine.Types.engine-dma-alloc` with
+--     configurable power-of-two `term-length >= 4096` (e.g., 64 KiB or 1 MiB).
+--     Producers claim or offer directly into the active partition, UDP TX reads
+--     `DATA` frames straight from the term buffer without extra copies, and
+--     `NAK` retransmissions serve missing byte ranges directly from the active
+--     or dirty partition.
+--   * **Flow Control & Pacing**: `AeronPublication` enforces the subscriber's
+--     advertised `receiver-window` from `SM` frames (`pub-limit`) and paces
+--     outbound bursts via `Net.Quic.Pacer` (`SO_TXTIME` release timestamps +
+--     burst coalescing).
+--   * **NAK-Driven Loss Recovery & In-Order Reassembly**: `AeronSubscription`
+--     tracks contiguous `rebuild-position` vs. `hwm-position`, detects gaps on
+--     out-of-order `DATA` or tail heartbeat arrival, emits targeted
+--     `NAK(term-id, gap-offset, gap-length)` frames with delay/suppression
+--     timers, reassembles multi-frame (`BEGIN`/`END`) messages, and delivers
+--     messages strictly in order.
+--   * **Disruptor IPC Local Bridge**: lock-free same-machine IPC mode over
+--     `Engine.Ring.Disruptor` sharing the 3-partition DMA term buffer directly.
+module Net.Aeron.Transport where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Ring.Disruptor
+  import Engine.Types
+  import Net.Aeron.Protocol
+  import Net.Quic.Pacer
+  import Prim.Atomic
+
+  -- Offer / RX / Control result codes
+  export aeron-offer-back-pressured, aeron-offer-not-connected, aeron-offer-closed, aeron-offer-bad-length
+  export aeron-ctrl-ignored, aeron-ctrl-sm, aeron-ctrl-nak, aeron-ctrl-error
+  export aeron-rx-ok, aeron-rx-setup, aeron-rx-heartbeat, aeron-rx-duplicate
+  export aeron-rx-out-of-window, aeron-rx-ignored, aeron-rx-bad-crc, aeron-rx-error
+
+  -- Unboxed POD handles & steady-state result records
+  export AeronPublication, AeronSubscription
+  export AeronBufferClaim, AeronTxResult, AeronTxBurstResult, AeronCtrlResult, AeronPollResult
+
+  -- Publication lifecycle, configuration & telemetry
+  export aeron-pub-new, aeron-pub-destroy, aeron-pub-is-valid
+  export aeron-pub-set-pacing-rate, aeron-pub-set-limit, aeron-pub-set-heartbeat-interval
+  export aeron-pub-position, aeron-pub-tx-position, aeron-pub-limit, aeron-pub-cons-position
+  export aeron-pub-active-term-id, aeron-pub-term-rotations, aeron-pub-connected
+  export aeron-pub-frames-tx, aeron-pub-retransmits, aeron-pub-naks-received
+  export aeron-pub-sms-received, aeron-pub-msgs-offered, aeron-pub-bytes-offered
+  export aeron-pub-burst-budget, aeron-pub-next-send-time-ns
+
+  -- Publication #[no-alloc] hot path: zero-copy claim/commit, offer, TX, burst, control
+  export aeron-pub-try-claim, aeron-pub-commit, aeron-pub-offer
+  export aeron-pub-poll-tx, aeron-pub-poll-tx-burst, aeron-pub-on-control
+
+  -- Subscription lifecycle, configuration & telemetry
+  export aeron-sub-new, aeron-sub-destroy, aeron-sub-is-valid
+  export aeron-sub-set-nak-timers, aeron-sub-set-sm-interval, aeron-sub-set-window
+  export aeron-sub-rebuild-position, aeron-sub-hwm-position, aeron-sub-cons-position
+  export aeron-sub-connected, aeron-sub-has-gap, aeron-sub-term-rotations
+  export aeron-sub-frames-rx, aeron-sub-dups-dropped, aeron-sub-bad-crc
+  export aeron-sub-naks-sent, aeron-sub-sms-sent, aeron-sub-msgs-delivered
+  export aeron-sub-bytes-delivered, aeron-sub-gaps-detected
+
+  -- Subscription #[no-alloc] hot path: datagram ingest, control poll, ordered message poll
+  export aeron-sub-on-datagram, aeron-sub-poll-control, aeron-sub-poll
+
+  -- Lock-free local-host Disruptor IPC bridge
+  export AeronIpcSub, aeron-ipc-sub-new, aeron-ipc-sub-destroy
+  export aeron-ipc-publish, aeron-ipc-poll
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean helpers & return status codes
+  -- =========================================================================
+
+  -- | Internal `#[no-alloc]` boolean true avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-true :: Bool
+  na-true = eq-u32 0 0
+
+  -- | Internal `#[no-alloc]` boolean false avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-false :: Bool
+  na-false = eq-u32 0 1
+
+  -- | Internal `#[no-alloc]` boolean negation.
+  #[inline(always)]
+  #[no-alloc]
+  na-not :: Bool -> Bool
+  na-not a = if a then na-false else na-true
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-and :: Bool -> Bool -> Bool
+  na-and a b = if a then b else na-false
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean disjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-or :: Bool -> Bool -> Bool
+  na-or a b = if a then na-true else b
+
+  -- | Offer error: publication hit receiver flow-control `pub-limit` (`-1`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-offer-back-pressured :: I64
+  aeron-offer-back-pressured = -1
+
+  -- | Offer error: publication has no connected subscriber (`-2`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-offer-not-connected :: I64
+  aeron-offer-not-connected = -2
+
+  -- | Offer error: publication is closed or invalid (`-3`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-offer-closed :: I64
+  aeron-offer-closed = -3
+
+  -- | Offer error: message payload length exceeds supported limit (`-4`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-offer-bad-length :: I64
+  aeron-offer-bad-length = -4
+
+  -- | Control ingest outcome: frame ignored (session/stream mismatch or unknown) (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-ctrl-ignored :: U8
+  aeron-ctrl-ignored = 0
+
+  -- | Control ingest outcome: processed `SM` flow-control status update (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-ctrl-sm :: U8
+  aeron-ctrl-sm = 1
+
+  -- | Control ingest outcome: queued `NAK` retransmission request (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-ctrl-nak :: U8
+  aeron-ctrl-nak = 2
+
+  -- | Control ingest outcome: malformed control frame (`255`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-ctrl-error :: U8
+  aeron-ctrl-error = 255
+
+  -- | Subscriber datagram ingest outcome: accepted `DATA` or `PAD` frame (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-ok :: U8
+  aeron-rx-ok = 1
+
+  -- | Subscriber datagram ingest outcome: accepted `SETUP` announcement (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-setup :: U8
+  aeron-rx-setup = 2
+
+  -- | Subscriber datagram ingest outcome: processed tail-loss heartbeat (`3`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-heartbeat :: U8
+  aeron-rx-heartbeat = 3
+
+  -- | Subscriber datagram ingest outcome: dropped duplicate frame (`4`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-duplicate :: U8
+  aeron-rx-duplicate = 4
+
+  -- | Subscriber datagram ingest outcome: dropped frame beyond receive window (`5`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-out-of-window :: U8
+  aeron-rx-out-of-window = 5
+
+  -- | Subscriber datagram ingest outcome: ignored (session/stream mismatch) (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-ignored :: U8
+  aeron-rx-ignored = 0
+
+  -- | Subscriber datagram ingest outcome: rejected due to CRC32C tamper (`254`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-bad-crc :: U8
+  aeron-rx-bad-crc = 254
+
+  -- | Subscriber datagram ingest outcome: rejected malformed frame (`255`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-rx-error :: U8
+  aeron-rx-error = 255
+
+  -- =========================================================================
+  -- 1. Unboxed POD Handles & Result Records (`#[repr(C, value)]`)
+  -- =========================================================================
+
+  -- | Unboxed handle to a DMA-backed 3-partition Aeron publication.
+  #[repr(C, value)]
+  record AeronPublication where
+    -- | Base address of the 4 KiB-aligned publication DMA header slab.
+    pub-hdr-addr :: I64
+    -- | Base address of the 3 contiguous term-buffer partitions (`3 * term-length`).
+    pub-terms-addr :: I64
+    -- | Total allocated DMA slab size in bytes (for `engine-dma-free`).
+    pub-slab-bytes :: U64
+    -- | Power-of-two term buffer length in bytes (`>= 4096`).
+    pub-term-length :: U32
+    -- | `log2(pub-term-length)` shift for stream position arithmetic.
+    pub-pos-bits :: U32
+
+  -- | Unboxed handle to a DMA-backed 3-partition Aeron reassembly subscription.
+  #[repr(C, value)]
+  record AeronSubscription where
+    -- | Base address of the 4 KiB-aligned subscription DMA header slab.
+    sub-hdr-addr :: I64
+    -- | Base address of the 3 contiguous receive term-buffer partitions.
+    sub-terms-addr :: I64
+    -- | Base address of the fragmentation reassembly buffer (`term-length` bytes).
+    sub-frag-addr :: I64
+    -- | Total allocated DMA slab size in bytes (for `engine-dma-free`).
+    sub-slab-bytes :: U64
+    -- | Power-of-two term buffer length in bytes (`>= 4096`).
+    sub-term-length :: U32
+    -- | `log2(sub-term-length)` shift for stream position arithmetic.
+    sub-pos-bits :: U32
+
+  -- | Zero-copy producer claim inside the publisher's active term buffer.
+  #[repr(C, value)]
+  record AeronBufferClaim where
+    -- | Claimed new stream position (`>= 0`), or negative offer error code.
+    claim-status :: I64
+    -- | Raw DMA address of the 32-byte `AeronDataHeader` in the term buffer.
+    claim-frame-addr :: I64
+    -- | Raw DMA address where the producer writes payload bytes (`claim-frame-addr + 32`).
+    claim-payload-addr :: I64
+    -- | Claimed payload length in bytes.
+    claim-payload-len :: U32
+    -- | Term ID containing the claimed frame.
+    claim-term-id :: I32
+    -- | 32-byte aligned offset of the claimed frame within `claim-term-id`.
+    claim-term-offset :: U32
+    -- | Reserved alignment padding.
+    claim-pad :: U32
+
+  -- | Result of polling one outbound UDP datagram from `AeronPublication`.
+  #[repr(C, value)]
+  record AeronTxResult where
+    -- | Wire datagram length in bytes (`0` if idle or deferred by pacer).
+    tx-len :: U32
+    -- | Emitted wire frame type (`DATA`, `PAD`, `SETUP`, or `0xFFFF`).
+    tx-frame-type :: U16
+    -- | `1` if this frame was served from the NAK retransmission queue, else `0`.
+    tx-is-retransmit :: U8
+    -- | `1` if ready data was deferred by `Net.Quic.Pacer` until `tx-release-ns`.
+    tx-paced :: U8
+    -- | `SO_TXTIME` pacing release timestamp in nanoseconds.
+    tx-release-ns :: U64
+    -- | Term ID of the emitted frame (`0` for `SETUP`).
+    tx-term-id :: I32
+    -- | Term offset of the emitted frame (`0` for `SETUP`).
+    tx-term-offset :: U32
+    -- | Direct zero-copy DMA address of the encoded frame inside the publication slab.
+    tx-frame-addr :: I64
+
+  -- | Result of coalescing an outbound paced burst via `Net.Quic.Pacer`.
+  #[repr(C, value)]
+  record AeronTxBurstResult where
+    -- | Number of frames coalesced into the output buffer.
+    burst-frames :: U32
+    -- | Total wire bytes written across all coalesced frames.
+    burst-bytes :: U32
+    -- | `SO_TXTIME` pacing release timestamp in nanoseconds.
+    burst-release-ns :: U64
+    -- | `1` if further ready frames were deferred by the pacer, else `0`.
+    burst-paced :: U8
+    -- | Reserved alignment padding.
+    burst-pad0 :: U8
+    -- | Reserved alignment padding.
+    burst-pad1 :: U16
+    -- | Reserved alignment padding.
+    burst-pad2 :: U32
+
+  -- | Result of polling one outbound control frame (`NAK` or `SM`) from `AeronSubscription`.
+  #[repr(C, value)]
+  record AeronCtrlResult where
+    -- | Wire length (`28` for `NAK`, `36` for `SM`, `0` if none due).
+    ctrl-len :: U32
+    -- | Frame type (`aeron-frame-type-nak`, `aeron-frame-type-sm`, or `0xFFFF`).
+    ctrl-frame-type :: U16
+    -- | Reserved alignment padding.
+    ctrl-pad :: U16
+    -- | Term ID referenced by the control frame.
+    ctrl-term-id :: I32
+    -- | Term offset referenced by the control frame.
+    ctrl-term-offset :: U32
+    -- | Missing gap length (`NAK`) or receiver window length (`SM`).
+    ctrl-aux-len :: U32
+    -- | Reserved alignment padding.
+    ctrl-pad2 :: U32
+
+  -- | Result of polling one strictly ordered message from `AeronSubscription` or `AeronIpcSub`.
+  #[repr(C, value)]
+  record AeronPollResult where
+    -- | Delivered message payload length in bytes.
+    poll-len :: U32
+    -- | `1` if a complete message was delivered, `0` if none ready.
+    poll-ok :: U8
+    -- | Flags from the message's final frame (`BEGIN`/`END`/`EOS`/`CRC`).
+    poll-flags :: U8
+    -- | Reserved alignment padding.
+    poll-pad :: U16
+    -- | Term ID of the message's final frame.
+    poll-term-id :: I32
+    -- | Term offset of the message's final frame.
+    poll-term-offset :: U32
+    -- | Monotonic stream position immediately following this message.
+    poll-position :: U64
+    -- | Direct DMA payload pointer (zero-copy for unfragmented frames or reassembly buffer).
+    poll-payload-addr :: I64
+
+  -- | Local-host Disruptor IPC consumer cursor backed by an 8-byte DMA slot.
+  #[repr(C, value)]
+  record AeronIpcSub where
+    -- | DMA header address storing the next expected Disruptor sequence (`I64`) and stats.
+    ipc-hdr-addr :: I64
+    -- | Total DMA bytes allocated (`4096`).
+    ipc-slab-bytes :: U64
+
+  -- =========================================================================
+  -- 2. Publication DMA Header Offsets & PacerState Helpers
+  -- =========================================================================
+
+  -- | Byte offset of `session-id` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-session-id :: I64
+  pub-off-session-id = 0
+  -- | Byte offset of `stream-id` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-stream-id :: I64
+  pub-off-stream-id = 4
+  -- | Byte offset of `initial-term-id` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-init-term :: I64
+  pub-off-init-term = 8
+  -- | Byte offset of `active-term-id` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-active-term :: I64
+  pub-off-active-term = 12
+  -- | Byte offset of `term-length` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-term-len :: I64
+  pub-off-term-len = 16
+  -- | Byte offset of `pos-bits` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-pos-bits :: I64
+  pub-off-pos-bits = 20
+  -- | Byte offset of `mtu` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-mtu :: I64
+  pub-off-mtu = 24
+  -- | Byte offset of `tail-offset` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-tail-off :: I64
+  pub-off-tail-off = 28
+  -- | Byte offset of `pub-pos` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-pub-pos :: I64
+  pub-off-pub-pos = 32
+  -- | Byte offset of `tx-pos` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-tx-pos :: I64
+  pub-off-tx-pos = 40
+  -- | Byte offset of `pub-limit` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-pub-limit :: I64
+  pub-off-pub-limit = 48
+  -- | Byte offset of `cons-pos` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-cons-pos :: I64
+  pub-off-cons-pos = 56
+  -- | Byte offset of `pacing-rate-bps` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-pacing-rate :: I64
+  pub-off-pacing-rate = 64
+  -- | Byte offset of `hb-last-ns` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-hb-last-ns :: I64
+  pub-off-hb-last-ns = 72
+  -- | Byte offset of `hb-interval-ns` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-hb-interval-ns :: I64
+  pub-off-hb-interval-ns = 80
+  -- | Byte offset of `use-crc` flag in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-use-crc :: I64
+  pub-off-use-crc = 88
+  -- | Byte offset of `connected` flag in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-connected :: I64
+  pub-off-connected = 92
+  -- | Byte offset of `setup-pending` flag in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-setup-pending :: I64
+  pub-off-setup-pending = 96
+  -- | Byte offset of `closed` flag in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-closed :: I64
+  pub-off-closed = 100
+  -- | Byte offset of NAK ring head index in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-nak-head :: I64
+  pub-off-nak-head = 104
+  -- | Byte offset of NAK ring tail index in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-nak-tail :: I64
+  pub-off-nak-tail = 108
+  -- | Byte offset of default receiver window in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-def-win :: I64
+  pub-off-def-win = 112
+  -- | Byte offset of term rotation counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-rotations :: I64
+  pub-off-rotations = 116
+  -- | Byte offset of fresh TX frame counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-frames-tx :: I64
+  pub-off-frames-tx = 120
+  -- | Byte offset of NAK retransmit counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-retransmits :: I64
+  pub-off-retransmits = 128
+  -- | Byte offset of received NAK counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-naks-rx :: I64
+  pub-off-naks-rx = 136
+  -- | Byte offset of received SM counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-sms-rx :: I64
+  pub-off-sms-rx = 144
+  -- | Byte offset of offered message counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-msgs-offered :: I64
+  pub-off-msgs-offered = 152
+  -- | Byte offset of offered byte counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-bytes-offered :: I64
+  pub-off-bytes-offered = 160
+  -- | Byte offset of heartbeat TX counter in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-hb-tx :: I64
+  pub-off-hb-tx = 168
+  -- | Byte offset of inline 48-byte `PacerState` in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-pacer :: I64
+  pub-off-pacer = 192
+  -- | Byte offset of 32-byte `SETUP` scratch slot in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-setup-buf :: I64
+  pub-off-setup-buf = 256
+  -- | Byte offset of 32-byte heartbeat scratch slot in the publication DMA header.
+  #[inline(always)] #[no-alloc] pub-off-hb-buf :: I64
+  pub-off-hb-buf = 320
+  -- | Byte offset of the 256-entry NAK retransmission ring buffer.
+  #[inline(always)] #[no-alloc] pub-off-nak-ring :: I64
+  pub-off-nak-ring = 4096
+  -- | Byte offset of the 3-partition term buffer ring inside the publication slab.
+  #[inline(always)] #[no-alloc] pub-off-terms :: I64
+  pub-off-terms = 8192
+
+  -- | Store `PacerState` into the publication DMA header slab.
+  #[inline(always)]
+  #[no-alloc]
+  pub-store-pacer :: I64 -> PacerState ->{MVar} Unit
+  pub-store-pacer hdr p =
+    let pb = wrapping-add-i64 hdr pub-off-pacer in
+    let _0 = raw-store-u64 pb p.pacer-next-release in
+    let _1 = raw-store-u64 (wrapping-add-i64 pb 8) p.pacer-tokens in
+    let _2 = raw-store-u64 (wrapping-add-i64 pb 16) p.pacer-frac-num in
+    let _3 = raw-store-u64 (wrapping-add-i64 pb 24) p.pacer-last-update-ns in
+    let _4 = raw-store-u64 (wrapping-add-i64 pb 32) p.pacer-max-ahead in
+    let _5 = raw-store-u32 (wrapping-add-i64 pb 40) p.pacer-mtu-val in
+    raw-store-u32 (wrapping-add-i64 pb 44) p.pacer-max-burst
+
+  -- | Load `PacerState` from the publication DMA header slab.
+  #[inline(always)]
+  #[no-alloc]
+  pub-load-pacer :: I64 ->{MVar} PacerState
+  pub-load-pacer hdr =
+    let pb = wrapping-add-i64 hdr pub-off-pacer in
+    PacerState
+      (raw-load-u64 pb)
+      (raw-load-u64 (wrapping-add-i64 pb 8))
+      (raw-load-u64 (wrapping-add-i64 pb 16))
+      (raw-load-u64 (wrapping-add-i64 pb 24))
+      (raw-load-u64 (wrapping-add-i64 pb 32))
+      (raw-load-u32 (wrapping-add-i64 pb 40))
+      (raw-load-u32 (wrapping-add-i64 pb 44))
+
+  -- | Compute the base DMA address of term partition `part` (`0`, `1`, `2`).
+  #[inline(always)]
+  #[no-alloc]
+  pub-part-addr :: AeronPublication -> U32 -> I64
+  pub-part-addr pub part =
+    wrapping-add-i64 pub.pub-terms-addr (wrapping-mul-i64 (u32-to-i64 part) (u32-to-i64 pub.pub-term-length))
+
+  -- | Compute the base DMA address of the partition holding `term-id`.
+  #[inline(always)]
+  #[no-alloc]
+  pub-term-addr :: AeronPublication -> I32 ->{MVar} I64
+  pub-term-addr pub term-id =
+    let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 pub.pub-hdr-addr pub-off-init-term)) in
+    let part = aeron-partition-index term-id init-t in
+    pub-part-addr pub part
+
+  -- | Compute the address of NAK ring slot `idx & 255`.
+  #[inline(always)]
+  #[no-alloc]
+  pub-nak-slot :: I64 -> U32 -> I64
+  pub-nak-slot hdr idx =
+    let slot = bit-and-u32 idx 255 in
+    wrapping-add-i64 (wrapping-add-i64 hdr pub-off-nak-ring) (wrapping-shl-i64 (u32-to-i64 slot) 4)
+
+  -- | Construct an empty `AeronTxResult` carrying pacing flag and release timestamp.
+  #[inline(always)]
+  #[no-alloc]
+  tx-result-empty :: U8 -> U64 -> AeronTxResult
+  tx-result-empty paced rel-ns =
+    AeronTxResult 0 aeron-frame-type-invalid 0 paced rel-ns 0 0 0
+
+  -- =========================================================================
+  -- 3. Publication Lifecycle, Configuration, and Telemetry
+  -- =========================================================================
+
+  -- | Allocate and initialize a 3-partition DMA-backed `AeronPublication`.
+  --
+  -- Parameters:
+  --   * `session-id`, `stream-id`, `initial-term-id`: session identity
+  --   * `term-length`: power of two `>= 4096` (e.g. `65536` or `1048576`)
+  --   * `mtu`: 32-byte aligned max UDP frame size (`64 <= mtu <= term-length`)
+  --   * `initial-window`: initial flow-control budget (`0` defaults to `term-length / 2`)
+  --   * `use-crc`: `1` to compute/attach LRAT-verified Castagnoli CRC32C on every frame
+  --   * `pacing-rate-bps`: initial `Net.Quic.Pacer` rate in bytes/sec (`0` = unpaced)
+  --   * `now-ns`: initial monotonic timestamp in nanoseconds
+  aeron-pub-new :: I32 -> I32 -> I32 -> U32 -> U32 -> U32 -> U8 -> U64 -> U64 ->{IO, MVar} AeronPublication
+  aeron-pub-new session-id stream-id initial-term-id term-length mtu initial-window use-crc pacing-rate-bps now-ns =
+    let valid-tl = na-and (aeron-is-power-of-two-u32 term-length) (ge-u32 term-length 4096) in
+    let valid-mtu = na-and (ge-u32 mtu 64) (na-and (le-u32 mtu term-length) (eq-u32 (bit-and-u32 mtu 31) 0)) in
+    if na-not (na-and valid-tl valid-mtu) then
+      AeronPublication 0 0 0 0 0
+    else
+      let terms-bytes = wrapping-mul-u64 (u32-to-u64 term-length) 3 in
+      let slab-bytes = wrapping-add-u64 8192 terms-bytes in
+      let raw = engine-dma-alloc slab-bytes 4096 in
+      if eq-u64 raw 0 then
+        AeronPublication 0 0 0 0 0
+      else
+        let hdr = wrapping-u64-to-i64 raw in
+        let terms = wrapping-add-i64 hdr pub-off-terms in
+        let pos-bits = aeron-position-bits-to-shift term-length in
+        let half-term = wrapping-shr-u32 term-length 1 in
+        let win = if eq-u32 initial-window 0 then half-term else if gt-u32 initial-window half-term then half-term else initial-window in
+        let _0 = raw-store-u32 (wrapping-add-i64 hdr pub-off-session-id) (wrapping-i32-to-u32 session-id) in
+        let _1 = raw-store-u32 (wrapping-add-i64 hdr pub-off-stream-id) (wrapping-i32-to-u32 stream-id) in
+        let _2 = raw-store-u32 (wrapping-add-i64 hdr pub-off-init-term) (wrapping-i32-to-u32 initial-term-id) in
+        let _3 = raw-store-u32 (wrapping-add-i64 hdr pub-off-active-term) (wrapping-i32-to-u32 initial-term-id) in
+        let _4 = raw-store-u32 (wrapping-add-i64 hdr pub-off-term-len) term-length in
+        let _5 = raw-store-u32 (wrapping-add-i64 hdr pub-off-pos-bits) pos-bits in
+        let _6 = raw-store-u32 (wrapping-add-i64 hdr pub-off-mtu) mtu in
+        let _7 = raw-store-u32 (wrapping-add-i64 hdr pub-off-tail-off) 0 in
+        let _8 = raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-pos) 0 in
+        let _9 = raw-store-u64 (wrapping-add-i64 hdr pub-off-tx-pos) 0 in
+        let _a = raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-limit) (u32-to-u64 win) in
+        let _b = raw-store-u64 (wrapping-add-i64 hdr pub-off-cons-pos) 0 in
+        let _c = raw-store-u64 (wrapping-add-i64 hdr pub-off-pacing-rate) pacing-rate-bps in
+        let _d = raw-store-u64 (wrapping-add-i64 hdr pub-off-hb-last-ns) now-ns in
+        let _e = raw-store-u64 (wrapping-add-i64 hdr pub-off-hb-interval-ns) 2000000 in
+        let _f = raw-store-u32 (wrapping-add-i64 hdr pub-off-use-crc) (u8-to-u32 use-crc) in
+        let _g = raw-store-u32 (wrapping-add-i64 hdr pub-off-connected) 0 in
+        let _h = raw-store-u32 (wrapping-add-i64 hdr pub-off-setup-pending) 1 in
+        let _i = raw-store-u32 (wrapping-add-i64 hdr pub-off-closed) 0 in
+        let _j = raw-store-u32 (wrapping-add-i64 hdr pub-off-def-win) win in
+        let max-burst = saturating-mul-u32 mtu pacer-default-burst-packets in
+        let _p = pub-store-pacer hdr (pacer-init-with-burst mtu max-burst pacer-default-max-ahead-ns now-ns) in
+        AeronPublication hdr terms slab-bytes term-length pos-bits
+
+  -- | Return `True` iff `pub` refers to a valid allocated publication slab.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pub-is-valid :: AeronPublication -> Bool
+  aeron-pub-is-valid pub = na-and (ne-i64 pub.pub-hdr-addr 0) (gt-u32 pub.pub-term-length 0)
+
+  -- | Unmap the DMA slab owned by `pub`. Idempotent.
+  aeron-pub-destroy :: AeronPublication ->{IO, MVar} Unit
+  aeron-pub-destroy pub =
+    let hdr = pub.pub-hdr-addr in
+    if eq-i64 hdr 0 then ()
+    else
+      let closed = raw-load-u32 (wrapping-add-i64 hdr pub-off-closed) in
+      if ne-u32 closed 0 then ()
+      else
+        let _c = raw-store-u32 (wrapping-add-i64 hdr pub-off-closed) 1 in
+        let _f = engine-dma-free (wrapping-i64-to-u64 hdr) pub.pub-slab-bytes in
+        ()
+
+  -- | Update the publication's `Net.Quic.Pacer` rate in bytes/sec (`0` = unpaced).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pub-set-pacing-rate :: AeronPublication -> U64 ->{MVar} Unit
+  aeron-pub-set-pacing-rate pub rate-bps =
+    if aeron-pub-is-valid pub then raw-store-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-pacing-rate) rate-bps
+    else ()
+
+  -- | Override the publication's flow-control `pub-limit` position directly.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pub-set-limit :: AeronPublication -> U64 ->{MVar} Unit
+  aeron-pub-set-limit pub limit-pos =
+    if aeron-pub-is-valid pub then raw-store-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-pub-limit) limit-pos
+    else ()
+
+  -- | Configure the idle tail-loss heartbeat interval in nanoseconds.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pub-set-heartbeat-interval :: AeronPublication -> U64 ->{MVar} Unit
+  aeron-pub-set-heartbeat-interval pub interval-ns =
+    if aeron-pub-is-valid pub then raw-store-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-hb-interval-ns) interval-ns
+    else ()
+
+  -- | Current offered stream position in bytes.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-position :: AeronPublication ->{MVar} U64
+  aeron-pub-position pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-pub-pos) else 0
+
+  -- | Current transmitted stream position in bytes.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-tx-position :: AeronPublication ->{MVar} U64
+  aeron-pub-tx-position pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-tx-pos) else 0
+
+  -- | Current flow-control publication ceiling (`pub-limit`).
+  #[inline(always)] #[no-alloc]
+  aeron-pub-limit :: AeronPublication ->{MVar} U64
+  aeron-pub-limit pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-pub-limit) else 0
+
+  -- | Highest subscriber consumption position acknowledged via `SM`.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-cons-position :: AeronPublication ->{MVar} U64
+  aeron-pub-cons-position pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-cons-pos) else 0
+
+  -- | Currently active term ID on the publication.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-active-term-id :: AeronPublication ->{MVar} I32
+  aeron-pub-active-term-id pub = if aeron-pub-is-valid pub then wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 pub.pub-hdr-addr pub-off-active-term)) else 0
+
+  -- | Total number of term rotations completed on the publication.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-term-rotations :: AeronPublication ->{MVar} U32
+  aeron-pub-term-rotations pub = if aeron-pub-is-valid pub then raw-load-u32 (wrapping-add-i64 pub.pub-hdr-addr pub-off-rotations) else 0
+
+  -- | Return `True` once at least one subscriber `SM` has been received.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-connected :: AeronPublication ->{MVar} Bool
+  aeron-pub-connected pub = if aeron-pub-is-valid pub then ne-u32 (raw-load-u32 (wrapping-add-i64 pub.pub-hdr-addr pub-off-connected)) 0 else na-false
+
+  -- | Total fresh `DATA`/`PAD` frames transmitted.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-frames-tx :: AeronPublication ->{MVar} U64
+  aeron-pub-frames-tx pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-frames-tx) else 0
+
+  -- | Total frames retransmitted in response to `NAK`s.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-retransmits :: AeronPublication ->{MVar} U64
+  aeron-pub-retransmits pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-retransmits) else 0
+
+  -- | Total `NAK` control frames received.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-naks-received :: AeronPublication ->{MVar} U64
+  aeron-pub-naks-received pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-naks-rx) else 0
+
+  -- | Total `SM` control frames received.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-sms-received :: AeronPublication ->{MVar} U64
+  aeron-pub-sms-received pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-sms-rx) else 0
+
+  -- | Total application messages offered.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-msgs-offered :: AeronPublication ->{MVar} U64
+  aeron-pub-msgs-offered pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-msgs-offered) else 0
+
+  -- | Total application payload bytes offered.
+  #[inline(always)] #[no-alloc]
+  aeron-pub-bytes-offered :: AeronPublication ->{MVar} U64
+  aeron-pub-bytes-offered pub = if aeron-pub-is-valid pub then raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-bytes-offered) else 0
+
+  -- | Current byte burst budget immediately available from `Net.Quic.Pacer` at `now-ns`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pub-burst-budget :: AeronPublication -> U64 ->{MVar} U32
+  aeron-pub-burst-budget pub now-ns =
+    if na-not (aeron-pub-is-valid pub) then 0
+    else
+      let rate = raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-pacing-rate) in
+      let pacer = pub-load-pacer pub.pub-hdr-addr in
+      pacer-burst-budget pacer now-ns rate
+
+  -- | Earliest `SO_TXTIME` release timestamp (nanoseconds) from `Net.Quic.Pacer` at `now-ns`.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-pub-next-send-time-ns :: AeronPublication -> U64 ->{MVar} U64
+  aeron-pub-next-send-time-ns pub now-ns =
+    if na-not (aeron-pub-is-valid pub) then now-ns
+    else
+      let rate = raw-load-u64 (wrapping-add-i64 pub.pub-hdr-addr pub-off-pacing-rate) in
+      let pacer = pub-load-pacer pub.pub-hdr-addr in
+      pacer-next-send-time-ns pacer now-ns rate
+
+  -- =========================================================================
+  -- 4. Publication Hot Path: 3-Partition Term Rotation, Claim, Offer, TX, NAK
+  -- =========================================================================
+
+  -- | Rotate `active-term-id` from `T` to `T + 1`, preserving `T` in the `dirty`
+  -- partition for NAK retransmissions and cleaning `(T + 2) % 3` (`T - 1`) for
+  -- future reuse.
+  #[no-alloc]
+  pub-rotate-term :: AeronPublication ->{MVar} Unit
+  pub-rotate-term pub =
+    let hdr = pub.pub-hdr-addr in
+    let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-init-term)) in
+    let cur-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+    let next-t = wrapping-add-i32 cur-t 1 in
+    let clean-t = wrapping-add-i32 cur-t 2 in
+    let clean-part = aeron-partition-index clean-t init-t in
+    let _z = aeron-zero-dma (pub-part-addr pub clean-part) pub.pub-term-length in
+    let _t = raw-store-u32 (wrapping-add-i64 hdr pub-off-active-term) (wrapping-i32-to-u32 next-t) in
+    let _o = raw-store-u32 (wrapping-add-i64 hdr pub-off-tail-off) 0 in
+    let rots = raw-load-u32 (wrapping-add-i64 hdr pub-off-rotations) in
+    raw-store-u32 (wrapping-add-i64 hdr pub-off-rotations) (wrapping-add-u32 rots 1)
+
+  -- | Write an end-of-term `PAD` frame covering `[tail-off .. term-length)` and
+  -- rotate into the next term partition.
+  #[no-alloc]
+  pub-pad-and-rotate :: AeronPublication ->{MVar} Unit
+  pub-pad-and-rotate pub =
+    let hdr = pub.pub-hdr-addr in
+    let tail-off = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+    let pad-len = wrapping-sub-u32 pub.pub-term-length tail-off in
+    let _w = (if ge-u32 pad-len aeron-data-header-len then
+        let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id)) in
+        let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id)) in
+        let tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+        let dst = wrapping-add-i64 (pub-term-addr pub tid) (u32-to-i64 tail-off) in
+        let phdr = aeron-pad-header-make pad-len tail-off sid stid tid in
+        aeron-encode-data-header dst phdr
+      else ()) in
+    let cur-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos) in
+    let _p = raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-pos) (wrapping-add-u64 cur-pos (u32-to-u64 pad-len)) in
+    pub-rotate-term pub
+
+  -- | Claim a zero-copy single-frame buffer of `payload-len` bytes (`<= mtu - 32`)
+  -- directly inside the publisher's active term partition. Caller writes payload
+  -- bytes to `claim.claim-payload-addr` and finishes with `aeron-pub-commit`.
+  #[no-alloc]
+  aeron-pub-try-claim :: AeronPublication -> U32 ->{MVar} AeronBufferClaim
+  aeron-pub-try-claim pub payload-len =
+    if na-not (aeron-pub-is-valid pub) then AeronBufferClaim aeron-offer-closed 0 0 0 0 0 0
+    else
+      let hdr = pub.pub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-closed)) 0 then
+        AeronBufferClaim aeron-offer-closed 0 0 0 0 0 0
+      else
+        let mtu = raw-load-u32 (wrapping-add-i64 hdr pub-off-mtu) in
+        let max-pl = wrapping-sub-u32 mtu aeron-data-header-len in
+        if gt-u32 payload-len max-pl then AeronBufferClaim aeron-offer-bad-length 0 0 0 0 0 0
+        else
+          let wire-len = wrapping-add-u32 aeron-data-header-len payload-len in
+          let aligned = aeron-align32 wire-len in
+          let tail-off = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+          let rem = wrapping-sub-u32 pub.pub-term-length tail-off in
+          let need-pad = if gt-u32 aligned rem then rem else 0 in
+          let total-need = wrapping-add-u64 (u32-to-u64 need-pad) (u32-to-u64 aligned) in
+          let cur-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos) in
+          let limit = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-limit) in
+          if gt-u64 (wrapping-add-u64 cur-pos total-need) limit then
+            AeronBufferClaim aeron-offer-back-pressured 0 0 0 0 0 0
+          else
+            let _rot = if gt-u32 need-pad 0 then pub-pad-and-rotate pub else () in
+            let tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+            let off = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+            let frame-addr = wrapping-add-i64 (pub-term-addr pub tid) (u32-to-i64 off) in
+            -- Store negative frame-length until `aeron-pub-commit` marks it ready for TX.
+            let _neg = raw-store-u32 frame-addr (wrapping-i32-to-u32 (wrapping-sub-i32 0 (wrapping-u32-to-i32 wire-len))) in
+            let next-off = wrapping-add-u32 off aligned in
+            let new-pos = wrapping-add-u64 (raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos)) (u32-to-u64 aligned) in
+            let _up = raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-pos) new-pos in
+            let _uo = (if ge-u32 next-off pub.pub-term-length then pub-rotate-term pub
+              else raw-store-u32 (wrapping-add-i64 hdr pub-off-tail-off) next-off) in
+            let mo = raw-load-u64 (wrapping-add-i64 hdr pub-off-msgs-offered) in
+            let _m = raw-store-u64 (wrapping-add-i64 hdr pub-off-msgs-offered) (wrapping-add-u64 mo 1) in
+            let bo = raw-load-u64 (wrapping-add-i64 hdr pub-off-bytes-offered) in
+            let _b = raw-store-u64 (wrapping-add-i64 hdr pub-off-bytes-offered) (wrapping-add-u64 bo (u32-to-u64 payload-len)) in
+            AeronBufferClaim (wrapping-u64-to-i64 new-pos) frame-addr (wrapping-add-i64 frame-addr 32) payload-len tid off 0
+
+  -- | Finalize a zero-copy `AeronBufferClaim` in place inside the term buffer,
+  -- zeroing 32-byte alignment tail bytes, computing optional Castagnoli CRC32C,
+  -- and writing the positive `frame-length` so `aeron-pub-poll-tx` can emit it.
+  #[no-alloc]
+  aeron-pub-commit :: AeronPublication -> AeronBufferClaim ->{MVar} Unit
+  aeron-pub-commit pub claim =
+    if na-or (na-not (aeron-pub-is-valid pub)) (lt-i64 claim.claim-status 0) then ()
+    else
+      let hdr = pub.pub-hdr-addr in
+      let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id)) in
+      let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id)) in
+      let use-crc = ne-u32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-use-crc)) 0 in
+      let plen = claim.claim-payload-len in
+      let wire-len = wrapping-add-u32 aeron-data-header-len plen in
+      let aligned = aeron-align32 wire-len in
+      let tail-pad = wrapping-sub-u32 aligned wire-len in
+      let _zp = if gt-u32 tail-pad 0 then aeron-zero-dma (wrapping-add-i64 claim.claim-frame-addr (u32-to-i64 wire-len)) tail-pad else () in
+      let flags = if use-crc then bit-or-u8 aeron-flag-unfragmented aeron-flag-crc else aeron-flag-unfragmented in
+      let base-h = aeron-data-header-make plen flags claim.claim-term-offset sid stid claim.claim-term-id 0 in
+      let crc = if use-crc then aeron-data-compute-crc base-h claim.claim-payload-addr plen else 0 in
+      let final-h = aeron-data-header-make plen flags claim.claim-term-offset sid stid claim.claim-term-id crc in
+      aeron-encode-data-header claim.claim-frame-addr final-h
+
+  -- | Compute exact stream bytes required (including fragmentation headers and
+  -- any end-of-term padding) to offer `rem-len` payload bytes starting at
+  -- `cur-off` within `term-length`.
+  #[no-alloc]
+  offer-calc-need :: U32 -> U32 -> U32 -> U32 -> U64 -> U64
+  offer-calc-need cur-off term-len max-pl rem-len acc =
+    let chunk = if gt-u32 rem-len max-pl then max-pl else rem-len in
+    let aligned = aeron-align32 (wrapping-add-u32 aeron-data-header-len chunk) in
+    let room = wrapping-sub-u32 term-len cur-off in
+    let pad = if gt-u32 aligned room then room else 0 in
+    let start-off = if gt-u32 pad 0 then 0 else cur-off in
+    let next-off0 = wrapping-add-u32 start-off aligned in
+    let next-off = if ge-u32 next-off0 term-len then 0 else next-off0 in
+    let next-acc = wrapping-add-u64 acc (wrapping-add-u64 (u32-to-u64 pad) (u32-to-u64 aligned)) in
+    let next-rem = wrapping-sub-u32 rem-len chunk in
+    if eq-u32 next-rem 0 then next-acc
+    else offer-calc-need next-off term-len max-pl next-rem next-acc
+
+  -- | Write one or more fragments (`BEGIN` / middle / `END`) of a message directly
+  -- into the publisher's 3-partition term buffer ring.
+  #[no-alloc]
+  offer-write-frags :: AeronPublication -> I64 -> U32 -> U32 -> U32 -> U8 ->{MVar} Unit
+  offer-write-frags pub src-addr off rem-len max-pl is-first =
+    let hdr = pub.pub-hdr-addr in
+    let chunk = if gt-u32 rem-len max-pl then max-pl else rem-len in
+    let is-last = eq-u32 chunk rem-len in
+    let wire-len = wrapping-add-u32 aeron-data-header-len chunk in
+    let aligned = aeron-align32 wire-len in
+    let tail-off = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+    let room = wrapping-sub-u32 pub.pub-term-length tail-off in
+    let _rot = if gt-u32 aligned room then pub-pad-and-rotate pub else () in
+    let tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+    let foff = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+    let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id)) in
+    let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id)) in
+    let use-crc = ne-u32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-use-crc)) 0 in
+    let f0 = if ne-u8 is-first 0 then aeron-flag-begin else 0 in
+    let f1 = if is-last then bit-or-u8 f0 aeron-flag-end else f0 in
+    let frame-addr = wrapping-add-i64 (pub-term-addr pub tid) (u32-to-i64 foff) in
+    let payload-dst = wrapping-add-i64 frame-addr 32 in
+    let _cp = if gt-u32 chunk 0 then aeron-copy-dma payload-dst (wrapping-add-i64 src-addr (u32-to-i64 off)) chunk else () in
+    let tail-pad = wrapping-sub-u32 aligned wire-len in
+    let _zp = if gt-u32 tail-pad 0 then aeron-zero-dma (wrapping-add-i64 frame-addr (u32-to-i64 wire-len)) tail-pad else () in
+    let flags = if use-crc then bit-or-u8 f1 aeron-flag-crc else f1 in
+    let base-h = aeron-data-header-make chunk flags foff sid stid tid 0 in
+    let crc = if use-crc then aeron-data-compute-crc base-h payload-dst chunk else 0 in
+    let final-h = aeron-data-header-make chunk flags foff sid stid tid crc in
+    let _eh = aeron-encode-data-header frame-addr final-h in
+    let new-pos = wrapping-add-u64 (raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos)) (u32-to-u64 aligned) in
+    let _up = raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-pos) new-pos in
+    let next-off = wrapping-add-u32 foff aligned in
+    let _uo = (if ge-u32 next-off pub.pub-term-length then pub-rotate-term pub
+      else raw-store-u32 (wrapping-add-i64 hdr pub-off-tail-off) next-off) in
+    if is-last then ()
+    else offer-write-frags pub src-addr (wrapping-add-u32 off chunk) (wrapping-sub-u32 rem-len chunk) max-pl 0
+
+  -- | Atomically offer a variable-size message (`payload-len` bytes at `src-addr`)
+  -- into the publication's 3-partition term buffer ring, automatically
+  -- fragmenting messages exceeding `mtu - 32` with `BEGIN`/`END` flags and
+  -- inserting term-end `PAD` frames upon rotation.
+  --
+  -- Returns the new monotonic stream position (`>= 0`) on success, or
+  -- `aeron-offer-back-pressured` (`-1`) if the message exceeds `pub-limit`.
+  #[no-alloc]
+  aeron-pub-offer :: AeronPublication -> I64 -> U32 ->{MVar} I64
+  aeron-pub-offer pub src-addr payload-len =
+    if na-not (aeron-pub-is-valid pub) then aeron-offer-closed
+    else
+      let hdr = pub.pub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-closed)) 0 then aeron-offer-closed
+      else
+        let max-msg = wrapping-shr-u32 pub.pub-term-length 2 in
+        if gt-u32 payload-len max-msg then aeron-offer-bad-length
+        else
+          let mtu = raw-load-u32 (wrapping-add-i64 hdr pub-off-mtu) in
+          let max-pl = wrapping-sub-u32 mtu aeron-data-header-len in
+          let tail-off = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+          let needed = offer-calc-need tail-off pub.pub-term-length max-pl payload-len 0 in
+          let cur-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos) in
+          let limit = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-limit) in
+          if gt-u64 (wrapping-add-u64 cur-pos needed) limit then aeron-offer-back-pressured
+          else
+            let _w = offer-write-frags pub src-addr 0 payload-len max-pl 1 in
+            let mo = raw-load-u64 (wrapping-add-i64 hdr pub-off-msgs-offered) in
+            let _m = raw-store-u64 (wrapping-add-i64 hdr pub-off-msgs-offered) (wrapping-add-u64 mo 1) in
+            let bo = raw-load-u64 (wrapping-add-i64 hdr pub-off-bytes-offered) in
+            let _b = raw-store-u64 (wrapping-add-i64 hdr pub-off-bytes-offered) (wrapping-add-u64 bo (u32-to-u64 payload-len)) in
+            wrapping-u64-to-i64 (raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos))
+
+  -- | Try to emit the next frame from the publisher's NAK retransmission ring,
+  -- reading directly from the `active` or `dirty` term partition.
+  #[no-alloc]
+  pub-poll-nak-tx :: AeronPublication -> I64 -> U32 -> U64 ->{MVar} AeronTxResult
+  pub-poll-nak-tx pub out-buf out-cap now-ns =
+    let hdr = pub.pub-hdr-addr in
+    let nhead = raw-load-u32 (wrapping-add-i64 hdr pub-off-nak-head) in
+    let ntail = raw-load-u32 (wrapping-add-i64 hdr pub-off-nak-tail) in
+    if eq-u32 nhead ntail then tx-result-empty 0 now-ns
+    else
+      let slot = pub-nak-slot hdr nhead in
+      let n-tid = wrapping-u32-to-i32 (raw-load-u32 slot) in
+      let n-off = bit-and-u32 (raw-load-u32 (wrapping-add-i64 slot 4)) (bit-not-u32 31) in
+      let n-rem = raw-load-u32 (wrapping-add-i64 slot 8) in
+      let active-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+      let term-age = wrapping-i32-to-u32 (wrapping-sub-i32 active-t n-tid) in
+      -- Only `active` (age 0) and `dirty` (age 1) partitions are retained in the 3-partition ring.
+      if na-or (gt-u32 term-age 1) (na-or (ge-u32 n-off pub.pub-term-length) (eq-u32 n-rem 0)) then
+        let _pop = raw-store-u32 (wrapping-add-i64 hdr pub-off-nak-head) (wrapping-add-u32 nhead 1) in
+        pub-poll-nak-tx pub out-buf out-cap now-ns
+      else
+        let frame-addr = wrapping-add-i64 (pub-term-addr pub n-tid) (u32-to-i64 n-off) in
+        let flen = wrapping-u32-to-i32 (raw-load-u32 frame-addr) in
+        if le-i32 flen 0 then
+          let _pop = raw-store-u32 (wrapping-add-i64 hdr pub-off-nak-head) (wrapping-add-u32 nhead 1) in
+          pub-poll-nak-tx pub out-buf out-cap now-ns
+        else
+          let ftype = aeron-peek-frame-type frame-addr aeron-data-header-len in
+          let wire-len = if eq-u16 ftype aeron-frame-type-pad then aeron-data-header-len else wrapping-i32-to-u32 flen in
+          let aligned = aeron-align32 (wrapping-i32-to-u32 flen) in
+          let rate = raw-load-u64 (wrapping-add-i64 hdr pub-off-pacing-rate) in
+          let pacer = pub-load-pacer hdr in
+          if na-and (gt-u64 rate 0) (na-not (pacer-can-send-now pacer now-ns rate wire-len)) then
+            let rel = pacer-next-send-time-ns pacer now-ns rate in
+            tx-result-empty 1 rel
+          else
+            let rel = if gt-u64 rate 0 then pacer-next-send-time-ns pacer now-ns rate else now-ns in
+            let _sp = if gt-u64 rate 0 then pub-store-pacer hdr (pacer-on-packet-sent pacer now-ns rate wire-len) else () in
+            let next-off = wrapping-add-u32 n-off aligned in
+            let next-rem = saturating-sub-u32 n-rem aligned in
+            let _adv = (if na-or (eq-u32 next-rem 0) (ge-u32 next-off pub.pub-term-length) then
+                raw-store-u32 (wrapping-add-i64 hdr pub-off-nak-head) (wrapping-add-u32 nhead 1)
+              else
+                let _s1 = raw-store-u32 (wrapping-add-i64 slot 4) next-off in
+                raw-store-u32 (wrapping-add-i64 slot 8) next-rem) in
+            let _cp = if na-and (ne-i64 out-buf 0) (le-u32 wire-len out-cap) then aeron-copy-dma out-buf frame-addr wire-len else () in
+            let rt = raw-load-u64 (wrapping-add-i64 hdr pub-off-retransmits) in
+            let _r = raw-store-u64 (wrapping-add-i64 hdr pub-off-retransmits) (wrapping-add-u64 rt 1) in
+            AeronTxResult wire-len ftype 1 0 rel n-tid n-off frame-addr
+
+  -- | Poll the next outbound UDP datagram (`SETUP`, `NAK` retransmission, fresh
+  -- `DATA`/`PAD`, or tail-loss heartbeat) from `pub` at timestamp `now-ns`.
+  --
+  -- When `out-buf != 0`, copies the wire frame into `out-buf` (up to `out-cap`);
+  -- `tx-frame-addr` always points directly to the zero-copy frame in the DMA slab.
+  #[no-alloc]
+  aeron-pub-poll-tx :: AeronPublication -> I64 -> U32 -> U64 ->{MVar} AeronTxResult
+  aeron-pub-poll-tx pub out-buf out-cap now-ns =
+    if na-not (aeron-pub-is-valid pub) then tx-result-empty 0 now-ns
+    else
+      let hdr = pub.pub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-closed)) 0 then tx-result-empty 0 now-ns
+      else
+        -- 1. Pending initial SETUP announcement
+        let setup-pend = raw-load-u32 (wrapping-add-i64 hdr pub-off-setup-pending) in
+        if ne-u32 setup-pend 0 then
+          let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id)) in
+          let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id)) in
+          let itid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-init-term)) in
+          let atid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+          let mtu = raw-load-u32 (wrapping-add-i64 hdr pub-off-mtu) in
+          let setup-addr = wrapping-add-i64 hdr pub-off-setup-buf in
+          let sh = aeron-setup-header-make sid stid itid atid pub.pub-term-length mtu in
+          let _e1 = aeron-encode-setup setup-addr 32 sh in
+          let _e2 = if na-and (ne-i64 out-buf 0) (ge-u32 out-cap 32) then aeron-copy-dma out-buf setup-addr 32 else () in
+          let _cl = raw-store-u32 (wrapping-add-i64 hdr pub-off-setup-pending) 0 in
+          let _hb = raw-store-u64 (wrapping-add-i64 hdr pub-off-hb-last-ns) now-ns in
+          AeronTxResult 32 aeron-frame-type-setup 0 0 now-ns atid 0 setup-addr
+        else
+          -- 2. Priority NAK retransmission directly from active/dirty term partition
+          let nak-res = pub-poll-nak-tx pub out-buf out-cap now-ns in
+          if na-or (gt-u32 nak-res.tx-len 0) (ne-u8 nak-res.tx-paced 0) then nak-res
+          else
+            -- 3. Fresh DATA / PAD frames from `tx-pos .. pub-pos`
+            let tx-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-tx-pos) in
+            let pub-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos) in
+            if lt-u64 tx-pos pub-pos then
+              let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-init-term)) in
+              let tid = aeron-term-id-from-position tx-pos pub.pub-pos-bits init-t in
+              let toff = aeron-term-offset-from-position tx-pos pub.pub-term-length in
+              let frame-addr = wrapping-add-i64 (pub-term-addr pub tid) (u32-to-i64 toff) in
+              let flen = wrapping-u32-to-i32 (raw-load-u32 frame-addr) in
+              if le-i32 flen 0 then tx-result-empty 0 now-ns
+              else
+                let ftype = aeron-peek-frame-type frame-addr aeron-data-header-len in
+                let wire-len = if eq-u16 ftype aeron-frame-type-pad then aeron-data-header-len else wrapping-i32-to-u32 flen in
+                let aligned = aeron-align32 (wrapping-i32-to-u32 flen) in
+                let rate = raw-load-u64 (wrapping-add-i64 hdr pub-off-pacing-rate) in
+                let pacer = pub-load-pacer hdr in
+                if na-and (gt-u64 rate 0) (na-not (pacer-can-send-now pacer now-ns rate wire-len)) then
+                  let rel = pacer-next-send-time-ns pacer now-ns rate in
+                  tx-result-empty 1 rel
+                else
+                  let rel = if gt-u64 rate 0 then pacer-next-send-time-ns pacer now-ns rate else now-ns in
+                  let _sp = if gt-u64 rate 0 then pub-store-pacer hdr (pacer-on-packet-sent pacer now-ns rate wire-len) else () in
+                  let _at = raw-store-u64 (wrapping-add-i64 hdr pub-off-tx-pos) (wrapping-add-u64 tx-pos (u32-to-u64 aligned)) in
+                  let _cp = if na-and (ne-i64 out-buf 0) (le-u32 wire-len out-cap) then aeron-copy-dma out-buf frame-addr wire-len else () in
+                  let ftx = raw-load-u64 (wrapping-add-i64 hdr pub-off-frames-tx) in
+                  let _ft = raw-store-u64 (wrapping-add-i64 hdr pub-off-frames-tx) (wrapping-add-u64 ftx 1) in
+                  let _hb = raw-store-u64 (wrapping-add-i64 hdr pub-off-hb-last-ns) now-ns in
+                  AeronTxResult wire-len ftype 0 0 rel tid toff frame-addr
+            else
+              -- 4. Periodic idle SETUP (before connection) or tail-loss heartbeat
+              let hb-last = raw-load-u64 (wrapping-add-i64 hdr pub-off-hb-last-ns) in
+              let hb-int = raw-load-u64 (wrapping-add-i64 hdr pub-off-hb-interval-ns) in
+              let cons-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-cons-pos) in
+              let conn = raw-load-u32 (wrapping-add-i64 hdr pub-off-connected) in
+              let due = na-and (gt-u64 hb-int 0) (ge-u64 (saturating-sub-u64 now-ns hb-last) hb-int) in
+              if na-not due then tx-result-empty 0 now-ns
+              else if eq-u32 conn 0 then
+                let _sp = raw-store-u32 (wrapping-add-i64 hdr pub-off-setup-pending) 1 in
+                aeron-pub-poll-tx pub out-buf out-cap now-ns
+              else if gt-u64 pub-pos cons-pos then
+                let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id)) in
+                let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id)) in
+                let atid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-active-term)) in
+                let toff = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+                let hb-addr = wrapping-add-i64 hdr pub-off-hb-buf in
+                let hbh = AeronDataHeader 0 aeron-version 0 aeron-frame-type-data toff sid stid atid 0 0 in
+                let _eh = aeron-encode-data-header hb-addr hbh in
+                let _cp = if na-and (ne-i64 out-buf 0) (ge-u32 out-cap 32) then aeron-copy-dma out-buf hb-addr 32 else () in
+                let _hl = raw-store-u64 (wrapping-add-i64 hdr pub-off-hb-last-ns) now-ns in
+                let hbc = raw-load-u64 (wrapping-add-i64 hdr pub-off-hb-tx) in
+                let _hc = raw-store-u64 (wrapping-add-i64 hdr pub-off-hb-tx) (wrapping-add-u64 hbc 1) in
+                AeronTxResult 32 aeron-frame-type-data 0 0 now-ns atid toff hb-addr
+              else tx-result-empty 0 now-ns
+
+  -- | Internal burst-coalescing loop for `aeron-pub-poll-tx-burst`.
+  #[no-alloc]
+  pub-burst-loop :: AeronPublication -> I64 -> U32 -> U32 -> U64 -> U32 -> U32 -> U64 ->{MVar} AeronTxBurstResult
+  pub-burst-loop pub out-buf out-cap max-frames now-ns count used rel-ns =
+    if na-or (ge-u32 count max-frames) (ge-u32 used out-cap) then
+      AeronTxBurstResult count used rel-ns 0 0 0 0
+    else
+      let rem = wrapping-sub-u32 out-cap used in
+      let dst = if ne-i64 out-buf 0 then wrapping-add-i64 out-buf (u32-to-i64 used) else 0 in
+      let r = aeron-pub-poll-tx pub dst rem now-ns in
+      if gt-u32 r.tx-len 0 then
+        let next-rel = if eq-u32 count 0 then r.tx-release-ns else rel-ns in
+        pub-burst-loop pub out-buf out-cap max-frames now-ns (wrapping-add-u32 count 1) (wrapping-add-u32 used r.tx-len) next-rel
+      else
+        AeronTxBurstResult count used (if eq-u32 count 0 then r.tx-release-ns else rel-ns) r.tx-paced 0 0 0
+
+  -- | Coalesce up to `max-frames` paced outbound frames into `out-buf` (`out-cap`
+  -- bytes) using `Net.Quic.Pacer` burst budgeting and `SO_TXTIME` release timestamps.
+  #[no-alloc]
+  aeron-pub-poll-tx-burst :: AeronPublication -> I64 -> U32 -> U32 -> U64 ->{MVar} AeronTxBurstResult
+  aeron-pub-poll-tx-burst pub out-buf out-cap max-frames now-ns =
+    if na-or (na-not (aeron-pub-is-valid pub)) (eq-u32 max-frames 0) then
+      AeronTxBurstResult 0 0 now-ns 0 0 0 0
+    else
+      pub-burst-loop pub out-buf out-cap max-frames now-ns 0 0 now-ns
+
+  -- | Process an incoming control datagram (`SM` flow-control window update or
+  -- `NAK` retransmission request) at `buf-addr` (`buf-len` bytes).
+  #[no-alloc]
+  aeron-pub-on-control :: AeronPublication -> I64 -> U32 ->{MVar} U8
+  aeron-pub-on-control pub buf-addr buf-len =
+    if na-not (aeron-pub-is-valid pub) then aeron-ctrl-error
+    else
+      let hdr = pub.pub-hdr-addr in
+      let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id)) in
+      let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id)) in
+      let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-init-term)) in
+      let ftype = aeron-peek-frame-type buf-addr buf-len in
+      if eq-u16 ftype aeron-frame-type-sm then
+        if ne-u32 (aeron-validate-sm buf-addr buf-len) aeron-status-ok then aeron-ctrl-error
+        else
+          let sm = aeron-decode-sm buf-addr in
+          if na-or (ne-i32 sm.sm-session-id sid) (ne-i32 sm.sm-stream-id stid) then aeron-ctrl-ignored
+          else if lt-i32 sm.sm-consumption-term-id init-t then aeron-ctrl-ignored
+          else if gt-u32 sm.sm-consumption-term-offset pub.pub-term-length then aeron-ctrl-error
+          else
+            let cpos = aeron-compute-position sm.sm-consumption-term-id sm.sm-consumption-term-offset pub.pub-pos-bits init-t in
+            let max-win = wrapping-shr-u32 pub.pub-term-length 1 in
+            let eff-win = if gt-u32 sm.sm-receiver-window-length max-win then max-win else sm.sm-receiver-window-length in
+            let cand-lim = wrapping-add-u64 cpos (u32-to-u64 eff-win) in
+            let old-lim = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-limit) in
+            let old-cons = raw-load-u64 (wrapping-add-i64 hdr pub-off-cons-pos) in
+            let _uc = if gt-u64 cpos old-cons then raw-store-u64 (wrapping-add-i64 hdr pub-off-cons-pos) cpos else () in
+            let _ul = if gt-u64 cand-lim old-lim then raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-limit) cand-lim else () in
+            let _cn = raw-store-u32 (wrapping-add-i64 hdr pub-off-connected) 1 in
+            let smc = raw-load-u64 (wrapping-add-i64 hdr pub-off-sms-rx) in
+            let _sc = raw-store-u64 (wrapping-add-i64 hdr pub-off-sms-rx) (wrapping-add-u64 smc 1) in
+            aeron-ctrl-sm
+      else if eq-u16 ftype aeron-frame-type-nak then
+        if ne-u32 (aeron-validate-nak buf-addr buf-len) aeron-status-ok then aeron-ctrl-error
+        else
+          let nak = aeron-decode-nak buf-addr in
+          if na-or (ne-i32 nak.nak-session-id sid) (ne-i32 nak.nak-stream-id stid) then aeron-ctrl-ignored
+          else if ge-u32 nak.nak-term-offset pub.pub-term-length then aeron-ctrl-ignored
+          else
+            let max-len = wrapping-sub-u32 pub.pub-term-length nak.nak-term-offset in
+            let req-len = if gt-u32 nak.nak-length max-len then max-len else nak.nak-length in
+            let nhead = raw-load-u32 (wrapping-add-i64 hdr pub-off-nak-head) in
+            let ntail = raw-load-u32 (wrapping-add-i64 hdr pub-off-nak-tail) in
+            let qlen = wrapping-sub-u32 ntail nhead in
+            let nc = raw-load-u64 (wrapping-add-i64 hdr pub-off-naks-rx) in
+            let _nc = raw-store-u64 (wrapping-add-i64 hdr pub-off-naks-rx) (wrapping-add-u64 nc 1) in
+            if ge-u32 qlen 256 then aeron-ctrl-nak
+            else
+              -- Deduplicate identical back-to-back NAK entries
+              let is-dup = (if gt-u32 qlen 0 then
+                  let prev = pub-nak-slot hdr (wrapping-sub-u32 ntail 1) in
+                  let pt = wrapping-u32-to-i32 (raw-load-u32 prev) in
+                  let po = raw-load-u32 (wrapping-add-i64 prev 4) in
+                  let pl = raw-load-u32 (wrapping-add-i64 prev 8) in
+                  na-and (eq-i32 pt nak.nak-term-id) (na-and (eq-u32 po nak.nak-term-offset) (eq-u32 pl req-len))
+                else na-false) in
+              let _enq = (if is-dup then ()
+                else
+                  let slot = pub-nak-slot hdr ntail in
+                  let _0 = raw-store-u32 slot (wrapping-i32-to-u32 nak.nak-term-id) in
+                  let _1 = raw-store-u32 (wrapping-add-i64 slot 4) nak.nak-term-offset in
+                  let _2 = raw-store-u32 (wrapping-add-i64 slot 8) req-len in
+                  let _3 = raw-store-u32 (wrapping-add-i64 slot 12) 0 in
+                  raw-store-u32 (wrapping-add-i64 hdr pub-off-nak-tail) (wrapping-add-u32 ntail 1)) in
+              aeron-ctrl-nak
+      else aeron-ctrl-ignored
+
+  -- =========================================================================
+  -- 5. Subscription DMA Header Offsets & Lifecycle
+  -- =========================================================================
+
+  -- | Byte offset of `session-id` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-session-id :: I64
+  sub-off-session-id = 0
+  -- | Byte offset of `stream-id` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-stream-id :: I64
+  sub-off-stream-id = 4
+  -- | Byte offset of `initial-term-id` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-init-term :: I64
+  sub-off-init-term = 8
+  -- | Byte offset of `term-length` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-term-len :: I64
+  sub-off-term-len = 12
+  -- | Byte offset of `pos-bits` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-pos-bits :: I64
+  sub-off-pos-bits = 16
+  -- | Byte offset of `mtu` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-mtu :: I64
+  sub-off-mtu = 20
+  -- | Byte offset of `receiver-window` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-recv-win :: I64
+  sub-off-recv-win = 24
+  -- | Byte offset of `require-crc` flag in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-use-crc :: I64
+  sub-off-use-crc = 28
+  -- | Byte offset of 64-bit `receiver-id` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-recv-id :: I64
+  sub-off-recv-id = 32
+  -- | Byte offset of contiguous `rebuild-pos` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-rebuild-pos :: I64
+  sub-off-rebuild-pos = 40
+  -- | Byte offset of `hwm-pos` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-hwm-pos :: I64
+  sub-off-hwm-pos = 48
+  -- | Byte offset of `cons-pos` in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-cons-pos :: I64
+  sub-off-cons-pos = 56
+  -- | Byte offset of last SM send timestamp in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-sm-last-ns :: I64
+  sub-off-sm-last-ns = 64
+  -- | Byte offset of last SM consumption position in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-sm-last-cons :: I64
+  sub-off-sm-last-cons = 72
+  -- | Byte offset of periodic SM interval in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-sm-interval-ns :: I64
+  sub-off-sm-interval-ns = 80
+  -- | Byte offset of next allowed NAK send timestamp in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-nak-next-ns :: I64
+  sub-off-nak-next-ns = 88
+  -- | Byte offset of initial NAK delay timer in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-nak-delay-ns :: I64
+  sub-off-nak-delay-ns = 96
+  -- | Byte offset of NAK retry suppression timer in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-nak-retry-ns :: I64
+  sub-off-nak-retry-ns = 104
+  -- | Byte offset of active gap term ID in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-gap-term :: I64
+  sub-off-gap-term = 112
+  -- | Byte offset of active gap byte offset in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-gap-off :: I64
+  sub-off-gap-off = 116
+  -- | Byte offset of active gap length in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-gap-len :: I64
+  sub-off-gap-len = 120
+  -- | Byte offset of active gap flag in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-gap-active :: I64
+  sub-off-gap-active = 124
+  -- | Byte offset of `connected` flag in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-connected :: I64
+  sub-off-connected = 128
+  -- | Byte offset of immediate SM trigger flag in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-sm-force :: I64
+  sub-off-sm-force = 132
+  -- | Byte offset of `closed` flag in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-closed :: I64
+  sub-off-closed = 136
+  -- | Byte offset of deferred partition-zero index in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-pend-zero :: I64
+  sub-off-pend-zero = 140
+  -- | Byte offset of active fragmentation reassembly flag in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-frag-active :: I64
+  sub-off-frag-active = 144
+  -- | Byte offset of accumulated fragment byte length in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-frag-len :: I64
+  sub-off-frag-len = 148
+  -- | Byte offset of receive term rotation counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-rotations :: I64
+  sub-off-rotations = 152
+  -- | Byte offset of accepted frame counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-frames-rx :: I64
+  sub-off-frames-rx = 160
+  -- | Byte offset of dropped duplicate counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-dups-dropped :: I64
+  sub-off-dups-dropped = 168
+  -- | Byte offset of CRC rejection counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-bad-crc :: I64
+  sub-off-bad-crc = 176
+  -- | Byte offset of emitted NAK counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-naks-sent :: I64
+  sub-off-naks-sent = 184
+  -- | Byte offset of emitted SM counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-sms-sent :: I64
+  sub-off-sms-sent = 192
+  -- | Byte offset of delivered message counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-msgs-deliv :: I64
+  sub-off-msgs-deliv = 200
+  -- | Byte offset of delivered byte counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-bytes-deliv :: I64
+  sub-off-bytes-deliv = 208
+  -- | Byte offset of detected loss gap counter in the subscription DMA header.
+  #[inline(always)] #[no-alloc] sub-off-gaps-det :: I64
+  sub-off-gaps-det = 216
+  -- | Byte offset of the 3-partition receive term buffer ring inside the subscription slab.
+  #[inline(always)] #[no-alloc] sub-off-terms :: I64
+  sub-off-terms = 4096
+
+  -- | Compute the base DMA address of receive term partition `part` (`0`, `1`, `2`).
+  #[inline(always)]
+  #[no-alloc]
+  sub-part-addr :: AeronSubscription -> U32 -> I64
+  sub-part-addr sub part =
+    wrapping-add-i64 sub.sub-terms-addr (wrapping-mul-i64 (u32-to-i64 part) (u32-to-i64 sub.sub-term-length))
+
+  -- | Compute the base DMA address of the receive partition holding `term-id`.
+  #[inline(always)]
+  #[no-alloc]
+  sub-term-addr :: AeronSubscription -> I32 ->{MVar} I64
+  sub-term-addr sub term-id =
+    let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 sub.sub-hdr-addr sub-off-init-term)) in
+    sub-part-addr sub (aeron-partition-index term-id init-t)
+
+  -- | Zero any deferred retired receive partition before reuse.
+  #[inline(always)]
+  #[no-alloc]
+  sub-flush-pending-zero :: AeronSubscription ->{MVar} Unit
+  sub-flush-pending-zero sub =
+    let hdr = sub.sub-hdr-addr in
+    let pz = raw-load-u32 (wrapping-add-i64 hdr sub-off-pend-zero) in
+    if lt-u32 pz 3 then
+      let _z = aeron-zero-dma (sub-part-addr sub pz) sub.sub-term-length in
+      raw-store-u32 (wrapping-add-i64 hdr sub-off-pend-zero) 255
+    else ()
+
+  -- | Allocate and initialize a 3-partition DMA-backed `AeronSubscription`.
+  aeron-sub-new :: I32 -> I32 -> I32 -> U32 -> U32 -> I64 -> U8 -> U64 ->{IO, MVar} AeronSubscription
+  aeron-sub-new session-id stream-id initial-term-id term-length recv-window receiver-id require-crc now-ns =
+    let valid-tl = na-and (aeron-is-power-of-two-u32 term-length) (ge-u32 term-length 4096) in
+    if na-not valid-tl then AeronSubscription 0 0 0 0 0 0
+    else
+      -- 4 KiB header + 3 term partitions + 1 fragmentation reassembly buffer
+      let slab-bytes = wrapping-add-u64 4096 (wrapping-mul-u64 (u32-to-u64 term-length) 4) in
+      let raw = engine-dma-alloc slab-bytes 4096 in
+      if eq-u64 raw 0 then AeronSubscription 0 0 0 0 0 0
+      else
+        let hdr = wrapping-u64-to-i64 raw in
+        let terms = wrapping-add-i64 hdr sub-off-terms in
+        let frag = wrapping-add-i64 terms (wrapping-mul-i64 (u32-to-i64 term-length) 3) in
+        let pos-bits = aeron-position-bits-to-shift term-length in
+        let half-term = wrapping-shr-u32 term-length 1 in
+        let win = if eq-u32 recv-window 0 then half-term else if gt-u32 recv-window half-term then half-term else recv-window in
+        let _0 = raw-store-u32 (wrapping-add-i64 hdr sub-off-session-id) (wrapping-i32-to-u32 session-id) in
+        let _1 = raw-store-u32 (wrapping-add-i64 hdr sub-off-stream-id) (wrapping-i32-to-u32 stream-id) in
+        let _2 = raw-store-u32 (wrapping-add-i64 hdr sub-off-init-term) (wrapping-i32-to-u32 initial-term-id) in
+        let _3 = raw-store-u32 (wrapping-add-i64 hdr sub-off-term-len) term-length in
+        let _4 = raw-store-u32 (wrapping-add-i64 hdr sub-off-pos-bits) pos-bits in
+        let _5 = raw-store-u32 (wrapping-add-i64 hdr sub-off-mtu) 1408 in
+        let _6 = raw-store-u32 (wrapping-add-i64 hdr sub-off-recv-win) win in
+        let _7 = raw-store-u32 (wrapping-add-i64 hdr sub-off-use-crc) (u8-to-u32 require-crc) in
+        let _8 = raw-store-i64 (wrapping-add-i64 hdr sub-off-recv-id) receiver-id in
+        let _9 = raw-store-u64 (wrapping-add-i64 hdr sub-off-sm-last-ns) now-ns in
+        let _a = raw-store-u64 (wrapping-add-i64 hdr sub-off-sm-interval-ns) 5000000 in
+        let _b = raw-store-u64 (wrapping-add-i64 hdr sub-off-nak-delay-ns) 200000 in
+        let _c = raw-store-u64 (wrapping-add-i64 hdr sub-off-nak-retry-ns) 5000000 in
+        let _d = raw-store-u32 (wrapping-add-i64 hdr sub-off-pend-zero) 255 in
+        AeronSubscription hdr terms frag slab-bytes term-length pos-bits
+
+  -- | Return `True` iff `sub` refers to a valid allocated subscription slab.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sub-is-valid :: AeronSubscription -> Bool
+  aeron-sub-is-valid sub = na-and (ne-i64 sub.sub-hdr-addr 0) (gt-u32 sub.sub-term-length 0)
+
+  -- | Unmap the DMA slab owned by `sub`. Idempotent.
+  aeron-sub-destroy :: AeronSubscription ->{IO, MVar} Unit
+  aeron-sub-destroy sub =
+    let hdr = sub.sub-hdr-addr in
+    if eq-i64 hdr 0 then ()
+    else
+      let closed = raw-load-u32 (wrapping-add-i64 hdr sub-off-closed) in
+      if ne-u32 closed 0 then ()
+      else
+        let _c = raw-store-u32 (wrapping-add-i64 hdr sub-off-closed) 1 in
+        let _f = engine-dma-free (wrapping-i64-to-u64 hdr) sub.sub-slab-bytes in
+        ()
+
+  -- | Configure NAK initial delay and retry suppression timer in nanoseconds.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sub-set-nak-timers :: AeronSubscription -> U64 -> U64 ->{MVar} Unit
+  aeron-sub-set-nak-timers sub delay-ns retry-ns =
+    if aeron-sub-is-valid sub then
+      let _0 = raw-store-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-nak-delay-ns) delay-ns in
+      raw-store-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-nak-retry-ns) retry-ns
+    else ()
+
+  -- | Configure periodic `SM` flow-control keepalive interval in nanoseconds.
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sub-set-sm-interval :: AeronSubscription -> U64 ->{MVar} Unit
+  aeron-sub-set-sm-interval sub interval-ns =
+    if aeron-sub-is-valid sub then raw-store-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-sm-interval-ns) interval-ns
+    else ()
+
+  -- | Configure advertised receiver window length (clamped to `term-length / 2`).
+  #[inline(always)]
+  #[no-alloc]
+  aeron-sub-set-window :: AeronSubscription -> U32 ->{MVar} Unit
+  aeron-sub-set-window sub win =
+    if aeron-sub-is-valid sub then
+      let max-w = wrapping-shr-u32 sub.sub-term-length 1 in
+      let eff = if gt-u32 win max-w then max-w else win in
+      let _w = raw-store-u32 (wrapping-add-i64 sub.sub-hdr-addr sub-off-recv-win) eff in
+      raw-store-u32 (wrapping-add-i64 sub.sub-hdr-addr sub-off-sm-force) 1
+    else ()
+
+  -- | Contiguous reassembled stream position (`rebuild-position`).
+  #[inline(always)] #[no-alloc]
+  aeron-sub-rebuild-position :: AeronSubscription ->{MVar} U64
+  aeron-sub-rebuild-position sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-rebuild-pos) else 0
+
+  -- | Highest water mark stream position received (`hwm-position`).
+  #[inline(always)] #[no-alloc]
+  aeron-sub-hwm-position :: AeronSubscription ->{MVar} U64
+  aeron-sub-hwm-position sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-hwm-pos) else 0
+
+  -- | Application consumer position (`cons-position <= rebuild-position`).
+  #[inline(always)] #[no-alloc]
+  aeron-sub-cons-position :: AeronSubscription ->{MVar} U64
+  aeron-sub-cons-position sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-cons-pos) else 0
+
+  -- | Return `True` once the subscription has received `SETUP` or valid `DATA`.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-connected :: AeronSubscription ->{MVar} Bool
+  aeron-sub-connected sub = if aeron-sub-is-valid sub then ne-u32 (raw-load-u32 (wrapping-add-i64 sub.sub-hdr-addr sub-off-connected)) 0 else na-false
+
+  -- | Return `True` iff a loss gap is currently active (`rebuild-pos < hwm-pos`).
+  #[inline(always)] #[no-alloc]
+  aeron-sub-has-gap :: AeronSubscription ->{MVar} Bool
+  aeron-sub-has-gap sub = if aeron-sub-is-valid sub then ne-u32 (raw-load-u32 (wrapping-add-i64 sub.sub-hdr-addr sub-off-gap-active)) 0 else na-false
+
+  -- | Total receive term rotations completed.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-term-rotations :: AeronSubscription ->{MVar} U32
+  aeron-sub-term-rotations sub = if aeron-sub-is-valid sub then raw-load-u32 (wrapping-add-i64 sub.sub-hdr-addr sub-off-rotations) else 0
+
+  -- | Total valid `DATA`/`PAD` frames accepted.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-frames-rx :: AeronSubscription ->{MVar} U64
+  aeron-sub-frames-rx sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-frames-rx) else 0
+
+  -- | Total duplicate frames dropped.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-dups-dropped :: AeronSubscription ->{MVar} U64
+  aeron-sub-dups-dropped sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-dups-dropped) else 0
+
+  -- | Total frames rejected due to Castagnoli CRC32C tamper.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-bad-crc :: AeronSubscription ->{MVar} U64
+  aeron-sub-bad-crc sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-bad-crc) else 0
+
+  -- | Total `NAK` frames emitted.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-naks-sent :: AeronSubscription ->{MVar} U64
+  aeron-sub-naks-sent sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-naks-sent) else 0
+
+  -- | Total `SM` flow-control frames emitted.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-sms-sent :: AeronSubscription ->{MVar} U64
+  aeron-sub-sms-sent sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-sms-sent) else 0
+
+  -- | Total complete messages delivered strictly in order via `aeron-sub-poll`.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-msgs-delivered :: AeronSubscription ->{MVar} U64
+  aeron-sub-msgs-delivered sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-msgs-deliv) else 0
+
+  -- | Total payload bytes delivered via `aeron-sub-poll`.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-bytes-delivered :: AeronSubscription ->{MVar} U64
+  aeron-sub-bytes-delivered sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-bytes-deliv) else 0
+
+  -- | Total distinct loss gaps detected.
+  #[inline(always)] #[no-alloc]
+  aeron-sub-gaps-detected :: AeronSubscription ->{MVar} U64
+  aeron-sub-gaps-detected sub = if aeron-sub-is-valid sub then raw-load-u64 (wrapping-add-i64 sub.sub-hdr-addr sub-off-gaps-det) else 0
+
+  -- =========================================================================
+  -- 6. Subscription Hot Path: Ingest, Gap Scan / NAK, SM, In-Order Poll
+  -- =========================================================================
+
+  -- | Scan contiguous received frames forward from `cur-pos` up to `hwm-pos`,
+  -- advancing `rebuild-pos`.
+  #[no-alloc]
+  sub-advance-rebuild :: AeronSubscription -> U64 -> U64 -> I32 ->{MVar} U64
+  sub-advance-rebuild sub cur-pos hwm-pos init-t =
+    if ge-u64 cur-pos hwm-pos then cur-pos
+    else
+      let tid = aeron-term-id-from-position cur-pos sub.sub-pos-bits init-t in
+      let toff = aeron-term-offset-from-position cur-pos sub.sub-term-length in
+      let slot = wrapping-add-i64 (sub-term-addr sub tid) (u32-to-i64 toff) in
+      let flen = wrapping-u32-to-i32 (raw-load-u32 slot) in
+      if le-i32 flen 0 then cur-pos
+      else
+        let aligned = aeron-align32 (wrapping-i32-to-u32 flen) in
+        sub-advance-rebuild sub (wrapping-add-u64 cur-pos (u32-to-u64 aligned)) hwm-pos init-t
+
+  -- | Scan forward in 32-byte steps inside `term-base` from `cur-off` up to
+  -- `limit-off` to measure the exact contiguous missing gap length.
+  #[no-alloc]
+  sub-scan-gap-len :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  sub-scan-gap-len term-base start-off cur-off limit-off =
+    if ge-u32 cur-off limit-off then wrapping-sub-u32 limit-off start-off
+    else
+      let flen = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 term-base (u32-to-i64 cur-off))) in
+      if gt-i32 flen 0 then wrapping-sub-u32 cur-off start-off
+      else sub-scan-gap-len term-base start-off (wrapping-add-u32 cur-off 32) limit-off
+
+  -- | Refresh the subscription's gap descriptor (`gap-term`, `gap-off`, `gap-len`)
+  -- and arm/preserve the NAK suppression timer whenever `rebuild-pos < hwm-pos`.
+  #[no-alloc]
+  sub-refresh-gap :: AeronSubscription -> U64 ->{MVar} Unit
+  sub-refresh-gap sub now-ns =
+    let hdr = sub.sub-hdr-addr in
+    let reb = raw-load-u64 (wrapping-add-i64 hdr sub-off-rebuild-pos) in
+    let hwm = raw-load-u64 (wrapping-add-i64 hdr sub-off-hwm-pos) in
+    if ge-u64 reb hwm then
+      raw-store-u32 (wrapping-add-i64 hdr sub-off-gap-active) 0
+    else
+      let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-init-term)) in
+      let g-tid = aeron-term-id-from-position reb sub.sub-pos-bits init-t in
+      let g-off = aeron-term-offset-from-position reb sub.sub-term-length in
+      let h-tid = aeron-term-id-from-position hwm sub.sub-pos-bits init-t in
+      let h-off = aeron-term-offset-from-position hwm sub.sub-term-length in
+      let limit-off = if eq-i32 h-tid g-tid then h-off else sub.sub-term-length in
+      let tbase = sub-term-addr sub g-tid in
+      let raw-glen = sub-scan-gap-len tbase g-off g-off limit-off in
+      let glen = if eq-u32 raw-glen 0 then 32 else raw-glen in
+      let old-act = raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-active) in
+      let old-tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-term)) in
+      let old-off = raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-off) in
+      let is-new-gap = na-or (eq-u32 old-act 0) (na-or (ne-i32 old-tid g-tid) (ne-u32 old-off g-off)) in
+      let _0 = raw-store-u32 (wrapping-add-i64 hdr sub-off-gap-term) (wrapping-i32-to-u32 g-tid) in
+      let _1 = raw-store-u32 (wrapping-add-i64 hdr sub-off-gap-off) g-off in
+      let _2 = raw-store-u32 (wrapping-add-i64 hdr sub-off-gap-len) glen in
+      let _3 = raw-store-u32 (wrapping-add-i64 hdr sub-off-gap-active) 1 in
+      if is-new-gap then
+        let delay = raw-load-u64 (wrapping-add-i64 hdr sub-off-nak-delay-ns) in
+        let _t = raw-store-u64 (wrapping-add-i64 hdr sub-off-nak-next-ns) (saturating-add-u64 now-ns delay) in
+        let gd = raw-load-u64 (wrapping-add-i64 hdr sub-off-gaps-det) in
+        raw-store-u64 (wrapping-add-i64 hdr sub-off-gaps-det) (wrapping-add-u64 gd 1)
+      else ()
+
+  -- | Process an incoming UDP datagram (`SETUP`, `DATA`, `PAD`, or heartbeat)
+  -- at `buf-addr` (`buf-len` bytes) at monotonic timestamp `now-ns`.
+  #[no-alloc]
+  aeron-sub-on-datagram :: AeronSubscription -> I64 -> U32 -> U64 ->{MVar} U8
+  aeron-sub-on-datagram sub buf-addr buf-len now-ns =
+    if na-not (aeron-sub-is-valid sub) then aeron-rx-error
+    else
+      let hdr = sub.sub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-closed)) 0 then aeron-rx-error
+      else
+        let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-session-id)) in
+        let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-stream-id)) in
+        let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-init-term)) in
+        let ftype = aeron-peek-frame-type buf-addr buf-len in
+        if eq-u16 ftype aeron-frame-type-setup then
+          if ne-u32 (aeron-validate-setup buf-addr buf-len) aeron-status-ok then aeron-rx-error
+          else
+            let sh = aeron-decode-setup buf-addr in
+            if na-or (ne-i32 sh.setup-session-id sid) (ne-i32 sh.setup-stream-id stid) then aeron-rx-ignored
+            else if ne-u32 sh.setup-term-length sub.sub-term-length then aeron-rx-error
+            else
+              let _m = raw-store-u32 (wrapping-add-i64 hdr sub-off-mtu) sh.setup-mtu in
+              let _c = raw-store-u32 (wrapping-add-i64 hdr sub-off-connected) 1 in
+              let _f = raw-store-u32 (wrapping-add-i64 hdr sub-off-sm-force) 1 in
+              aeron-rx-setup
+        else if na-or (eq-u16 ftype aeron-frame-type-data) (eq-u16 ftype aeron-frame-type-pad) then
+          let req-crc = ne-u32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-use-crc)) 0 in
+          let vst = aeron-validate-data-frame buf-addr buf-len req-crc in
+          if eq-u32 vst aeron-status-bad-crc then
+            let bc = raw-load-u64 (wrapping-add-i64 hdr sub-off-bad-crc) in
+            let _bc = raw-store-u64 (wrapping-add-i64 hdr sub-off-bad-crc) (wrapping-add-u64 bc 1) in
+            aeron-rx-bad-crc
+          else if ne-u32 vst aeron-status-ok then aeron-rx-error
+          else
+            let dh = aeron-decode-data-header buf-addr in
+            if na-or (ne-i32 dh.data-session-id sid) (ne-i32 dh.data-stream-id stid) then aeron-rx-ignored
+            else if lt-i32 dh.data-term-id init-t then aeron-rx-duplicate
+            else
+              let was-conn = raw-load-u32 (wrapping-add-i64 hdr sub-off-connected) in
+              let _cn = (if eq-u32 was-conn 0 then
+                  let _0 = raw-store-u32 (wrapping-add-i64 hdr sub-off-connected) 1 in
+                  raw-store-u32 (wrapping-add-i64 hdr sub-off-sm-force) 1
+                else ()) in
+              -- Heartbeat (`DATA` with `frame-length == 0`) advances HWM to trigger tail-loss NAKs
+              if eq-i32 dh.data-frame-length 0 then
+                if gt-u32 dh.data-term-offset sub.sub-term-length then aeron-rx-error
+                else
+                  let hb-pos = aeron-compute-position dh.data-term-id dh.data-term-offset sub.sub-pos-bits init-t in
+                  let hwm = raw-load-u64 (wrapping-add-i64 hdr sub-off-hwm-pos) in
+                  let cpos = raw-load-u64 (wrapping-add-i64 hdr sub-off-cons-pos) in
+                  let max-pos = wrapping-add-u64 cpos (u32-to-u64 sub.sub-term-length) in
+                  let _uh = if na-and (gt-u64 hb-pos hwm) (le-u64 hb-pos max-pos) then raw-store-u64 (wrapping-add-i64 hdr sub-off-hwm-pos) hb-pos else () in
+                  let _rg = sub-refresh-gap sub now-ns in
+                  aeron-rx-heartbeat
+              else
+                let flen-u = wrapping-i32-to-u32 dh.data-frame-length in
+                let aligned = aeron-align32 flen-u in
+                if na-or (ge-u32 dh.data-term-offset sub.sub-term-length) (gt-u32 (wrapping-add-u32 dh.data-term-offset aligned) sub.sub-term-length) then
+                  aeron-rx-error
+                else
+                  let start-pos = aeron-compute-position dh.data-term-id dh.data-term-offset sub.sub-pos-bits init-t in
+                  let end-pos = wrapping-add-u64 start-pos (u32-to-u64 aligned) in
+                  let reb = raw-load-u64 (wrapping-add-i64 hdr sub-off-rebuild-pos) in
+                  let cpos = raw-load-u64 (wrapping-add-i64 hdr sub-off-cons-pos) in
+                  if na-or (le-u64 end-pos reb) (lt-u64 start-pos reb) then
+                    let dd = raw-load-u64 (wrapping-add-i64 hdr sub-off-dups-dropped) in
+                    let _dd = raw-store-u64 (wrapping-add-i64 hdr sub-off-dups-dropped) (wrapping-add-u64 dd 1) in
+                    aeron-rx-duplicate
+                  else if gt-u64 end-pos (wrapping-add-u64 cpos (u32-to-u64 sub.sub-term-length)) then
+                    aeron-rx-out-of-window
+                  else
+                    let _fz = sub-flush-pending-zero sub in
+                    let slot = wrapping-add-i64 (sub-term-addr sub dh.data-term-id) (u32-to-i64 dh.data-term-offset) in
+                    if ne-u32 (raw-load-u32 slot) 0 then
+                      let dd = raw-load-u64 (wrapping-add-i64 hdr sub-off-dups-dropped) in
+                      let _dd = raw-store-u64 (wrapping-add-i64 hdr sub-off-dups-dropped) (wrapping-add-u64 dd 1) in
+                      aeron-rx-duplicate
+                    else
+                      -- Copy frame into the receive term partition
+                      let wire-len = if eq-u16 ftype aeron-frame-type-pad then aeron-data-header-len else flen-u in
+                      let _cp = aeron-copy-dma slot buf-addr wire-len in
+                      let tail-pad = if eq-u16 ftype aeron-frame-type-pad then 0 else wrapping-sub-u32 aligned wire-len in
+                      let _zp = if gt-u32 tail-pad 0 then aeron-zero-dma (wrapping-add-i64 slot (u32-to-i64 wire-len)) tail-pad else () in
+                      let frx = raw-load-u64 (wrapping-add-i64 hdr sub-off-frames-rx) in
+                      let _fr = raw-store-u64 (wrapping-add-i64 hdr sub-off-frames-rx) (wrapping-add-u64 frx 1) in
+                      let old-hwm = raw-load-u64 (wrapping-add-i64 hdr sub-off-hwm-pos) in
+                      let new-hwm = if gt-u64 end-pos old-hwm then end-pos else old-hwm in
+                      let _uh = raw-store-u64 (wrapping-add-i64 hdr sub-off-hwm-pos) new-hwm in
+                      let new-reb = sub-advance-rebuild sub reb new-hwm init-t in
+                      let _ur = raw-store-u64 (wrapping-add-i64 hdr sub-off-rebuild-pos) new-reb in
+                      let _rg = sub-refresh-gap sub now-ns in
+                      aeron-rx-ok
+        else aeron-rx-ignored
+
+  -- | Poll the next outbound control frame (`NAK` for active gap after delay /
+  -- suppression timer, or `SM` flow-control window update) into `out-buf`
+  -- (`out-cap` bytes) at timestamp `now-ns`.
+  #[no-alloc]
+  aeron-sub-poll-control :: AeronSubscription -> I64 -> U32 -> U64 ->{MVar} AeronCtrlResult
+  aeron-sub-poll-control sub out-buf out-cap now-ns =
+    if na-not (aeron-sub-is-valid sub) then AeronCtrlResult 0 aeron-frame-type-invalid 0 0 0 0 0
+    else
+      let hdr = sub.sub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-closed)) 0 then
+        AeronCtrlResult 0 aeron-frame-type-invalid 0 0 0 0 0
+      else
+        let sid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-session-id)) in
+        let stid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-stream-id)) in
+        let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-init-term)) in
+        -- 1. Emit targeted NAK if a gap is active and delay/suppression timer expired
+        let gap-act = raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-active) in
+        let nak-due-ns = raw-load-u64 (wrapping-add-i64 hdr sub-off-nak-next-ns) in
+        if na-and (ne-u32 gap-act 0) (na-and (ge-u64 now-ns nak-due-ns) (ge-u32 out-cap aeron-nak-header-len)) then
+          let _rf = sub-refresh-gap sub now-ns in
+          let still-act = raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-active) in
+          if eq-u32 still-act 0 then AeronCtrlResult 0 aeron-frame-type-invalid 0 0 0 0 0
+          else
+            let g-tid = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-term)) in
+            let g-off = raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-off) in
+            let g-len = raw-load-u32 (wrapping-add-i64 hdr sub-off-gap-len) in
+            let nh = aeron-nak-header-make sid stid g-tid g-off g-len in
+            let _enc = if ne-i64 out-buf 0 then aeron-encode-nak out-buf out-cap nh else aeron-nak-header-len in
+            let retry = raw-load-u64 (wrapping-add-i64 hdr sub-off-nak-retry-ns) in
+            let _nt = raw-store-u64 (wrapping-add-i64 hdr sub-off-nak-next-ns) (saturating-add-u64 now-ns retry) in
+            let ns = raw-load-u64 (wrapping-add-i64 hdr sub-off-naks-sent) in
+            let _ns = raw-store-u64 (wrapping-add-i64 hdr sub-off-naks-sent) (wrapping-add-u64 ns 1) in
+            AeronCtrlResult aeron-nak-header-len aeron-frame-type-nak 0 g-tid g-off g-len 0
+        else
+          -- 2. Emit SM flow-control status message on window advance or keepalive interval
+          let conn = raw-load-u32 (wrapping-add-i64 hdr sub-off-connected) in
+          if na-or (eq-u32 conn 0) (lt-u32 out-cap aeron-sm-header-len) then
+            AeronCtrlResult 0 aeron-frame-type-invalid 0 0 0 0 0
+          else
+            let cpos = raw-load-u64 (wrapping-add-i64 hdr sub-off-cons-pos) in
+            let last-cpos = raw-load-u64 (wrapping-add-i64 hdr sub-off-sm-last-cons) in
+            let last-ns = raw-load-u64 (wrapping-add-i64 hdr sub-off-sm-last-ns) in
+            let sm-int = raw-load-u64 (wrapping-add-i64 hdr sub-off-sm-interval-ns) in
+            let win = raw-load-u32 (wrapping-add-i64 hdr sub-off-recv-win) in
+            let force = raw-load-u32 (wrapping-add-i64 hdr sub-off-sm-force) in
+            let quarter-win = wrapping-shr-u32 win 2 in
+            let win-thresh = if eq-u32 quarter-win 0 then 32 else quarter-win in
+            let moved-enough = ge-u64 (saturating-sub-u64 cpos last-cpos) (u32-to-u64 win-thresh) in
+            let timer-due = na-and (gt-u64 sm-int 0) (ge-u64 (saturating-sub-u64 now-ns last-ns) sm-int) in
+            if na-or (ne-u32 force 0) (na-or moved-enough timer-due) then
+              let c-tid = aeron-term-id-from-position cpos sub.sub-pos-bits init-t in
+              let c-off = aeron-term-offset-from-position cpos sub.sub-term-length in
+              let rid = raw-load-i64 (wrapping-add-i64 hdr sub-off-recv-id) in
+              let smh = aeron-sm-header-make sid stid c-tid c-off win rid in
+              let _enc = if ne-i64 out-buf 0 then aeron-encode-sm out-buf out-cap smh else aeron-sm-header-len in
+              let _0 = raw-store-u64 (wrapping-add-i64 hdr sub-off-sm-last-ns) now-ns in
+              let _1 = raw-store-u64 (wrapping-add-i64 hdr sub-off-sm-last-cons) cpos in
+              let _2 = raw-store-u32 (wrapping-add-i64 hdr sub-off-sm-force) 0 in
+              let sc = raw-load-u64 (wrapping-add-i64 hdr sub-off-sms-sent) in
+              let _3 = raw-store-u64 (wrapping-add-i64 hdr sub-off-sms-sent) (wrapping-add-u64 sc 1) in
+              AeronCtrlResult aeron-sm-header-len aeron-frame-type-sm 0 c-tid c-off win 0
+            else
+              AeronCtrlResult 0 aeron-frame-type-invalid 0 0 0 0 0
+
+  -- | Advance `cons-pos` across one consumed frame; when crossing a term
+  -- boundary, schedule the finished receive partition for zeroing.
+  #[no-alloc]
+  sub-advance-cons :: AeronSubscription -> U64 -> I32 -> I32 -> Bool ->{MVar} Unit
+  sub-advance-cons sub next-cpos old-tid init-t zero-now =
+    let hdr = sub.sub-hdr-addr in
+    let _uc = raw-store-u64 (wrapping-add-i64 hdr sub-off-cons-pos) next-cpos in
+    let new-tid = aeron-term-id-from-position next-cpos sub.sub-pos-bits init-t in
+    if ne-i32 new-tid old-tid then
+      let old-part = aeron-partition-index old-tid init-t in
+      let rots = raw-load-u32 (wrapping-add-i64 hdr sub-off-rotations) in
+      let _rt = raw-store-u32 (wrapping-add-i64 hdr sub-off-rotations) (wrapping-add-u32 rots 1) in
+      if zero-now then aeron-zero-dma (sub-part-addr sub old-part) sub.sub-term-length
+      else raw-store-u32 (wrapping-add-i64 hdr sub-off-pend-zero) old-part
+    else ()
+
+  -- | Internal in-order message delivery loop over `[cons-pos .. rebuild-pos)`.
+  #[no-alloc]
+  sub-poll-loop :: AeronSubscription -> I64 -> U32 -> I32 ->{MVar} AeronPollResult
+  sub-poll-loop sub out-buf out-cap init-t =
+    let hdr = sub.sub-hdr-addr in
+    let cpos = raw-load-u64 (wrapping-add-i64 hdr sub-off-cons-pos) in
+    let reb = raw-load-u64 (wrapping-add-i64 hdr sub-off-rebuild-pos) in
+    if ge-u64 cpos reb then AeronPollResult 0 0 0 0 0 0 cpos 0
+    else
+      let c-tid = aeron-term-id-from-position cpos sub.sub-pos-bits init-t in
+      let c-off = aeron-term-offset-from-position cpos sub.sub-term-length in
+      let slot = wrapping-add-i64 (sub-term-addr sub c-tid) (u32-to-i64 c-off) in
+      let dh = aeron-decode-data-header slot in
+      if le-i32 dh.data-frame-length 0 then AeronPollResult 0 0 0 0 0 0 cpos 0
+      else
+        let flen-u = wrapping-i32-to-u32 dh.data-frame-length in
+        let aligned = aeron-align32 flen-u in
+        let next-cpos = wrapping-add-u64 cpos (u32-to-u64 aligned) in
+        if eq-u16 dh.data-frame-type aeron-frame-type-pad then
+          let _adv = sub-advance-cons sub next-cpos c-tid init-t na-true in
+          sub-poll-loop sub out-buf out-cap init-t
+        else
+          let plen = saturating-sub-u32 flen-u aeron-data-header-len in
+          let payload-ptr = wrapping-add-i64 slot 32 in
+          let is-begin = ne-u8 (bit-and-u8 dh.data-flags aeron-flag-begin) 0 in
+          let is-end = ne-u8 (bit-and-u8 dh.data-flags aeron-flag-end) 0 in
+          if na-and is-begin is-end then
+            -- Fast unfragmented message delivery
+            let copy-n = if lt-u32 plen out-cap then plen else out-cap in
+            let _cp = if na-and (ne-i64 out-buf 0) (gt-u32 copy-n 0) then aeron-copy-dma out-buf payload-ptr copy-n else () in
+            let _adv = sub-advance-cons sub next-cpos c-tid init-t (ne-i64 out-buf 0) in
+            let md = raw-load-u64 (wrapping-add-i64 hdr sub-off-msgs-deliv) in
+            let _m = raw-store-u64 (wrapping-add-i64 hdr sub-off-msgs-deliv) (wrapping-add-u64 md 1) in
+            let bd = raw-load-u64 (wrapping-add-i64 hdr sub-off-bytes-deliv) in
+            let _b = raw-store-u64 (wrapping-add-i64 hdr sub-off-bytes-deliv) (wrapping-add-u64 bd (u32-to-u64 plen)) in
+            AeronPollResult plen 1 dh.data-flags 0 c-tid c-off next-cpos payload-ptr
+          else if is-begin then
+            -- First fragment of a multi-frame message
+            let copy-n = if le-u32 plen sub.sub-term-length then plen else sub.sub-term-length in
+            let _cp = if gt-u32 copy-n 0 then aeron-copy-dma sub.sub-frag-addr payload-ptr copy-n else () in
+            let _fa = raw-store-u32 (wrapping-add-i64 hdr sub-off-frag-active) 1 in
+            let _fl = raw-store-u32 (wrapping-add-i64 hdr sub-off-frag-len) copy-n in
+            let _adv = sub-advance-cons sub next-cpos c-tid init-t na-true in
+            sub-poll-loop sub out-buf out-cap init-t
+          else
+            let cur-fl = raw-load-u32 (wrapping-add-i64 hdr sub-off-frag-len) in
+            let room = saturating-sub-u32 sub.sub-term-length cur-fl in
+            let copy-n = if le-u32 plen room then plen else room in
+            let _cp = if gt-u32 copy-n 0 then aeron-copy-dma (wrapping-add-i64 sub.sub-frag-addr (u32-to-i64 cur-fl)) payload-ptr copy-n else () in
+            let new-fl = wrapping-add-u32 cur-fl copy-n in
+            let _fl = raw-store-u32 (wrapping-add-i64 hdr sub-off-frag-len) new-fl in
+            let _adv = sub-advance-cons sub next-cpos c-tid init-t na-true in
+            if is-end then
+              let out-n = if lt-u32 new-fl out-cap then new-fl else out-cap in
+              let _oc = if na-and (ne-i64 out-buf 0) (gt-u32 out-n 0) then aeron-copy-dma out-buf sub.sub-frag-addr out-n else () in
+              let _fa = raw-store-u32 (wrapping-add-i64 hdr sub-off-frag-active) 0 in
+              let _fz = raw-store-u32 (wrapping-add-i64 hdr sub-off-frag-len) 0 in
+              let md = raw-load-u64 (wrapping-add-i64 hdr sub-off-msgs-deliv) in
+              let _m = raw-store-u64 (wrapping-add-i64 hdr sub-off-msgs-deliv) (wrapping-add-u64 md 1) in
+              let bd = raw-load-u64 (wrapping-add-i64 hdr sub-off-bytes-deliv) in
+              let _b = raw-store-u64 (wrapping-add-i64 hdr sub-off-bytes-deliv) (wrapping-add-u64 bd (u32-to-u64 new-fl)) in
+              AeronPollResult new-fl 1 dh.data-flags 0 c-tid c-off next-cpos sub.sub-frag-addr
+            else
+              sub-poll-loop sub out-buf out-cap init-t
+
+  -- | Poll the next strictly ordered, completely reassembled application message
+  -- from `sub` into `out-buf` (`out-cap` bytes). Returns `poll-ok == 1` when a
+  -- complete message was delivered, or `poll-ok == 0` when no contiguous message
+  -- is available yet.
+  #[no-alloc]
+  aeron-sub-poll :: AeronSubscription -> I64 -> U32 ->{MVar} AeronPollResult
+  aeron-sub-poll sub out-buf out-cap =
+    if na-not (aeron-sub-is-valid sub) then AeronPollResult 0 0 0 0 0 0 0 0
+    else
+      let hdr = sub.sub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-closed)) 0 then
+        AeronPollResult 0 0 0 0 0 0 0 0
+      else
+        let _fz = sub-flush-pending-zero sub in
+        let init-t = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 hdr sub-off-init-term)) in
+        sub-poll-loop sub out-buf out-cap init-t
+
+  -- =========================================================================
+  -- 7. Lock-Free Local-Host Disruptor IPC Bridge (`Engine.Ring.Disruptor`)
+  -- =========================================================================
+
+  -- | Allocate a local-host Disruptor IPC consumer cursor handle (`AeronIpcSub`).
+  aeron-ipc-sub-new :: Unit ->{IO, MVar} AeronIpcSub
+  aeron-ipc-sub-new _ =
+    let raw = engine-dma-alloc 4096 4096 in
+    if eq-u64 raw 0 then AeronIpcSub 0 0
+    else
+      let hdr = wrapping-u64-to-i64 raw in
+      let _0 = raw-store-i64 hdr 0 in
+      AeronIpcSub hdr 4096
+
+  -- | Release the DMA cursor page owned by `ipc-sub`.
+  aeron-ipc-sub-destroy :: AeronIpcSub ->{IO, MVar} Unit
+  aeron-ipc-sub-destroy ipc-sub =
+    if eq-i64 ipc-sub.ipc-hdr-addr 0 then ()
+    else
+      let _f = engine-dma-free (wrapping-i64-to-u64 ipc-sub.ipc-hdr-addr) ipc-sub.ipc-slab-bytes in
+      ()
+
+  -- | Publish a single-frame message (`<= mtu - 32`) directly into `pub`'s
+  -- 3-partition DMA term buffer and notify a co-located consumer lock-free over
+  -- `Engine.Ring.Disruptor` with zero UDP overhead.
+  aeron-ipc-publish :: AeronPublication -> Disruptor -> I64 -> U32 ->{MVar} I64
+  aeron-ipc-publish pub ring src-addr payload-len =
+    if na-not (aeron-pub-is-valid pub) then aeron-offer-closed
+    else
+      let hdr = pub.pub-hdr-addr in
+      if ne-u32 (raw-load-u32 (wrapping-add-i64 hdr pub-off-closed)) 0 then aeron-offer-closed
+      else
+        let mtu = raw-load-u32 (wrapping-add-i64 hdr pub-off-mtu) in
+        let max-pl = wrapping-sub-u32 mtu aeron-data-header-len in
+        if gt-u32 payload-len max-pl then aeron-offer-bad-length
+        else
+          -- Pre-check term flow-control limit before claiming a Disruptor slot
+          -- so we never leave an unpublished sequence or orphaned term claim.
+          let wire-len = wrapping-add-u32 aeron-data-header-len payload-len in
+          let aligned = aeron-align32 wire-len in
+          let tail-off = raw-load-u32 (wrapping-add-i64 hdr pub-off-tail-off) in
+          let rem = wrapping-sub-u32 pub.pub-term-length tail-off in
+          let need-pad = if gt-u32 aligned rem then rem else 0 in
+          let total-need = wrapping-add-u64 (u32-to-u64 need-pad) (u32-to-u64 aligned) in
+          let cur-pos = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-pos) in
+          let limit = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-limit) in
+          if gt-u64 (wrapping-add-u64 cur-pos total-need) limit then aeron-offer-back-pressured
+          else
+            let seq = disruptor-try-claim-seq ring in
+            if lt-i64 seq 0 then aeron-offer-back-pressured
+            else
+              let claim = aeron-pub-try-claim pub payload-len in
+              let _cp = if gt-u32 payload-len 0 then aeron-copy-dma claim.claim-payload-addr src-addr payload-len else () in
+              let _cm = aeron-pub-commit pub claim in
+              let slot = disruptor-slot-addr ring seq in
+              let sid = raw-load-u32 (wrapping-add-i64 hdr pub-off-session-id) in
+              let stid = raw-load-u32 (wrapping-add-i64 hdr pub-off-stream-id) in
+              -- Pack 64-byte MsgEnvelope directly in the Disruptor slot (zero heap alloc):
+              --   +0  kind = DATA (0x01), +8 seq = new-pos, +16 w0 = term-id, +24 w1 = term-off,
+              --   +32 w2 = payload-len, +40 w3 = frame-addr, +48 w4 = session-id, +56 w5 = stream-id
+              let _0 = raw-store-u32 slot (u16-to-u32 aeron-frame-type-data) in
+              let _1 = raw-store-u32 (wrapping-add-i64 slot 4) 0 in
+              let _2 = raw-store-u64 (wrapping-add-i64 slot 8) (wrapping-i64-to-u64 claim.claim-status) in
+              let _3 = raw-store-u64 (wrapping-add-i64 slot 16) (u32-to-u64 (wrapping-i32-to-u32 claim.claim-term-id)) in
+              let _4 = raw-store-u64 (wrapping-add-i64 slot 24) (u32-to-u64 claim.claim-term-offset) in
+              let _5 = raw-store-u64 (wrapping-add-i64 slot 32) (u32-to-u64 payload-len) in
+              let _6 = raw-store-u64 (wrapping-add-i64 slot 40) (wrapping-i64-to-u64 claim.claim-frame-addr) in
+              let _7 = raw-store-u64 (wrapping-add-i64 slot 48) (u32-to-u64 sid) in
+              let _8 = raw-store-u64 (wrapping-add-i64 slot 56) (u32-to-u64 stid) in
+              let _p = disruptor-publish-seq ring seq in
+              claim.claim-status
+
+  -- | Poll the next zero-copy message published through `aeron-ipc-publish`
+  -- over `Engine.Ring.Disruptor`, verifying CRC32C when enabled and advancing
+  -- the publication's flow-control window directly in shared memory.
+  aeron-ipc-poll :: AeronPublication -> Disruptor -> AeronIpcSub -> I64 -> U32 ->{MVar} AeronPollResult
+  aeron-ipc-poll pub ring ipc-sub out-buf out-cap =
+    if eq-i64 ipc-sub.ipc-hdr-addr 0 then AeronPollResult 0 0 0 0 0 0 0 0
+    else
+      let next-seq = raw-load-i64 ipc-sub.ipc-hdr-addr in
+      if not (disruptor-is-available ring next-seq) then AeronPollResult 0 0 0 0 0 0 0 0
+      else
+        let slot = disruptor-slot-addr ring next-seq in
+        let new-pos = raw-load-u64 (wrapping-add-i64 slot 8) in
+        let tid = wrapping-u32-to-i32 (wrapping-u64-to-u32 (raw-load-u64 (wrapping-add-i64 slot 16))) in
+        let toff = wrapping-u64-to-u32 (raw-load-u64 (wrapping-add-i64 slot 24)) in
+        let plen = wrapping-u64-to-u32 (raw-load-u64 (wrapping-add-i64 slot 32)) in
+        let frame-addr = wrapping-u64-to-i64 (raw-load-u64 (wrapping-add-i64 slot 40)) in
+        let wire-len = wrapping-add-u32 aeron-data-header-len plen in
+        let crc-ok = aeron-data-verify-crc frame-addr wire-len in
+        let payload-ptr = wrapping-add-i64 frame-addr 32 in
+        let copy-n = if lt-u32 plen out-cap then plen else out-cap in
+        let _cp = if crc-ok && ne-i64 out-buf 0 && gt-u32 copy-n 0 then aeron-copy-dma out-buf payload-ptr copy-n else () in
+        let dh = aeron-decode-data-header frame-addr in
+        let _cc = disruptor-commit-consumer ring next-seq in
+        let _ns = raw-store-i64 ipc-sub.ipc-hdr-addr (wrapping-add-i64 next-seq 1) in
+        -- Advance shared publication flow-control window directly
+        let _fc = (if aeron-pub-is-valid pub then
+            let hdr = pub.pub-hdr-addr in
+            let win = raw-load-u32 (wrapping-add-i64 hdr pub-off-def-win) in
+            let cand-lim = wrapping-add-u64 new-pos (u32-to-u64 win) in
+            let old-lim = raw-load-u64 (wrapping-add-i64 hdr pub-off-pub-limit) in
+            let _0 = raw-store-u64 (wrapping-add-i64 hdr pub-off-cons-pos) new-pos in
+            let _1 = raw-store-u32 (wrapping-add-i64 hdr pub-off-connected) 1 in
+            if gt-u64 cand-lim old-lim then raw-store-u64 (wrapping-add-i64 hdr pub-off-pub-limit) cand-lim else ()
+          else ()) in
+        if crc-ok then AeronPollResult plen 1 dh.data-flags 0 tid toff new-pos payload-ptr
+        else AeronPollResult 0 0 0 0 tid toff new-pos 0
