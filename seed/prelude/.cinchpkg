@@ -1347,6 +1347,14 @@
     {
       "name": "Engine.Types",
       "path": "Engine/Types.cinch"
+    },
+    {
+      "name": "Engine.Sim.Faults",
+      "path": "Engine/Sim/Faults.cinch"
+    },
+    {
+      "name": "Engine.Sim",
+      "path": "Engine/Sim.cinch"
     }
   ],
   "order": [
@@ -1685,6 +1693,8 @@
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
     "Prim.Sys.Io",
-    "Engine.Types"
+    "Engine.Types",
+    "Engine.Sim.Faults",
+    "Engine.Sim"
   ]
 }
