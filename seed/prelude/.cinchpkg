@@ -1563,6 +1563,18 @@
     {
       "name": "Net.Http.WebSocket.Hub",
       "path": "Net/Http/WebSocket/Hub.cinch"
+    },
+    {
+      "name": "Store.Wal.Format",
+      "path": "Store/Wal/Format.cinch"
+    },
+    {
+      "name": "Store.Wal.Engine",
+      "path": "Store/Wal/Engine.cinch"
+    },
+    {
+      "name": "Store.Wal.Spec",
+      "path": "Store/Wal/Spec.cinch"
     }
   ],
   "order": [
@@ -1955,6 +1967,9 @@
     "Net.Quic.Spec",
     "Net.Http.Static",
     "Net.Http.WebSocket.Frame",
-    "Net.Http.WebSocket.Hub"
+    "Net.Http.WebSocket.Hub",
+    "Store.Wal.Format",
+    "Store.Wal.Engine",
+    "Store.Wal.Spec"
   ]
 }
