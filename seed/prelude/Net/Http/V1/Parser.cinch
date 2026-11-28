@@ -1,0 +1,1253 @@
+-- | Zero-allocation (`#[no-alloc]`) incremental SIMD HTTP/1.1 request-line,
+-- header-block, chunked transfer-coding, and trailer parser compliant with
+-- RFC 9112 with strict anti-request-smuggling enforcement.
+--
+-- Built directly over `Engine.Simd.Scan` (`dma-find-crlf`, `dma-scan-http-token`,
+-- `dma-scan-field-value`, `dma-ascii-eq-nocase`, `Prim.SimdExt`) and
+-- `Net.Http.Types` (`HttpMethod`, `HttpVersion`, `KnownHeader`, `HeaderPair`,
+-- `RequestHead`, `known-header-match-dma`, `known-header-bit`) plus
+-- `Engine.Types.ByteSpan`.
+--
+-- Anti-smuggling guarantees enforced in a single zero-copy DMA pass:
+--   * Rejects any request carrying both `Transfer-Encoding` and `Content-Length`
+--     (`ErrSmugglingTeCl`, RFC 9112 §6.3).
+--   * Rejects duplicate `Content-Length` headers (`ErrDuplicateCl`), malformed
+--     or overflowing `Content-Length` (`ErrBadCl`), and comma-separated values.
+--   * Rejects `obs-fold` continuation lines starting with SP/HTAB (`ErrObsFold`).
+--   * Rejects whitespace between header field-name and `:` (`ErrSpaceBeforeColon`).
+--   * Rejects bare CR (`ErrBareCr`) and bare LF (`ErrBareLf`) in request lines,
+--     header lines, chunk-size lines, and trailers.
+--   * Rejects non-`tchar` bytes in method or header names, non-VCHAR bytes in
+--     request-target, and forbidden CTLs (including NUL and DEL) in field values.
+--   * Rejects invalid/obfuscated `Transfer-Encoding` (non-final `chunked`,
+--     duplicate `chunked`, unknown codings, empty values) (`ErrBadTe`).
+--   * Enforces exact single `Host` header for HTTP/1.1 (`ErrMissingHost` /
+--     `ErrDuplicateHost`) and fixed inline header cap (`h1-max-headers = 64`).
+--   * Supports pipelined requests via exact `rv-consumed` byte advancement and
+--     zero-copy incremental `H1NeedMore` resume without copying.
+module Net.Http.V1.Parser where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Wide
+  import Engine.Simd.Scan
+  import Engine.Types
+  import Net.Http.Types
+  import Prim.Atomic
+  import Prim.SimdExt
+
+  -- Parser limits & wire status codes
+  export h1-max-headers, h1-header-pair-stride, h1-max-method-len, h1-max-target-len
+  export h1-ok, h1-need-more
+  export h1-err-bad-method, h1-err-bad-target, h1-err-bad-version
+  export h1-err-bare-cr, h1-err-bare-lf, h1-err-obs-fold
+  export h1-err-space-before-colon, h1-err-bad-header-name, h1-err-bad-header-value
+  export h1-err-too-many-headers, h1-err-smuggling-te-cl, h1-err-duplicate-cl
+  export h1-err-bad-cl, h1-err-bad-te, h1-err-missing-host, h1-err-duplicate-host
+  export h1-err-bad-chunk-size, h1-err-bad-chunk-crlf, h1-err-bad-trailer
+
+  -- Auto-niched parse status enum & helpers
+  export H1ParseStatus, H1Ok, H1NeedMore
+  export ErrBadMethod, ErrBadTarget, ErrBadVersion, ErrBareCr, ErrBareLf
+  export ErrObsFold, ErrSpaceBeforeColon, ErrBadHeaderName, ErrBadHeaderValue
+  export ErrTooManyHeaders, ErrSmugglingTeCl, ErrDuplicateCl, ErrBadCl
+  export ErrBadTe, ErrMissingHost, ErrDuplicateHost
+  export ErrBadChunkSize, ErrBadChunkCrlf, ErrBadTrailer
+  export h1-status-to-u8, h1-status-from-u8, h1-status-eq
+  export h1-status-is-ok, h1-status-is-need-more, h1-status-is-error
+
+  -- Zero-copy POD RequestView, ChunkSizeResult, TrailersResult & DMA header storage
+  export RequestView, request-view-empty, request-view-err, request-view-to-head
+  export request-view-has-header, request-view-has-flag
+  export request-view-method-span, request-view-path-span, request-view-query-span
+  export request-view-header-at, request-view-header-name-span, request-view-header-value-span
+  export h1-store-header-pair, h1-load-header-pair
+  export ChunkSizeResult, chunk-size-result-err
+  export TrailersResult, trailers-result-err
+
+  -- Core #[no-alloc] DMA incremental SIMD parsers + Bytes convenience entry point
+  export h1-parse-request-dma, h1-parse-request-bytes
+  export h1-parse-chunk-size, h1-parse-chunk-crlf, h1-parse-trailers
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & byte helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  is-ows :: U8 -> Bool
+  is-ows b = either (eq-u8 b 32) (eq-u8 b 9)
+
+  #[inline(always)]
+  #[no-alloc]
+  is-vchar :: U8 -> Bool
+  is-vchar b = both (ge-u8 b 33) (le-u8 b 126)
+
+  #[inline(always)]
+  #[no-alloc]
+  ascii-lower :: U8 -> U8
+  ascii-lower b =
+    if lt-u8 (wrapping-sub-u8 b 65) 26 then bit-or-u8 b 32 else b
+
+  #[inline(always)]
+  #[no-alloc]
+  load-u8-at :: I64 -> U32 ->{MVar} U8
+  load-u8-at base off = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  -- =========================================================================
+  -- 1. Constants & Parse Status / Error Vocabulary
+  -- =========================================================================
+
+  -- | Maximum inline headers accepted per HTTP/1.1 request head.
+  #[no-alloc]
+  h1-max-headers :: U32
+  h1-max-headers = 64
+
+  -- | Exact byte stride of one packed `HeaderPair` in DMA storage.
+  #[no-alloc]
+  h1-header-pair-stride :: U32
+  h1-header-pair-stride = 20
+
+  -- | Maximum accepted HTTP method token length in bytes.
+  #[no-alloc]
+  h1-max-method-len :: U32
+  h1-max-method-len = 32
+
+  -- | Maximum accepted HTTP request-target length in bytes.
+  #[no-alloc]
+  h1-max-target-len :: U32
+  h1-max-target-len = 8192
+
+  #[no-alloc]
+  h1-ok :: U8
+  h1-ok = 0
+
+  #[no-alloc]
+  h1-need-more :: U8
+  h1-need-more = 1
+
+  #[no-alloc]
+  h1-err-bad-method :: U8
+  h1-err-bad-method = 2
+
+  #[no-alloc]
+  h1-err-bad-target :: U8
+  h1-err-bad-target = 3
+
+  #[no-alloc]
+  h1-err-bad-version :: U8
+  h1-err-bad-version = 4
+
+  #[no-alloc]
+  h1-err-bare-cr :: U8
+  h1-err-bare-cr = 5
+
+  #[no-alloc]
+  h1-err-bare-lf :: U8
+  h1-err-bare-lf = 6
+
+  #[no-alloc]
+  h1-err-obs-fold :: U8
+  h1-err-obs-fold = 7
+
+  #[no-alloc]
+  h1-err-space-before-colon :: U8
+  h1-err-space-before-colon = 8
+
+  #[no-alloc]
+  h1-err-bad-header-name :: U8
+  h1-err-bad-header-name = 9
+
+  #[no-alloc]
+  h1-err-bad-header-value :: U8
+  h1-err-bad-header-value = 10
+
+  #[no-alloc]
+  h1-err-too-many-headers :: U8
+  h1-err-too-many-headers = 11
+
+  #[no-alloc]
+  h1-err-smuggling-te-cl :: U8
+  h1-err-smuggling-te-cl = 12
+
+  #[no-alloc]
+  h1-err-duplicate-cl :: U8
+  h1-err-duplicate-cl = 13
+
+  #[no-alloc]
+  h1-err-bad-cl :: U8
+  h1-err-bad-cl = 14
+
+  #[no-alloc]
+  h1-err-bad-te :: U8
+  h1-err-bad-te = 15
+
+  #[no-alloc]
+  h1-err-missing-host :: U8
+  h1-err-missing-host = 16
+
+  #[no-alloc]
+  h1-err-duplicate-host :: U8
+  h1-err-duplicate-host = 17
+
+  #[no-alloc]
+  h1-err-bad-chunk-size :: U8
+  h1-err-bad-chunk-size = 18
+
+  #[no-alloc]
+  h1-err-bad-chunk-crlf :: U8
+  h1-err-bad-chunk-crlf = 19
+
+  #[no-alloc]
+  h1-err-bad-trailer :: U8
+  h1-err-bad-trailer = 20
+
+  -- | Canonical HTTP/1.1 parse outcome and RFC 9112 error vocabulary
+  -- (auto-niched single-word enum).
+  data H1ParseStatus where
+    H1Ok :: H1ParseStatus
+    H1NeedMore :: H1ParseStatus
+    ErrBadMethod :: H1ParseStatus
+    ErrBadTarget :: H1ParseStatus
+    ErrBadVersion :: H1ParseStatus
+    ErrBareCr :: H1ParseStatus
+    ErrBareLf :: H1ParseStatus
+    ErrObsFold :: H1ParseStatus
+    ErrSpaceBeforeColon :: H1ParseStatus
+    ErrBadHeaderName :: H1ParseStatus
+    ErrBadHeaderValue :: H1ParseStatus
+    ErrTooManyHeaders :: H1ParseStatus
+    ErrSmugglingTeCl :: H1ParseStatus
+    ErrDuplicateCl :: H1ParseStatus
+    ErrBadCl :: H1ParseStatus
+    ErrBadTe :: H1ParseStatus
+    ErrMissingHost :: H1ParseStatus
+    ErrDuplicateHost :: H1ParseStatus
+    ErrBadChunkSize :: H1ParseStatus
+    ErrBadChunkCrlf :: H1ParseStatus
+    ErrBadTrailer :: H1ParseStatus
+
+  #[no-alloc]
+  h1-status-to-u8 :: H1ParseStatus -> U8
+  h1-status-to-u8 st = case st of
+    H1Ok -> h1-ok
+    H1NeedMore -> h1-need-more
+    ErrBadMethod -> h1-err-bad-method
+    ErrBadTarget -> h1-err-bad-target
+    ErrBadVersion -> h1-err-bad-version
+    ErrBareCr -> h1-err-bare-cr
+    ErrBareLf -> h1-err-bare-lf
+    ErrObsFold -> h1-err-obs-fold
+    ErrSpaceBeforeColon -> h1-err-space-before-colon
+    ErrBadHeaderName -> h1-err-bad-header-name
+    ErrBadHeaderValue -> h1-err-bad-header-value
+    ErrTooManyHeaders -> h1-err-too-many-headers
+    ErrSmugglingTeCl -> h1-err-smuggling-te-cl
+    ErrDuplicateCl -> h1-err-duplicate-cl
+    ErrBadCl -> h1-err-bad-cl
+    ErrBadTe -> h1-err-bad-te
+    ErrMissingHost -> h1-err-missing-host
+    ErrDuplicateHost -> h1-err-duplicate-host
+    ErrBadChunkSize -> h1-err-bad-chunk-size
+    ErrBadChunkCrlf -> h1-err-bad-chunk-crlf
+    ErrBadTrailer -> h1-err-bad-trailer
+
+  h1-status-from-u8 :: U8 -> H1ParseStatus
+  h1-status-from-u8 c =
+    if eq-u8 c 0 then H1Ok
+    else if eq-u8 c 1 then H1NeedMore
+    else if eq-u8 c 2 then ErrBadMethod
+    else if eq-u8 c 3 then ErrBadTarget
+    else if eq-u8 c 4 then ErrBadVersion
+    else if eq-u8 c 5 then ErrBareCr
+    else if eq-u8 c 6 then ErrBareLf
+    else if eq-u8 c 7 then ErrObsFold
+    else if eq-u8 c 8 then ErrSpaceBeforeColon
+    else if eq-u8 c 9 then ErrBadHeaderName
+    else if eq-u8 c 10 then ErrBadHeaderValue
+    else if eq-u8 c 11 then ErrTooManyHeaders
+    else if eq-u8 c 12 then ErrSmugglingTeCl
+    else if eq-u8 c 13 then ErrDuplicateCl
+    else if eq-u8 c 14 then ErrBadCl
+    else if eq-u8 c 15 then ErrBadTe
+    else if eq-u8 c 16 then ErrMissingHost
+    else if eq-u8 c 17 then ErrDuplicateHost
+    else if eq-u8 c 18 then ErrBadChunkSize
+    else if eq-u8 c 19 then ErrBadChunkCrlf
+    else ErrBadTrailer
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-status-eq :: H1ParseStatus -> H1ParseStatus -> Bool
+  h1-status-eq a b = eq-u8 (h1-status-to-u8 a) (h1-status-to-u8 b)
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-status-is-ok :: U8 -> Bool
+  h1-status-is-ok c = eq-u8 c h1-ok
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-status-is-need-more :: U8 -> Bool
+  h1-status-is-need-more c = eq-u8 c h1-need-more
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-status-is-error :: U8 -> Bool
+  h1-status-is-error c = ge-u8 c h1-err-bad-method
+
+  -- =========================================================================
+  -- 2. Zero-Copy POD Result Records & DMA HeaderPair Array Helpers
+  -- =========================================================================
+
+  -- | Zero-copy POD view of a parsed HTTP/1.1 request head referencing offsets
+  -- directly inside the caller's DMA receive buffer.
+  #[repr(C, value)]
+  record RequestView where
+    rv-status :: U8
+    rv-method :: U8
+    rv-version :: U8
+    rv-pad0 :: U8
+    rv-header-count :: U16
+    rv-pad1 :: U16
+    rv-flags :: U32
+    rv-buf-id :: U32
+    rv-consumed :: U32
+    rv-method-off :: U32
+    rv-method-len :: U32
+    rv-path-off :: U32
+    rv-path-len :: U32
+    rv-query-off :: U32
+    rv-query-len :: U32
+    rv-body-off :: U32
+    rv-body-len :: U64
+    rv-known-mask :: U64
+    rv-headers-addr :: I64
+
+  #[inline(always)]
+  #[no-alloc]
+  request-view-empty :: Unit -> RequestView
+  request-view-empty _ = RequestView h1-need-more 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  request-view-err :: U8 -> RequestView
+  request-view-err code = RequestView code 0 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+  -- | Project a `RequestView` into the canonical 48-byte `Net.Http.Types.RequestHead`.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-to-head :: RequestView -> RequestHead
+  request-view-to-head rv =
+    RequestHead
+      rv.rv-method
+      rv.rv-version
+      rv.rv-header-count
+      rv.rv-flags
+      rv.rv-path-off
+      rv.rv-path-len
+      rv.rv-query-off
+      rv.rv-query-len
+      rv.rv-body-off
+      rv.rv-body-len
+      rv.rv-known-mask
+
+  -- | O(1) 1-instruction `KnownHeader` presence test on `RequestView`.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-has-header :: RequestView -> U8 -> Bool
+  request-view-has-header rv hdr =
+    ne-u64 (bit-and-u64 rv.rv-known-mask (known-header-bit hdr)) 0
+
+  -- | O(1) 1-instruction request flag test (`req-flag-*`) on `RequestView`.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-has-flag :: RequestView -> U32 -> Bool
+  request-view-has-flag rv fl =
+    ne-u32 (bit-and-u32 rv.rv-flags fl) 0
+
+  -- | Zero-copy `ByteSpan` for the parsed method slice in the DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-method-span :: RequestView -> ByteSpan
+  request-view-method-span rv = byte-span-make rv.rv-buf-id rv.rv-method-off rv.rv-method-len 0
+
+  -- | Zero-copy `ByteSpan` for the parsed path slice in the DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-path-span :: RequestView -> ByteSpan
+  request-view-path-span rv = byte-span-make rv.rv-buf-id rv.rv-path-off rv.rv-path-len 0
+
+  -- | Zero-copy `ByteSpan` for the parsed query slice (excluding `?`).
+  #[inline(always)]
+  #[no-alloc]
+  request-view-query-span :: RequestView -> ByteSpan
+  request-view-query-span rv = byte-span-make rv.rv-buf-id rv.rv-query-off rv.rv-query-len 0
+
+  -- | Store one 20-byte `HeaderPair` at slot `idx` of a DMA header array.
+  #[inline(always)]
+  #[no-alloc]
+  h1-store-header-pair :: I64 -> U32 -> HeaderPair ->{MVar} Unit
+  h1-store-header-pair hdrs-addr idx hp =
+    let off = wrapping-mul-u32 idx h1-header-pair-stride in
+    let p = wrapping-add-i64 hdrs-addr (u32-to-i64 off) in
+    let _0 = raw-store-u32 p (u8-to-u32 hp.hp-known) in
+    let _1 = raw-store-u32 (wrapping-add-i64 p 4) hp.hp-name-off in
+    let _2 = raw-store-u32 (wrapping-add-i64 p 8) hp.hp-name-len in
+    let _3 = raw-store-u32 (wrapping-add-i64 p 12) hp.hp-val-off in
+    raw-store-u32 (wrapping-add-i64 p 16) hp.hp-val-len
+
+  -- | Load one 20-byte `HeaderPair` from slot `idx` of a DMA header array.
+  #[inline(always)]
+  #[no-alloc]
+  h1-load-header-pair :: I64 -> U32 ->{MVar} HeaderPair
+  h1-load-header-pair hdrs-addr idx =
+    let off = wrapping-mul-u32 idx h1-header-pair-stride in
+    let p = wrapping-add-i64 hdrs-addr (u32-to-i64 off) in
+    let known = wrapping-u32-to-u8 (raw-load-u32 p) in
+    let noff = raw-load-u32 (wrapping-add-i64 p 4) in
+    let nlen = raw-load-u32 (wrapping-add-i64 p 8) in
+    let voff = raw-load-u32 (wrapping-add-i64 p 12) in
+    let vlen = raw-load-u32 (wrapping-add-i64 p 16) in
+    header-pair-make known noff nlen voff vlen
+
+  -- | Read header `idx` from `rv`'s DMA header array, or `header-pair-empty ()` if out of bounds.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-header-at :: RequestView -> U16 ->{MVar} HeaderPair
+  request-view-header-at rv idx =
+    if either (eq-i64 rv.rv-headers-addr 0) (ge-u16 idx rv.rv-header-count) then
+      header-pair-empty ()
+    else
+      h1-load-header-pair rv.rv-headers-addr (u16-to-u32 idx)
+
+  -- | Zero-copy `ByteSpan` for a header's name slice inside `rv`'s DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-header-name-span :: RequestView -> HeaderPair -> ByteSpan
+  request-view-header-name-span rv hp =
+    byte-span-make rv.rv-buf-id hp.hp-name-off hp.hp-name-len 0
+
+  -- | Zero-copy `ByteSpan` for a header's value slice inside `rv`'s DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  request-view-header-value-span :: RequestView -> HeaderPair -> ByteSpan
+  request-view-header-value-span rv hp =
+    byte-span-make rv.rv-buf-id hp.hp-val-off hp.hp-val-len 0
+
+  -- | Result of parsing an HTTP/1.1 chunked transfer-coding size line (16-byte register-fit POD).
+  #[repr(C, value)]
+  record ChunkSizeResult where
+    cs-status :: U8
+    cs-consumed :: U32
+    cs-size :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  chunk-size-result-err :: U8 -> ChunkSizeResult
+  chunk-size-result-err code = ChunkSizeResult code 0 0
+
+  -- | Result of parsing an HTTP/1.1 chunked trailer block (16-byte register-fit POD).
+  #[repr(C, value)]
+  record TrailersResult where
+    tr-status :: U8
+    tr-count :: U16
+    tr-consumed :: U32
+    tr-reserved :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  trailers-result-err :: U8 -> TrailersResult
+  trailers-result-err code = TrailersResult code 0 0 0
+
+  -- =========================================================================
+  -- 3. Internal SIMD Target Scanner, Method & Version Matchers (#[no-alloc])
+  -- =========================================================================
+
+  -- | 16-bit mask where bit `k` is 1 iff byte `k` is NOT an RFC 9112 VCHAR (`0x21..0x7E`).
+  #[inline(always)]
+  #[no-alloc]
+  simd-mask-target-invalid :: U128 -> U32
+  simd-mask-target-invalid chunk =
+    let lt33 = simd-u8x16-cmplt chunk (simd-u8x16-splat 33) in
+    let ge127 = simd-u8x16-not (simd-u8x16-cmplt chunk (simd-u8x16-splat 127)) in
+    simd-u8x16-movemask (simd-u8x16-or lt33 ge127)
+
+  #[no-alloc]
+  dma-scan-target-tail :: I64 -> U32 -> U32 ->{MVar} U32
+  dma-scan-target-tail base pos end =
+    if lt-u32 pos end then
+      let ch = load-u8-at base pos in
+      if is-vchar ch then dma-scan-target-tail base (wrapping-add-u32 pos 1) end
+      else pos
+    else end
+
+  #[no-alloc]
+  dma-scan-target :: I64 -> U32 -> U32 ->{MVar} U32
+  dma-scan-target base pos end =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 16 then
+      let chunk = raw-load-u128 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let bad = simd-mask-target-invalid chunk in
+      if eq-u32 bad 0 then dma-scan-target base (wrapping-add-u32 pos 16) end
+      else wrapping-add-u32 pos (trailing-zeros-u32 bad)
+    else dma-scan-target-tail base pos end
+
+  -- | Exact case-sensitive RFC 9110 method matcher in DMA memory.
+  #[no-alloc]
+  match-method-dma :: I64 -> U32 -> U32 ->{MVar} U8
+  match-method-dma base off len =
+    let p = wrapping-add-i64 base (u32-to-i64 off) in
+    if eq-u32 len 3 then
+      let b0 = raw-load-u8 p in
+      let b1 = raw-load-u8 (wrapping-add-i64 p 1) in
+      let b2 = raw-load-u8 (wrapping-add-i64 p 2) in
+      if both (eq-u8 b0 71) (both (eq-u8 b1 69) (eq-u8 b2 84)) then method-code-get      -- GET
+      else if both (eq-u8 b0 80) (both (eq-u8 b1 85) (eq-u8 b2 84)) then method-code-put -- PUT
+      else method-code-custom
+    else if eq-u32 len 4 then
+      let w = raw-load-u32 p in
+      if eq-u32 w (pack-le4 80 79 83 84) then method-code-post                           -- POST
+      else if eq-u32 w (pack-le4 72 69 65 68) then method-code-head                      -- HEAD
+      else method-code-custom
+    else if eq-u32 len 5 then
+      let w = raw-load-u32 p in
+      let b4 = raw-load-u8 (wrapping-add-i64 p 4) in
+      if both (eq-u32 w (pack-le4 80 65 84 67)) (eq-u8 b4 72) then method-code-patch     -- PATCH
+      else if both (eq-u32 w (pack-le4 84 82 65 67)) (eq-u8 b4 69) then method-code-trace -- TRACE
+      else method-code-custom
+    else if eq-u32 len 6 then
+      let w0 = raw-load-u32 p in
+      let b4 = raw-load-u8 (wrapping-add-i64 p 4) in
+      let b5 = raw-load-u8 (wrapping-add-i64 p 5) in
+      if both (eq-u32 w0 (pack-le4 68 69 76 69)) (both (eq-u8 b4 84) (eq-u8 b5 69)) then method-code-delete -- DELETE
+      else method-code-custom
+    else if eq-u32 len 7 then
+      let w0 = raw-load-u32 p in
+      let w1 = raw-load-u32 (wrapping-add-i64 p 3) in
+      if both (eq-u32 w0 (pack-le4 79 80 84 73)) (eq-u32 w1 (pack-le4 73 79 78 83)) then method-code-options -- OPTIONS
+      else if both (eq-u32 w0 (pack-le4 67 79 78 78)) (eq-u32 w1 (pack-le4 78 69 67 84)) then method-code-connect -- CONNECT
+      else method-code-custom
+    else method-code-custom
+
+  -- | Validate partial prefix of `"HTTP/1.[01]\r\n"` when `< 10` bytes remain
+  -- so malformed versions or bare LF/CR fail immediately without waiting.
+  #[no-alloc]
+  check-version-prefix :: I64 -> U32 -> U32 -> U32 ->{MVar} U8
+  check-version-prefix base v-start end idx =
+    let pos = wrapping-add-u32 v-start idx in
+    if ge-u32 pos end then h1-need-more
+    else
+      let ch = load-u8-at base pos in
+      if eq-u32 idx 0 then
+        if eq-u8 ch 72 then check-version-prefix base v-start end 1 else h1-err-bad-version
+      else if eq-u32 idx 1 then
+        if eq-u8 ch 84 then check-version-prefix base v-start end 2 else h1-err-bad-version
+      else if eq-u32 idx 2 then
+        if eq-u8 ch 84 then check-version-prefix base v-start end 3 else h1-err-bad-version
+      else if eq-u32 idx 3 then
+        if eq-u8 ch 80 then check-version-prefix base v-start end 4 else h1-err-bad-version
+      else if eq-u32 idx 4 then
+        if eq-u8 ch 47 then check-version-prefix base v-start end 5 else h1-err-bad-version
+      else if eq-u32 idx 5 then
+        if eq-u8 ch 49 then check-version-prefix base v-start end 6 else h1-err-bad-version
+      else if eq-u32 idx 6 then
+        if eq-u8 ch 46 then check-version-prefix base v-start end 7 else h1-err-bad-version
+      else if eq-u32 idx 7 then
+        if either (eq-u8 ch 49) (eq-u8 ch 48) then check-version-prefix base v-start end 8
+        else h1-err-bad-version
+      else if eq-u32 idx 8 then
+        if eq-u8 ch 13 then check-version-prefix base v-start end 9
+        else if eq-u8 ch 10 then h1-err-bare-lf
+        else h1-err-bad-version
+      else
+        if eq-u8 ch 10 then h1-ok else h1-err-bare-cr
+
+  -- =========================================================================
+  -- 4. Semantic Header Value Parsers (CL, TE, Connection, Expect, Host)
+  -- =========================================================================
+
+  #[no-alloc]
+  skip-ows-fwd :: I64 -> U32 -> U32 ->{MVar} U32
+  skip-ows-fwd base pos end =
+    if lt-u32 pos end then
+      if is-ows (load-u8-at base pos) then skip-ows-fwd base (wrapping-add-u32 pos 1) end
+      else pos
+    else end
+
+  #[no-alloc]
+  trim-ows-back :: I64 -> U32 -> U32 ->{MVar} U32
+  trim-ows-back base start pos =
+    if gt-u32 pos start then
+      let prev = wrapping-sub-u32 pos 1 in
+      if is-ows (load-u8-at base prev) then trim-ows-back base start prev
+      else pos
+    else start
+
+  -- | Cold error classifier after `dma-scan-field-value` returns `-2`:
+  -- distinguishes bare `\n` (`ErrBareLf`) from other illegal CTLs (`ErrBadHeaderValue`).
+  #[no-alloc]
+  classify-fv-error :: I64 -> U32 -> U32 ->{MVar} U8
+  classify-fv-error base pos end =
+    if ge-u32 pos end then h1-err-bad-header-value
+    else
+      let ch = load-u8-at base pos in
+      if eq-u8 ch 10 then h1-err-bare-lf
+      else if eq-u8 ch 127 then h1-err-bad-header-value
+      else if both (lt-u8 ch 32) (both (ne-u8 ch 9) (ne-u8 ch 13)) then h1-err-bad-header-value
+      else classify-fv-error base (wrapping-add-u32 pos 1) end
+
+  -- | Strict `Content-Length` decimal parser with overflow check.
+  -- Returns `(status, value)` packed in a small POD record.
+  #[repr(C, value)]
+  record ClParseRes where
+    clp-ok :: U8
+    clp-pad0 :: U8
+    clp-pad1 :: U16
+    clp-pad2 :: U32
+    clp-val :: U64
+
+  #[no-alloc]
+  parse-cl-loop :: I64 -> U32 -> U32 -> U64 ->{MVar} ClParseRes
+  parse-cl-loop base pos end acc =
+    if ge-u32 pos end then ClParseRes 1 0 0 0 acc
+    else
+      let ch = load-u8-at base pos in
+      let d = wrapping-sub-u8 ch 48 in
+      if gt-u8 d 9 then ClParseRes 0 0 0 0 0
+      else
+        let d64 = u8-to-u64 d in
+        -- U64 max = 18446744073709551615 => limit before *10 is 1844674407370955161, last digit <= 5.
+        if gt-u64 acc 1844674407370955161 then ClParseRes 0 0 0 0 0
+        else if both (eq-u64 acc 1844674407370955161) (gt-u64 d64 5) then ClParseRes 0 0 0 0 0
+        else
+          let next-acc = wrapping-add-u64 (wrapping-mul-u64 acc 10) d64 in
+          parse-cl-loop base (wrapping-add-u32 pos 1) end next-acc
+
+  #[no-alloc]
+  parse-content-length :: I64 -> U32 -> U32 ->{MVar} ClParseRes
+  parse-content-length base start end =
+    if ge-u32 start end then ClParseRes 0 0 0 0 0
+    else parse-cl-loop base start end 0
+
+  -- | Case-insensitive ASCII byte comparison against short literals (zero-alloc).
+  #[inline(always)]
+  #[no-alloc]
+  eq-ci1 :: I64 -> U32 -> U8 ->{MVar} Bool
+  eq-ci1 base off c0 = eq-u8 (ascii-lower (load-u8-at base off)) c0
+
+  #[inline(always)]
+  #[no-alloc]
+  eq-ci4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  eq-ci4 base off c0 c1 c2 c3 =
+    both
+      (both (eq-ci1 base off c0) (eq-ci1 base (wrapping-add-u32 off 1) c1))
+      (both (eq-ci1 base (wrapping-add-u32 off 2) c2) (eq-ci1 base (wrapping-add-u32 off 3) c3))
+
+  #[no-alloc]
+  is-tok-chunked :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-tok-chunked base off len =
+    if ne-u32 len 7 then b-false
+    else
+      both
+        (eq-ci4 base off 99 104 117 110) -- "chun"
+        (both (eq-ci1 base (wrapping-add-u32 off 4) 107)
+          (both (eq-ci1 base (wrapping-add-u32 off 5) 101) (eq-ci1 base (wrapping-add-u32 off 6) 100))) -- "ked"
+
+  #[no-alloc]
+  is-tok-known-te-non-chunked :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-tok-known-te-non-chunked base off len =
+    if eq-u32 len 4 then
+      eq-ci4 base off 103 122 105 112 -- "gzip"
+    else if eq-u32 len 6 then
+      both (eq-ci4 base off 120 45 103 122) (both (eq-ci1 base (wrapping-add-u32 off 4) 105) (eq-ci1 base (wrapping-add-u32 off 5) 112)) -- "x-gzip"
+    else if eq-u32 len 7 then
+      both (eq-ci4 base off 100 101 102 108) (both (eq-ci1 base (wrapping-add-u32 off 4) 97) (both (eq-ci1 base (wrapping-add-u32 off 5) 116) (eq-ci1 base (wrapping-add-u32 off 6) 101))) -- "deflate"
+    else if eq-u32 len 8 then
+      both (eq-ci4 base off 99 111 109 112) (eq-ci4 base (wrapping-add-u32 off 4) 114 101 115 115) -- "compress"
+    else b-false
+
+  -- | Parse comma-separated `Transfer-Encoding` value into 4-state automaton:
+  --   0 = none, 1 = non-chunked coding(s) only, 2 = final `chunked`, 3 = invalid.
+  #[no-alloc]
+  parse-te-list :: I64 -> U32 -> U32 -> U8 ->{MVar} U8
+  parse-te-list base pos end st =
+    if eq-u8 st 3 then 3
+    else
+      let t-start = skip-ows-fwd base pos end in
+      if ge-u32 t-start end then 3 -- empty list or trailing comma
+      else
+        let comma = dma-find-byte base t-start end 44 in
+        let seg-end = if ge-i32 comma 0 then wrapping-i32-to-u32 comma else end in
+        let t-end = trim-ows-back base t-start seg-end in
+        let t-len = wrapping-sub-u32 t-end t-start in
+        if eq-u32 t-len 0 then 3
+        else
+          let next-st = (
+            if is-tok-chunked base t-start t-len then
+              if eq-u8 st 2 then 3 else 2
+            else if is-tok-known-te-non-chunked base t-start t-len then
+              if eq-u8 st 2 then 3 else 1
+            else 3) in
+          if eq-u8 next-st 3 then 3
+          else if ge-i32 comma 0 then
+            parse-te-list base (wrapping-add-u32 seg-end 1) end next-st
+          else next-st
+
+  #[no-alloc]
+  is-tok-close :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-tok-close base off len =
+    if ne-u32 len 5 then b-false
+    else both (eq-ci4 base off 99 108 111 115) (eq-ci1 base (wrapping-add-u32 off 4) 101)
+
+  #[no-alloc]
+  is-tok-keep-alive :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-tok-keep-alive base off len =
+    if ne-u32 len 10 then b-false
+    else
+      both
+        (both (eq-ci4 base off 107 101 101 112) (eq-ci4 base (wrapping-add-u32 off 4) 45 97 108 105))
+        (both (eq-ci1 base (wrapping-add-u32 off 8) 118) (eq-ci1 base (wrapping-add-u32 off 9) 101))
+
+  #[no-alloc]
+  is-tok-upgrade :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-tok-upgrade base off len =
+    if ne-u32 len 7 then b-false
+    else
+      both
+        (eq-ci4 base off 117 112 103 114)
+        (both (eq-ci1 base (wrapping-add-u32 off 4) 97)
+          (both (eq-ci1 base (wrapping-add-u32 off 5) 100) (eq-ci1 base (wrapping-add-u32 off 6) 101)))
+
+  -- | Parse comma-separated `Connection` tokens into bitmask:
+  --   bit 0 = close, bit 1 = keep-alive, bit 2 = upgrade.
+  #[no-alloc]
+  parse-connection-list :: I64 -> U32 -> U32 -> U8 ->{MVar} U8
+  parse-connection-list base pos end flags =
+    let t-start = skip-ows-fwd base pos end in
+    if ge-u32 t-start end then flags
+    else
+      let comma = dma-find-byte base t-start end 44 in
+      let seg-end = if ge-i32 comma 0 then wrapping-i32-to-u32 comma else end in
+      let t-end = trim-ows-back base t-start seg-end in
+      let t-len = wrapping-sub-u32 t-end t-start in
+      let f1 = if is-tok-close base t-start t-len then bit-or-u8 flags 1 else flags in
+      let f2 = if is-tok-keep-alive base t-start t-len then bit-or-u8 f1 2 else f1 in
+      let f3 = if is-tok-upgrade base t-start t-len then bit-or-u8 f2 4 else f2 in
+      if ge-i32 comma 0 then
+        parse-connection-list base (wrapping-add-u32 seg-end 1) end f3
+      else f3
+
+  -- | Check `Expect: 100-continue` (exact ASCII case-insensitive match).
+  #[no-alloc]
+  is-expect-continue :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-expect-continue base off len =
+    if ne-u32 len 12 then b-false
+    else
+      both
+        (both (eq-ci4 base off 49 48 48 45) (eq-ci4 base (wrapping-add-u32 off 4) 99 111 110 116))
+        (eq-ci4 base (wrapping-add-u32 off 8) 105 110 117 101)
+
+  -- | Verify `Host` value contains no internal whitespace (rejects `Host: a b`).
+  #[no-alloc]
+  host-val-has-no-ws :: I64 -> U32 -> U32 ->{MVar} Bool
+  host-val-has-no-ws base pos end =
+    if ge-u32 pos end then b-true
+    else
+      let ch = load-u8-at base pos in
+      if is-ows ch then b-false
+      else host-val-has-no-ws base (wrapping-add-u32 pos 1) end
+
+  -- =========================================================================
+  -- 5. Header Block Loop (#[no-alloc])
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record HeaderScanAcc where
+    hsa-status :: U8
+    hsa-te-state :: U8
+    hsa-conn-flags :: U8
+    hsa-extra-flags :: U8   -- bit 0: has-cl, bit 1: expect-100, bit 2: has-upgrade-hdr
+    hsa-host-count :: U16
+    hsa-hdr-count :: U16
+    hsa-end-pos :: U32
+    hsa-pad :: U32
+    hsa-cl-val :: U64
+    hsa-known-mask :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  hsa-err :: U8 -> HeaderScanAcc
+  hsa-err code = HeaderScanAcc code 0 0 0 0 0 0 0 0 0
+
+  #[no-alloc]
+  parse-headers-loop :: I64 -> U32 -> U32 -> I64 -> HeaderScanAcc ->{MVar} HeaderScanAcc
+  parse-headers-loop base pos end hdrs-out acc =
+    if ge-u32 pos end then hsa-err h1-need-more
+    else
+      let c0 = load-u8-at base pos in
+      if eq-u8 c0 13 then
+        let next = wrapping-add-u32 pos 1 in
+        if ge-u32 next end then hsa-err h1-need-more
+        else if eq-u8 (load-u8-at base next) 10 then
+          HeaderScanAcc
+            h1-ok
+            acc.hsa-te-state
+            acc.hsa-conn-flags
+            acc.hsa-extra-flags
+            acc.hsa-host-count
+            acc.hsa-hdr-count
+            (wrapping-add-u32 pos 2)
+            0
+            acc.hsa-cl-val
+            acc.hsa-known-mask
+        else hsa-err h1-err-bare-cr
+      else if eq-u8 c0 10 then
+        hsa-err h1-err-bare-lf
+      else if is-ows c0 then
+        -- RFC 9112 §5.2: obs-fold is strictly forbidden.
+        hsa-err h1-err-obs-fold
+      else
+        let n-end = dma-scan-http-token base pos end in
+        if ge-u32 n-end end then hsa-err h1-need-more
+        else if eq-u32 n-end pos then hsa-err h1-err-bad-header-name
+        else
+          let sep = load-u8-at base n-end in
+          if is-ows sep then
+            -- RFC 9112 §5.1: no whitespace allowed between field-name and ':'.
+            hsa-err h1-err-space-before-colon
+          else if eq-u8 sep 10 then
+            hsa-err h1-err-bare-lf
+          else if eq-u8 sep 13 then
+            let n1 = wrapping-add-u32 n-end 1 in
+            if lt-u32 n1 end then
+              if ne-u8 (load-u8-at base n1) 10 then hsa-err h1-err-bare-cr
+              else hsa-err h1-err-bad-header-name
+            else hsa-err h1-err-bad-header-name
+          else if ne-u8 sep 58 then
+            hsa-err h1-err-bad-header-name
+          else
+            let name-len = wrapping-sub-u32 n-end pos in
+            let after-colon = wrapping-add-u32 n-end 1 in
+            let val-start = skip-ows-fwd base after-colon end in
+            if ge-u32 val-start end then hsa-err h1-need-more
+            else
+              let fv-res = dma-scan-field-value base val-start end in
+              if eq-i32 fv-res -1 then hsa-err h1-need-more
+              else if eq-i32 fv-res -2 then
+                hsa-err (classify-fv-error base val-start end)
+              else
+                let cr-pos = wrapping-i32-to-u32 fv-res in
+                let lf-pos = wrapping-add-u32 cr-pos 1 in
+                if ge-u32 lf-pos end then hsa-err h1-need-more
+                else if ne-u8 (load-u8-at base lf-pos) 10 then hsa-err h1-err-bare-cr
+                else
+                  let cur-cnt = u16-to-u32 acc.hsa-hdr-count in
+                  if ge-u32 cur-cnt h1-max-headers then hsa-err h1-err-too-many-headers
+                  else
+                    let val-end = trim-ows-back base val-start cr-pos in
+                    let val-len = wrapping-sub-u32 val-end val-start in
+                    let known = known-header-match-dma (wrapping-add-i64 base (u32-to-i64 pos)) name-len in
+                    let _st = (
+                      if ne-i64 hdrs-out 0 then
+                        h1-store-header-pair hdrs-out cur-cnt (header-pair-make known pos name-len val-start val-len)
+                      else ()) in
+                    let next-mask = (
+                      if ne-u8 known hdr-unknown then
+                        bit-or-u64 acc.hsa-known-mask (known-header-bit known)
+                      else acc.hsa-known-mask) in
+                    let next-pos = wrapping-add-u32 cr-pos 2 in
+                    let next-cnt = wrapping-add-u16 acc.hsa-hdr-count 1 in
+                    if eq-u8 known hdr-content-length then
+                      if ne-u8 acc.hsa-te-state 0 then hsa-err h1-err-smuggling-te-cl
+                      else if ne-u8 (bit-and-u8 acc.hsa-extra-flags 1) 0 then hsa-err h1-err-duplicate-cl
+                      else
+                        let cl = parse-content-length base val-start val-end in
+                        if eq-u8 cl.clp-ok 0 then hsa-err h1-err-bad-cl
+                        else
+                          parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                            h1-ok acc.hsa-te-state acc.hsa-conn-flags (bit-or-u8 acc.hsa-extra-flags 1)
+                            acc.hsa-host-count next-cnt 0 0 cl.clp-val next-mask)
+                    else if eq-u8 known hdr-transfer-encoding then
+                      if ne-u8 (bit-and-u8 acc.hsa-extra-flags 1) 0 then hsa-err h1-err-smuggling-te-cl
+                      else
+                        let next-te = parse-te-list base val-start val-end acc.hsa-te-state in
+                        if eq-u8 next-te 3 then hsa-err h1-err-bad-te
+                        else
+                          parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                            h1-ok next-te acc.hsa-conn-flags acc.hsa-extra-flags
+                            acc.hsa-host-count next-cnt 0 0 acc.hsa-cl-val next-mask)
+                    else if eq-u8 known hdr-host then
+                      if ge-u16 acc.hsa-host-count 1 then hsa-err h1-err-duplicate-host
+                      else if not-b (host-val-has-no-ws base val-start val-end) then hsa-err h1-err-bad-header-value
+                      else
+                        parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                          h1-ok acc.hsa-te-state acc.hsa-conn-flags acc.hsa-extra-flags
+                          (wrapping-add-u16 acc.hsa-host-count 1) next-cnt 0 0 acc.hsa-cl-val next-mask)
+                    else if eq-u8 known hdr-connection then
+                      let cf = parse-connection-list base val-start val-end acc.hsa-conn-flags in
+                      parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                        h1-ok acc.hsa-te-state cf acc.hsa-extra-flags
+                        acc.hsa-host-count next-cnt 0 0 acc.hsa-cl-val next-mask)
+                    else if eq-u8 known hdr-expect then
+                      let ef = (
+                        if is-expect-continue base val-start val-len then
+                          bit-or-u8 acc.hsa-extra-flags 2
+                        else acc.hsa-extra-flags) in
+                      parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                        h1-ok acc.hsa-te-state acc.hsa-conn-flags ef
+                        acc.hsa-host-count next-cnt 0 0 acc.hsa-cl-val next-mask)
+                    else if eq-u8 known hdr-upgrade then
+                      let ef = (
+                        if gt-u32 val-len 0 then bit-or-u8 acc.hsa-extra-flags 4
+                        else acc.hsa-extra-flags) in
+                      parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                        h1-ok acc.hsa-te-state acc.hsa-conn-flags ef
+                        acc.hsa-host-count next-cnt 0 0 acc.hsa-cl-val next-mask)
+                    else
+                      parse-headers-loop base next-pos end hdrs-out (HeaderScanAcc
+                        h1-ok acc.hsa-te-state acc.hsa-conn-flags acc.hsa-extra-flags
+                        acc.hsa-host-count next-cnt 0 0 acc.hsa-cl-val next-mask)
+
+  -- =========================================================================
+  -- 6. Main Incremental SIMD HTTP/1.1 Request Head Parser (#[no-alloc])
+  -- =========================================================================
+
+  -- | Parse one HTTP/1.1 or HTTP/1.0 request head from DMA region
+  -- `[base + start, base + end)`.
+  --
+  -- Stores up to `h1-max-headers` (64) `HeaderPair` records into `hdrs-out`
+  -- when `hdrs-out /= 0`. Returns `RequestView` with:
+  --   * `rv-status == h1-ok`: complete head parsed; `rv-consumed` is the exact
+  --     byte offset delta from `start` to the first byte of the body (or next
+  --     pipelined request).
+  --   * `rv-status == h1-need-more`: incomplete head; retain bytes and retry
+  --     when more data arrives (zero copying).
+  --   * `rv-status >= 2`: strict RFC 9112 syntax or smuggling error.
+  #[no-alloc]
+  h1-parse-request-dma :: I64 -> U32 -> U32 -> U32 -> I64 ->{MVar} RequestView
+  h1-parse-request-dma base start end buf-id hdrs-out =
+    if ge-u32 start end then request-view-err h1-need-more
+    else
+      let m-end = dma-scan-http-token base start end in
+      let m-len = wrapping-sub-u32 m-end start in
+      if gt-u32 m-len h1-max-method-len then request-view-err h1-err-bad-method
+      else if ge-u32 m-end end then request-view-err h1-need-more
+      else
+        let m-delim = load-u8-at base m-end in
+        if eq-u32 m-len 0 then
+          if eq-u8 m-delim 10 then request-view-err h1-err-bare-lf
+          else if eq-u8 m-delim 13 then
+            let n1 = wrapping-add-u32 m-end 1 in
+            if ge-u32 n1 end then request-view-err h1-need-more
+            else if eq-u8 (load-u8-at base n1) 10 then request-view-err h1-err-bad-method
+            else request-view-err h1-err-bare-cr
+          else request-view-err h1-err-bad-method
+        else if ne-u8 m-delim 32 then
+          if eq-u8 m-delim 10 then request-view-err h1-err-bare-lf
+          else if eq-u8 m-delim 13 then
+            let n1 = wrapping-add-u32 m-end 1 in
+            if lt-u32 n1 end then
+              if ne-u8 (load-u8-at base n1) 10 then request-view-err h1-err-bare-cr
+              else request-view-err h1-err-bad-method
+            else request-view-err h1-err-bad-method
+          else request-view-err h1-err-bad-method
+        else
+          let method-code = match-method-dma base start m-len in
+          let t-start = wrapping-add-u32 m-end 1 in
+          if ge-u32 t-start end then request-view-err h1-need-more
+          else
+            let t-end = dma-scan-target base t-start end in
+            let t-len = wrapping-sub-u32 t-end t-start in
+            if gt-u32 t-len h1-max-target-len then request-view-err h1-err-bad-target
+            else if ge-u32 t-end end then request-view-err h1-need-more
+            else
+              let t-delim = load-u8-at base t-end in
+              if eq-u32 t-len 0 then
+                if eq-u8 t-delim 10 then request-view-err h1-err-bare-lf
+                else if eq-u8 t-delim 13 then
+                  let n1 = wrapping-add-u32 t-end 1 in
+                  if lt-u32 n1 end then
+                    if ne-u8 (load-u8-at base n1) 10 then request-view-err h1-err-bare-cr
+                    else request-view-err h1-err-bad-target
+                  else request-view-err h1-err-bad-target
+                else request-view-err h1-err-bad-target
+              else if ne-u8 t-delim 32 then
+                if eq-u8 t-delim 10 then request-view-err h1-err-bare-lf
+                else if eq-u8 t-delim 13 then
+                  let n1 = wrapping-add-u32 t-end 1 in
+                  if lt-u32 n1 end then
+                    if ne-u8 (load-u8-at base n1) 10 then request-view-err h1-err-bare-cr
+                    else request-view-err h1-err-bad-target
+                  else request-view-err h1-err-bad-target
+                else request-view-err h1-err-bad-target
+              else
+                let v-start = wrapping-add-u32 t-end 1 in
+                let v-rem = wrapping-sub-u32 end v-start in
+                if lt-u32 v-rem 10 then
+                  let pfx = check-version-prefix base v-start end 0 in
+                  request-view-err pfx
+                else
+                  let vp = wrapping-add-i64 base (u32-to-i64 v-start) in
+                  let w0 = raw-load-u32 vp in
+                  let b4 = raw-load-u8 (wrapping-add-i64 vp 4) in
+                  let b5 = raw-load-u8 (wrapping-add-i64 vp 5) in
+                  let b6 = raw-load-u8 (wrapping-add-i64 vp 6) in
+                  let b7 = raw-load-u8 (wrapping-add-i64 vp 7) in
+                  let b8 = raw-load-u8 (wrapping-add-i64 vp 8) in
+                  let b9 = raw-load-u8 (wrapping-add-i64 vp 9) in
+                  if not-b (both (eq-u32 w0 (pack-le4 72 84 84 80)) (both (eq-u8 b4 47) (both (eq-u8 b5 49) (eq-u8 b6 46)))) then
+                    request-view-err h1-err-bad-version
+                  else if not-b (either (eq-u8 b7 49) (eq-u8 b7 48)) then
+                    request-view-err h1-err-bad-version
+                  else if eq-u8 b8 10 then
+                    request-view-err h1-err-bare-lf
+                  else if ne-u8 b8 13 then
+                    request-view-err h1-err-bad-version
+                  else if ne-u8 b9 10 then
+                    request-view-err h1-err-bare-cr
+                  else
+                    let ver-code = if eq-u8 b7 49 then version-code-http11 else version-code-http10 in
+                    let hdr-start = wrapping-add-u32 v-start 10 in
+                    let init-acc = HeaderScanAcc h1-ok 0 0 0 0 0 0 0 0 0 in
+                    let hres = parse-headers-loop base hdr-start end hdrs-out init-acc in
+                    if ne-u8 hres.hsa-status h1-ok then
+                      request-view-err hres.hsa-status
+                    else
+                      let has-cl = ne-u8 (bit-and-u8 hres.hsa-extra-flags 1) 0 in
+                      let has-te = ne-u8 hres.hsa-te-state 0 in
+                      if both has-cl has-te then request-view-err h1-err-smuggling-te-cl
+                      else if both has-te (ne-u8 hres.hsa-te-state 2) then request-view-err h1-err-bad-te
+                      else if both (eq-u8 ver-code version-code-http11) (eq-u16 hres.hsa-host-count 0) then
+                        request-view-err h1-err-missing-host
+                      else
+                        -- Split request-target into path and optional query at first '?'.
+                        let q-i32 = dma-find-byte base t-start t-end 63 in
+                        let path-len = if ge-i32 q-i32 0 then wrapping-sub-u32 (wrapping-i32-to-u32 q-i32) t-start else t-len in
+                        let query-off = if ge-i32 q-i32 0 then wrapping-add-u32 (wrapping-i32-to-u32 q-i32) 1 else t-end in
+                        let query-len = if ge-i32 q-i32 0 then wrapping-sub-u32 t-end query-off else 0 in
+                        -- Compute canonical Net.Http.Types req-flag-* mask.
+                        let conn-close = ne-u8 (bit-and-u8 hres.hsa-conn-flags 1) 0 in
+                        let conn-ka = ne-u8 (bit-and-u8 hres.hsa-conn-flags 2) 0 in
+                        let conn-upg = ne-u8 (bit-and-u8 hres.hsa-conn-flags 4) 0 in
+                        let keep-alive = (
+                          if conn-close then b-false
+                          else if eq-u8 ver-code version-code-http11 then b-true
+                          else conn-ka) in
+                        let f0 = if keep-alive then req-flag-keep-alive else 0 in
+                        let f1 = if has-te then bit-or-u32 f0 req-flag-chunked else f0 in
+                        let f2 = if has-cl then bit-or-u32 f1 req-flag-has-cl else f1 in
+                        let f3 = if ne-u8 (bit-and-u8 hres.hsa-extra-flags 2) 0 then bit-or-u32 f2 req-flag-expect-continue else f2 in
+                        let f4 = if both conn-upg (ne-u8 (bit-and-u8 hres.hsa-extra-flags 4) 0) then bit-or-u32 f3 req-flag-upgrade else f3 in
+                        let body-off = hres.hsa-end-pos in
+                        let consumed = wrapping-sub-u32 body-off start in
+                        let body-len = if has-cl then hres.hsa-cl-val else 0 in
+                        RequestView
+                          h1-ok
+                          method-code
+                          ver-code
+                          0
+                          hres.hsa-hdr-count
+                          0
+                          f4
+                          buf-id
+                          consumed
+                          start
+                          m-len
+                          t-start
+                          path-len
+                          query-off
+                          query-len
+                          body-off
+                          body-len
+                          hres.hsa-known-mask
+                          hdrs-out
+
+  -- | Convenience wrapper parsing a `Bytes` slice `[start, end)` via the exact
+  -- same zero-alloc SIMD DMA parser (`hdrs-out` may be `0`).
+  h1-parse-request-bytes :: Bytes -> U32 -> U32 -> I64 ->{MVar} RequestView
+  h1-parse-request-bytes b start end hdrs-out =
+    let n = wrapping-i64-to-u32 (bytes-len-i64 b) in
+    let clamped-end = if lt-u32 end n then end else n in
+    let rv = h1-parse-request-dma (bytes-data b) start clamped-end 0 hdrs-out in
+    -- Anchor `b` until parse completes.
+    let _keep = bytes-len-i64 b in
+    rv
+
+  -- =========================================================================
+  -- 7. Incremental Chunked Transfer-Coding & Trailer Parsers (#[no-alloc])
+  -- =========================================================================
+
+  -- | Decode ASCII hex digit to `0..15`, or `255` if not a hex digit.
+  #[inline(always)]
+  #[no-alloc]
+  hex-digit-val :: U8 -> U8
+  hex-digit-val ch =
+    let d = wrapping-sub-u8 ch 48 in
+    if le-u8 d 9 then d
+    else
+      let lo = wrapping-sub-u8 (ascii-lower ch) 97 in
+      if le-u8 lo 5 then wrapping-add-u8 lo 10
+      else 255
+
+  #[no-alloc]
+  finish-chunk-size-crlf :: I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} ChunkSizeResult
+  finish-chunk-size-crlf base start cr-pos end acc =
+    let lf-pos = wrapping-add-u32 cr-pos 1 in
+    if ge-u32 lf-pos end then chunk-size-result-err h1-need-more
+    else if eq-u8 (load-u8-at base lf-pos) 10 then
+      ChunkSizeResult h1-ok (wrapping-sub-u32 (wrapping-add-u32 cr-pos 2) start) acc
+    else chunk-size-result-err h1-err-bare-cr
+
+  #[no-alloc]
+  parse-chunk-hex :: I64 -> U32 -> U32 -> U32 -> U64 -> U32 ->{MVar} ChunkSizeResult
+  parse-chunk-hex base start pos end acc digits =
+    if ge-u32 pos end then chunk-size-result-err h1-need-more
+    else
+      let ch = load-u8-at base pos in
+      let hv = hex-digit-val ch in
+      if le-u8 hv 15 then
+        -- Reject U64 overflow strictly (if top 4 bits of `acc` are non-zero, shift overflows).
+        if gt-u64 acc 0x0FFFFFFFFFFFFFFF then chunk-size-result-err h1-err-bad-chunk-size
+        else
+          let next-acc = bit-or-u64 (wrapping-shl-u64 acc 4) (u8-to-u64 hv) in
+          parse-chunk-hex base start (wrapping-add-u32 pos 1) end next-acc (wrapping-add-u32 digits 1)
+      else if eq-u32 digits 0 then
+        if eq-u8 ch 10 then chunk-size-result-err h1-err-bare-lf
+        else chunk-size-result-err h1-err-bad-chunk-size
+      else if eq-u8 ch 13 then
+        finish-chunk-size-crlf base start pos end acc
+      else if eq-u8 ch 10 then
+        chunk-size-result-err h1-err-bare-lf
+      else
+        -- RFC 9112 §7.1.1: optional BWS followed strictly by `;` chunk-ext.
+        let ext-pos = skip-ows-fwd base pos end in
+        if ge-u32 ext-pos end then chunk-size-result-err h1-need-more
+        else if ne-u8 (load-u8-at base ext-pos) 59 then
+          -- Reject trailing spaces without `;` or garbage after hex digits.
+          chunk-size-result-err h1-err-bad-chunk-size
+        else
+          let fv = dma-scan-field-value base (wrapping-add-u32 ext-pos 1) end in
+          if eq-i32 fv -1 then chunk-size-result-err h1-need-more
+          else if eq-i32 fv -2 then
+            let ec = classify-fv-error base (wrapping-add-u32 ext-pos 1) end in
+            if eq-u8 ec h1-err-bare-lf then chunk-size-result-err h1-err-bare-lf
+            else chunk-size-result-err h1-err-bad-chunk-size
+          else
+            finish-chunk-size-crlf base start (wrapping-i32-to-u32 fv) end acc
+
+  -- | Parse an HTTP/1.1 chunk-size line (`1*HEXDIG [ chunk-ext ] CRLF`) from DMA
+  -- region `[base + start, base + end)`. Zero heap allocations.
+  #[no-alloc]
+  h1-parse-chunk-size :: I64 -> U32 -> U32 ->{MVar} ChunkSizeResult
+  h1-parse-chunk-size base start end =
+    if ge-u32 start end then chunk-size-result-err h1-need-more
+    else parse-chunk-hex base start start end 0 0
+
+  -- | Validate the mandatory trailing `CRLF` (`\r\n`) immediately after a chunk's
+  -- data payload in DMA region `[base + start, base + end)`.
+  -- Returns `h1-ok` (2 bytes consumed), `h1-need-more`, `h1-err-bare-lf`, or
+  -- `h1-err-bad-chunk-crlf`.
+  #[no-alloc]
+  h1-parse-chunk-crlf :: I64 -> U32 -> U32 ->{MVar} U8
+  h1-parse-chunk-crlf base start end =
+    let rem = wrapping-sub-u32 end start in
+    if eq-u32 rem 0 then h1-need-more
+    else
+      let b0 = load-u8-at base start in
+      if eq-u8 b0 10 then h1-err-bare-lf
+      else if ne-u8 b0 13 then h1-err-bad-chunk-crlf
+      else if lt-u32 rem 2 then h1-need-more
+      else if eq-u8 (load-u8-at base (wrapping-add-u32 start 1)) 10 then h1-ok
+      else h1-err-bad-chunk-crlf
+
+  -- | Parse an HTTP/1.1 chunked trailer block (`*( field-line CRLF ) CRLF`) from
+  -- DMA region `[base + start, base + end)`, rejecting obs-fold, bare CR/LF,
+  -- forbidden framing headers (`Content-Length`, `Transfer-Encoding`, `Host`),
+  -- and exceeding `max-trailers`.
+  #[no-alloc]
+  parse-trailers-loop :: I64 -> U32 -> U32 -> U32 -> U32 -> U16 ->{MVar} TrailersResult
+  parse-trailers-loop base start pos end max-tr cnt =
+    if ge-u32 pos end then trailers-result-err h1-need-more
+    else
+      let c0 = load-u8-at base pos in
+      if eq-u8 c0 13 then
+        let lf-pos = wrapping-add-u32 pos 1 in
+        if ge-u32 lf-pos end then trailers-result-err h1-need-more
+        else if eq-u8 (load-u8-at base lf-pos) 10 then
+          TrailersResult h1-ok cnt (wrapping-sub-u32 (wrapping-add-u32 pos 2) start) 0
+        else trailers-result-err h1-err-bare-cr
+      else if eq-u8 c0 10 then trailers-result-err h1-err-bare-lf
+      else if is-ows c0 then trailers-result-err h1-err-obs-fold
+      else if ge-u32 (u16-to-u32 cnt) max-tr then trailers-result-err h1-err-too-many-headers
+      else
+        let n-end = dma-scan-http-token base pos end in
+        if ge-u32 n-end end then trailers-result-err h1-need-more
+        else if eq-u32 n-end pos then trailers-result-err h1-err-bad-trailer
+        else
+          let sep = load-u8-at base n-end in
+          if is-ows sep then trailers-result-err h1-err-space-before-colon
+          else if ne-u8 sep 58 then trailers-result-err h1-err-bad-trailer
+          else
+            let name-len = wrapping-sub-u32 n-end pos in
+            let known = known-header-match-dma (wrapping-add-i64 base (u32-to-i64 pos)) name-len in
+            -- RFC 9110 §6.5.1: forbid framing/routing headers in trailers.
+            if either (eq-u8 known hdr-content-length) (either (eq-u8 known hdr-transfer-encoding) (eq-u8 known hdr-host)) then
+              trailers-result-err h1-err-bad-trailer
+            else
+              let val-start = skip-ows-fwd base (wrapping-add-u32 n-end 1) end in
+              if ge-u32 val-start end then trailers-result-err h1-need-more
+              else
+                let fv = dma-scan-field-value base val-start end in
+                if eq-i32 fv -1 then trailers-result-err h1-need-more
+                else if eq-i32 fv -2 then
+                  trailers-result-err (classify-fv-error base val-start end)
+                else
+                  let cr-pos = wrapping-i32-to-u32 fv in
+                  let lf-pos = wrapping-add-u32 cr-pos 1 in
+                  if ge-u32 lf-pos end then trailers-result-err h1-need-more
+                  else if ne-u8 (load-u8-at base lf-pos) 10 then trailers-result-err h1-err-bare-cr
+                  else
+                    parse-trailers-loop base start (wrapping-add-u32 cr-pos 2) end max-tr (wrapping-add-u16 cnt 1)
+
+  #[no-alloc]
+  h1-parse-trailers :: I64 -> U32 -> U32 -> U32 ->{MVar} TrailersResult
+  h1-parse-trailers base start end max-trailers =
+    if ge-u32 start end then trailers-result-err h1-need-more
+    else parse-trailers-loop base start start end max-trailers 0

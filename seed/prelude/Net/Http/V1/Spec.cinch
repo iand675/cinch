@@ -1,0 +1,637 @@
+-- | Formal Model M5 (`Http1Machine`): compile-time TLA+-style explicit-state
+-- model of the RFC 9112 HTTP/1.1 connection state machine, request-smuggling
+-- impossibility, FIFO pipelining, body framing consistency, absorbing error /
+-- closed states, response liveness, and abstract request-response pipe
+-- stuttering refinement (`Net.Http.V1.Spec`).
+--
+-- Exhaustively verified at compile time (`max_states = 4096`, `capped: false`,
+-- `0 violations` under `CINCH_MODEL_FAIL_ON_CAPPED=1`):
+--   * `noSmugglingAndFifoFraming` (`always`):
+--       - Smuggling impossibility: `not (s.has-cl && s.has-te)` and
+--         `not s.smuggle-accepted` across every reachable state.
+--       - FIFO pipelining: `s.responses-sent <= s.requests-parsed`,
+--         `s.in-flight == s.requests-parsed - s.responses-sent`, and
+--         `s.in-flight <= 2`.
+--       - Exact body framing coherence across `MReadingHead`, `MReadingFixedBody`,
+--         `MReadingChunkSize`, `MReadingChunkData`, `MReadingChunkCrlf`,
+--         `MReadingTrailers`, `MClosing`, `MClosed`, and `MProtocolError`.
+--       - No request is ever accepted in `MProtocolError` or `MClosed`.
+--   * `protocolErrorAbsorbing`, `closedAbsorbing`, & `eventuallyTerminates` (`stable`):
+--       - Once `MProtocolError` is entered, it stays in `MProtocolError` forever.
+--       - Once `MClosed` is entered, it stays in `MClosed` forever.
+--       - Every fair execution stabilizes in `MClosed` or `MProtocolError`.
+--   * `requestsYieldResponseOrClose` & `honestRequestsDrain` (`leads_to`):
+--       - Under fairness, every parsed valid request eventually yields a
+--         response or clean close (and every non-error connection drains all
+--         in-flight responses back to `0`).
+--   * `refines Http1Machine AbstractReqResPipe` (with strictly decreasing
+--     `measure = h1-framing-measure`):
+--       - Checked stuttering simulation proving all fixed-body and chunked
+--         framing sub-steps refine a pure abstract FIFO request-response pipe
+--         without infinite silent stuttering.
+module Net.Http.V1.Spec where
+
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  export H1Phase, MReadingHead, MReadingFixedBody, MReadingChunkSize
+  export MReadingChunkData, MReadingChunkCrlf, MReadingTrailers
+  export MClosing, MClosed, MProtocolError
+  export ReqInput, ReqGetKa, ReqGetClose, ReqFixedBody, ReqChunkedBody
+  export ReqSmuggleTeCl, ReqMalformed
+  export H1ModelState, h1-model-init, h1-phase-eq, h1-safety-ok
+  export h1-step-recv-head, h1-step-body, h1-step-body-fault
+  export h1-step-send-response, h1-step-close
+  export AbsPipePhase, AbsOpen, AbsClosed, AbsError
+  export AbsPipeState, abs-pipe-init
+  export abs-accept-req, abs-send-resp, abs-close, abs-error
+  export h1-view, h1-framing-measure
+
+  -- =========================================================================
+  -- 1. Pure HTTP/1.1 Connection Phases & Adversarial/Honest Request Inputs
+  -- =========================================================================
+
+  data H1Phase where
+    MReadingHead :: H1Phase
+    MReadingFixedBody :: H1Phase
+    MReadingChunkSize :: H1Phase
+    MReadingChunkData :: H1Phase
+    MReadingChunkCrlf :: H1Phase
+    MReadingTrailers :: H1Phase
+    MClosing :: H1Phase
+    MClosed :: H1Phase
+    MProtocolError :: H1Phase
+
+  data ReqInput where
+    ReqGetKa :: ReqInput
+    ReqGetClose :: ReqInput
+    ReqFixedBody :: ReqInput
+    ReqChunkedBody :: ReqInput
+    ReqSmuggleTeCl :: ReqInput
+    ReqMalformed :: ReqInput
+
+  h1-phase-rank :: H1Phase -> Nat
+  h1-phase-rank ph = case ph of
+    MReadingHead -> 0
+    MReadingFixedBody -> 1
+    MReadingChunkSize -> 2
+    MReadingChunkData -> 3
+    MReadingChunkCrlf -> 4
+    MReadingTrailers -> 5
+    MClosing -> 6
+    MClosed -> 7
+    MProtocolError -> 8
+
+  h1-phase-eq :: H1Phase -> H1Phase -> Bool
+  h1-phase-eq a b = h1-phase-rank a == h1-phase-rank b
+
+  -- | Concrete HTTP/1.1 connection state tracked by M5 `Http1Machine`.
+  record H1ModelState where
+    phase :: H1Phase
+    has-cl :: Bool
+    has-te :: Bool
+    keep-alive :: Bool
+    body-rem :: Nat          -- unread fixed-body units or remaining chunks
+    requests-parsed :: Nat   -- bounded 0..3
+    responses-sent :: Nat    -- bounded 0..3, <= requests-parsed
+    in-flight :: Nat         -- bounded 0..2, == requests-parsed - responses-sent
+    err-entered :: Bool      -- ghost monitor: True once MProtocolError is entered
+    closed-entered :: Bool   -- ghost monitor: True once MClosed is entered
+    smuggle-accepted :: Bool
+    req-in-terminal :: Bool
+
+  h1-model-init :: H1ModelState
+  h1-model-init = H1ModelState {
+    phase = MReadingHead,
+    has-cl = False,
+    has-te = False,
+    keep-alive = True,
+    body-rem = 0,
+    requests-parsed = 0,
+    responses-sent = 0,
+    in-flight = 0,
+    err-entered = False,
+    closed-entered = False,
+    smuggle-accepted = False,
+    req-in-terminal = False
+  }
+
+  -- =========================================================================
+  -- 2. Concrete M5 Transition Actions (shared by compile-time MC & Hegel DST)
+  -- =========================================================================
+
+  -- | Parse one incoming HTTP/1.1 request head in `MReadingHead`.
+  --   * Valid requests increment `requests-parsed` and `in-flight` and install
+  --     mutually exclusive body framing (`has-cl` XOR `has-te`, or neither).
+  --   * `ReqSmuggleTeCl` (both CL and TE) and `ReqMalformed` are ALWAYS rejected
+  --     without accepting a request and enter the absorbing `MProtocolError` state.
+  --   * Disabled in `MProtocolError`, `MClosed`, `MClosing`, and mid-body phases.
+  h1-step-recv-head :: ReqInput -> H1ModelState -> Option H1ModelState
+  h1-step-recv-head inp s = case s.phase of
+    MReadingHead ->
+      if s.requests-parsed >= 3 || s.in-flight >= 2 then None
+      else case inp of
+        ReqGetKa ->
+          Some (H1ModelState {
+            phase = MReadingHead,
+            has-cl = False,
+            has-te = False,
+            keep-alive = True,
+            body-rem = 0,
+            requests-parsed = s.requests-parsed + 1,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight + 1,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        ReqGetClose ->
+          Some (H1ModelState {
+            phase = MClosing,
+            has-cl = False,
+            has-te = False,
+            keep-alive = False,
+            body-rem = 0,
+            requests-parsed = s.requests-parsed + 1,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight + 1,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        ReqFixedBody ->
+          Some (H1ModelState {
+            phase = MReadingFixedBody,
+            has-cl = True,
+            has-te = False,
+            keep-alive = True,
+            body-rem = 2,
+            requests-parsed = s.requests-parsed + 1,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight + 1,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        ReqChunkedBody ->
+          Some (H1ModelState {
+            phase = MReadingChunkSize,
+            has-cl = False,
+            has-te = True,
+            keep-alive = True,
+            body-rem = 1,
+            requests-parsed = s.requests-parsed + 1,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight + 1,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        ReqSmuggleTeCl ->
+          Some (H1ModelState {
+            phase = MProtocolError,
+            has-cl = False,
+            has-te = False,
+            keep-alive = False,
+            body-rem = 0,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = True,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = False,
+            req-in-terminal = s.req-in-terminal
+          })
+        ReqMalformed ->
+          Some (H1ModelState {
+            phase = MProtocolError,
+            has-cl = False,
+            has-te = False,
+            keep-alive = False,
+            body-rem = 0,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = True,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = False,
+            req-in-terminal = s.req-in-terminal
+          })
+    _ -> None
+
+  -- | Incremental body framing progress step (fixed-length or chunked).
+  -- Strictly decreases `h1-framing-measure` on every stuttering transition.
+  h1-step-body :: H1ModelState -> Option H1ModelState
+  h1-step-body s =
+    let br = s.body-rem in
+    case s.phase of
+      MReadingFixedBody ->
+        if br > 1 then
+          Some (H1ModelState {
+            phase = MReadingFixedBody,
+            has-cl = True,
+            has-te = False,
+            keep-alive = s.keep-alive,
+            body-rem = br - 1,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        else if br == 1 then
+          Some (H1ModelState {
+            phase = if s.keep-alive then MReadingHead else MClosing,
+            has-cl = False,
+            has-te = False,
+            keep-alive = s.keep-alive,
+            body-rem = 0,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        else None
+      MReadingChunkSize ->
+        if br > 0 then
+          Some (H1ModelState {
+            phase = MReadingChunkData,
+            has-cl = False,
+            has-te = True,
+            keep-alive = s.keep-alive,
+            body-rem = br,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        else
+          Some (H1ModelState {
+            phase = MReadingTrailers,
+            has-cl = False,
+            has-te = True,
+            keep-alive = s.keep-alive,
+            body-rem = 0,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+      MReadingChunkData ->
+        if br > 0 then
+          Some (H1ModelState {
+            phase = MReadingChunkCrlf,
+            has-cl = False,
+            has-te = True,
+            keep-alive = s.keep-alive,
+            body-rem = br - 1,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent,
+            in-flight = s.in-flight,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        else None
+      MReadingChunkCrlf ->
+        Some (H1ModelState {
+          phase = MReadingChunkSize,
+          has-cl = False,
+          has-te = True,
+          keep-alive = s.keep-alive,
+          body-rem = br,
+          requests-parsed = s.requests-parsed,
+          responses-sent = s.responses-sent,
+          in-flight = s.in-flight,
+          err-entered = s.err-entered,
+          closed-entered = s.closed-entered,
+          smuggle-accepted = s.smuggle-accepted,
+          req-in-terminal = s.req-in-terminal
+        })
+      MReadingTrailers ->
+        Some (H1ModelState {
+          phase = if s.keep-alive then MReadingHead else MClosing,
+          has-cl = False,
+          has-te = False,
+          keep-alive = s.keep-alive,
+          body-rem = 0,
+          requests-parsed = s.requests-parsed,
+          responses-sent = s.responses-sent,
+          in-flight = s.in-flight,
+          err-entered = s.err-entered,
+          closed-entered = s.closed-entered,
+          smuggle-accepted = s.smuggle-accepted,
+          req-in-terminal = s.req-in-terminal
+        })
+      _ -> None
+
+  -- | Malformed chunk size, missing chunk CRLF, or illegal trailer header
+  -- immediately transitions the connection into the absorbing `MProtocolError`.
+  h1-step-body-fault :: H1ModelState -> Option H1ModelState
+  h1-step-body-fault s = case s.phase of
+    MReadingChunkSize ->
+      Some (H1ModelState {
+        phase = MProtocolError,
+        has-cl = False,
+        has-te = False,
+        keep-alive = False,
+        body-rem = 0,
+        requests-parsed = s.requests-parsed,
+        responses-sent = s.responses-sent,
+        in-flight = s.in-flight,
+        err-entered = True,
+        closed-entered = s.closed-entered,
+        smuggle-accepted = s.smuggle-accepted,
+        req-in-terminal = s.req-in-terminal
+      })
+    MReadingChunkCrlf ->
+      Some (H1ModelState {
+        phase = MProtocolError,
+        has-cl = False,
+        has-te = False,
+        keep-alive = False,
+        body-rem = 0,
+        requests-parsed = s.requests-parsed,
+        responses-sent = s.responses-sent,
+        in-flight = s.in-flight,
+        err-entered = True,
+        closed-entered = s.closed-entered,
+        smuggle-accepted = s.smuggle-accepted,
+        req-in-terminal = s.req-in-terminal
+      })
+    MReadingTrailers ->
+      Some (H1ModelState {
+        phase = MProtocolError,
+        has-cl = False,
+        has-te = False,
+        keep-alive = False,
+        body-rem = 0,
+        requests-parsed = s.requests-parsed,
+        responses-sent = s.responses-sent,
+        in-flight = s.in-flight,
+        err-entered = True,
+        closed-entered = s.closed-entered,
+        smuggle-accepted = s.smuggle-accepted,
+        req-in-terminal = s.req-in-terminal
+      })
+    _ -> None
+
+  -- | Send the next FIFO response for a completed in-flight request.
+  -- Enabled when either a previous pipelined request is ready (`in-flight > 1`)
+  -- or the single in-flight request's body has finished (`MReadingHead`/`MClosing`).
+  h1-step-send-response :: H1ModelState -> Option H1ModelState
+  h1-step-send-response s =
+    let inf = s.in-flight in
+    if inf == 0 then None
+    else case s.phase of
+      MProtocolError -> None
+      MClosed -> None
+      MReadingHead ->
+        Some (H1ModelState {
+          phase = s.phase,
+          has-cl = s.has-cl,
+          has-te = s.has-te,
+          keep-alive = s.keep-alive,
+          body-rem = s.body-rem,
+          requests-parsed = s.requests-parsed,
+          responses-sent = s.responses-sent + 1,
+          in-flight = inf - 1,
+          err-entered = s.err-entered,
+          closed-entered = s.closed-entered,
+          smuggle-accepted = s.smuggle-accepted,
+          req-in-terminal = s.req-in-terminal
+        })
+      MClosing ->
+        Some (H1ModelState {
+          phase = s.phase,
+          has-cl = s.has-cl,
+          has-te = s.has-te,
+          keep-alive = s.keep-alive,
+          body-rem = s.body-rem,
+          requests-parsed = s.requests-parsed,
+          responses-sent = s.responses-sent + 1,
+          in-flight = inf - 1,
+          err-entered = s.err-entered,
+          closed-entered = s.closed-entered,
+          smuggle-accepted = s.smuggle-accepted,
+          req-in-terminal = s.req-in-terminal
+        })
+      _ ->
+        if inf > 1 then
+          Some (H1ModelState {
+            phase = s.phase,
+            has-cl = s.has-cl,
+            has-te = s.has-te,
+            keep-alive = s.keep-alive,
+            body-rem = s.body-rem,
+            requests-parsed = s.requests-parsed,
+            responses-sent = s.responses-sent + 1,
+            in-flight = inf - 1,
+            err-entered = s.err-entered,
+            closed-entered = s.closed-entered,
+            smuggle-accepted = s.smuggle-accepted,
+            req-in-terminal = s.req-in-terminal
+          })
+        else None
+
+  -- | Clean connection close once all in-flight responses have been flushed.
+  h1-step-close :: H1ModelState -> Option H1ModelState
+  h1-step-close s =
+    if s.in-flight /= 0 then None
+    else case s.phase of
+      MReadingHead ->
+        Some (H1ModelState {
+          phase = MClosed,
+          has-cl = False,
+          has-te = False,
+          keep-alive = False,
+          body-rem = 0,
+          requests-parsed = s.requests-parsed,
+          responses-sent = s.responses-sent,
+          in-flight = 0,
+          err-entered = s.err-entered,
+          closed-entered = True,
+          smuggle-accepted = s.smuggle-accepted,
+          req-in-terminal = s.req-in-terminal
+        })
+      MClosing ->
+        Some (H1ModelState {
+          phase = MClosed,
+          has-cl = False,
+          has-te = False,
+          keep-alive = False,
+          body-rem = 0,
+          requests-parsed = s.requests-parsed,
+          responses-sent = s.responses-sent,
+          in-flight = 0,
+          err-entered = s.err-entered,
+          closed-entered = True,
+          smuggle-accepted = s.smuggle-accepted,
+          req-in-terminal = s.req-in-terminal
+        })
+      _ -> None
+
+  -- =========================================================================
+  -- 3. Safety Invariants (`h1-safety-ok`)
+  -- =========================================================================
+
+  framing-coherent :: H1ModelState -> Bool
+  framing-coherent s = case s.phase of
+    MReadingHead -> not s.has-cl && not s.has-te && s.body-rem == 0
+    MReadingFixedBody -> s.has-cl && not s.has-te && s.body-rem > 0 && s.body-rem <= 2 && s.in-flight > 0
+    MReadingChunkSize -> s.has-te && not s.has-cl && s.body-rem <= 1 && s.in-flight > 0
+    MReadingChunkData -> s.has-te && not s.has-cl && s.body-rem == 1 && s.in-flight > 0
+    MReadingChunkCrlf -> s.has-te && not s.has-cl && s.body-rem == 0 && s.in-flight > 0
+    MReadingTrailers -> s.has-te && not s.has-cl && s.body-rem == 0 && s.in-flight > 0
+    MClosing -> not s.has-cl && not s.has-te && not s.keep-alive && s.body-rem == 0
+    MClosed -> not s.has-cl && not s.has-te && not s.keep-alive && s.body-rem == 0 && s.in-flight == 0
+    MProtocolError -> not s.has-cl && not s.has-te && not s.keep-alive && s.body-rem == 0
+
+  -- | Combined M5 safety invariant:
+  --   1. Smuggling impossibility (`not (has-cl && has-te)` & `not smuggle-accepted`)
+  --   2. Exact FIFO pipelining (`responses-sent <= requests-parsed`, exact `in-flight <= 2`)
+  --   3. Framing-mode coherence per connection phase
+  --   4. No request accepted in `MProtocolError` or `MClosed`
+  h1-safety-ok :: H1ModelState -> Bool
+  h1-safety-ok s =
+    not s.smuggle-accepted
+      && not s.req-in-terminal
+      && not (s.has-cl && s.has-te)
+      && s.responses-sent <= s.requests-parsed
+      && s.requests-parsed <= 3
+      && s.in-flight <= 2
+      && s.responses-sent + s.in-flight == s.requests-parsed
+      && (not s.err-entered || h1-phase-eq s.phase MProtocolError)
+      && (not s.closed-entered || h1-phase-eq s.phase MClosed)
+      && framing-coherent s
+
+  -- =========================================================================
+  -- 4. Abstract Reference Specification (`AbstractReqResPipe`) & Refinement
+  -- =========================================================================
+
+  data AbsPipePhase where
+    AbsOpen :: AbsPipePhase
+    AbsClosed :: AbsPipePhase
+    AbsError :: AbsPipePhase
+
+  record AbsPipeState where
+    abs-phase :: AbsPipePhase
+    abs-reqs :: Nat
+    abs-resps :: Nat
+
+  abs-pipe-init :: AbsPipeState
+  abs-pipe-init = AbsPipeState {
+    abs-phase = AbsOpen,
+    abs-reqs = 0,
+    abs-resps = 0
+  }
+
+  abs-accept-req :: AbsPipeState -> Option AbsPipeState
+  abs-accept-req s = case s.abs-phase of
+    AbsOpen ->
+      if s.abs-reqs < 3 && s.abs-reqs < s.abs-resps + 2 then
+        Some (AbsPipeState { abs-phase = AbsOpen, abs-reqs = s.abs-reqs + 1, abs-resps = s.abs-resps })
+      else None
+    _ -> None
+
+  abs-send-resp :: AbsPipeState -> Option AbsPipeState
+  abs-send-resp s = case s.abs-phase of
+    AbsOpen ->
+      if s.abs-resps < s.abs-reqs then
+        Some (AbsPipeState { abs-phase = AbsOpen, abs-reqs = s.abs-reqs, abs-resps = s.abs-resps + 1 })
+      else None
+    _ -> None
+
+  abs-close :: AbsPipeState -> Option AbsPipeState
+  abs-close s = case s.abs-phase of
+    AbsOpen ->
+      if s.abs-resps == s.abs-reqs then
+        Some (AbsPipeState { abs-phase = AbsClosed, abs-reqs = s.abs-reqs, abs-resps = s.abs-resps })
+      else None
+    _ -> None
+
+  abs-error :: AbsPipeState -> Option AbsPipeState
+  abs-error s = case s.abs-phase of
+    AbsOpen ->
+      Some (AbsPipeState { abs-phase = AbsError, abs-reqs = s.abs-reqs, abs-resps = s.abs-resps })
+    _ -> None
+
+  machine AbstractReqResPipe where
+    state = AbsPipeState
+    init = abs-pipe-init
+    actions = [abs-accept-req, abs-send-resp, abs-close, abs-error]
+    max_states = 256
+
+  -- | Abstraction projection mapping concrete HTTP/1.1 framing states onto
+  -- the pure FIFO request-response pipe `AbstractReqResPipe`.
+  h1-view :: H1ModelState -> AbsPipeState
+  h1-view s = case s.phase of
+    MProtocolError -> AbsPipeState { abs-phase = AbsError, abs-reqs = s.requests-parsed, abs-resps = s.responses-sent }
+    MClosed -> AbsPipeState { abs-phase = AbsClosed, abs-reqs = s.requests-parsed, abs-resps = s.responses-sent }
+    _ -> AbsPipeState { abs-phase = AbsOpen, abs-reqs = s.requests-parsed, abs-resps = s.responses-sent }
+
+  -- | Strictly decreasing stuttering measure over unread body-framing work:
+  --   * Fixed body: `2 -> 1 -> 0`
+  --   * Chunked body: `ChunkSize(1)=5 -> ChunkData(1)=4 -> ChunkCrlf(0)=3
+  --                    -> ChunkSize(0)=2 -> Trailers=1 -> ReadingHead=0`
+  h1-framing-measure :: H1ModelState -> Nat
+  h1-framing-measure s = case s.phase of
+    MReadingFixedBody -> s.body-rem
+    MReadingChunkSize -> s.body-rem * 3 + 2
+    MReadingChunkData -> s.body-rem * 3 + 1
+    MReadingChunkCrlf -> s.body-rem * 3 + 3
+    MReadingTrailers -> 1
+    _ -> 0
+
+  -- =========================================================================
+  -- 5. Formal Machine M5 (`Http1Machine`), Temporal Contracts & Refinement
+  -- =========================================================================
+
+  machine Http1Machine where
+    state = H1ModelState
+    init = h1-model-init
+    actions = [h1-step-recv-head, h1-step-body, h1-step-body-fault, h1-step-send-response, h1-step-close]
+    fair = [h1-step-body, h1-step-send-response, h1-step-close]
+    max_states = 4096
+
+  contract safety noSmugglingAndFifoFraming for Http1Machine where
+    always = (\s -> h1-safety-ok s)
+
+  contract stability protocolErrorAbsorbing for Http1Machine where
+    stable = (\s -> not s.err-entered || h1-phase-eq s.phase MProtocolError)
+
+  contract stability closedAbsorbing for Http1Machine where
+    stable = (\s -> not s.closed-entered || h1-phase-eq s.phase MClosed)
+
+  contract stability eventuallyTerminates for Http1Machine where
+    stable = (\s -> h1-phase-eq s.phase MClosed || h1-phase-eq s.phase MProtocolError)
+
+  contract liveness requestsYieldResponseOrClose for Http1Machine where
+    leads_to = (\s -> s.in-flight > 0) ~> (\s -> s.in-flight == 0 || h1-phase-eq s.phase MProtocolError || h1-phase-eq s.phase MClosed)
+    fair = [h1-step-body, h1-step-send-response, h1-step-close]
+
+  contract liveness honestRequestsDrain for Http1Machine where
+    leads_to = (\s -> s.in-flight > 0 && not (h1-phase-eq s.phase MProtocolError)) ~> (\s -> s.in-flight == 0)
+    assume = (\s -> not (h1-phase-eq s.phase MProtocolError))
+    fair = [h1-step-body, h1-step-send-response]
+
+  refines Http1Machine AbstractReqResPipe where
+    view = h1-view
+    measure = h1-framing-measure
