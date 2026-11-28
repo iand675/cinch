@@ -4,7 +4,7 @@ module Cinch.Export where
   import Cinch.Builtin (array-plan, mvar-plan, total-primitive, scalar-intrinsic)
   import Algebra.Semigroup
   import Cinch.Check (CheckedProgram)
-  import Cinch.Ast (Program, Module, Decl, TypeExpr, TypeParam, module-decls, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, DCapability, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
+  import Cinch.Ast (Program, Module, Decl, TypeExpr, TypeParam, module-decls, DClass, DInstance, DForeign, DExternal, DRefine, DRecord, DCodata, DEffect, DLaw, DTypeFamily, DCapability, DInlineHint, decls-of, source-clauses-document, source-law-document, portable-law-syntax, qualify-default-clauses, TName, TApp, TArg, TArgsEnd)
   import Cinch.Infer (guarded-members, source-method-symbol, source-conditional-head, Elaboration, elaboration-bindings, elaboration-core, elaboration-data, elaboration-effects, elaboration-classes, elaboration-instances, elaboration-declarations, elaboration-law-observations, elaboration-rewrite-assumptions, TemporalRow, elaboration-type-families, elaboration-data-families, elaboration-promoted-ctors, elaboration-data-param-kinds, elaboration-promoted-fns, PromotedDataKind, PDKType, PDKNat, PDKString, PDKList, PDKTuple, PDKData, PDKArg, PDKEnd, PromotedCtorInfo, DataFamilyInfo, CheckedBinding, checked-name, checked-scheme, checked-role, checked-method-matches, checked-body-binding, checked-foreign-plan, checked-c-export, checked-intrinsic-symbol, scalar-promise-matches, source-class-default-symbol, source-class-default-clauses, portable-default-export-global)
   import Cinch.Unpack (unpacked-abi)
   import Cinch.Logical (specification-names)
@@ -1355,6 +1355,7 @@ module Cinch.Export where
               (attach-optional-field "data_param_kinds" pk-rows
                 (attach-optional-field "promoted_fns" pf-rows base-exports)))) in
     let contract-rows = module-contract-facts mod-name typed.temporal in
+    let assertion-rows = module-assertion-rows mod-name values (elaboration-declarations typed) in
     attach-optional-field "prim_proofs" pp-rows
       (JObj "schema" (JNum (nat-to-int iface-schema-version)) (JObj "runtime_abi" (JNum runtime-abi-int)
         (JObj "language" (JStr "draft-0.2+amendments") (JObj "compiler" (JStr "cinch-self-hosted")
@@ -1363,9 +1364,31 @@ module Cinch.Export where
               (JObj "exports" full-exports
                 (JObj "abi" (JObj "convention" (JStr "uniform-word, curried apply stub")
                   (JObj "symbols" (sorted-strings (symbols values)) (JObj "layouts" (layouts layout-index types) JObjEnd)))
-                  (JObj "assumptions" checked-assumptions (JObj "assertions" JArrEnd
+                  (JObj "assumptions" checked-assumptions (JObj "assertions" assertion-rows
                     (JObj "contracts" contract-rows (JObj "must_use" JArrEnd (JObj "laws" laws
                       (JObj "upgrades" JArrEnd (JObj "units" JArrEnd JObjEnd)))))))))))))))))
+  is-safety-fact-hint :: String -> Bool
+  is-safety-fact-hint hint =
+    hint == "no-alloc" || hint == "fip" || hint == "alloc=once" || hint == "no-raw-ptr"
+      || (case foreign-drop-prefix (unpack "alloc=bounded(") (unpack hint) of Some _ -> True; None -> False)
+  collect-safety-hints-for :: String -> List Decl -> List String -> List String
+  collect-safety-hints-for wanted decls acc = case decls of
+    [] -> acc
+    (DInlineHint sp name (Ok h)) : rest ->
+      if name == wanted && is-safety-fact-hint h then collect-safety-hints-for wanted rest (h : acc)
+      else collect-safety-hints-for wanted rest acc
+    other : rest -> collect-safety-hints-for wanted rest acc
+  module-assertion-rows :: String -> Json -> List Decl -> Json
+  module-assertion-rows mod-name values decls = case values of
+    JArr row rest ->
+      let local = text (field "name" row) in
+      let more = module-assertion-rows mod-name rest decls in
+      let qwanted = string-concat-all [mod-name, ".", local] in
+      let facts = collect-safety-hints-for local decls (collect-safety-hints-for qwanted decls []) in
+      case facts of
+        [] -> more
+        _ -> insert-row "name" (JObj "facts" (sorted-strings (strings facts)) (JObj "name" (JStr local) JObjEnd)) more
+    other -> JArrEnd
   temporal-display-identity :: String -> String
   temporal-display-identity raw = case export-global raw of
     Ok identity -> identity

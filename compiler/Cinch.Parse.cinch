@@ -999,6 +999,12 @@ module Cinch.Parse where
       Some (family, if open == end then Ok "cold" else Err "`#[cold]` takes no arguments")
     else if family == "no-alloc" then
       Some (family, if open == end then Ok "no-alloc" else Err "`#[no-alloc]` takes no arguments")
+    else if family == "fip" then
+      Some (family, if open == end then Ok "fip" else Err "`#[fip]` takes no arguments")
+    else if family == "alloc" then
+      Some (family, parsed-alloc-attr arg)
+    else if string-starts-with "alloc " (string-strip text) then
+      Some ("alloc", parsed-alloc-attr (string-strip (string-drop 6 (string-strip text))))
     else if family == "no-raw-ptr" then
       Some (family, if open == end then Ok "no-raw-ptr" else Err "`#[no-raw-ptr]` takes no arguments")
     else if family == "byval" then
@@ -1022,6 +1028,36 @@ module Cinch.Parse where
     case (if string-length arg == 0 then Err "" else unroll-count (unpack arg) 0) of
       Ok count -> Ok count
       Err reason -> Err ("`" <> arg <> "` is not an unroll hint: expected a natural number of iterations or `disable` (`#[unroll(4)]`). " <> reason)
+  alloc-bound-digits :: List Char -> Nat -> Result String String
+  alloc-bound-digits digits n = case digits of
+    [] -> Ok (nat-to-string n)
+    ch : rest -> let code = char-code ch in
+      if code < 48 || code > 57 then Err "expected a non-negative integer literal `n` in `bounded(n)`"
+      else alloc-bound-digits rest (n * 10 + (code - 48))
+
+  strip-attr-quotes :: String -> Option String
+  strip-attr-quotes raw =
+    let s = string-strip raw in
+    let n = string-length s in
+    if 2 <= n && string-starts-with "\"" s && string-ends-with "\"" s then
+      Some (string-strip (string-take (n - 2) (string-drop 1 s)))
+    else None
+
+  parsed-alloc-attr :: String -> Result String String
+  parsed-alloc-attr raw = case strip-attr-quotes raw of
+    None -> Err "`#[alloc]` takes one string argument in quotes (`\"once\"` or `\"bounded(n)\"`)"
+    Some inner ->
+      if inner == "once" then Ok "alloc=once"
+      else if string-starts-with "bounded(" inner && string-ends-with ")" inner then
+        let nlen = string-length inner in
+        let body = if nlen >= 9 then string-strip (string-take (nlen - 9) (string-drop 8 inner)) else "" in
+        if string-length body == 0 then
+          Err ("`" <> inner <> "` is not an allocation bound: `#[alloc \"bounded(n)\"]` takes a non-negative integer literal `n`")
+        else case alloc-bound-digits (unpack body) 0 of
+          Ok digits -> Ok ("alloc=bounded(" <> digits <> ")")
+          Err reason -> Err ("`" <> inner <> "` is not an allocation bound: " <> reason)
+      else Err ("`" <> inner <> "` is not an allocation assertion: `#[alloc]` takes `\"once\"` or `\"bounded(n)\"`")
+
   hint-family :: String -> String
   hint-family family = if family == "noinline" then "inline" else family
   prior-function-hint :: String -> String -> List Decl -> Bool
@@ -1030,7 +1066,8 @@ module Cinch.Parse where
     (DUnrollHint sp owner hint) : rest -> (name == owner && family == "unroll") || prior-function-hint name family rest
     (DInlineHint sp owner hint) : rest ->
       let category = (case hint of
-        Ok value | (value == "cold" || value == "no-alloc" || value == "no-raw-ptr" || value == "byval" || value == "sret") -> value
+        Ok value | (value == "cold" || value == "no-alloc" || value == "fip" || value == "no-raw-ptr" || value == "byval" || value == "sret") -> value
+        Ok value | string-starts-with "alloc=" value -> "alloc"
         other -> "inline") in
       (name == owner && family == category) || prior-function-hint name family rest
     other : rest -> prior-function-hint name family rest
@@ -1046,7 +1083,9 @@ module Cinch.Parse where
         Some earlier -> if earlier == family then Err ("two `" <> family <> "` attributes on one construct") else Err "one function carries one inline hint"
         None -> if prior-function-hint name category prior then
           (if category == "unroll" then Err "function carries two unroll hints: one hint family"
-           else if category == "cold" then Err "two `cold` attributes on one construct" else Err "one function carries one inline hint")
+           else if category == "cold" then Err "two `cold` attributes on one construct"
+           else if category == "alloc" || category == "fip" || category == "no-alloc" then Err ("two `" <> category <> "` attributes on one construct")
+           else Err "one function carries one inline hint")
           else value) in
       (if family == "unroll" then DUnrollHint sp name hint else DInlineHint sp name hint) : (attach-hints name rest prior)
 

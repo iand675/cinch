@@ -453,7 +453,7 @@ module Cinch.RuntimeIr where
   index-function-hints ds hints = case ds of
     [] -> hints
     (DInlineHint sp name (Ok hint)) : rest ->
-      if hint == "no-alloc" || hint == "no-raw-ptr" || hint == "byval" || hint == "sret" then index-function-hints rest hints
+      if hint == "no-alloc" || hint == "fip" || hint == "no-raw-ptr" || hint == "byval" || hint == "sret" || string-starts-with "alloc=" hint then index-function-hints rest hints
       else let table = (case hints of Some entries -> entries; None -> hash-map-empty) in (case lookup-hints name table of
         FunctionHints inline cold loop -> let updated = if hint == "cold" then FunctionHints inline True loop else FunctionHints hint cold loop in
           index-function-hints rest (Some (hash-map-insert name updated table)))

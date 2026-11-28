@@ -491,6 +491,29 @@ pub unsafe extern "C" fn cinch_drop_mt(word: i64) {
     unsafe { drop_atomic(p) }
 }
 
+thread_local! {
+    /// Cumulative atomic reference-count operations performed on the
+    /// calling OS thread (incremented only on the slow negative-RC branch
+    /// so the single-threaded fast path executes zero extra instructions).
+    static THREAD_ATOMIC_RC_COUNT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+#[inline]
+fn record_atomic_rc() {
+    let _ = THREAD_ATOMIC_RC_COUNT.try_with(|c| c.set(c.get().wrapping_add(1)));
+}
+
+/// Cumulative atomic reference-count operations performed by the calling
+/// OS thread since thread start or the last [`reset_thread_atomic_rc_count`].
+pub(crate) fn thread_atomic_rc_count() -> u64 {
+    THREAD_ATOMIC_RC_COUNT.try_with(std::cell::Cell::get).unwrap_or(0)
+}
+
+/// Reset the calling OS thread's atomic RC operation counter to zero.
+pub(crate) fn reset_thread_atomic_rc_count() {
+    let _ = THREAD_ATOMIC_RC_COUNT.try_with(|c| c.set(0));
+}
+
 /// One more reference to the atomic block `p`: the count `-n` becomes
 /// `-(n + 1)`, one less in the whole word (module docs).
 ///
@@ -500,6 +523,7 @@ pub unsafe extern "C" fn cinch_drop_mt(word: i64) {
 /// caller holds.
 #[inline]
 unsafe fn dup_atomic(p: *mut u8) {
+    record_atomic_rc();
     unsafe { block::header_cell(p) }.fetch_sub(1, Ordering::Relaxed);
 }
 
@@ -527,6 +551,7 @@ unsafe fn drop_atomic(p: *mut u8) {
 /// As for [`drop_atomic`].
 #[inline]
 unsafe fn take_atomic(p: *mut u8) -> Option<u64> {
+    record_atomic_rc();
     let old = unsafe { block::header_cell(p) }.fetch_add(1, Ordering::Release);
     if block::rc(old) != -1 {
         return None;

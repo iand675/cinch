@@ -593,6 +593,7 @@ mod entropy;
 #[cfg(all(test, not(target_os = "unknown")))]
 mod entropy_boundary_tests;
 pub mod effects;
+pub mod engine_thread;
 pub mod error;
 pub mod escape;
 pub mod heap;
