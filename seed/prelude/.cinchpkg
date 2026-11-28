@@ -1347,6 +1347,10 @@
     {
       "name": "Engine.Types",
       "path": "Engine/Types.cinch"
+    },
+    {
+      "name": "Engine.Mem.DmaPool",
+      "path": "Engine/Mem/DmaPool.cinch"
     }
   ],
   "order": [
@@ -1685,6 +1689,7 @@
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
     "Prim.Sys.Io",
-    "Engine.Types"
+    "Engine.Types",
+    "Engine.Mem.DmaPool"
   ]
 }
