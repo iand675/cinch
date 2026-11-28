@@ -1,0 +1,1928 @@
+-- | Unified H2O-style canonical HTTP/1.1 + HTTP/2 + HTTP/3 types,
+-- O(1) 61-header lookup tables with exact RFC 7541 (HPACK) & RFC 9204 (QPACK)
+-- static table indices, zero-copy `#[repr(C, value)]` POD request/header views,
+-- and a compile-time `%1` linear `ResponseWriter` state machine.
+--
+-- Every hot-path helper is `#[no-alloc]` (or auto-niched single-word `Raw`
+-- enum with zero runtime heap allocation) and returns immortal (`rc == 0`)
+-- data-section strings where text literals are exposed.
+module Net.Http.Types where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.String
+  import Prim.Atomic
+
+  -- HTTP Methods (auto-niched single-word enum + U8 wire codes)
+  export HttpMethod, MethodGet, MethodHead, MethodPost, MethodPut, MethodDelete
+  export MethodConnect, MethodOptions, MethodTrace, MethodPatch, MethodCustom
+  export method-code-get, method-code-head, method-code-post, method-code-put
+  export method-code-delete, method-code-connect, method-code-options
+  export method-code-trace, method-code-patch, method-code-custom
+  export http-method-to-u8, http-method-from-u8, http-method-name, http-method-eq
+
+  -- HTTP Protocol Versions (auto-niched single-word enum + U8 codes)
+  export HttpVersion, Http10, Http11, Http2, Http3
+  export version-code-http10, version-code-http11, version-code-http2, version-code-http3
+  export http-version-to-u8, http-version-from-u8, http-version-name, http-version-eq
+
+  -- HTTP Status (2-byte #[repr(value)] POD + 17 common constructors + immortal status lines)
+  export HttpStatus, status-of, status-eq
+  export status-ok, status-created, status-no-content, status-partial-content
+  export status-moved-permanently, status-not-modified, status-bad-request
+  export status-unauthorized, status-forbidden, status-not-found
+  export status-method-not-allowed, status-payload-too-large, status-too-many-requests
+  export status-internal-error, status-bad-gateway, status-service-unavailable
+  export status-switching-protocols
+  export http-status-line
+
+  -- KnownHeader U8 constants (0..60 + hdr-unknown = 255) & O(1) RFC 7541/9204 tables
+  export known-header-count, hdr-unknown
+  export hdr-authority, hdr-method, hdr-path, hdr-scheme, hdr-status
+  export hdr-accept, hdr-accept-charset, hdr-accept-encoding, hdr-accept-language
+  export hdr-accept-ranges, hdr-access-control-allow-origin, hdr-age, hdr-allow
+  export hdr-authorization, hdr-cache-control, hdr-connection, hdr-content-disposition
+  export hdr-content-encoding, hdr-content-language, hdr-content-length
+  export hdr-content-location, hdr-content-range, hdr-content-type, hdr-cookie
+  export hdr-date, hdr-etag, hdr-expect, hdr-expires, hdr-from, hdr-host
+  export hdr-if-match, hdr-if-modified-since, hdr-if-none-match, hdr-if-range
+  export hdr-if-unmodified-since, hdr-last-modified, hdr-link, hdr-location
+  export hdr-max-forwards, hdr-origin, hdr-priority, hdr-proxy-authenticate
+  export hdr-proxy-authorization, hdr-range, hdr-referer, hdr-refresh, hdr-retry-after
+  export hdr-sec-websocket-accept, hdr-sec-websocket-key, hdr-sec-websocket-version
+  export hdr-server, hdr-set-cookie, hdr-strict-transport-security, hdr-te
+  export hdr-transfer-encoding, hdr-upgrade, hdr-user-agent, hdr-vary, hdr-via
+  export hdr-www-authenticate, hdr-alt-svc
+  export known-header-bit, known-header-hpack-index, known-header-qpack-index
+  export known-header-wire-name, known-header-match-dma, known-header-match-bytes
+
+  -- Zero-Copy HeaderPair (20B POD) & RequestHead (48B POD) + Flags
+  export HeaderPair, header-pair-make, header-pair-empty
+  export RequestHead, req-head-empty, req-has-header, req-has-flag
+  export req-flag-keep-alive, req-flag-chunked, req-flag-has-cl
+  export req-flag-expect-continue, req-flag-upgrade
+
+  -- Linear %1 ResponseWriter state machine (types only; constructors are private!)
+  export ResponseHeadPending, ResponseBodyOpen, ResponseClosed
+  export response-begin, response-with-writer
+  export response-write-status, response-write-header-known, response-finish-head
+  export response-write-body, response-end, response-finish-closed
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & byte-packing helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  ascii-lower-u8 :: U8 -> U8
+  ascii-lower-u8 b =
+    if lt-u8 (wrapping-sub-u8 b 65) 26 then bit-or-u8 b 32 else b
+
+  -- Per-byte alpha mask: 0x20 if expected lowercase byte is 'a'..'z', else 0x00.
+  -- Theorem: for c in 'a'..'z', (b | 0x20) == c iff b in {c, c - 32};
+  -- for c in {':', '-'}, (b | 0x00) == c iff b == c. Exact across all 256 bytes!
+  #[inline(always)]
+  #[no-alloc]
+  alpha-mask-u8 :: U8 -> U8
+  alpha-mask-u8 c =
+    if lt-u8 (wrapping-sub-u8 c 97) 26 then 32 else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le2 :: U8 -> U8 -> U32
+  pack-le2 c0 c1 =
+    bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  mask-le4 c0 c1 c2 c3 =
+    pack-le4 (alpha-mask-u8 c0) (alpha-mask-u8 c1) (alpha-mask-u8 c2) (alpha-mask-u8 c3)
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  mask-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    pack-le8
+      (alpha-mask-u8 c0) (alpha-mask-u8 c1) (alpha-mask-u8 c2) (alpha-mask-u8 c3)
+      (alpha-mask-u8 c4) (alpha-mask-u8 c5) (alpha-mask-u8 c6) (alpha-mask-u8 c7)
+
+  -- =========================================================================
+  -- 1. HttpMethod (auto-niched single-word enum + U8 wire codes)
+  -- =========================================================================
+
+  -- | Canonical HTTP request method shared across HTTP/1.1, HTTP/2, and HTTP/3.
+  data HttpMethod where
+    MethodGet :: HttpMethod
+    MethodHead :: HttpMethod
+    MethodPost :: HttpMethod
+    MethodPut :: HttpMethod
+    MethodDelete :: HttpMethod
+    MethodConnect :: HttpMethod
+    MethodOptions :: HttpMethod
+    MethodTrace :: HttpMethod
+    MethodPatch :: HttpMethod
+    MethodCustom :: HttpMethod
+
+  #[no-alloc]
+  method-code-get :: U8
+  method-code-get = 0
+
+  #[no-alloc]
+  method-code-head :: U8
+  method-code-head = 1
+
+  #[no-alloc]
+  method-code-post :: U8
+  method-code-post = 2
+
+  #[no-alloc]
+  method-code-put :: U8
+  method-code-put = 3
+
+  #[no-alloc]
+  method-code-delete :: U8
+  method-code-delete = 4
+
+  #[no-alloc]
+  method-code-connect :: U8
+  method-code-connect = 5
+
+  #[no-alloc]
+  method-code-options :: U8
+  method-code-options = 6
+
+  #[no-alloc]
+  method-code-trace :: U8
+  method-code-trace = 7
+
+  #[no-alloc]
+  method-code-patch :: U8
+  method-code-patch = 8
+
+  #[no-alloc]
+  method-code-custom :: U8
+  method-code-custom = 255
+
+  -- | Convert an `HttpMethod` to its canonical `U8` code.
+  #[no-alloc]
+  http-method-to-u8 :: HttpMethod -> U8
+  http-method-to-u8 m = case m of
+    MethodGet -> 0
+    MethodHead -> 1
+    MethodPost -> 2
+    MethodPut -> 3
+    MethodDelete -> 4
+    MethodConnect -> 5
+    MethodOptions -> 6
+    MethodTrace -> 7
+    MethodPatch -> 8
+    MethodCustom -> 255
+
+  -- | Decode a `U8` code into `HttpMethod` (auto-niched single-word Raw enum:
+  -- zero runtime heap allocation).
+  http-method-from-u8 :: U8 -> HttpMethod
+  http-method-from-u8 code =
+    if eq-u8 code 0 then MethodGet
+    else if eq-u8 code 1 then MethodHead
+    else if eq-u8 code 2 then MethodPost
+    else if eq-u8 code 3 then MethodPut
+    else if eq-u8 code 4 then MethodDelete
+    else if eq-u8 code 5 then MethodConnect
+    else if eq-u8 code 6 then MethodOptions
+    else if eq-u8 code 7 then MethodTrace
+    else if eq-u8 code 8 then MethodPatch
+    else MethodCustom
+
+  -- | Return the canonical uppercase HTTP method name as an immortal (`rc == 0`) string.
+  #[no-alloc]
+  http-method-name :: HttpMethod -> String
+  http-method-name m = case m of
+    MethodGet -> "GET"
+    MethodHead -> "HEAD"
+    MethodPost -> "POST"
+    MethodPut -> "PUT"
+    MethodDelete -> "DELETE"
+    MethodConnect -> "CONNECT"
+    MethodOptions -> "OPTIONS"
+    MethodTrace -> "TRACE"
+    MethodPatch -> "PATCH"
+    MethodCustom -> ""
+
+  #[no-alloc]
+  http-method-eq :: HttpMethod -> HttpMethod -> Bool
+  http-method-eq a b = eq-u8 (http-method-to-u8 a) (http-method-to-u8 b)
+
+  -- =========================================================================
+  -- 2. HttpVersion (auto-niched single-word enum + U8 wire codes)
+  -- =========================================================================
+
+  -- | Canonical HTTP protocol version.
+  data HttpVersion where
+    Http10 :: HttpVersion
+    Http11 :: HttpVersion
+    Http2 :: HttpVersion
+    Http3 :: HttpVersion
+
+  #[no-alloc]
+  version-code-http10 :: U8
+  version-code-http10 = 0
+
+  #[no-alloc]
+  version-code-http11 :: U8
+  version-code-http11 = 1
+
+  #[no-alloc]
+  version-code-http2 :: U8
+  version-code-http2 = 2
+
+  #[no-alloc]
+  version-code-http3 :: U8
+  version-code-http3 = 3
+
+  #[no-alloc]
+  http-version-to-u8 :: HttpVersion -> U8
+  http-version-to-u8 v = case v of
+    Http10 -> 0
+    Http11 -> 1
+    Http2 -> 2
+    Http3 -> 3
+
+  -- Auto-niched single-word Raw enum: zero runtime heap allocation.
+  http-version-from-u8 :: U8 -> HttpVersion
+  http-version-from-u8 code =
+    if eq-u8 code 0 then Http10
+    else if eq-u8 code 1 then Http11
+    else if eq-u8 code 2 then Http2
+    else Http3
+
+  #[no-alloc]
+  http-version-name :: HttpVersion -> String
+  http-version-name v = case v of
+    Http10 -> "HTTP/1.0"
+    Http11 -> "HTTP/1.1"
+    Http2 -> "HTTP/2"
+    Http3 -> "HTTP/3"
+
+  #[no-alloc]
+  http-version-eq :: HttpVersion -> HttpVersion -> Bool
+  http-version-eq a b = eq-u8 (http-version-to-u8 a) (http-version-to-u8 b)
+
+  -- =========================================================================
+  -- 3. HttpStatus (2-byte #[repr(value)] POD + immortal status-line literals)
+  -- =========================================================================
+
+  -- | Unboxed 2-byte HTTP status code.
+  #[repr(value)]
+  record HttpStatus where
+    status-code :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  status-of :: U16 -> HttpStatus
+  status-of code = HttpStatus code
+
+  #[inline(always)]
+  #[no-alloc]
+  status-eq :: HttpStatus -> HttpStatus -> Bool
+  status-eq a b = eq-u16 a.status-code b.status-code
+
+  #[inline(always)]
+  #[no-alloc]
+  status-ok :: Unit -> HttpStatus
+  status-ok _ = HttpStatus 200
+
+  #[inline(always)]
+  #[no-alloc]
+  status-created :: Unit -> HttpStatus
+  status-created _ = HttpStatus 201
+
+  #[inline(always)]
+  #[no-alloc]
+  status-no-content :: Unit -> HttpStatus
+  status-no-content _ = HttpStatus 204
+
+  #[inline(always)]
+  #[no-alloc]
+  status-partial-content :: Unit -> HttpStatus
+  status-partial-content _ = HttpStatus 206
+
+  #[inline(always)]
+  #[no-alloc]
+  status-moved-permanently :: Unit -> HttpStatus
+  status-moved-permanently _ = HttpStatus 301
+
+  #[inline(always)]
+  #[no-alloc]
+  status-not-modified :: Unit -> HttpStatus
+  status-not-modified _ = HttpStatus 304
+
+  #[inline(always)]
+  #[no-alloc]
+  status-bad-request :: Unit -> HttpStatus
+  status-bad-request _ = HttpStatus 400
+
+  #[inline(always)]
+  #[no-alloc]
+  status-unauthorized :: Unit -> HttpStatus
+  status-unauthorized _ = HttpStatus 401
+
+  #[inline(always)]
+  #[no-alloc]
+  status-forbidden :: Unit -> HttpStatus
+  status-forbidden _ = HttpStatus 403
+
+  #[inline(always)]
+  #[no-alloc]
+  status-not-found :: Unit -> HttpStatus
+  status-not-found _ = HttpStatus 404
+
+  #[inline(always)]
+  #[no-alloc]
+  status-method-not-allowed :: Unit -> HttpStatus
+  status-method-not-allowed _ = HttpStatus 405
+
+  #[inline(always)]
+  #[no-alloc]
+  status-payload-too-large :: Unit -> HttpStatus
+  status-payload-too-large _ = HttpStatus 413
+
+  #[inline(always)]
+  #[no-alloc]
+  status-too-many-requests :: Unit -> HttpStatus
+  status-too-many-requests _ = HttpStatus 429
+
+  #[inline(always)]
+  #[no-alloc]
+  status-internal-error :: Unit -> HttpStatus
+  status-internal-error _ = HttpStatus 500
+
+  #[inline(always)]
+  #[no-alloc]
+  status-bad-gateway :: Unit -> HttpStatus
+  status-bad-gateway _ = HttpStatus 502
+
+  #[inline(always)]
+  #[no-alloc]
+  status-service-unavailable :: Unit -> HttpStatus
+  status-service-unavailable _ = HttpStatus 503
+
+  #[inline(always)]
+  #[no-alloc]
+  status-switching-protocols :: Unit -> HttpStatus
+  status-switching-protocols _ = HttpStatus 101
+
+  -- | Pre-rendered immortal (`rc == 0`) HTTP/1.1 status-line literal for standard
+  -- status codes (empty string for custom/non-standard codes).
+  #[no-alloc]
+  http-status-line :: HttpStatus -> String
+  http-status-line st =
+    let c = st.status-code in
+    if eq-u16 c 200 then "HTTP/1.1 200 OK\r\n"
+    else if eq-u16 c 201 then "HTTP/1.1 201 Created\r\n"
+    else if eq-u16 c 204 then "HTTP/1.1 204 No Content\r\n"
+    else if eq-u16 c 206 then "HTTP/1.1 206 Partial Content\r\n"
+    else if eq-u16 c 301 then "HTTP/1.1 301 Moved Permanently\r\n"
+    else if eq-u16 c 304 then "HTTP/1.1 304 Not Modified\r\n"
+    else if eq-u16 c 400 then "HTTP/1.1 400 Bad Request\r\n"
+    else if eq-u16 c 401 then "HTTP/1.1 401 Unauthorized\r\n"
+    else if eq-u16 c 403 then "HTTP/1.1 403 Forbidden\r\n"
+    else if eq-u16 c 404 then "HTTP/1.1 404 Not Found\r\n"
+    else if eq-u16 c 405 then "HTTP/1.1 405 Method Not Allowed\r\n"
+    else if eq-u16 c 413 then "HTTP/1.1 413 Payload Too Large\r\n"
+    else if eq-u16 c 429 then "HTTP/1.1 429 Too Many Requests\r\n"
+    else if eq-u16 c 500 then "HTTP/1.1 500 Internal Server Error\r\n"
+    else if eq-u16 c 502 then "HTTP/1.1 502 Bad Gateway\r\n"
+    else if eq-u16 c 503 then "HTTP/1.1 503 Service Unavailable\r\n"
+    else if eq-u16 c 101 then "HTTP/1.1 101 Switching Protocols\r\n"
+    else ""
+
+  -- =========================================================================
+  -- 4. KnownHeader constants (0..60 + hdr-unknown = 255) & O(1) lookup tables
+  -- =========================================================================
+
+  #[no-alloc]
+  known-header-count :: U8
+  known-header-count = 61
+
+  #[no-alloc]
+  hdr-authority :: U8
+  hdr-authority = 0
+
+  #[no-alloc]
+  hdr-method :: U8
+  hdr-method = 1
+
+  #[no-alloc]
+  hdr-path :: U8
+  hdr-path = 2
+
+  #[no-alloc]
+  hdr-scheme :: U8
+  hdr-scheme = 3
+
+  #[no-alloc]
+  hdr-status :: U8
+  hdr-status = 4
+
+  #[no-alloc]
+  hdr-accept :: U8
+  hdr-accept = 5
+
+  #[no-alloc]
+  hdr-accept-charset :: U8
+  hdr-accept-charset = 6
+
+  #[no-alloc]
+  hdr-accept-encoding :: U8
+  hdr-accept-encoding = 7
+
+  #[no-alloc]
+  hdr-accept-language :: U8
+  hdr-accept-language = 8
+
+  #[no-alloc]
+  hdr-accept-ranges :: U8
+  hdr-accept-ranges = 9
+
+  #[no-alloc]
+  hdr-access-control-allow-origin :: U8
+  hdr-access-control-allow-origin = 10
+
+  #[no-alloc]
+  hdr-age :: U8
+  hdr-age = 11
+
+  #[no-alloc]
+  hdr-allow :: U8
+  hdr-allow = 12
+
+  #[no-alloc]
+  hdr-authorization :: U8
+  hdr-authorization = 13
+
+  #[no-alloc]
+  hdr-cache-control :: U8
+  hdr-cache-control = 14
+
+  #[no-alloc]
+  hdr-connection :: U8
+  hdr-connection = 15
+
+  #[no-alloc]
+  hdr-content-disposition :: U8
+  hdr-content-disposition = 16
+
+  #[no-alloc]
+  hdr-content-encoding :: U8
+  hdr-content-encoding = 17
+
+  #[no-alloc]
+  hdr-content-language :: U8
+  hdr-content-language = 18
+
+  #[no-alloc]
+  hdr-content-length :: U8
+  hdr-content-length = 19
+
+  #[no-alloc]
+  hdr-content-location :: U8
+  hdr-content-location = 20
+
+  #[no-alloc]
+  hdr-content-range :: U8
+  hdr-content-range = 21
+
+  #[no-alloc]
+  hdr-content-type :: U8
+  hdr-content-type = 22
+
+  #[no-alloc]
+  hdr-cookie :: U8
+  hdr-cookie = 23
+
+  #[no-alloc]
+  hdr-date :: U8
+  hdr-date = 24
+
+  #[no-alloc]
+  hdr-etag :: U8
+  hdr-etag = 25
+
+  #[no-alloc]
+  hdr-expect :: U8
+  hdr-expect = 26
+
+  #[no-alloc]
+  hdr-expires :: U8
+  hdr-expires = 27
+
+  #[no-alloc]
+  hdr-from :: U8
+  hdr-from = 28
+
+  #[no-alloc]
+  hdr-host :: U8
+  hdr-host = 29
+
+  #[no-alloc]
+  hdr-if-match :: U8
+  hdr-if-match = 30
+
+  #[no-alloc]
+  hdr-if-modified-since :: U8
+  hdr-if-modified-since = 31
+
+  #[no-alloc]
+  hdr-if-none-match :: U8
+  hdr-if-none-match = 32
+
+  #[no-alloc]
+  hdr-if-range :: U8
+  hdr-if-range = 33
+
+  #[no-alloc]
+  hdr-if-unmodified-since :: U8
+  hdr-if-unmodified-since = 34
+
+  #[no-alloc]
+  hdr-last-modified :: U8
+  hdr-last-modified = 35
+
+  #[no-alloc]
+  hdr-link :: U8
+  hdr-link = 36
+
+  #[no-alloc]
+  hdr-location :: U8
+  hdr-location = 37
+
+  #[no-alloc]
+  hdr-max-forwards :: U8
+  hdr-max-forwards = 38
+
+  #[no-alloc]
+  hdr-origin :: U8
+  hdr-origin = 39
+
+  #[no-alloc]
+  hdr-priority :: U8
+  hdr-priority = 40
+
+  #[no-alloc]
+  hdr-proxy-authenticate :: U8
+  hdr-proxy-authenticate = 41
+
+  #[no-alloc]
+  hdr-proxy-authorization :: U8
+  hdr-proxy-authorization = 42
+
+  #[no-alloc]
+  hdr-range :: U8
+  hdr-range = 43
+
+  #[no-alloc]
+  hdr-referer :: U8
+  hdr-referer = 44
+
+  #[no-alloc]
+  hdr-refresh :: U8
+  hdr-refresh = 45
+
+  #[no-alloc]
+  hdr-retry-after :: U8
+  hdr-retry-after = 46
+
+  #[no-alloc]
+  hdr-sec-websocket-accept :: U8
+  hdr-sec-websocket-accept = 47
+
+  #[no-alloc]
+  hdr-sec-websocket-key :: U8
+  hdr-sec-websocket-key = 48
+
+  #[no-alloc]
+  hdr-sec-websocket-version :: U8
+  hdr-sec-websocket-version = 49
+
+  #[no-alloc]
+  hdr-server :: U8
+  hdr-server = 50
+
+  #[no-alloc]
+  hdr-set-cookie :: U8
+  hdr-set-cookie = 51
+
+  #[no-alloc]
+  hdr-strict-transport-security :: U8
+  hdr-strict-transport-security = 52
+
+  #[no-alloc]
+  hdr-te :: U8
+  hdr-te = 53
+
+  #[no-alloc]
+  hdr-transfer-encoding :: U8
+  hdr-transfer-encoding = 54
+
+  #[no-alloc]
+  hdr-upgrade :: U8
+  hdr-upgrade = 55
+
+  #[no-alloc]
+  hdr-user-agent :: U8
+  hdr-user-agent = 56
+
+  #[no-alloc]
+  hdr-vary :: U8
+  hdr-vary = 57
+
+  #[no-alloc]
+  hdr-via :: U8
+  hdr-via = 58
+
+  #[no-alloc]
+  hdr-www-authenticate :: U8
+  hdr-www-authenticate = 59
+
+  #[no-alloc]
+  hdr-alt-svc :: U8
+  hdr-alt-svc = 60
+
+  #[no-alloc]
+  hdr-unknown :: U8
+  hdr-unknown = 255
+
+  -- | Return the unique 64-bit presence bit `1 << id` for `id < 64`, or `0` otherwise.
+  #[inline(always)]
+  #[no-alloc]
+  known-header-bit :: U8 -> U64
+  known-header-bit id =
+    if lt-u8 id 64 then wrapping-shl-u64 1 (u8-to-u32 id) else 0
+
+  -- | Exact RFC 7541 Appendix A HPACK static table index (`1..61`), or `0` if
+  -- the header name is not in the HPACK static table.
+  #[no-alloc]
+  known-header-hpack-index :: U8 -> U8
+  known-header-hpack-index id =
+    if eq-u8 id 0 then 1        -- :authority
+    else if eq-u8 id 1 then 2   -- :method
+    else if eq-u8 id 2 then 4   -- :path
+    else if eq-u8 id 3 then 6   -- :scheme
+    else if eq-u8 id 4 then 8   -- :status
+    else if eq-u8 id 5 then 19  -- accept
+    else if eq-u8 id 6 then 15  -- accept-charset
+    else if eq-u8 id 7 then 16  -- accept-encoding
+    else if eq-u8 id 8 then 17  -- accept-language
+    else if eq-u8 id 9 then 18  -- accept-ranges
+    else if eq-u8 id 10 then 20 -- access-control-allow-origin
+    else if eq-u8 id 11 then 21 -- age
+    else if eq-u8 id 12 then 22 -- allow
+    else if eq-u8 id 13 then 23 -- authorization
+    else if eq-u8 id 14 then 24 -- cache-control
+    else if eq-u8 id 15 then 0  -- connection (not in HPACK)
+    else if eq-u8 id 16 then 25 -- content-disposition
+    else if eq-u8 id 17 then 26 -- content-encoding
+    else if eq-u8 id 18 then 27 -- content-language
+    else if eq-u8 id 19 then 28 -- content-length
+    else if eq-u8 id 20 then 29 -- content-location
+    else if eq-u8 id 21 then 30 -- content-range
+    else if eq-u8 id 22 then 31 -- content-type
+    else if eq-u8 id 23 then 32 -- cookie
+    else if eq-u8 id 24 then 33 -- date
+    else if eq-u8 id 25 then 34 -- etag
+    else if eq-u8 id 26 then 35 -- expect
+    else if eq-u8 id 27 then 36 -- expires
+    else if eq-u8 id 28 then 37 -- from
+    else if eq-u8 id 29 then 38 -- host
+    else if eq-u8 id 30 then 39 -- if-match
+    else if eq-u8 id 31 then 40 -- if-modified-since
+    else if eq-u8 id 32 then 41 -- if-none-match
+    else if eq-u8 id 33 then 42 -- if-range
+    else if eq-u8 id 34 then 43 -- if-unmodified-since
+    else if eq-u8 id 35 then 44 -- last-modified
+    else if eq-u8 id 36 then 45 -- link
+    else if eq-u8 id 37 then 46 -- location
+    else if eq-u8 id 38 then 47 -- max-forwards
+    else if eq-u8 id 39 then 0  -- origin (not in HPACK)
+    else if eq-u8 id 40 then 0  -- priority (not in HPACK)
+    else if eq-u8 id 41 then 48 -- proxy-authenticate
+    else if eq-u8 id 42 then 49 -- proxy-authorization
+    else if eq-u8 id 43 then 50 -- range
+    else if eq-u8 id 44 then 51 -- referer
+    else if eq-u8 id 45 then 52 -- refresh
+    else if eq-u8 id 46 then 53 -- retry-after
+    else if eq-u8 id 47 then 0  -- sec-websocket-accept
+    else if eq-u8 id 48 then 0  -- sec-websocket-key
+    else if eq-u8 id 49 then 0  -- sec-websocket-version
+    else if eq-u8 id 50 then 54 -- server
+    else if eq-u8 id 51 then 55 -- set-cookie
+    else if eq-u8 id 52 then 56 -- strict-transport-security
+    else if eq-u8 id 53 then 0  -- te
+    else if eq-u8 id 54 then 57 -- transfer-encoding
+    else if eq-u8 id 55 then 0  -- upgrade
+    else if eq-u8 id 56 then 58 -- user-agent
+    else if eq-u8 id 57 then 59 -- vary
+    else if eq-u8 id 58 then 60 -- via
+    else if eq-u8 id 59 then 61 -- www-authenticate
+    else if eq-u8 id 60 then 0  -- alt-svc (not in HPACK)
+    else 0
+
+  -- | Exact RFC 9204 Appendix A QPACK static table index (`0..98`), or `255` if
+  -- the header name is not in the QPACK static table.
+  #[no-alloc]
+  known-header-qpack-index :: U8 -> U8
+  known-header-qpack-index id =
+    if eq-u8 id 0 then 0        -- :authority
+    else if eq-u8 id 1 then 15  -- :method
+    else if eq-u8 id 2 then 1   -- :path
+    else if eq-u8 id 3 then 22  -- :scheme
+    else if eq-u8 id 4 then 24  -- :status
+    else if eq-u8 id 5 then 29  -- accept
+    else if eq-u8 id 6 then 255 -- accept-charset
+    else if eq-u8 id 7 then 31  -- accept-encoding
+    else if eq-u8 id 8 then 72  -- accept-language
+    else if eq-u8 id 9 then 32  -- accept-ranges
+    else if eq-u8 id 10 then 35 -- access-control-allow-origin
+    else if eq-u8 id 11 then 2  -- age
+    else if eq-u8 id 12 then 255 -- allow
+    else if eq-u8 id 13 then 84 -- authorization
+    else if eq-u8 id 14 then 36 -- cache-control
+    else if eq-u8 id 15 then 255 -- connection
+    else if eq-u8 id 16 then 3  -- content-disposition
+    else if eq-u8 id 17 then 42 -- content-encoding
+    else if eq-u8 id 18 then 255 -- content-language
+    else if eq-u8 id 19 then 4  -- content-length
+    else if eq-u8 id 20 then 255 -- content-location
+    else if eq-u8 id 21 then 255 -- content-range
+    else if eq-u8 id 22 then 44 -- content-type
+    else if eq-u8 id 23 then 5  -- cookie
+    else if eq-u8 id 24 then 6  -- date
+    else if eq-u8 id 25 then 7  -- etag
+    else if eq-u8 id 26 then 255 -- expect
+    else if eq-u8 id 27 then 255 -- expires
+    else if eq-u8 id 28 then 255 -- from
+    else if eq-u8 id 29 then 255 -- host
+    else if eq-u8 id 30 then 255 -- if-match
+    else if eq-u8 id 31 then 8  -- if-modified-since
+    else if eq-u8 id 32 then 9  -- if-none-match
+    else if eq-u8 id 33 then 89 -- if-range
+    else if eq-u8 id 34 then 255 -- if-unmodified-since
+    else if eq-u8 id 35 then 10 -- last-modified
+    else if eq-u8 id 36 then 11 -- link
+    else if eq-u8 id 37 then 12 -- location
+    else if eq-u8 id 38 then 255 -- max-forwards
+    else if eq-u8 id 39 then 90 -- origin
+    else if eq-u8 id 40 then 255 -- priority
+    else if eq-u8 id 41 then 255 -- proxy-authenticate
+    else if eq-u8 id 42 then 255 -- proxy-authorization
+    else if eq-u8 id 43 then 55 -- range
+    else if eq-u8 id 44 then 13 -- referer
+    else if eq-u8 id 45 then 255 -- refresh
+    else if eq-u8 id 46 then 255 -- retry-after
+    else if eq-u8 id 47 then 255 -- sec-websocket-accept
+    else if eq-u8 id 48 then 255 -- sec-websocket-key
+    else if eq-u8 id 49 then 255 -- sec-websocket-version
+    else if eq-u8 id 50 then 92 -- server
+    else if eq-u8 id 51 then 14 -- set-cookie
+    else if eq-u8 id 52 then 56 -- strict-transport-security
+    else if eq-u8 id 53 then 255 -- te
+    else if eq-u8 id 54 then 255 -- transfer-encoding
+    else if eq-u8 id 55 then 255 -- upgrade
+    else if eq-u8 id 56 then 95 -- user-agent
+    else if eq-u8 id 57 then 59 -- vary
+    else if eq-u8 id 58 then 255 -- via
+    else if eq-u8 id 59 then 255 -- www-authenticate
+    else if eq-u8 id 60 then 83 -- alt-svc
+    else 255
+
+  -- | Return the canonical lowercase wire name for a `KnownHeader` ID as an
+  -- immortal (`rc == 0`) string literal.
+  #[no-alloc]
+  known-header-wire-name :: U8 -> String
+  known-header-wire-name id =
+    if eq-u8 id 0 then ":authority"
+    else if eq-u8 id 1 then ":method"
+    else if eq-u8 id 2 then ":path"
+    else if eq-u8 id 3 then ":scheme"
+    else if eq-u8 id 4 then ":status"
+    else if eq-u8 id 5 then "accept"
+    else if eq-u8 id 6 then "accept-charset"
+    else if eq-u8 id 7 then "accept-encoding"
+    else if eq-u8 id 8 then "accept-language"
+    else if eq-u8 id 9 then "accept-ranges"
+    else if eq-u8 id 10 then "access-control-allow-origin"
+    else if eq-u8 id 11 then "age"
+    else if eq-u8 id 12 then "allow"
+    else if eq-u8 id 13 then "authorization"
+    else if eq-u8 id 14 then "cache-control"
+    else if eq-u8 id 15 then "connection"
+    else if eq-u8 id 16 then "content-disposition"
+    else if eq-u8 id 17 then "content-encoding"
+    else if eq-u8 id 18 then "content-language"
+    else if eq-u8 id 19 then "content-length"
+    else if eq-u8 id 20 then "content-location"
+    else if eq-u8 id 21 then "content-range"
+    else if eq-u8 id 22 then "content-type"
+    else if eq-u8 id 23 then "cookie"
+    else if eq-u8 id 24 then "date"
+    else if eq-u8 id 25 then "etag"
+    else if eq-u8 id 26 then "expect"
+    else if eq-u8 id 27 then "expires"
+    else if eq-u8 id 28 then "from"
+    else if eq-u8 id 29 then "host"
+    else if eq-u8 id 30 then "if-match"
+    else if eq-u8 id 31 then "if-modified-since"
+    else if eq-u8 id 32 then "if-none-match"
+    else if eq-u8 id 33 then "if-range"
+    else if eq-u8 id 34 then "if-unmodified-since"
+    else if eq-u8 id 35 then "last-modified"
+    else if eq-u8 id 36 then "link"
+    else if eq-u8 id 37 then "location"
+    else if eq-u8 id 38 then "max-forwards"
+    else if eq-u8 id 39 then "origin"
+    else if eq-u8 id 40 then "priority"
+    else if eq-u8 id 41 then "proxy-authenticate"
+    else if eq-u8 id 42 then "proxy-authorization"
+    else if eq-u8 id 43 then "range"
+    else if eq-u8 id 44 then "referer"
+    else if eq-u8 id 45 then "refresh"
+    else if eq-u8 id 46 then "retry-after"
+    else if eq-u8 id 47 then "sec-websocket-accept"
+    else if eq-u8 id 48 then "sec-websocket-key"
+    else if eq-u8 id 49 then "sec-websocket-version"
+    else if eq-u8 id 50 then "server"
+    else if eq-u8 id 51 then "set-cookie"
+    else if eq-u8 id 52 then "strict-transport-security"
+    else if eq-u8 id 53 then "te"
+    else if eq-u8 id 54 then "transfer-encoding"
+    else if eq-u8 id 55 then "upgrade"
+    else if eq-u8 id 56 then "user-agent"
+    else if eq-u8 id 57 then "vary"
+    else if eq-u8 id 58 then "via"
+    else if eq-u8 id 59 then "www-authenticate"
+    else if eq-u8 id 60 then "alt-svc"
+    else ""
+
+  -- =========================================================================
+  -- 5. Fast #[no-alloc] case-insensitive KnownHeader matchers (DMA & Bytes)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq1 :: I64 -> U32 -> U8 ->{MVar} Bool
+  dma-eq1 addr off c0 =
+    let b0 = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 off)) in
+    eq-u8 (bit-or-u8 b0 (alpha-mask-u8 c0)) c0
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq2 :: I64 -> U32 -> U8 -> U8 ->{MVar} Bool
+  dma-eq2 addr off c0 c1 =
+    both (dma-eq1 addr off c0) (dma-eq1 addr (wrapping-add-u32 off 1) c1)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-eq3 addr off c0 c1 c2 =
+    both (dma-eq2 addr off c0 c1) (dma-eq1 addr (wrapping-add-u32 off 2) c2)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-eq4 addr off c0 c1 c2 c3 =
+    let w = raw-load-u32 (wrapping-add-i64 addr (u32-to-i64 off)) in
+    eq-u32 (bit-or-u32 w (mask-le4 c0 c1 c2 c3)) (pack-le4 c0 c1 c2 c3)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-eq8 addr off c0 c1 c2 c3 c4 c5 c6 c7 =
+    let w = raw-load-u64 (wrapping-add-i64 addr (u32-to-i64 off)) in
+    eq-u64 (bit-or-u64 w (mask-le8 c0 c1 c2 c3 c4 c5 c6 c7)) (pack-le8 c0 c1 c2 c3 c4 c5 c6 c7)
+
+  -- | Match an ASCII header name at raw DMA `[addr, addr + len)` case-insensitively
+  -- using length + first-byte + word-wide comparisons (`#[no-alloc]`).
+  -- Returns the `KnownHeader` ID (`0..60`) or `hdr-unknown` (`255`).
+  #[no-alloc]
+  known-header-match-dma :: I64 -> U32 ->{MVar} U8
+  known-header-match-dma addr len =
+    if lt-u32 len 2 then hdr-unknown
+    else if gt-u32 len 27 then hdr-unknown
+    else
+      let b0 = ascii-lower-u8 (raw-load-u8 addr) in
+      if eq-u32 len 2 then
+        if dma-eq2 addr 0 116 101 then hdr-te else hdr-unknown
+      else if eq-u32 len 3 then
+        if eq-u8 b0 97 then (if dma-eq3 addr 0 97 103 101 then hdr-age else hdr-unknown)
+        else if eq-u8 b0 118 then (if dma-eq3 addr 0 118 105 97 then hdr-via else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 4 then
+        if eq-u8 b0 100 then (if dma-eq4 addr 0 100 97 116 101 then hdr-date else hdr-unknown)
+        else if eq-u8 b0 101 then (if dma-eq4 addr 0 101 116 97 103 then hdr-etag else hdr-unknown)
+        else if eq-u8 b0 102 then (if dma-eq4 addr 0 102 114 111 109 then hdr-from else hdr-unknown)
+        else if eq-u8 b0 104 then (if dma-eq4 addr 0 104 111 115 116 then hdr-host else hdr-unknown)
+        else if eq-u8 b0 108 then (if dma-eq4 addr 0 108 105 110 107 then hdr-link else hdr-unknown)
+        else if eq-u8 b0 118 then (if dma-eq4 addr 0 118 97 114 121 then hdr-vary else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 5 then
+        if eq-u8 b0 58 then (if both (dma-eq4 addr 0 58 112 97 116) (dma-eq1 addr 4 104) then hdr-path else hdr-unknown)
+        else if eq-u8 b0 97 then (if both (dma-eq4 addr 0 97 108 108 111) (dma-eq1 addr 4 119) then hdr-allow else hdr-unknown)
+        else if eq-u8 b0 114 then (if both (dma-eq4 addr 0 114 97 110 103) (dma-eq1 addr 4 101) then hdr-range else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 6 then
+        if eq-u8 b0 97 then (if both (dma-eq4 addr 0 97 99 99 101) (dma-eq2 addr 4 112 116) then hdr-accept else hdr-unknown)
+        else if eq-u8 b0 99 then (if both (dma-eq4 addr 0 99 111 111 107) (dma-eq2 addr 4 105 101) then hdr-cookie else hdr-unknown)
+        else if eq-u8 b0 101 then (if both (dma-eq4 addr 0 101 120 112 101) (dma-eq2 addr 4 99 116) then hdr-expect else hdr-unknown)
+        else if eq-u8 b0 111 then (if both (dma-eq4 addr 0 111 114 105 103) (dma-eq2 addr 4 105 110) then hdr-origin else hdr-unknown)
+        else if eq-u8 b0 115 then (if both (dma-eq4 addr 0 115 101 114 118) (dma-eq2 addr 4 101 114) then hdr-server else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 7 then
+        if eq-u8 b0 58 then
+          let b1 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr 1)) in
+          if eq-u8 b1 109 then (if both (dma-eq4 addr 0 58 109 101 116) (dma-eq4 addr 3 116 104 111 100) then hdr-method else hdr-unknown)
+          else if eq-u8 b1 115 then
+            if both (dma-eq4 addr 0 58 115 99 104) (dma-eq4 addr 3 104 101 109 101) then hdr-scheme
+            else if both (dma-eq4 addr 0 58 115 116 97) (dma-eq4 addr 3 97 116 117 115) then hdr-status
+            else hdr-unknown
+          else hdr-unknown
+        else if eq-u8 b0 97 then (if both (dma-eq4 addr 0 97 108 116 45) (dma-eq4 addr 3 45 115 118 99) then hdr-alt-svc else hdr-unknown)
+        else if eq-u8 b0 101 then (if both (dma-eq4 addr 0 101 120 112 105) (dma-eq4 addr 3 105 114 101 115) then hdr-expires else hdr-unknown)
+        else if eq-u8 b0 114 then
+          if both (dma-eq4 addr 0 114 101 102 101) (dma-eq4 addr 3 101 114 101 114) then hdr-referer
+          else if both (dma-eq4 addr 0 114 101 102 114) (dma-eq4 addr 3 114 101 115 104) then hdr-refresh
+          else hdr-unknown
+        else if eq-u8 b0 117 then (if both (dma-eq4 addr 0 117 112 103 114) (dma-eq4 addr 3 114 97 100 101) then hdr-upgrade else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 8 then
+        if eq-u8 b0 105 then
+          if dma-eq8 addr 0 105 102 45 109 97 116 99 104 then hdr-if-match
+          else if dma-eq8 addr 0 105 102 45 114 97 110 103 101 then hdr-if-range
+          else hdr-unknown
+        else if eq-u8 b0 108 then (if dma-eq8 addr 0 108 111 99 97 116 105 111 110 then hdr-location else hdr-unknown)
+        else if eq-u8 b0 112 then (if dma-eq8 addr 0 112 114 105 111 114 105 116 121 then hdr-priority else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 10 then
+        if eq-u8 b0 58 then (if both (dma-eq8 addr 0 58 97 117 116 104 111 114 105) (dma-eq2 addr 8 116 121) then hdr-authority else hdr-unknown)
+        else if eq-u8 b0 99 then (if both (dma-eq8 addr 0 99 111 110 110 101 99 116 105) (dma-eq2 addr 8 111 110) then hdr-connection else hdr-unknown)
+        else if eq-u8 b0 115 then (if both (dma-eq8 addr 0 115 101 116 45 99 111 111 107) (dma-eq2 addr 8 105 101) then hdr-set-cookie else hdr-unknown)
+        else if eq-u8 b0 117 then (if both (dma-eq8 addr 0 117 115 101 114 45 97 103 101) (dma-eq2 addr 8 110 116) then hdr-user-agent else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 11 then
+        if both (dma-eq8 addr 0 114 101 116 114 121 45 97 102) (dma-eq4 addr 7 102 116 101 114) then hdr-retry-after else hdr-unknown
+      else if eq-u32 len 12 then
+        if eq-u8 b0 99 then (if both (dma-eq8 addr 0 99 111 110 116 101 110 116 45) (dma-eq4 addr 8 116 121 112 101) then hdr-content-type else hdr-unknown)
+        else if eq-u8 b0 109 then (if both (dma-eq8 addr 0 109 97 120 45 102 111 114 119) (dma-eq4 addr 8 97 114 100 115) then hdr-max-forwards else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 13 then
+        if eq-u8 b0 97 then
+          if both (dma-eq8 addr 0 97 99 99 101 112 116 45 114) (dma-eq8 addr 5 116 45 114 97 110 103 101 115) then hdr-accept-ranges
+          else if both (dma-eq8 addr 0 97 117 116 104 111 114 105 122) (dma-eq8 addr 5 114 105 122 97 116 105 111 110) then hdr-authorization
+          else hdr-unknown
+        else if eq-u8 b0 99 then
+          if both (dma-eq8 addr 0 99 97 99 104 101 45 99 111) (dma-eq8 addr 5 45 99 111 110 116 114 111 108) then hdr-cache-control
+          else if both (dma-eq8 addr 0 99 111 110 116 101 110 116 45) (dma-eq8 addr 5 110 116 45 114 97 110 103 101) then hdr-content-range
+          else hdr-unknown
+        else if eq-u8 b0 105 then (if both (dma-eq8 addr 0 105 102 45 110 111 110 101 45) (dma-eq8 addr 5 110 101 45 109 97 116 99 104) then hdr-if-none-match else hdr-unknown)
+        else if eq-u8 b0 108 then (if both (dma-eq8 addr 0 108 97 115 116 45 109 111 100) (dma-eq8 addr 5 109 111 100 105 102 105 101 100) then hdr-last-modified else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 14 then
+        if eq-u8 b0 97 then (if both (dma-eq8 addr 0 97 99 99 101 112 116 45 99) (dma-eq8 addr 6 45 99 104 97 114 115 101 116) then hdr-accept-charset else hdr-unknown)
+        else if eq-u8 b0 99 then (if both (dma-eq8 addr 0 99 111 110 116 101 110 116 45) (dma-eq8 addr 6 116 45 108 101 110 103 116 104) then hdr-content-length else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 len 15 then
+        if eq-u8 b0 97 then
+          if both (dma-eq8 addr 0 97 99 99 101 112 116 45 101) (dma-eq8 addr 7 101 110 99 111 100 105 110 103) then hdr-accept-encoding
+          else if both (dma-eq8 addr 0 97 99 99 101 112 116 45 108) (dma-eq8 addr 7 108 97 110 103 117 97 103 101) then hdr-accept-language
+          else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 len 16 then
+        if eq-u8 b0 99 then
+          if dma-eq8 addr 0 99 111 110 116 101 110 116 45 then
+            if dma-eq8 addr 8 101 110 99 111 100 105 110 103 then hdr-content-encoding
+            else if dma-eq8 addr 8 108 97 110 103 117 97 103 101 then hdr-content-language
+            else if dma-eq8 addr 8 108 111 99 97 116 105 111 110 then hdr-content-location
+            else hdr-unknown
+          else hdr-unknown
+        else if eq-u8 b0 119 then
+          if both (dma-eq8 addr 0 119 119 119 45 97 117 116 104) (dma-eq8 addr 8 101 110 116 105 99 97 116 101) then hdr-www-authenticate else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 len 17 then
+        if eq-u8 b0 105 then
+          if both (both (dma-eq8 addr 0 105 102 45 109 111 100 105 102) (dma-eq8 addr 8 105 101 100 45 115 105 110 99)) (dma-eq1 addr 16 101) then hdr-if-modified-since else hdr-unknown
+        else if eq-u8 b0 115 then
+          if both (both (dma-eq8 addr 0 115 101 99 45 119 101 98 115) (dma-eq8 addr 8 111 99 107 101 116 45 107 101)) (dma-eq1 addr 16 121) then hdr-sec-websocket-key else hdr-unknown
+        else if eq-u8 b0 116 then
+          if both (both (dma-eq8 addr 0 116 114 97 110 115 102 101 114) (dma-eq8 addr 8 45 101 110 99 111 100 105 110)) (dma-eq1 addr 16 103) then hdr-transfer-encoding else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 len 18 then
+        if both (both (dma-eq8 addr 0 112 114 111 120 121 45 97 117) (dma-eq8 addr 8 116 104 101 110 116 105 99 97)) (dma-eq2 addr 16 116 101) then hdr-proxy-authenticate else hdr-unknown
+      else if eq-u32 len 19 then
+        if eq-u8 b0 99 then
+          if both (both (dma-eq8 addr 0 99 111 110 116 101 110 116 45) (dma-eq8 addr 8 100 105 115 112 111 115 105 116)) (dma-eq4 addr 15 116 105 111 110) then hdr-content-disposition else hdr-unknown
+        else if eq-u8 b0 105 then
+          if both (both (dma-eq8 addr 0 105 102 45 117 110 109 111 100) (dma-eq8 addr 8 105 102 105 101 100 45 115 105)) (dma-eq4 addr 15 105 110 99 101) then hdr-if-unmodified-since else hdr-unknown
+        else if eq-u8 b0 112 then
+          if both (both (dma-eq8 addr 0 112 114 111 120 121 45 97 117) (dma-eq8 addr 8 116 104 111 114 105 122 97 116)) (dma-eq4 addr 15 116 105 111 110) then hdr-proxy-authorization else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 len 20 then
+        if both (both (dma-eq8 addr 0 115 101 99 45 119 101 98 115) (dma-eq8 addr 8 111 99 107 101 116 45 97 99)) (dma-eq4 addr 16 99 101 112 116) then hdr-sec-websocket-accept else hdr-unknown
+      else if eq-u32 len 21 then
+        if both (both (dma-eq8 addr 0 115 101 99 45 119 101 98 115) (dma-eq8 addr 8 111 99 107 101 116 45 118 101)) (dma-eq8 addr 13 45 118 101 114 115 105 111 110) then hdr-sec-websocket-version else hdr-unknown
+      else if eq-u32 len 25 then
+        if both
+          (both (dma-eq8 addr 0 115 116 114 105 99 116 45 116) (dma-eq8 addr 8 114 97 110 115 112 111 114 116))
+          (both (dma-eq8 addr 16 45 115 101 99 117 114 105 116) (dma-eq1 addr 24 121))
+        then hdr-strict-transport-security else hdr-unknown
+      else if eq-u32 len 27 then
+        if both
+          (both (dma-eq8 addr 0 97 99 99 101 115 115 45 99) (dma-eq8 addr 8 111 110 116 114 111 108 45 97))
+          (both (dma-eq8 addr 16 108 108 111 119 45 111 114 105) (dma-eq4 addr 23 105 103 105 110))
+        then hdr-access-control-allow-origin else hdr-unknown
+      else hdr-unknown
+
+  -- Pure Bytes helpers for `known-header-match-bytes` (100% #[no-alloc]).
+  #[inline(always)]
+  #[no-alloc]
+  bytes-eq1 :: Bytes -> I64 -> U8 -> Bool
+  bytes-eq1 b pos c0 =
+    if 0 <= pos then
+      if pos < bytes-len-i64 b then
+        eq-u8 (bit-or-u8 (bytes-get-u8-at b pos) (alpha-mask-u8 c0)) c0
+      else b-false
+    else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  bytes-eq2 :: Bytes -> I64 -> U8 -> U8 -> Bool
+  bytes-eq2 b pos c0 c1 =
+    both (bytes-eq1 b pos c0) (bytes-eq1 b (wrapping-add-i64 pos 1) c1)
+
+  #[inline(always)]
+  #[no-alloc]
+  bytes-eq3 :: Bytes -> I64 -> U8 -> U8 -> U8 -> Bool
+  bytes-eq3 b pos c0 c1 c2 =
+    both (bytes-eq2 b pos c0 c1) (bytes-eq1 b (wrapping-add-i64 pos 2) c2)
+
+  #[inline(always)]
+  #[no-alloc]
+  bytes-eq4 :: Bytes -> I64 -> U8 -> U8 -> U8 -> U8 -> Bool
+  bytes-eq4 b pos c0 c1 c2 c3 =
+    let n = bytes-len b in
+    if 4 <= n then
+      if 0 <= pos then
+        if nat-from-i64 pos <= n - 4 then
+          let w = bytes-load-le32-at b pos in
+          eq-u32 (bit-or-u32 w (mask-le4 c0 c1 c2 c3)) (pack-le4 c0 c1 c2 c3)
+        else b-false
+      else b-false
+    else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  bytes-eq8 :: Bytes -> I64 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> Bool
+  bytes-eq8 b pos c0 c1 c2 c3 c4 c5 c6 c7 =
+    let n = bytes-len b in
+    if 8 <= n then
+      if 0 <= pos then
+        if nat-from-i64 pos <= n - 8 then
+          let w = bytes-load-le64-at b pos in
+          eq-u64 (bit-or-u64 w (mask-le8 c0 c1 c2 c3 c4 c5 c6 c7)) (pack-le8 c0 c1 c2 c3 c4 c5 c6 c7)
+        else b-false
+      else b-false
+    else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  bytes-at-lower :: Bytes -> I64 -> U8
+  bytes-at-lower b pos =
+    if 0 <= pos then
+      if pos < bytes-len-i64 b then ascii-lower-u8 (bytes-get-u8-at b pos)
+      else 0
+    else 0
+
+  -- | Match an ASCII header name in `b[off..off+len)` case-insensitively (`#[no-alloc]`).
+  -- Returns the `KnownHeader` ID (`0..60`) or `hdr-unknown` (`255`).
+  #[no-alloc]
+  known-header-match-bytes :: Bytes -> Nat -> Nat -> U8
+  known-header-match-bytes b off len =
+    if len < 2 then hdr-unknown
+    else if len > 27 then hdr-unknown
+    else if off + len > bytes-len b then hdr-unknown
+    else
+      let p = nat-to-i64 off in
+      let b0 = bytes-at-lower b p in
+      let l32 = wrapping-i64-to-u32 (nat-to-i64 len) in
+      if eq-u32 l32 2 then
+        if bytes-eq2 b p 116 101 then hdr-te else hdr-unknown
+      else if eq-u32 l32 3 then
+        if eq-u8 b0 97 then (if bytes-eq3 b p 97 103 101 then hdr-age else hdr-unknown)
+        else if eq-u8 b0 118 then (if bytes-eq3 b p 118 105 97 then hdr-via else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 4 then
+        if eq-u8 b0 100 then (if bytes-eq4 b p 100 97 116 101 then hdr-date else hdr-unknown)
+        else if eq-u8 b0 101 then (if bytes-eq4 b p 101 116 97 103 then hdr-etag else hdr-unknown)
+        else if eq-u8 b0 102 then (if bytes-eq4 b p 102 114 111 109 then hdr-from else hdr-unknown)
+        else if eq-u8 b0 104 then (if bytes-eq4 b p 104 111 115 116 then hdr-host else hdr-unknown)
+        else if eq-u8 b0 108 then (if bytes-eq4 b p 108 105 110 107 then hdr-link else hdr-unknown)
+        else if eq-u8 b0 118 then (if bytes-eq4 b p 118 97 114 121 then hdr-vary else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 5 then
+        if eq-u8 b0 58 then (if both (bytes-eq4 b p 58 112 97 116) (bytes-eq1 b (wrapping-add-i64 p 4) 104) then hdr-path else hdr-unknown)
+        else if eq-u8 b0 97 then (if both (bytes-eq4 b p 97 108 108 111) (bytes-eq1 b (wrapping-add-i64 p 4) 119) then hdr-allow else hdr-unknown)
+        else if eq-u8 b0 114 then (if both (bytes-eq4 b p 114 97 110 103) (bytes-eq1 b (wrapping-add-i64 p 4) 101) then hdr-range else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 6 then
+        if eq-u8 b0 97 then (if both (bytes-eq4 b p 97 99 99 101) (bytes-eq2 b (wrapping-add-i64 p 4) 112 116) then hdr-accept else hdr-unknown)
+        else if eq-u8 b0 99 then (if both (bytes-eq4 b p 99 111 111 107) (bytes-eq2 b (wrapping-add-i64 p 4) 105 101) then hdr-cookie else hdr-unknown)
+        else if eq-u8 b0 101 then (if both (bytes-eq4 b p 101 120 112 101) (bytes-eq2 b (wrapping-add-i64 p 4) 99 116) then hdr-expect else hdr-unknown)
+        else if eq-u8 b0 111 then (if both (bytes-eq4 b p 111 114 105 103) (bytes-eq2 b (wrapping-add-i64 p 4) 105 110) then hdr-origin else hdr-unknown)
+        else if eq-u8 b0 115 then (if both (bytes-eq4 b p 115 101 114 118) (bytes-eq2 b (wrapping-add-i64 p 4) 101 114) then hdr-server else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 7 then
+        let p3 = wrapping-add-i64 p 3 in
+        if eq-u8 b0 58 then
+          let b1 = bytes-at-lower b (wrapping-add-i64 p 1) in
+          if eq-u8 b1 109 then (if both (bytes-eq4 b p 58 109 101 116) (bytes-eq4 b p3 116 104 111 100) then hdr-method else hdr-unknown)
+          else if eq-u8 b1 115 then
+            if both (bytes-eq4 b p 58 115 99 104) (bytes-eq4 b p3 104 101 109 101) then hdr-scheme
+            else if both (bytes-eq4 b p 58 115 116 97) (bytes-eq4 b p3 97 116 117 115) then hdr-status
+            else hdr-unknown
+          else hdr-unknown
+        else if eq-u8 b0 97 then (if both (bytes-eq4 b p 97 108 116 45) (bytes-eq4 b p3 45 115 118 99) then hdr-alt-svc else hdr-unknown)
+        else if eq-u8 b0 101 then (if both (bytes-eq4 b p 101 120 112 105) (bytes-eq4 b p3 105 114 101 115) then hdr-expires else hdr-unknown)
+        else if eq-u8 b0 114 then
+          if both (bytes-eq4 b p 114 101 102 101) (bytes-eq4 b p3 101 114 101 114) then hdr-referer
+          else if both (bytes-eq4 b p 114 101 102 114) (bytes-eq4 b p3 114 101 115 104) then hdr-refresh
+          else hdr-unknown
+        else if eq-u8 b0 117 then (if both (bytes-eq4 b p 117 112 103 114) (bytes-eq4 b p3 114 97 100 101) then hdr-upgrade else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 8 then
+        if eq-u8 b0 105 then
+          if bytes-eq8 b p 105 102 45 109 97 116 99 104 then hdr-if-match
+          else if bytes-eq8 b p 105 102 45 114 97 110 103 101 then hdr-if-range
+          else hdr-unknown
+        else if eq-u8 b0 108 then (if bytes-eq8 b p 108 111 99 97 116 105 111 110 then hdr-location else hdr-unknown)
+        else if eq-u8 b0 112 then (if bytes-eq8 b p 112 114 105 111 114 105 116 121 then hdr-priority else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 10 then
+        let p8 = wrapping-add-i64 p 8 in
+        if eq-u8 b0 58 then (if both (bytes-eq8 b p 58 97 117 116 104 111 114 105) (bytes-eq2 b p8 116 121) then hdr-authority else hdr-unknown)
+        else if eq-u8 b0 99 then (if both (bytes-eq8 b p 99 111 110 110 101 99 116 105) (bytes-eq2 b p8 111 110) then hdr-connection else hdr-unknown)
+        else if eq-u8 b0 115 then (if both (bytes-eq8 b p 115 101 116 45 99 111 111 107) (bytes-eq2 b p8 105 101) then hdr-set-cookie else hdr-unknown)
+        else if eq-u8 b0 117 then (if both (bytes-eq8 b p 117 115 101 114 45 97 103 101) (bytes-eq2 b p8 110 116) then hdr-user-agent else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 11 then
+        if both (bytes-eq8 b p 114 101 116 114 121 45 97 102) (bytes-eq4 b (wrapping-add-i64 p 7) 102 116 101 114) then hdr-retry-after else hdr-unknown
+      else if eq-u32 l32 12 then
+        let p8 = wrapping-add-i64 p 8 in
+        if eq-u8 b0 99 then (if both (bytes-eq8 b p 99 111 110 116 101 110 116 45) (bytes-eq4 b p8 116 121 112 101) then hdr-content-type else hdr-unknown)
+        else if eq-u8 b0 109 then (if both (bytes-eq8 b p 109 97 120 45 102 111 114 119) (bytes-eq4 b p8 97 114 100 115) then hdr-max-forwards else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 13 then
+        let p5 = wrapping-add-i64 p 5 in
+        if eq-u8 b0 97 then
+          if both (bytes-eq8 b p 97 99 99 101 112 116 45 114) (bytes-eq8 b p5 116 45 114 97 110 103 101 115) then hdr-accept-ranges
+          else if both (bytes-eq8 b p 97 117 116 104 111 114 105 122) (bytes-eq8 b p5 114 105 122 97 116 105 111 110) then hdr-authorization
+          else hdr-unknown
+        else if eq-u8 b0 99 then
+          if both (bytes-eq8 b p 99 97 99 104 101 45 99 111) (bytes-eq8 b p5 45 99 111 110 116 114 111 108) then hdr-cache-control
+          else if both (bytes-eq8 b p 99 111 110 116 101 110 116 45) (bytes-eq8 b p5 110 116 45 114 97 110 103 101) then hdr-content-range
+          else hdr-unknown
+        else if eq-u8 b0 105 then (if both (bytes-eq8 b p 105 102 45 110 111 110 101 45) (bytes-eq8 b p5 110 101 45 109 97 116 99 104) then hdr-if-none-match else hdr-unknown)
+        else if eq-u8 b0 108 then (if both (bytes-eq8 b p 108 97 115 116 45 109 111 100) (bytes-eq8 b p5 109 111 100 105 102 105 101 100) then hdr-last-modified else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 14 then
+        let p6 = wrapping-add-i64 p 6 in
+        if eq-u8 b0 97 then (if both (bytes-eq8 b p 97 99 99 101 112 116 45 99) (bytes-eq8 b p6 45 99 104 97 114 115 101 116) then hdr-accept-charset else hdr-unknown)
+        else if eq-u8 b0 99 then (if both (bytes-eq8 b p 99 111 110 116 101 110 116 45) (bytes-eq8 b p6 116 45 108 101 110 103 116 104) then hdr-content-length else hdr-unknown)
+        else hdr-unknown
+      else if eq-u32 l32 15 then
+        let p7 = wrapping-add-i64 p 7 in
+        if eq-u8 b0 97 then
+          if both (bytes-eq8 b p 97 99 99 101 112 116 45 101) (bytes-eq8 b p7 101 110 99 111 100 105 110 103) then hdr-accept-encoding
+          else if both (bytes-eq8 b p 97 99 99 101 112 116 45 108) (bytes-eq8 b p7 108 97 110 103 117 97 103 101) then hdr-accept-language
+          else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 l32 16 then
+        let p8 = wrapping-add-i64 p 8 in
+        if eq-u8 b0 99 then
+          if bytes-eq8 b p 99 111 110 116 101 110 116 45 then
+            if bytes-eq8 b p8 101 110 99 111 100 105 110 103 then hdr-content-encoding
+            else if bytes-eq8 b p8 108 97 110 103 117 97 103 101 then hdr-content-language
+            else if bytes-eq8 b p8 108 111 99 97 116 105 111 110 then hdr-content-location
+            else hdr-unknown
+          else hdr-unknown
+        else if eq-u8 b0 119 then
+          if both (bytes-eq8 b p 119 119 119 45 97 117 116 104) (bytes-eq8 b p8 101 110 116 105 99 97 116 101) then hdr-www-authenticate else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 l32 17 then
+        let p8 = wrapping-add-i64 p 8 in
+        let p16 = wrapping-add-i64 p 16 in
+        if eq-u8 b0 105 then
+          if both (both (bytes-eq8 b p 105 102 45 109 111 100 105 102) (bytes-eq8 b p8 105 101 100 45 115 105 110 99)) (bytes-eq1 b p16 101) then hdr-if-modified-since else hdr-unknown
+        else if eq-u8 b0 115 then
+          if both (both (bytes-eq8 b p 115 101 99 45 119 101 98 115) (bytes-eq8 b p8 111 99 107 101 116 45 107 101)) (bytes-eq1 b p16 121) then hdr-sec-websocket-key else hdr-unknown
+        else if eq-u8 b0 116 then
+          if both (both (bytes-eq8 b p 116 114 97 110 115 102 101 114) (bytes-eq8 b p8 45 101 110 99 111 100 105 110)) (bytes-eq1 b p16 103) then hdr-transfer-encoding else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 l32 18 then
+        if both (both (bytes-eq8 b p 112 114 111 120 121 45 97 117) (bytes-eq8 b (wrapping-add-i64 p 8) 116 104 101 110 116 105 99 97)) (bytes-eq2 b (wrapping-add-i64 p 16) 116 101) then hdr-proxy-authenticate else hdr-unknown
+      else if eq-u32 l32 19 then
+        let p8 = wrapping-add-i64 p 8 in
+        let p15 = wrapping-add-i64 p 15 in
+        if eq-u8 b0 99 then
+          if both (both (bytes-eq8 b p 99 111 110 116 101 110 116 45) (bytes-eq8 b p8 100 105 115 112 111 115 105 116)) (bytes-eq4 b p15 116 105 111 110) then hdr-content-disposition else hdr-unknown
+        else if eq-u8 b0 105 then
+          if both (both (bytes-eq8 b p 105 102 45 117 110 109 111 100) (bytes-eq8 b p8 105 102 105 101 100 45 115 105)) (bytes-eq4 b p15 105 110 99 101) then hdr-if-unmodified-since else hdr-unknown
+        else if eq-u8 b0 112 then
+          if both (both (bytes-eq8 b p 112 114 111 120 121 45 97 117) (bytes-eq8 b p8 116 104 111 114 105 122 97 116)) (bytes-eq4 b p15 116 105 111 110) then hdr-proxy-authorization else hdr-unknown
+        else hdr-unknown
+      else if eq-u32 l32 20 then
+        if both (both (bytes-eq8 b p 115 101 99 45 119 101 98 115) (bytes-eq8 b (wrapping-add-i64 p 8) 111 99 107 101 116 45 97 99)) (bytes-eq4 b (wrapping-add-i64 p 16) 99 101 112 116) then hdr-sec-websocket-accept else hdr-unknown
+      else if eq-u32 l32 21 then
+        if both (both (bytes-eq8 b p 115 101 99 45 119 101 98 115) (bytes-eq8 b (wrapping-add-i64 p 8) 111 99 107 101 116 45 118 101)) (bytes-eq8 b (wrapping-add-i64 p 13) 45 118 101 114 115 105 111 110) then hdr-sec-websocket-version else hdr-unknown
+      else if eq-u32 l32 25 then
+        if both
+          (both (bytes-eq8 b p 115 116 114 105 99 116 45 116) (bytes-eq8 b (wrapping-add-i64 p 8) 114 97 110 115 112 111 114 116))
+          (both (bytes-eq8 b (wrapping-add-i64 p 16) 45 115 101 99 117 114 105 116) (bytes-eq1 b (wrapping-add-i64 p 24) 121))
+        then hdr-strict-transport-security else hdr-unknown
+      else if eq-u32 l32 27 then
+        if both
+          (both (bytes-eq8 b p 97 99 99 101 115 115 45 99) (bytes-eq8 b (wrapping-add-i64 p 8) 111 110 116 114 111 108 45 97))
+          (both (bytes-eq8 b (wrapping-add-i64 p 16) 108 108 111 119 45 111 114 105) (bytes-eq4 b (wrapping-add-i64 p 23) 105 103 105 110))
+        then hdr-access-control-allow-origin else hdr-unknown
+      else hdr-unknown
+
+  -- =========================================================================
+  -- 6. Zero-Copy HeaderPair (20B POD) & RequestHead (48B POD)
+  -- =========================================================================
+
+  -- | 20-byte `#[repr(C, value)]` POD referencing one header name/value pair
+  -- inside a DMA buffer without copying or heap allocation.
+  #[repr(C, value)]
+  record HeaderPair where
+    hp-known :: U8
+    hp-pad0 :: U8
+    hp-pad1 :: U16
+    hp-name-off :: U32
+    hp-name-len :: U32
+    hp-val-off :: U32
+    hp-val-len :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  header-pair-make :: U8 -> U32 -> U32 -> U32 -> U32 -> HeaderPair
+  header-pair-make known name-off name-len val-off val-len =
+    HeaderPair known 0 0 name-off name-len val-off val-len
+
+  #[inline(always)]
+  #[no-alloc]
+  header-pair-empty :: Unit -> HeaderPair
+  header-pair-empty _ = HeaderPair hdr-unknown 0 0 0 0 0 0
+
+  -- | 48-byte `#[repr(C, value)]` POD canonical HTTP request head shared across
+  -- HTTP/1.1, HTTP/2, and HTTP/3 parsers. Carries `req-known-mask` for
+  -- 1-instruction `req-has-header` presence checks.
+  #[repr(C, value)]
+  record RequestHead where
+    req-method :: U8
+    req-version :: U8
+    req-header-count :: U16
+    req-flags :: U32
+    req-path-off :: U32
+    req-path-len :: U32
+    req-query-off :: U32
+    req-query-len :: U32
+    req-body-off :: U32
+    req-body-len :: U64
+    req-known-mask :: U64
+
+  #[no-alloc]
+  req-flag-keep-alive :: U32
+  req-flag-keep-alive = 1
+
+  #[no-alloc]
+  req-flag-chunked :: U32
+  req-flag-chunked = 2
+
+  #[no-alloc]
+  req-flag-has-cl :: U32
+  req-flag-has-cl = 4
+
+  #[no-alloc]
+  req-flag-expect-continue :: U32
+  req-flag-expect-continue = 8
+
+  #[no-alloc]
+  req-flag-upgrade :: U32
+  req-flag-upgrade = 16
+
+  #[inline(always)]
+  #[no-alloc]
+  req-head-empty :: Unit -> RequestHead
+  req-head-empty _ = RequestHead 0 1 0 0 0 0 0 0 0 0 0
+
+  -- | O(1) 1-instruction presence check for a `KnownHeader` ID (`0..60`) on `req`.
+  #[inline(always)]
+  #[no-alloc]
+  req-has-header :: RequestHead -> U8 -> Bool
+  req-has-header req hdr =
+    ne-u64 (bit-and-u64 req.req-known-mask (known-header-bit hdr)) 0
+
+  -- | O(1) 1-instruction request flag check (`req-flag-*`).
+  #[inline(always)]
+  #[no-alloc]
+  req-has-flag :: RequestHead -> U32 -> Bool
+  req-has-flag req flag =
+    ne-u32 (bit-and-u32 req.req-flags flag) 0
+
+  -- =========================================================================
+  -- 7. Zero-Allocation DMA Serialization Helpers for ResponseWriter
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-put1 base pos b0 =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  dma-put2 base pos b0 b1 =
+    let p1 = dma-put1 base pos b0 in
+    dma-put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put3 base pos b0 b1 b2 =
+    let p2 = dma-put2 base pos b0 b1 in
+    dma-put1 base p2 b2
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put4 base pos b0 b1 b2 b3 =
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put8 base pos b0 b1 b2 b3 b4 b5 b6 b7 =
+    let _ = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 b0 b1 b2 b3 b4 b5 b6 b7) in
+    wrapping-add-u32 pos 8
+
+  #[no-alloc]
+  dma-copy-loop :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-loop dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy-loop (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy-loop (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy-loop (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- Exact length of the HTTP/1.1 status line emitted for status code `c`.
+  #[no-alloc]
+  status-line-len :: U16 -> U32
+  status-line-len c =
+    if eq-u16 c 200 then 17      -- "HTTP/1.1 200 OK\r\n"
+    else if eq-u16 c 201 then 22 -- "HTTP/1.1 201 Created\r\n"
+    else if eq-u16 c 204 then 25 -- "HTTP/1.1 204 No Content\r\n"
+    else if eq-u16 c 206 then 30 -- "HTTP/1.1 206 Partial Content\r\n"
+    else if eq-u16 c 301 then 32 -- "HTTP/1.1 301 Moved Permanently\r\n"
+    else if eq-u16 c 304 then 27 -- "HTTP/1.1 304 Not Modified\r\n"
+    else if eq-u16 c 400 then 26 -- "HTTP/1.1 400 Bad Request\r\n"
+    else if eq-u16 c 401 then 27 -- "HTTP/1.1 401 Unauthorized\r\n"
+    else if eq-u16 c 403 then 24 -- "HTTP/1.1 403 Forbidden\r\n"
+    else if eq-u16 c 404 then 24 -- "HTTP/1.1 404 Not Found\r\n"
+    else if eq-u16 c 405 then 33 -- "HTTP/1.1 405 Method Not Allowed\r\n"
+    else if eq-u16 c 413 then 32 -- "HTTP/1.1 413 Payload Too Large\r\n"
+    else if eq-u16 c 429 then 32 -- "HTTP/1.1 429 Too Many Requests\r\n"
+    else if eq-u16 c 500 then 36 -- "HTTP/1.1 500 Internal Server Error\r\n"
+    else if eq-u16 c 502 then 26 -- "HTTP/1.1 502 Bad Gateway\r\n"
+    else if eq-u16 c 503 then 34 -- "HTTP/1.1 503 Service Unavailable\r\n"
+    else if eq-u16 c 101 then 34 -- "HTTP/1.1 101 Switching Protocols\r\n"
+    else 15                      -- "HTTP/1.1 XXX \r\n"
+
+  -- Emit `"HTTP/1.1 XXX "` (13 bytes) at `base + pos` (caller verified bounds).
+  #[no-alloc]
+  dma-write-http11-prefix :: I64 -> U32 -> U16 ->{MVar} U32
+  dma-write-http11-prefix base pos c =
+    let p8 = dma-put8 base pos 72 84 84 80 47 49 46 49 in -- "HTTP/1.1"
+    let d0 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 (div-u16 c 100) 10)) in
+    let d1 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 (div-u16 c 10) 10)) in
+    let d2 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 c 10)) in
+    let p12 = dma-put4 base p8 32 d0 d1 d2 in
+    dma-put1 base p12 32
+
+  -- Zero-alloc HTTP/1.1 status line serializer into DMA `[base + pos, base + cap)`.
+  -- Returns new `pos`, or `cap + 1` (sentinel) on overflow.
+  #[no-alloc]
+  dma-write-status-line :: I64 -> U32 -> U32 -> U16 ->{MVar} U32
+  dma-write-status-line base pos cap c =
+    let need = status-line-len c in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p = dma-write-http11-prefix base pos c in
+      if eq-u16 c 200 then
+        dma-put4 base p 79 75 13 10 -- "OK\r\n"
+      else if eq-u16 c 201 then
+        let p1 = dma-put8 base p 67 114 101 97 116 101 100 13 in -- "Created\r"
+        dma-put1 base p1 10
+      else if eq-u16 c 204 then
+        let p1 = dma-put8 base p 78 111 32 67 111 110 116 101 in -- "No Conte"
+        dma-put4 base p1 110 116 13 10
+      else if eq-u16 c 206 then
+        let p1 = dma-put8 base p 80 97 114 116 105 97 108 32 in -- "Partial "
+        let p2 = dma-put8 base p1 67 111 110 116 101 110 116 13 in -- "Content\r"
+        dma-put1 base p2 10
+      else if eq-u16 c 301 then
+        let p1 = dma-put8 base p 77 111 118 101 100 32 80 101 in -- "Moved Pe"
+        let p2 = dma-put8 base p1 114 109 97 110 101 110 116 108 in -- "rmanentl"
+        dma-put3 base p2 121 13 10
+      else if eq-u16 c 304 then
+        let p1 = dma-put8 base p 78 111 116 32 77 111 100 105 in -- "Not Modi"
+        let p2 = dma-put4 base p1 102 105 101 100 in -- "fied"
+        dma-put2 base p2 13 10
+      else if eq-u16 c 400 then
+        let p1 = dma-put8 base p 66 97 100 32 82 101 113 117 in -- "Bad Requ"
+        let p2 = dma-put4 base p1 101 115 116 13 in -- "est\r"
+        dma-put1 base p2 10
+      else if eq-u16 c 401 then
+        let p1 = dma-put8 base p 85 110 97 117 116 104 111 114 in -- "Unauthor"
+        let p2 = dma-put4 base p1 105 122 101 100 in -- "ized"
+        dma-put2 base p2 13 10
+      else if eq-u16 c 403 then
+        let p1 = dma-put8 base p 70 111 114 98 105 100 100 101 in -- "Forbidde"
+        dma-put3 base p1 110 13 10
+      else if eq-u16 c 404 then
+        let p1 = dma-put8 base p 78 111 116 32 70 111 117 110 in -- "Not Foun"
+        dma-put3 base p1 100 13 10
+      else if eq-u16 c 405 then
+        let p1 = dma-put8 base p 77 101 116 104 111 100 32 78 in -- "Method N"
+        let p2 = dma-put8 base p1 111 116 32 65 108 108 111 119 in -- "ot Allow"
+        dma-put4 base p2 101 100 13 10
+      else if eq-u16 c 413 then
+        let p1 = dma-put8 base p 80 97 121 108 111 97 100 32 in -- "Payload "
+        let p2 = dma-put8 base p1 84 111 111 32 76 97 114 103 in -- "Too Larg"
+        dma-put3 base p2 101 13 10
+      else if eq-u16 c 429 then
+        let p1 = dma-put8 base p 84 111 111 32 77 97 110 121 in -- "Too Many"
+        let p2 = dma-put8 base p1 32 82 101 113 117 101 115 116 in -- " Request"
+        dma-put3 base p2 115 13 10
+      else if eq-u16 c 500 then
+        let p1 = dma-put8 base p 73 110 116 101 114 110 97 108 in -- "Internal"
+        let p2 = dma-put8 base p1 32 83 101 114 118 101 114 32 in -- " Server "
+        let p3 = dma-put4 base p2 69 114 114 111 in -- "Erro"
+        dma-put3 base p3 114 13 10
+      else if eq-u16 c 502 then
+        let p1 = dma-put8 base p 66 97 100 32 71 97 116 101 in -- "Bad Gate"
+        let p2 = dma-put4 base p1 119 97 121 13 in -- "way\r"
+        dma-put1 base p2 10
+      else if eq-u16 c 503 then
+        let p1 = dma-put8 base p 83 101 114 118 105 99 101 32 in -- "Service "
+        let p2 = dma-put8 base p1 85 110 97 118 97 105 108 97 in -- "Unavaila"
+        let p3 = dma-put4 base p2 98 108 101 13 in -- "ble\r"
+        dma-put1 base p3 10
+      else if eq-u16 c 101 then
+        let p1 = dma-put8 base p 83 119 105 116 99 104 105 110 in -- "Switchin"
+        let p2 = dma-put8 base p1 103 32 80 114 111 116 111 99 in -- "g Protoc"
+        let p3 = dma-put4 base p2 111 108 115 13 in -- "ols\r"
+        dma-put1 base p3 10
+      else
+        dma-put2 base p 13 10
+
+  -- Exact wire-name byte length of `KnownHeader` ID `0..60`, or `0` if unknown.
+  #[no-alloc]
+  known-header-wire-len :: U8 -> U32
+  known-header-wire-len id =
+    if eq-u8 id 0 then 10
+    else if eq-u8 id 1 then 7
+    else if eq-u8 id 2 then 5
+    else if eq-u8 id 3 then 7
+    else if eq-u8 id 4 then 7
+    else if eq-u8 id 5 then 6
+    else if eq-u8 id 6 then 14
+    else if eq-u8 id 7 then 15
+    else if eq-u8 id 8 then 15
+    else if eq-u8 id 9 then 13
+    else if eq-u8 id 10 then 27
+    else if eq-u8 id 11 then 3
+    else if eq-u8 id 12 then 5
+    else if eq-u8 id 13 then 13
+    else if eq-u8 id 14 then 13
+    else if eq-u8 id 15 then 10
+    else if eq-u8 id 16 then 19
+    else if eq-u8 id 17 then 16
+    else if eq-u8 id 18 then 16
+    else if eq-u8 id 19 then 14
+    else if eq-u8 id 20 then 16
+    else if eq-u8 id 21 then 13
+    else if eq-u8 id 22 then 12
+    else if eq-u8 id 23 then 6
+    else if eq-u8 id 24 then 4
+    else if eq-u8 id 25 then 4
+    else if eq-u8 id 26 then 6
+    else if eq-u8 id 27 then 7
+    else if eq-u8 id 28 then 4
+    else if eq-u8 id 29 then 4
+    else if eq-u8 id 30 then 8
+    else if eq-u8 id 31 then 17
+    else if eq-u8 id 32 then 13
+    else if eq-u8 id 33 then 8
+    else if eq-u8 id 34 then 19
+    else if eq-u8 id 35 then 13
+    else if eq-u8 id 36 then 4
+    else if eq-u8 id 37 then 8
+    else if eq-u8 id 38 then 12
+    else if eq-u8 id 39 then 6
+    else if eq-u8 id 40 then 8
+    else if eq-u8 id 41 then 18
+    else if eq-u8 id 42 then 19
+    else if eq-u8 id 43 then 5
+    else if eq-u8 id 44 then 7
+    else if eq-u8 id 45 then 7
+    else if eq-u8 id 46 then 11
+    else if eq-u8 id 47 then 20
+    else if eq-u8 id 48 then 17
+    else if eq-u8 id 49 then 21
+    else if eq-u8 id 50 then 6
+    else if eq-u8 id 51 then 10
+    else if eq-u8 id 52 then 25
+    else if eq-u8 id 53 then 2
+    else if eq-u8 id 54 then 17
+    else if eq-u8 id 55 then 7
+    else if eq-u8 id 56 then 10
+    else if eq-u8 id 57 then 4
+    else if eq-u8 id 58 then 3
+    else if eq-u8 id 59 then 16
+    else if eq-u8 id 60 then 7
+    else 0
+
+  -- Zero-alloc writer of the canonical lowercase wire name for `id` (`0..60`) into
+  -- `base + pos` (caller verified `pos + known-header-wire-len id <= cap`).
+  #[no-alloc]
+  dma-write-known-name-lo :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-write-known-name-lo base pos id =
+    if eq-u8 id 0 then
+      let p1 = dma-put8 base pos 58 97 117 116 104 111 114 105 in
+      dma-put2 base p1 116 121
+    else if eq-u8 id 1 then
+      let p1 = dma-put4 base pos 58 109 101 116 in
+      dma-put3 base p1 104 111 100
+    else if eq-u8 id 2 then
+      let p1 = dma-put4 base pos 58 112 97 116 in
+      dma-put1 base p1 104
+    else if eq-u8 id 3 then
+      let p1 = dma-put4 base pos 58 115 99 104 in
+      dma-put3 base p1 101 109 101
+    else if eq-u8 id 4 then
+      let p1 = dma-put4 base pos 58 115 116 97 in
+      dma-put3 base p1 116 117 115
+    else if eq-u8 id 5 then
+      let p1 = dma-put4 base pos 97 99 99 101 in
+      dma-put2 base p1 112 116
+    else if eq-u8 id 6 then
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 99 in
+      let p2 = dma-put4 base p1 104 97 114 115 in
+      dma-put2 base p2 101 116
+    else if eq-u8 id 7 then
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 101 in
+      let p2 = dma-put4 base p1 110 99 111 100 in
+      dma-put3 base p2 105 110 103
+    else if eq-u8 id 8 then
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 108 in
+      let p2 = dma-put4 base p1 97 110 103 117 in
+      dma-put3 base p2 97 103 101
+    else if eq-u8 id 9 then
+      let p1 = dma-put8 base pos 97 99 99 101 112 116 45 114 in
+      let p2 = dma-put4 base p1 97 110 103 101 in
+      dma-put1 base p2 115
+    else if eq-u8 id 10 then
+      let p1 = dma-put8 base pos 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 base p1 111 110 116 114 111 108 45 97 in
+      let p3 = dma-put8 base p2 108 108 111 119 45 111 114 105 in
+      dma-put3 base p3 103 105 110
+    else if eq-u8 id 11 then
+      dma-put3 base pos 97 103 101
+    else if eq-u8 id 12 then
+      let p1 = dma-put4 base pos 97 108 108 111 in
+      dma-put1 base p1 119
+    else if eq-u8 id 13 then
+      let p1 = dma-put8 base pos 97 117 116 104 111 114 105 122 in
+      let p2 = dma-put4 base p1 97 116 105 111 in
+      dma-put1 base p2 110
+    else if eq-u8 id 14 then
+      let p1 = dma-put8 base pos 99 97 99 104 101 45 99 111 in
+      let p2 = dma-put4 base p1 110 116 114 111 in
+      dma-put1 base p2 108
+    else if eq-u8 id 15 then
+      let p1 = dma-put8 base pos 99 111 110 110 101 99 116 105 in
+      dma-put2 base p1 111 110
+    else if eq-u8 id 16 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put8 base p1 100 105 115 112 111 115 105 116 in
+      dma-put3 base p2 105 111 110
+    else if eq-u8 id 17 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put8 base p1 101 110 99 111 100 105 110 103
+    else if eq-u8 id 18 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put8 base p1 108 97 110 103 117 97 103 101
+    else if eq-u8 id 19 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put4 base p1 108 101 110 103 in
+      dma-put2 base p2 116 104
+    else if eq-u8 id 20 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put8 base p1 108 111 99 97 116 105 111 110
+    else if eq-u8 id 21 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put4 base p1 114 97 110 103 in
+      dma-put1 base p2 101
+    else if eq-u8 id 22 then
+      let p1 = dma-put8 base pos 99 111 110 116 101 110 116 45 in
+      dma-put4 base p1 116 121 112 101
+    else if eq-u8 id 23 then
+      let p1 = dma-put4 base pos 99 111 111 107 in
+      dma-put2 base p1 105 101
+    else if eq-u8 id 24 then
+      dma-put4 base pos 100 97 116 101
+    else if eq-u8 id 25 then
+      dma-put4 base pos 101 116 97 103
+    else if eq-u8 id 26 then
+      let p1 = dma-put4 base pos 101 120 112 101 in
+      dma-put2 base p1 99 116
+    else if eq-u8 id 27 then
+      let p1 = dma-put4 base pos 101 120 112 105 in
+      dma-put3 base p1 114 101 115
+    else if eq-u8 id 28 then
+      dma-put4 base pos 102 114 111 109
+    else if eq-u8 id 29 then
+      dma-put4 base pos 104 111 115 116
+    else
+      dma-put8 base pos 105 102 45 109 97 116 99 104 -- id == 30 (if-match)
+
+  #[no-alloc]
+  dma-write-known-name-hi :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-write-known-name-hi base pos id =
+    if eq-u8 id 31 then
+      let p1 = dma-put8 base pos 105 102 45 109 111 100 105 102 in
+      let p2 = dma-put8 base p1 105 101 100 45 115 105 110 99 in
+      dma-put1 base p2 101
+    else if eq-u8 id 32 then
+      let p1 = dma-put8 base pos 105 102 45 110 111 110 101 45 in
+      let p2 = dma-put4 base p1 109 97 116 99 in
+      dma-put1 base p2 104
+    else if eq-u8 id 33 then
+      dma-put8 base pos 105 102 45 114 97 110 103 101
+    else if eq-u8 id 34 then
+      let p1 = dma-put8 base pos 105 102 45 117 110 109 111 100 in
+      let p2 = dma-put8 base p1 105 102 105 101 100 45 115 105 in
+      dma-put3 base p2 110 99 101
+    else if eq-u8 id 35 then
+      let p1 = dma-put8 base pos 108 97 115 116 45 109 111 100 in
+      let p2 = dma-put4 base p1 105 102 105 101 in
+      dma-put1 base p2 100
+    else if eq-u8 id 36 then
+      dma-put4 base pos 108 105 110 107
+    else if eq-u8 id 37 then
+      dma-put8 base pos 108 111 99 97 116 105 111 110
+    else if eq-u8 id 38 then
+      let p1 = dma-put8 base pos 109 97 120 45 102 111 114 119 in
+      dma-put4 base p1 97 114 100 115
+    else if eq-u8 id 39 then
+      let p1 = dma-put4 base pos 111 114 105 103 in
+      dma-put2 base p1 105 110
+    else if eq-u8 id 40 then
+      dma-put8 base pos 112 114 105 111 114 105 116 121
+    else if eq-u8 id 41 then
+      let p1 = dma-put8 base pos 112 114 111 120 121 45 97 117 in
+      let p2 = dma-put8 base p1 116 104 101 110 116 105 99 97 in
+      dma-put2 base p2 116 101
+    else if eq-u8 id 42 then
+      let p1 = dma-put8 base pos 112 114 111 120 121 45 97 117 in
+      let p2 = dma-put8 base p1 116 104 111 114 105 122 97 116 in
+      dma-put3 base p2 105 111 110
+    else if eq-u8 id 43 then
+      let p1 = dma-put4 base pos 114 97 110 103 in
+      dma-put1 base p1 101
+    else if eq-u8 id 44 then
+      let p1 = dma-put4 base pos 114 101 102 101 in
+      dma-put3 base p1 114 101 114
+    else if eq-u8 id 45 then
+      let p1 = dma-put4 base pos 114 101 102 114 in
+      dma-put3 base p1 101 115 104
+    else if eq-u8 id 46 then
+      let p1 = dma-put8 base pos 114 101 116 114 121 45 97 102 in
+      dma-put3 base p1 116 101 114
+    else if eq-u8 id 47 then
+      let p1 = dma-put8 base pos 115 101 99 45 119 101 98 115 in
+      let p2 = dma-put8 base p1 111 99 107 101 116 45 97 99 in
+      dma-put4 base p2 99 101 112 116
+    else if eq-u8 id 48 then
+      let p1 = dma-put8 base pos 115 101 99 45 119 101 98 115 in
+      let p2 = dma-put8 base p1 111 99 107 101 116 45 107 101 in
+      dma-put1 base p2 121
+    else if eq-u8 id 49 then
+      let p1 = dma-put8 base pos 115 101 99 45 119 101 98 115 in
+      let p2 = dma-put8 base p1 111 99 107 101 116 45 118 101 in
+      let p3 = dma-put4 base p2 114 115 105 111 in
+      dma-put1 base p3 110
+    else if eq-u8 id 50 then
+      let p1 = dma-put4 base pos 115 101 114 118 in
+      dma-put2 base p1 101 114
+    else if eq-u8 id 51 then
+      let p1 = dma-put8 base pos 115 101 116 45 99 111 111 107 in
+      dma-put2 base p1 105 101
+    else if eq-u8 id 52 then
+      let p1 = dma-put8 base pos 115 116 114 105 99 116 45 116 in
+      let p2 = dma-put8 base p1 114 97 110 115 112 111 114 116 in
+      let p3 = dma-put8 base p2 45 115 101 99 117 114 105 116 in
+      dma-put1 base p3 121
+    else if eq-u8 id 53 then
+      dma-put2 base pos 116 101
+    else if eq-u8 id 54 then
+      let p1 = dma-put8 base pos 116 114 97 110 115 102 101 114 in
+      let p2 = dma-put8 base p1 45 101 110 99 111 100 105 110 in
+      dma-put1 base p2 103
+    else if eq-u8 id 55 then
+      let p1 = dma-put4 base pos 117 112 103 114 in
+      dma-put3 base p1 97 100 101
+    else if eq-u8 id 56 then
+      let p1 = dma-put8 base pos 117 115 101 114 45 97 103 101 in
+      dma-put2 base p1 110 116
+    else if eq-u8 id 57 then
+      dma-put4 base pos 118 97 114 121
+    else if eq-u8 id 58 then
+      dma-put3 base pos 118 105 97
+    else if eq-u8 id 59 then
+      let p1 = dma-put8 base pos 119 119 119 45 97 117 116 104 in
+      dma-put8 base p1 101 110 116 105 99 97 116 101
+    else if eq-u8 id 60 then
+      let p1 = dma-put4 base pos 97 108 116 45 in
+      dma-put3 base p1 115 118 99
+    else pos
+
+  #[no-alloc]
+  dma-write-known-name :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-write-known-name base pos id =
+    if le-u8 id 30 then dma-write-known-name-lo base pos id
+    else dma-write-known-name-hi base pos id
+
+  -- =========================================================================
+  -- 8. Linear `%1` ResponseWriter State Machine (private constructors!)
+  -- =========================================================================
+
+  -- | Linear typestate token: response head is open (accepting status & headers).
+  -- Constructor is private to `Net.Http.Types` so callers cannot forge states.
+  -- Fields: `(buf-addr, buf-cap, written, status-code, status-emitted, overflow)`.
+  data ResponseHeadPending where
+    MkResponseHeadPending :: I64 -> U32 -> U32 -> U16 -> U8 -> U8 -> ResponseHeadPending
+
+  -- | Linear typestate token: response head is finalized (accepting body chunks).
+  -- Constructor is private to `Net.Http.Types`.
+  -- Fields: `(buf-addr, buf-cap, written, overflow)`.
+  data ResponseBodyOpen where
+    MkResponseBodyOpen :: I64 -> U32 -> U32 -> U8 -> ResponseBodyOpen
+
+  -- | Linear typestate token: response is closed and must be linearly acknowledged
+  -- with `response-finish-closed`. Constructor is private to `Net.Http.Types`.
+  data ResponseClosed where
+    MkResponseClosed :: U32 -> ResponseClosed
+
+  -- | Begin writing an HTTP/1.1 response into DMA buffer `[addr, addr + cap)`.
+  -- Defaults to `200 OK` unless overridden by `response-write-status`.
+  response-begin :: I64 -> U32 -> ResponseHeadPending
+  response-begin addr cap = MkResponseHeadPending addr cap 0 200 0 0
+
+  -- | Scoped linear writer combinator: passes a `%1` `ResponseHeadPending` into
+  -- `k` so forgetting to finish or double-closing inside `k` is a compile-time
+  -- `%1` linearity error.
+  response-with-writer :: forall a. I64 -> U32 -> (ResponseHeadPending %1 ->{MVar} a) ->{MVar} a
+  response-with-writer addr cap k = k (MkResponseHeadPending addr cap 0 200 0 0)
+
+  -- | Set the HTTP status on a pending response head (pure, linear `%1` transition).
+  response-write-status :: ResponseHeadPending %1 -> HttpStatus -> ResponseHeadPending
+  response-write-status pending st = case pending of
+    MkResponseHeadPending addr cap written _ emitted ovf ->
+      MkResponseHeadPending addr cap written st.status-code emitted ovf
+
+  -- | Emit one `KnownHeader` line (`"<wire-name>: <val>\r\n"`) into the DMA buffer,
+  -- flushing the HTTP/1.1 status line first on the initial header write.
+  response-write-header-known :: ResponseHeadPending %1 -> U8 -> I64 -> U32 ->{MVar} ResponseHeadPending
+  response-write-header-known pending hdr-id val-addr val-len = case pending of
+    MkResponseHeadPending addr cap written code emitted ovf ->
+      if ne-u8 ovf 0 then
+        MkResponseHeadPending addr cap written code emitted 1
+      else
+        let p0 = if eq-u8 emitted 0 then dma-write-status-line addr written cap code else written in
+        if gt-u32 p0 cap then
+          MkResponseHeadPending addr cap written code 1 1
+        else
+          let name-len = known-header-wire-len hdr-id in
+          if eq-u32 name-len 0 then
+            MkResponseHeadPending addr cap p0 code 1 0
+          else
+            let rem = saturating-sub-u32 cap p0 in
+            -- Need `name-len + 2 (": ") + val-len + 2 ("\r\n")` bytes.
+            let overhead = wrapping-add-u32 name-len 4 in
+            if gt-u32 overhead rem then
+              MkResponseHeadPending addr cap p0 code 1 1
+            else if gt-u32 val-len (wrapping-sub-u32 rem overhead) then
+              MkResponseHeadPending addr cap p0 code 1 1
+            else
+              let p1 = dma-write-known-name addr p0 hdr-id in
+              let p2 = dma-put2 addr p1 58 32 in -- ": "
+              let _ = dma-copy-loop (wrapping-add-i64 addr (u32-to-i64 p2)) val-addr val-len in
+              let p3 = wrapping-add-u32 p2 val-len in
+              let p4 = dma-put2 addr p3 13 10 in -- "\r\n"
+              MkResponseHeadPending addr cap p4 code 1 0
+
+  -- | Finalize the response head (flushing the status line if no headers were
+  -- written and appending the terminating `"\r\n"`), transitioning linearly to
+  -- `ResponseBodyOpen`.
+  response-finish-head :: ResponseHeadPending %1 ->{MVar} ResponseBodyOpen
+  response-finish-head pending = case pending of
+    MkResponseHeadPending addr cap written code emitted ovf ->
+      if ne-u8 ovf 0 then
+        MkResponseBodyOpen addr cap written 1
+      else
+        let p0 = if eq-u8 emitted 0 then dma-write-status-line addr written cap code else written in
+        if gt-u32 p0 cap then
+          MkResponseBodyOpen addr cap written 1
+        else if lt-u32 (saturating-sub-u32 cap p0) 2 then
+          MkResponseBodyOpen addr cap p0 1
+        else
+          let p1 = dma-put2 addr p0 13 10 in
+          MkResponseBodyOpen addr cap p1 0
+
+  -- | Append a zero-copy body chunk `[body-addr, body-addr + body-len)` to an
+  -- open response body, threading `ResponseBodyOpen %1` linearly.
+  response-write-body :: ResponseBodyOpen %1 -> I64 -> U32 ->{MVar} ResponseBodyOpen
+  response-write-body body body-addr body-len = case body of
+    MkResponseBodyOpen addr cap written ovf ->
+      if ne-u8 ovf 0 then
+        MkResponseBodyOpen addr cap written 1
+      else if gt-u32 body-len (saturating-sub-u32 cap written) then
+        MkResponseBodyOpen addr cap written 1
+      else
+        let _ = dma-copy-loop (wrapping-add-i64 addr (u32-to-i64 written)) body-addr body-len in
+        MkResponseBodyOpen addr cap (wrapping-add-u32 written body-len) 0
+
+  -- | Close an open response body, returning `(ResponseClosed, total-bytes-written)`.
+  response-end :: ResponseBodyOpen %1 -> (ResponseClosed, U32)
+  response-end body = case body of
+    MkResponseBodyOpen _ _ written _ ->
+      (MkResponseClosed written, written)
+
+  -- | Linearly discharge a `ResponseClosed` token.
+  response-finish-closed :: ResponseClosed %1 -> Unit
+  response-finish-closed closed = case closed of
+    MkResponseClosed _ -> ()

@@ -1415,6 +1415,10 @@
     {
       "name": "Engine.Reactor.Spec",
       "path": "Engine/Reactor/Spec.cinch"
+    },
+    {
+      "name": "Net.Http.Types",
+      "path": "Net/Http/Types.cinch"
     }
   ],
   "order": [
@@ -1771,6 +1775,8 @@
     "Engine.Sim",
     "Engine.Reactor.Linux",
     "Engine.Reactor.Spec",
-    "Engine.Reactor.Darwin"
+    "Engine.Reactor.Darwin",
+    "Net.Http.Types",
+    "Net.Http.Priority"
   ]
 }
