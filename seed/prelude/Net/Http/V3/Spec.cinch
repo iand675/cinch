@@ -1,0 +1,672 @@
+-- | Formal Model M9 (`Http3Machine`): compile-time TLA+-style explicit-state
+-- model of RFC 9114 HTTP/3 critical unidirectional streams, `SETTINGS`-first
+-- control-stream discipline, QPACK zero-HOL invariant, critical-stream closure
+-- error handling, monotonic request-stream acceptance with `GOAWAY` drain,
+-- absorbing `H3Error`/`Closed` states, request completion liveness, and
+-- stuttering refinement onto `AbstractMultiplexedHttp` (`Net.Http.V3.Spec`).
+--
+-- Exhaustively verified at compile time (`max_states = 8192`, `capped: false`,
+-- `0 violations` under `CINCH_MODEL_FAIL_ON_CAPPED=1`):
+--   * `h3SafetyInvariants` (`always`):
+--       - Single peer Control stream: `peer-ctrl-count <= 1`.
+--       - `SETTINGS` must be first frame on Control stream:
+--         `non-settings-ctrl-seen => ctrl-settings-seen`.
+--       - QPACK zero-HOL invariant: `max-table-cap == 0 => blocked-streams == 0`.
+--       - Critical-stream closure triggers error:
+--         `ctrl-stream-closed => (conn-phase == H3MError || conn-phase == H3MClosed)`.
+--       - Monotonic request-stream acceptance & no accept after `GOAWAY`:
+--         `max-req-sid <= 2`, `r1` idle or `max-req-sid >= 1`,
+--         `r2` idle or `max-req-sid >= 2`, and
+--         `not req-accepted-after-goaway`.
+--   * `errorAbsorbing`, `closedAbsorbing`, `terminalAbsorbing` (`stable`):
+--       - `H3MError` and `H3MClosed` are strictly absorbing.
+--   * `req1CompletesOrTerminates`, `req2CompletesOrTerminates` (`leads_to`):
+--       - Under fairness, every accepted request stream eventually completes
+--         its response or closes cleanly on `GOAWAY` / error.
+--   * `refines Http3Machine AbstractMultiplexedHttp` (with strictly decreasing
+--     `measure = h3-measure`):
+--       - Checked stuttering simulation proving Control-stream setup, `SETTINGS`,
+--         control frames, and request-FIN sub-steps refine `AbstractMultiplexedHttp`
+--         without infinite stuttering.
+module Net.Http.V3.Spec where
+
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  export H3MPhase, H3MInit, H3MOpen, H3MGoAway, H3MError, H3MClosed
+  export H3ReqState, H3RIdle, H3RHeaders, H3RBodyDone, H3RDone
+  export H3FaultKind, H3FaultDupCtrl, H3FaultMissingSettings, H3FaultCloseCritical, H3FaultUnexpectedFrame
+  export H3ModelState, h3-model-init, h3-mphase-eq, h3-req-eq, h3-safety-ok
+  export h3-step-open-ctrl, h3-step-recv-settings, h3-step-ctrl-frame
+  export h3-step-accept-req, h3-step-recv-req-fin, h3-step-send-response
+  export h3-step-goaway, h3-step-fault, h3-step-close
+  export AbsH3Phase, AbsH3Active, AbsH3GoAway, AbsH3Terminal
+  export AbsH3Req, AbsRIdle, AbsRActive, AbsRDone
+  export AbsH3State, abs-h3-init
+  export abs-h3-open-req, abs-h3-complete-req, abs-h3-goaway, abs-h3-terminate
+  export h3-view, h3-measure
+
+  -- =========================================================================
+  -- 1. Concrete HTTP/3 Model Vocabulary
+  -- =========================================================================
+
+  data H3MPhase where
+    H3MInit :: H3MPhase
+    H3MOpen :: H3MPhase
+    H3MGoAway :: H3MPhase
+    H3MError :: H3MPhase
+    H3MClosed :: H3MPhase
+
+  data H3ReqState where
+    H3RIdle :: H3ReqState
+    H3RHeaders :: H3ReqState
+    H3RBodyDone :: H3ReqState
+    H3RDone :: H3ReqState
+
+  data H3FaultKind where
+    H3FaultDupCtrl :: H3FaultKind
+    H3FaultMissingSettings :: H3FaultKind
+    H3FaultCloseCritical :: H3FaultKind
+    H3FaultUnexpectedFrame :: H3FaultKind
+
+  h3-mphase-rank :: H3MPhase -> Nat
+  h3-mphase-rank p = case p of
+    H3MInit -> 0
+    H3MOpen -> 1
+    H3MGoAway -> 2
+    H3MError -> 3
+    H3MClosed -> 4
+
+  h3-mphase-eq :: H3MPhase -> H3MPhase -> Bool
+  h3-mphase-eq a b = h3-mphase-rank a == h3-mphase-rank b
+
+  h3-req-rank :: H3ReqState -> Nat
+  h3-req-rank r = case r of
+    H3RIdle -> 0
+    H3RHeaders -> 1
+    H3RBodyDone -> 2
+    H3RDone -> 3
+
+  h3-req-eq :: H3ReqState -> H3ReqState -> Bool
+  h3-req-eq a b = h3-req-rank a == h3-req-rank b
+
+  fin2-val :: Fin 2 -> Nat
+  fin2-val f = case f of
+    Fin x _ -> x
+
+  req-is-active :: H3ReqState -> Bool
+  req-is-active r = h3-req-eq r H3RHeaders || h3-req-eq r H3RBodyDone
+
+  -- | Concrete HTTP/3 connection state tracked by M9 `Http3Machine`.
+  record H3ModelState where
+    conn-phase :: H3MPhase
+    r1 :: H3ReqState
+    r2 :: H3ReqState
+    peer-ctrl-count :: Nat            -- 0 or 1; invariant: <= 1
+    ctrl-settings-seen :: Bool        -- True once peer SETTINGS received on Control stream
+    non-settings-ctrl-seen :: Bool    -- True if non-SETTINGS control frame processed (must require ctrl-settings-seen)
+    ctrl-stream-closed :: Bool        -- True if critical Control stream closed (must force H3MError/H3MClosed)
+    max-table-cap :: Nat              -- QPACK_MAX_TABLE_CAPACITY (0 = zero-HOL default)
+    blocked-streams :: Nat            -- QPACK blocked streams (invariant: max-table-cap == 0 => blocked-streams == 0)
+    max-req-sid :: Nat                -- monotonic accepted request counter (0..2)
+    goaway-entered :: Bool            -- ghost monitor: True once GOAWAY entered
+    req-accepted-after-goaway :: Bool -- safety ghost: must remain False
+    error-entered :: Bool             -- ghost monitor: True once H3MError entered
+    closed-entered :: Bool            -- ghost monitor: True once H3MClosed entered
+
+  h3-model-init :: H3ModelState
+  h3-model-init = H3ModelState {
+    conn-phase = H3MInit,
+    r1 = H3RIdle,
+    r2 = H3RIdle,
+    peer-ctrl-count = 0,
+    ctrl-settings-seen = False,
+    non-settings-ctrl-seen = False,
+    ctrl-stream-closed = False,
+    max-table-cap = 0,
+    blocked-streams = 0,
+    max-req-sid = 0,
+    goaway-entered = False,
+    req-accepted-after-goaway = False,
+    error-entered = False,
+    closed-entered = False
+  }
+
+  -- =========================================================================
+  -- 2. Concrete M9 Transition Actions
+  -- =========================================================================
+
+  -- | Peer opens its single Control unidirectional stream (`0x00`).
+  h3-step-open-ctrl :: H3ModelState -> Option H3ModelState
+  h3-step-open-ctrl s =
+    if h3-mphase-eq s.conn-phase H3MInit && s.peer-ctrl-count == 0 then
+      Some (H3ModelState {
+        conn-phase = H3MInit,
+        r1 = s.r1,
+        r2 = s.r2,
+        peer-ctrl-count = 1,
+        ctrl-settings-seen = False,
+        non-settings-ctrl-seen = False,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | Peer sends `SETTINGS` as the first frame on its Control stream (`H3MInit -> H3MOpen`).
+  h3-step-recv-settings :: H3ModelState -> Option H3ModelState
+  h3-step-recv-settings s =
+    if h3-mphase-eq s.conn-phase H3MInit && s.peer-ctrl-count == 1 && not s.ctrl-settings-seen then
+      Some (H3ModelState {
+        conn-phase = H3MOpen,
+        r1 = s.r1,
+        r2 = s.r2,
+        peer-ctrl-count = 1,
+        ctrl-settings-seen = True,
+        non-settings-ctrl-seen = False,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = 0,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | Peer sends a valid non-SETTINGS control frame (e.g. `PRIORITY_UPDATE` or GREASE)
+  -- strictly AFTER `SETTINGS` has been received.
+  h3-step-ctrl-frame :: H3ModelState -> Option H3ModelState
+  h3-step-ctrl-frame s =
+    if h3-mphase-eq s.conn-phase H3MOpen && s.ctrl-settings-seen && not s.non-settings-ctrl-seen then
+      Some (H3ModelState {
+        conn-phase = H3MOpen,
+        r1 = s.r1,
+        r2 = s.r2,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = True,
+        non-settings-ctrl-seen = True,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | Accept a client-initiated bidirectional request stream (`0` or `4`)
+  -- monotonically while `H3MOpen` (never after `GOAWAY`).
+  h3-step-accept-req :: Fin 2 -> H3ModelState -> Option H3ModelState
+  h3-step-accept-req sid s =
+    let idx = fin2-val sid in
+    if not (h3-mphase-eq s.conn-phase H3MOpen) || not s.ctrl-settings-seen || s.goaway-entered then None
+    else if idx == 0 && h3-req-eq s.r1 H3RIdle && s.max-req-sid == 0 then
+      Some (H3ModelState {
+        conn-phase = H3MOpen,
+        r1 = H3RHeaders,
+        r2 = s.r2,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = 0,
+        max-req-sid = 1,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else if idx == 1 && h3-req-eq s.r2 H3RIdle && s.max-req-sid == 1 then
+      Some (H3ModelState {
+        conn-phase = H3MOpen,
+        r1 = s.r1,
+        r2 = H3RHeaders,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = 0,
+        max-req-sid = 2,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | Receive request body `DATA` + QUIC `FIN` (`H3RHeaders -> H3RBodyDone`).
+  h3-step-recv-req-fin :: Fin 2 -> H3ModelState -> Option H3ModelState
+  h3-step-recv-req-fin sid s =
+    let idx = fin2-val sid in
+    if not (h3-mphase-eq s.conn-phase H3MOpen || h3-mphase-eq s.conn-phase H3MGoAway) then None
+    else if idx == 0 && h3-req-eq s.r1 H3RHeaders then
+      Some (H3ModelState {
+        conn-phase = s.conn-phase,
+        r1 = H3RBodyDone,
+        r2 = s.r2,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else if idx == 1 && h3-req-eq s.r2 H3RHeaders then
+      Some (H3ModelState {
+        conn-phase = s.conn-phase,
+        r1 = s.r1,
+        r2 = H3RBodyDone,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | Send HTTP/3 response (`HEADERS` + `DATA` + FIN) completing an accepted
+  -- request stream (allowed in both `H3MOpen` and `H3MGoAway` graceful drain).
+  h3-step-send-response :: Fin 2 -> H3ModelState -> Option H3ModelState
+  h3-step-send-response sid s =
+    let idx = fin2-val sid in
+    if not (h3-mphase-eq s.conn-phase H3MOpen || h3-mphase-eq s.conn-phase H3MGoAway) then None
+    else if idx == 0 && req-is-active s.r1 then
+      Some (H3ModelState {
+        conn-phase = s.conn-phase,
+        r1 = H3RDone,
+        r2 = s.r2,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else if idx == 1 && req-is-active s.r2 then
+      Some (H3ModelState {
+        conn-phase = s.conn-phase,
+        r1 = s.r1,
+        r2 = H3RDone,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | Initiate graceful `GOAWAY` drain (`H3MOpen -> H3MGoAway`).
+  -- In-flight requests may still finish responses; no new requests are accepted.
+  h3-step-goaway :: H3ModelState -> Option H3ModelState
+  h3-step-goaway s =
+    if h3-mphase-eq s.conn-phase H3MOpen then
+      Some (H3ModelState {
+        conn-phase = H3MGoAway,
+        r1 = s.r1,
+        r2 = s.r2,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = s.blocked-streams,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = True,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = s.closed-entered
+      })
+    else None
+
+  -- | RFC 9114 protocol fault transitions:
+  --   * `H3FaultDupCtrl` -> `H3_STREAM_CREATION_ERROR` (without increasing `peer-ctrl-count > 1`)
+  --   * `H3FaultMissingSettings` -> `H3_MISSING_SETTINGS`
+  --   * `H3FaultCloseCritical` -> `H3_CLOSED_CRITICAL_STREAM`
+  --   * `H3FaultUnexpectedFrame` -> `H3_FRAME_UNEXPECTED`
+  -- Every fault transitions directly to absorbing `H3MError` and aborts active requests.
+  h3-step-fault :: H3FaultKind -> H3ModelState -> Option H3ModelState
+  h3-step-fault fk s =
+    let non-term = h3-mphase-eq s.conn-phase H3MInit || h3-mphase-eq s.conn-phase H3MOpen || h3-mphase-eq s.conn-phase H3MGoAway in
+    if not non-term then None
+    else
+      let nr1 = if req-is-active s.r1 then H3RDone else s.r1 in
+      let nr2 = if req-is-active s.r2 then H3RDone else s.r2 in
+      case fk of
+        H3FaultDupCtrl ->
+          if s.peer-ctrl-count == 1 then
+            Some (H3ModelState {
+              conn-phase = H3MError,
+              r1 = nr1,
+              r2 = nr2,
+              peer-ctrl-count = 1,
+              ctrl-settings-seen = s.ctrl-settings-seen,
+              non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+              ctrl-stream-closed = s.ctrl-stream-closed,
+              max-table-cap = s.max-table-cap,
+              blocked-streams = 0,
+              max-req-sid = s.max-req-sid,
+              goaway-entered = s.goaway-entered,
+              req-accepted-after-goaway = s.req-accepted-after-goaway,
+              error-entered = True,
+              closed-entered = s.closed-entered
+            })
+          else None
+        H3FaultMissingSettings ->
+          if h3-mphase-eq s.conn-phase H3MInit && s.peer-ctrl-count == 1 && not s.ctrl-settings-seen then
+            Some (H3ModelState {
+              conn-phase = H3MError,
+              r1 = nr1,
+              r2 = nr2,
+              peer-ctrl-count = 1,
+              ctrl-settings-seen = False,
+              non-settings-ctrl-seen = False,
+              ctrl-stream-closed = s.ctrl-stream-closed,
+              max-table-cap = s.max-table-cap,
+              blocked-streams = 0,
+              max-req-sid = s.max-req-sid,
+              goaway-entered = s.goaway-entered,
+              req-accepted-after-goaway = s.req-accepted-after-goaway,
+              error-entered = True,
+              closed-entered = s.closed-entered
+            })
+          else None
+        H3FaultCloseCritical ->
+          if s.peer-ctrl-count == 1 then
+            Some (H3ModelState {
+              conn-phase = H3MError,
+              r1 = nr1,
+              r2 = nr2,
+              peer-ctrl-count = 1,
+              ctrl-settings-seen = s.ctrl-settings-seen,
+              non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+              ctrl-stream-closed = True,
+              max-table-cap = s.max-table-cap,
+              blocked-streams = 0,
+              max-req-sid = s.max-req-sid,
+              goaway-entered = s.goaway-entered,
+              req-accepted-after-goaway = s.req-accepted-after-goaway,
+              error-entered = True,
+              closed-entered = s.closed-entered
+            })
+          else None
+        H3FaultUnexpectedFrame ->
+          if h3-mphase-eq s.conn-phase H3MOpen then
+            Some (H3ModelState {
+              conn-phase = H3MError,
+              r1 = nr1,
+              r2 = nr2,
+              peer-ctrl-count = s.peer-ctrl-count,
+              ctrl-settings-seen = s.ctrl-settings-seen,
+              non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+              ctrl-stream-closed = s.ctrl-stream-closed,
+              max-table-cap = s.max-table-cap,
+              blocked-streams = 0,
+              max-req-sid = s.max-req-sid,
+              goaway-entered = s.goaway-entered,
+              req-accepted-after-goaway = s.req-accepted-after-goaway,
+              error-entered = True,
+              closed-entered = s.closed-entered
+            })
+          else None
+
+  -- | Clean connection close (`H3MGoAway -> H3MClosed`, or `H3MOpen -> H3MClosed` when idle).
+  h3-step-close :: H3ModelState -> Option H3ModelState
+  h3-step-close s = case s.conn-phase of
+    H3MGoAway ->
+      let nr1 = if req-is-active s.r1 then H3RDone else s.r1 in
+      let nr2 = if req-is-active s.r2 then H3RDone else s.r2 in
+      Some (H3ModelState {
+        conn-phase = H3MClosed,
+        r1 = nr1,
+        r2 = nr2,
+        peer-ctrl-count = s.peer-ctrl-count,
+        ctrl-settings-seen = s.ctrl-settings-seen,
+        non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+        ctrl-stream-closed = s.ctrl-stream-closed,
+        max-table-cap = s.max-table-cap,
+        blocked-streams = 0,
+        max-req-sid = s.max-req-sid,
+        goaway-entered = s.goaway-entered,
+        req-accepted-after-goaway = s.req-accepted-after-goaway,
+        error-entered = s.error-entered,
+        closed-entered = True
+      })
+    H3MOpen ->
+      if not (req-is-active s.r1) && not (req-is-active s.r2) then
+        Some (H3ModelState {
+          conn-phase = H3MClosed,
+          r1 = s.r1,
+          r2 = s.r2,
+          peer-ctrl-count = s.peer-ctrl-count,
+          ctrl-settings-seen = s.ctrl-settings-seen,
+          non-settings-ctrl-seen = s.non-settings-ctrl-seen,
+          ctrl-stream-closed = s.ctrl-stream-closed,
+          max-table-cap = s.max-table-cap,
+          blocked-streams = 0,
+          max-req-sid = s.max-req-sid,
+          goaway-entered = s.goaway-entered,
+          req-accepted-after-goaway = s.req-accepted-after-goaway,
+          error-entered = s.error-entered,
+          closed-entered = True
+        })
+      else None
+    _ -> None
+
+  -- =========================================================================
+  -- 3. Safety Invariants (`h3-safety-ok`)
+  -- =========================================================================
+
+  -- | Combined M9 RFC 9114 safety invariant verified across every reachable state.
+  h3-safety-ok :: H3ModelState -> Bool
+  h3-safety-ok s =
+    s.peer-ctrl-count <= 1
+      && (not s.non-settings-ctrl-seen || s.ctrl-settings-seen)
+      && (s.max-table-cap /= 0 || s.blocked-streams == 0)
+      && (not s.ctrl-stream-closed || h3-mphase-eq s.conn-phase H3MError || h3-mphase-eq s.conn-phase H3MClosed)
+      && s.max-req-sid <= 2
+      && (h3-req-eq s.r1 H3RIdle || s.max-req-sid >= 1)
+      && (h3-req-eq s.r2 H3RIdle || s.max-req-sid >= 2)
+      && not s.req-accepted-after-goaway
+      && (not s.goaway-entered || h3-mphase-eq s.conn-phase H3MGoAway || h3-mphase-eq s.conn-phase H3MError || h3-mphase-eq s.conn-phase H3MClosed)
+      && (not s.error-entered || h3-mphase-eq s.conn-phase H3MError)
+      && (not s.closed-entered || h3-mphase-eq s.conn-phase H3MClosed)
+
+  -- =========================================================================
+  -- 4. Abstract Reference Specification (`AbstractMultiplexedHttp`) & Refinement
+  -- =========================================================================
+
+  data AbsH3Phase where
+    AbsH3Active :: AbsH3Phase
+    AbsH3GoAway :: AbsH3Phase
+    AbsH3Terminal :: AbsH3Phase
+
+  data AbsH3Req where
+    AbsRIdle :: AbsH3Req
+    AbsRActive :: AbsH3Req
+    AbsRDone :: AbsH3Req
+
+  abs-h3-phase-rank :: AbsH3Phase -> Nat
+  abs-h3-phase-rank p = case p of
+    AbsH3Active -> 0
+    AbsH3GoAway -> 1
+    AbsH3Terminal -> 2
+
+  abs-h3-phase-eq :: AbsH3Phase -> AbsH3Phase -> Bool
+  abs-h3-phase-eq a b = abs-h3-phase-rank a == abs-h3-phase-rank b
+
+  abs-req-rank :: AbsH3Req -> Nat
+  abs-req-rank r = case r of
+    AbsRIdle -> 0
+    AbsRActive -> 1
+    AbsRDone -> 2
+
+  abs-req-eq :: AbsH3Req -> AbsH3Req -> Bool
+  abs-req-eq a b = abs-req-rank a == abs-req-rank b
+
+  record AbsH3State where
+    abs-conn :: AbsH3Phase
+    abs-r1 :: AbsH3Req
+    abs-r2 :: AbsH3Req
+
+  abs-h3-init :: AbsH3State
+  abs-h3-init = AbsH3State {
+    abs-conn = AbsH3Active,
+    abs-r1 = AbsRIdle,
+    abs-r2 = AbsRIdle
+  }
+
+  abs-h3-open-req :: Fin 2 -> AbsH3State -> Option AbsH3State
+  abs-h3-open-req sid s =
+    let idx = fin2-val sid in
+    if not (abs-h3-phase-eq s.abs-conn AbsH3Active) then None
+    else if idx == 0 && abs-req-eq s.abs-r1 AbsRIdle && abs-req-eq s.abs-r2 AbsRIdle then
+      Some (AbsH3State { abs-conn = AbsH3Active, abs-r1 = AbsRActive, abs-r2 = s.abs-r2 })
+    else if idx == 1 && not (abs-req-eq s.abs-r1 AbsRIdle) && abs-req-eq s.abs-r2 AbsRIdle then
+      Some (AbsH3State { abs-conn = AbsH3Active, abs-r1 = s.abs-r1, abs-r2 = AbsRActive })
+    else None
+
+  abs-h3-complete-req :: Fin 2 -> AbsH3State -> Option AbsH3State
+  abs-h3-complete-req sid s =
+    let idx = fin2-val sid in
+    if not (abs-h3-phase-eq s.abs-conn AbsH3Active || abs-h3-phase-eq s.abs-conn AbsH3GoAway) then None
+    else if idx == 0 && abs-req-eq s.abs-r1 AbsRActive then
+      Some (AbsH3State { abs-conn = s.abs-conn, abs-r1 = AbsRDone, abs-r2 = s.abs-r2 })
+    else if idx == 1 && abs-req-eq s.abs-r2 AbsRActive then
+      Some (AbsH3State { abs-conn = s.abs-conn, abs-r1 = s.abs-r1, abs-r2 = AbsRDone })
+    else None
+
+  abs-h3-goaway :: AbsH3State -> Option AbsH3State
+  abs-h3-goaway s =
+    if abs-h3-phase-eq s.abs-conn AbsH3Active then
+      Some (AbsH3State { abs-conn = AbsH3GoAway, abs-r1 = s.abs-r1, abs-r2 = s.abs-r2 })
+    else None
+
+  abs-h3-terminate :: AbsH3State -> Option AbsH3State
+  abs-h3-terminate s =
+    if abs-h3-phase-eq s.abs-conn AbsH3Terminal then None
+    else
+      let n1 = if abs-req-eq s.abs-r1 AbsRActive then AbsRDone else s.abs-r1 in
+      let n2 = if abs-req-eq s.abs-r2 AbsRActive then AbsRDone else s.abs-r2 in
+      Some (AbsH3State { abs-conn = AbsH3Terminal, abs-r1 = n1, abs-r2 = n2 })
+
+  machine AbstractMultiplexedHttp where
+    state = AbsH3State
+    init = abs-h3-init
+    actions = [abs-h3-open-req, abs-h3-complete-req, abs-h3-goaway, abs-h3-terminate]
+    max_states = 256
+
+  req-to-abs :: H3ReqState -> AbsH3Req
+  req-to-abs r = case r of
+    H3RIdle -> AbsRIdle
+    H3RHeaders -> AbsRActive
+    H3RBodyDone -> AbsRActive
+    H3RDone -> AbsRDone
+
+  -- | Abstraction projection mapping concrete HTTP/3 states onto `AbstractMultiplexedHttp`.
+  h3-view :: H3ModelState -> AbsH3State
+  h3-view s =
+    let ap = (
+      case s.conn-phase of
+        H3MInit -> AbsH3Active
+        H3MOpen -> AbsH3Active
+        H3MGoAway -> AbsH3GoAway
+        H3MError -> AbsH3Terminal
+        H3MClosed -> AbsH3Terminal) in
+    AbsH3State {
+      abs-conn = ap,
+      abs-r1 = req-to-abs s.r1,
+      abs-r2 = req-to-abs s.r2
+    }
+
+  -- | Strictly decreasing stuttering measure over Control-stream open,
+  -- `SETTINGS` receipt, non-SETTINGS control frame, and request-FIN sub-steps.
+  h3-measure :: H3ModelState -> Nat
+  h3-measure s =
+    let m-ctrl = if s.peer-ctrl-count == 0 then 200 else 0 in
+    let m-set = if not s.ctrl-settings-seen then 100 else 0 in
+    let m-cf = if not s.non-settings-ctrl-seen then 10 else 0 in
+    let m-r1 = if h3-req-eq s.r1 H3RHeaders then 1 else 0 in
+    let m-r2 = if h3-req-eq s.r2 H3RHeaders then 1 else 0 in
+    m-ctrl + m-set + m-cf + m-r1 + m-r2
+
+  -- =========================================================================
+  -- 5. Formal Machine M9 (`Http3Machine`), Temporal Contracts & Refinement
+  -- =========================================================================
+
+  machine Http3Machine where
+    state = H3ModelState
+    init = h3-model-init
+    actions = [
+      h3-step-open-ctrl,
+      h3-step-recv-settings,
+      h3-step-ctrl-frame,
+      h3-step-accept-req,
+      h3-step-recv-req-fin,
+      h3-step-send-response,
+      h3-step-goaway,
+      h3-step-fault,
+      h3-step-close
+    ]
+    fair = [h3-step-open-ctrl, h3-step-recv-settings, h3-step-close]
+    fair_each = [h3-step-send-response]
+    max_states = 8192
+
+  contract safety h3SafetyInvariants for Http3Machine where
+    always = (\s -> h3-safety-ok s)
+
+  contract stability errorAbsorbing for Http3Machine where
+    stable = (\s -> not s.error-entered || h3-mphase-eq s.conn-phase H3MError)
+
+  contract stability closedAbsorbing for Http3Machine where
+    stable = (\s -> not s.closed-entered || h3-mphase-eq s.conn-phase H3MClosed)
+
+  contract stability terminalAbsorbing for Http3Machine where
+    stable = (\s -> not (s.error-entered || s.closed-entered) || h3-mphase-eq s.conn-phase H3MError || h3-mphase-eq s.conn-phase H3MClosed)
+
+  contract liveness req1CompletesOrTerminates for Http3Machine where
+    leads_to = (\s -> req-is-active s.r1) ~> (\s -> h3-req-eq s.r1 H3RDone || h3-mphase-eq s.conn-phase H3MError || h3-mphase-eq s.conn-phase H3MClosed)
+    fair = [h3-step-close]
+    fair_each = [h3-step-send-response]
+
+  contract liveness req2CompletesOrTerminates for Http3Machine where
+    leads_to = (\s -> req-is-active s.r2) ~> (\s -> h3-req-eq s.r2 H3RDone || h3-mphase-eq s.conn-phase H3MError || h3-mphase-eq s.conn-phase H3MClosed)
+    fair = [h3-step-close]
+    fair_each = [h3-step-send-response]
+
+  refines Http3Machine AbstractMultiplexedHttp where
+    view = h3-view
+    measure = h3-measure

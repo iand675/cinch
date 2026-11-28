@@ -1,0 +1,753 @@
+-- | Zero-allocation (`#[no-alloc]`) RFC 9114 HTTP/3 frame & unidirectional
+-- stream header codecs, RFC 9218 `PRIORITY_UPDATE`, RFC 9297 HTTP/3 Datagram
+-- quarter-stream-id varint prefix codec, and `Alt-Svc` formatter over
+-- `Net.Quic.Varint` and raw DMA buffers (`Net.Http.V3.Frame`).
+--
+-- RFC 9114 strict wire conformance:
+--   * Frame types: `DATA=0x00`, `HEADERS=0x01`, `CANCEL_PUSH=0x03`,
+--     `SETTINGS=0x04`, `PUSH_PROMISE=0x05`, `GOAWAY=0x07`, `MAX_PUSH_ID=0x0d`,
+--     `PRIORITY_UPDATE_REQ=0x0f0700`, `PRIORITY_UPDATE_PUSH=0x0f0701`.
+--   * Forbidden HTTP/2 frame types (`0x02`, `0x06`, `0x08`, `0x09`) are
+--     rejected immediately with `H3_FRAME_UNEXPECTED` (`0x105`).
+--   * Unknown & GREASE frame types (`0x1f * N + 0x21`, RFC 9114 §7.2.8) are
+--     identified and skipped safely.
+--   * Unidirectional stream types: `Control=0x00`, `Push=0x01`,
+--     `QpackEncoder=0x02`, `QpackDecoder=0x03`.
+--   * `SETTINGS` identifiers: `QPACK_MAX_TABLE_CAPACITY=0x01`,
+--     `MAX_FIELD_SECTION_SIZE=0x06`, `QPACK_BLOCKED_STREAMS=0x07`,
+--     `ENABLE_CONNECT_PROTOCOL=0x08` (RFC 9220), `H3_DATAGRAM=0x33` (RFC 9297).
+--     Forbidden HTTP/2 settings (`0x02..0x05`), duplicate setting IDs, and
+--     invalid boolean setting values are rejected with `H3_SETTINGS_ERROR`.
+module Net.Http.V3.Frame where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Net.Quic.Varint
+  import Prim.Atomic
+
+  -- Frame type identifiers (RFC 9114 §7.2, RFC 9218 §7.2)
+  export h3-frame-data, h3-frame-headers, h3-frame-cancel-push
+  export h3-frame-settings, h3-frame-push-promise, h3-frame-goaway
+  export h3-frame-max-push-id, h3-frame-priority-update-req, h3-frame-priority-update-push
+  export h3-frame-is-forbidden, h3-frame-is-known, h3-is-grease
+
+  -- Unidirectional stream type identifiers (RFC 9114 §6.2, RFC 9204 §4.2)
+  export h3-uni-control, h3-uni-push, h3-uni-qpack-encoder, h3-uni-qpack-decoder
+  export h3-uni-write-type-raw, h3-uni-read-type-raw
+
+  -- SETTINGS identifiers (RFC 9114 §7.2.4, RFC 9204 §5, RFC 9220, RFC 9297)
+  export h3-setting-qpack-max-table-capacity, h3-setting-max-field-section-size
+  export h3-setting-qpack-blocked-streams, h3-setting-enable-connect-protocol
+  export h3-setting-h3-datagram, h3-setting-is-forbidden
+
+  -- RFC 9114 §8.1 + RFC 9204 §8.3 + RFC 9297 §5 error codes
+  export h3-err-datagram-error
+  export h3-err-no-error, h3-err-general-protocol-error, h3-err-internal-error
+  export h3-err-stream-creation-error, h3-err-closed-critical-stream
+  export h3-err-frame-unexpected, h3-err-frame-error, h3-err-excessive-load
+  export h3-err-id-error, h3-err-settings-error, h3-err-missing-settings
+  export h3-err-request-rejected, h3-err-request-cancelled, h3-err-request-incomplete
+  export h3-err-message-error, h3-err-version-fallback
+  export h3-err-qpack-decompression-failed, h3-err-qpack-encoder-stream-error
+  export h3-err-qpack-decoder-stream-error
+
+  -- Frame decode status codes
+  export h3-fdec-ok, h3-fdec-need-more, h3-fdec-error
+
+  -- POD structures
+  export H3FrameHeader, h3-frame-header-empty
+  export H3Settings, h3-settings-default, h3-settings-zero
+  export H3SettingsDecodeRes
+  export H3VarintFrameRes, H3PriorityUpdateRes, H3DgramDecoded
+
+  -- Frame header & payload codecs (#[no-alloc])
+  export h3-frame-encode-header-raw, h3-frame-decode-header-raw
+  export h3-frame-encode-raw, h3-frame-skip-unknown-raw
+  export h3-settings-encode-raw, h3-settings-decode-raw
+  export h3-frame-encode-goaway-raw, h3-frame-decode-goaway-raw
+  export h3-frame-encode-cancel-push-raw, h3-frame-encode-max-push-id-raw
+  export h3-frame-decode-single-varint-raw
+  export h3-frame-encode-priority-update-raw, h3-frame-decode-priority-update-raw
+
+  -- Alt-Svc formatter & RFC 9297 H3 Datagram codec (#[no-alloc])
+  export h3-format-alt-svc-raw
+  export h3-dgram-encode-raw, h3-dgram-decode-raw
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA helpers
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)] #[no-alloc] b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)] #[no-alloc] b-not :: Bool -> Bool
+  b-not x = if x then b-false else b-true
+
+  #[inline(always)] #[no-alloc] both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)] #[no-alloc] either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[no-alloc]
+  dma-copy-raw :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-raw dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- =========================================================================
+  -- 1. RFC 9114 Frame Types, Uni Stream Types, Settings & Error Codes
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] h3-frame-data :: U64
+  h3-frame-data = 0x00
+
+  #[inline(always)] #[no-alloc] h3-frame-headers :: U64
+  h3-frame-headers = 0x01
+
+  #[inline(always)] #[no-alloc] h3-frame-cancel-push :: U64
+  h3-frame-cancel-push = 0x03
+
+  #[inline(always)] #[no-alloc] h3-frame-settings :: U64
+  h3-frame-settings = 0x04
+
+  #[inline(always)] #[no-alloc] h3-frame-push-promise :: U64
+  h3-frame-push-promise = 0x05
+
+  #[inline(always)] #[no-alloc] h3-frame-goaway :: U64
+  h3-frame-goaway = 0x07
+
+  #[inline(always)] #[no-alloc] h3-frame-max-push-id :: U64
+  h3-frame-max-push-id = 0x0d
+
+  #[inline(always)] #[no-alloc] h3-frame-priority-update-req :: U64
+  h3-frame-priority-update-req = 0x0f0700
+
+  #[inline(always)] #[no-alloc] h3-frame-priority-update-push :: U64
+  h3-frame-priority-update-push = 0x0f0701
+
+  -- | RFC 9114 §7.2.8: HTTP/2 frame types reserved as forbidden in HTTP/3
+  -- (`0x02` PRIORITY, `0x06` PING, `0x08` WINDOW_UPDATE, `0x09` CONTINUATION).
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-is-forbidden :: U64 -> Bool
+  h3-frame-is-forbidden ft =
+    if eq-u64 ft 0x02 then b-true
+    else if eq-u64 ft 0x06 then b-true
+    else if eq-u64 ft 0x08 then b-true
+    else eq-u64 ft 0x09
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-is-known :: U64 -> Bool
+  h3-frame-is-known ft =
+    if eq-u64 ft h3-frame-data then b-true
+    else if eq-u64 ft h3-frame-headers then b-true
+    else if eq-u64 ft h3-frame-cancel-push then b-true
+    else if eq-u64 ft h3-frame-settings then b-true
+    else if eq-u64 ft h3-frame-push-promise then b-true
+    else if eq-u64 ft h3-frame-goaway then b-true
+    else if eq-u64 ft h3-frame-max-push-id then b-true
+    else if eq-u64 ft h3-frame-priority-update-req then b-true
+    else eq-u64 ft h3-frame-priority-update-push
+
+  -- | RFC 9114 §7.2.8 / §6.2.3 GREASE identifier predicate (`0x1f * N + 0x21`).
+  #[inline(always)]
+  #[no-alloc]
+  h3-is-grease :: U64 -> Bool
+  h3-is-grease id =
+    if lt-u64 id 0x21 then b-false
+    else eq-u64 (rem-u64 (wrapping-sub-u64 id 0x21) 0x1f) 0
+
+  -- Unidirectional stream types
+  #[inline(always)] #[no-alloc] h3-uni-control :: U64
+  h3-uni-control = 0x00
+
+  #[inline(always)] #[no-alloc] h3-uni-push :: U64
+  h3-uni-push = 0x01
+
+  #[inline(always)] #[no-alloc] h3-uni-qpack-encoder :: U64
+  h3-uni-qpack-encoder = 0x02
+
+  #[inline(always)] #[no-alloc] h3-uni-qpack-decoder :: U64
+  h3-uni-qpack-decoder = 0x03
+
+  -- SETTINGS identifiers
+  #[inline(always)] #[no-alloc] h3-setting-qpack-max-table-capacity :: U64
+  h3-setting-qpack-max-table-capacity = 0x01
+
+  #[inline(always)] #[no-alloc] h3-setting-max-field-section-size :: U64
+  h3-setting-max-field-section-size = 0x06
+
+  #[inline(always)] #[no-alloc] h3-setting-qpack-blocked-streams :: U64
+  h3-setting-qpack-blocked-streams = 0x07
+
+  #[inline(always)] #[no-alloc] h3-setting-enable-connect-protocol :: U64
+  h3-setting-enable-connect-protocol = 0x08
+
+  #[inline(always)] #[no-alloc] h3-setting-h3-datagram :: U64
+  h3-setting-h3-datagram = 0x33
+
+  -- | RFC 9114 §7.2.4.1: HTTP/2 setting identifiers forbidden in HTTP/3
+  -- (`0x02`, `0x03`, `0x04`, `0x05`).
+  #[inline(always)]
+  #[no-alloc]
+  h3-setting-is-forbidden :: U64 -> Bool
+  h3-setting-is-forbidden sid =
+    both (ge-u64 sid 0x02) (le-u64 sid 0x05)
+
+  -- RFC 9114 §8.1 + RFC 9204 §8.3 + RFC 9297 §5 Error Codes
+  #[inline(always)] #[no-alloc] h3-err-datagram-error :: U64
+  h3-err-datagram-error = 0x33
+
+  #[inline(always)] #[no-alloc] h3-err-no-error :: U64
+  h3-err-no-error = 0x100
+
+  #[inline(always)] #[no-alloc] h3-err-general-protocol-error :: U64
+  h3-err-general-protocol-error = 0x101
+
+  #[inline(always)] #[no-alloc] h3-err-internal-error :: U64
+  h3-err-internal-error = 0x102
+
+  #[inline(always)] #[no-alloc] h3-err-stream-creation-error :: U64
+  h3-err-stream-creation-error = 0x103
+
+  #[inline(always)] #[no-alloc] h3-err-closed-critical-stream :: U64
+  h3-err-closed-critical-stream = 0x104
+
+  #[inline(always)] #[no-alloc] h3-err-frame-unexpected :: U64
+  h3-err-frame-unexpected = 0x105
+
+  #[inline(always)] #[no-alloc] h3-err-frame-error :: U64
+  h3-err-frame-error = 0x106
+
+  #[inline(always)] #[no-alloc] h3-err-excessive-load :: U64
+  h3-err-excessive-load = 0x107
+
+  #[inline(always)] #[no-alloc] h3-err-id-error :: U64
+  h3-err-id-error = 0x108
+
+  #[inline(always)] #[no-alloc] h3-err-settings-error :: U64
+  h3-err-settings-error = 0x109
+
+  #[inline(always)] #[no-alloc] h3-err-missing-settings :: U64
+  h3-err-missing-settings = 0x10a
+
+  #[inline(always)] #[no-alloc] h3-err-request-rejected :: U64
+  h3-err-request-rejected = 0x10b
+
+  #[inline(always)] #[no-alloc] h3-err-request-cancelled :: U64
+  h3-err-request-cancelled = 0x10c
+
+  #[inline(always)] #[no-alloc] h3-err-request-incomplete :: U64
+  h3-err-request-incomplete = 0x10d
+
+  #[inline(always)] #[no-alloc] h3-err-message-error :: U64
+  h3-err-message-error = 0x10e
+
+  #[inline(always)] #[no-alloc] h3-err-version-fallback :: U64
+  h3-err-version-fallback = 0x10f
+
+  #[inline(always)] #[no-alloc] h3-err-qpack-decompression-failed :: U64
+  h3-err-qpack-decompression-failed = 0x200
+
+  #[inline(always)] #[no-alloc] h3-err-qpack-encoder-stream-error :: U64
+  h3-err-qpack-encoder-stream-error = 0x201
+
+  #[inline(always)] #[no-alloc] h3-err-qpack-decoder-stream-error :: U64
+  h3-err-qpack-decoder-stream-error = 0x202
+
+  -- Frame decode status codes
+  #[inline(always)] #[no-alloc] h3-fdec-ok :: U8
+  h3-fdec-ok = 0
+
+  #[inline(always)] #[no-alloc] h3-fdec-need-more :: U8
+  h3-fdec-need-more = 1
+
+  #[inline(always)] #[no-alloc] h3-fdec-error :: U8
+  h3-fdec-error = 2
+
+  -- =========================================================================
+  -- 2. Unboxed #[repr(C, value)] POD Structures
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record H3FrameHeader where
+    h3f-type :: U64
+    h3f-payload-len :: U64
+    h3f-error :: U64
+    h3f-hdr-len :: U32
+    h3f-status :: U8
+    h3f-pad0 :: U8
+    h3f-pad1 :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-header-empty :: Unit -> H3FrameHeader
+  h3-frame-header-empty _ = H3FrameHeader 0 0 h3-err-no-error 0 h3-fdec-need-more 0 0
+
+  #[repr(C, value)]
+  record H3Settings where
+    h3s-qpack-max-table-cap :: U64
+    h3s-max-field-section-size :: U64
+    h3s-qpack-blocked-streams :: U64
+    h3s-enable-connect-protocol :: U8
+    h3s-h3-datagram :: U8
+    h3s-pad0 :: U16
+    h3s-pad1 :: U32
+
+  -- | Zero-HOL RFC 9114 default settings: `QPACK_MAX_TABLE_CAPACITY = 0`,
+  -- `MAX_FIELD_SECTION_SIZE = 65536`, `QPACK_BLOCKED_STREAMS = 0`,
+  -- `ENABLE_CONNECT_PROTOCOL = 1`, `H3_DATAGRAM = 1`.
+  #[inline(always)]
+  #[no-alloc]
+  h3-settings-default :: Unit -> H3Settings
+  h3-settings-default _ = H3Settings 0 65536 0 1 1 0 0
+
+  -- | RFC 9114 initial peer settings before any SETTINGS entries are applied.
+  #[inline(always)]
+  #[no-alloc]
+  h3-settings-zero :: Unit -> H3Settings
+  h3-settings-zero _ = H3Settings 0 18446744073709551615 0 0 0 0 0
+
+  #[repr(C, value)]
+  record H3SettingsDecodeRes where
+    h3sd-settings :: H3Settings
+    h3sd-error :: U64
+    h3sd-ok :: U8
+    h3sd-pad0 :: U8
+    h3sd-pad1 :: U16
+    h3sd-pad2 :: U32
+
+  #[repr(C, value)]
+  record H3VarintFrameRes where
+    h3vf-val :: U64
+    h3vf-error :: U64
+    h3vf-ok :: U8
+    h3vf-pad0 :: U8
+    h3vf-pad1 :: U16
+    h3vf-pad2 :: U32
+
+  #[repr(C, value)]
+  record H3PriorityUpdateRes where
+    h3pu-element-id :: U64
+    h3pu-error :: U64
+    h3pu-val-off :: U32
+    h3pu-val-len :: U32
+    h3pu-ok :: U8
+    h3pu-pad0 :: U8
+    h3pu-pad1 :: U16
+    h3pu-pad2 :: U32
+
+  #[repr(C, value)]
+  record H3DgramDecoded where
+    h3dg-stream-id :: U64
+    h3dg-quarter-id :: U64
+    h3dg-error :: U64
+    h3dg-payload-off :: U32
+    h3dg-payload-len :: U32
+    h3dg-ok :: U8
+    h3dg-pad0 :: U8
+    h3dg-pad1 :: U16
+    h3dg-pad2 :: U32
+
+  -- =========================================================================
+  -- 3. Unidirectional Stream Header & Generic Frame Header Codecs (#[no-alloc])
+  -- =========================================================================
+
+  -- | Write a unidirectional stream type varint at `buf + off`.
+  -- Returns bytes written (`1..8`), or `0` on overflow/insufficient capacity.
+  #[inline(always)]
+  #[no-alloc]
+  h3-uni-write-type-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  h3-uni-write-type-raw buf off cap stream-type =
+    quic-varint-encode-raw buf off cap stream-type
+
+  -- | Read a unidirectional stream type varint at `buf + off` within `len`.
+  #[inline(always)]
+  #[no-alloc]
+  h3-uni-read-type-raw :: I64 -> U32 -> U32 ->{MVar} VarintDecoded
+  h3-uni-read-type-raw buf off len =
+    quic-varint-decode-raw buf off len
+
+  -- | Encode an HTTP/3 frame header `(type varint, length varint)` at `buf + off`.
+  -- Returns header bytes written, or `0` on overflow/insufficient capacity.
+  #[no-alloc]
+  h3-frame-encode-header-raw :: I64 -> U32 -> U32 -> U64 -> U64 ->{MVar} U32
+  h3-frame-encode-header-raw buf off cap ftype payload-len =
+    let w0 = quic-varint-encode-raw buf off cap ftype in
+    if eq-u32 w0 0 then 0
+    else
+      let w1 = quic-varint-encode-raw buf (wrapping-add-u32 off w0) cap payload-len in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- | Decode an HTTP/3 frame header at `buf + off` within `len`.
+  -- Immediately rejects forbidden HTTP/2 frame types (`0x02, 0x06, 0x08, 0x09`)
+  -- with `h3-err-frame-unexpected` (`0x105`).
+  #[no-alloc]
+  h3-frame-decode-header-raw :: I64 -> U32 -> U32 ->{MVar} H3FrameHeader
+  h3-frame-decode-header-raw buf off len =
+    let td = quic-varint-decode-raw buf off len in
+    if eq-u8 td.ok 0 then
+      H3FrameHeader 0 0 h3-err-no-error 0 h3-fdec-need-more 0 0
+    else if h3-frame-is-forbidden td.val then
+      H3FrameHeader td.val 0 h3-err-frame-unexpected td.consumed h3-fdec-error 0 0
+    else
+      let ld = quic-varint-decode-raw buf (wrapping-add-u32 off td.consumed) len in
+      if eq-u8 ld.ok 0 then
+        H3FrameHeader td.val 0 h3-err-no-error 0 h3-fdec-need-more 0 0
+      else
+        H3FrameHeader td.val ld.val h3-err-no-error (wrapping-add-u32 td.consumed ld.consumed) h3-fdec-ok 0 0
+
+  -- | Encode a complete HTTP/3 frame `(type, len, payload)` into `buf[off..cap)`.
+  -- Returns total bytes written, or `0` on error.
+  #[no-alloc]
+  h3-frame-encode-raw :: I64 -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  h3-frame-encode-raw buf off cap ftype pay-addr pay-len =
+    let hlen = h3-frame-encode-header-raw buf off cap ftype (u32-to-u64 pay-len) in
+    if eq-u32 hlen 0 then 0
+    else
+      let pay-off = wrapping-add-u32 off hlen in
+      if gt-u32 pay-len (saturating-sub-u32 cap pay-off) then 0
+      else
+        let _ = (if gt-u32 pay-len 0 then dma-copy-raw (wrapping-add-i64 buf (u32-to-i64 pay-off)) pay-addr pay-len else ()) in
+        wrapping-add-u32 hlen pay-len
+
+  -- | Skip an unknown/GREASE frame starting at `buf + off` within `len`.
+  -- Returns new offset after the skipped frame if complete, `off` if `need-more`,
+  -- or `4294967295` if a forbidden HTTP/2 frame type is encountered.
+  #[no-alloc]
+  h3-frame-skip-unknown-raw :: I64 -> U32 -> U32 ->{MVar} U32
+  h3-frame-skip-unknown-raw buf off len =
+    let hdr = h3-frame-decode-header-raw buf off len in
+    if eq-u8 hdr.h3f-status h3-fdec-error then 4294967295
+    else if eq-u8 hdr.h3f-status h3-fdec-need-more then off
+    else
+      let rem = saturating-sub-u32 len (wrapping-add-u32 off hdr.h3f-hdr-len) in
+      if gt-u64 hdr.h3f-payload-len (u32-to-u64 rem) then off
+      else wrapping-add-u32 (wrapping-add-u32 off hdr.h3f-hdr-len) (wrapping-u64-to-u32 hdr.h3f-payload-len)
+
+  -- =========================================================================
+  -- 4. RFC 9114 §7.2.4 SETTINGS Frame Codec (#[no-alloc], duplicate & H2 guard)
+  -- =========================================================================
+
+  #[no-alloc]
+  encode-setting-pair :: I64 -> U32 -> U32 -> U64 -> U64 ->{MVar} U32
+  encode-setting-pair buf off cap sid val =
+    let w0 = quic-varint-encode-raw buf off cap sid in
+    if eq-u32 w0 0 then 0
+    else
+      let w1 = quic-varint-encode-raw buf (wrapping-add-u32 off w0) cap val in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- | Encode a complete `SETTINGS` frame (`type = 0x04`) from `H3Settings`.
+  -- Always emits `QPACK_MAX_TABLE_CAPACITY`, `MAX_FIELD_SECTION_SIZE`,
+  -- `QPACK_BLOCKED_STREAMS`, `ENABLE_CONNECT_PROTOCOL`, and `H3_DATAGRAM`.
+  #[no-alloc]
+  h3-settings-encode-raw :: I64 -> U32 -> U32 -> H3Settings ->{MVar} U32
+  h3-settings-encode-raw buf off cap s =
+    let l1 = wrapping-add-u32 (quic-varint-len h3-setting-qpack-max-table-capacity) (quic-varint-len s.h3s-qpack-max-table-cap) in
+    let l2 = wrapping-add-u32 (quic-varint-len h3-setting-max-field-section-size) (quic-varint-len s.h3s-max-field-section-size) in
+    let l3 = wrapping-add-u32 (quic-varint-len h3-setting-qpack-blocked-streams) (quic-varint-len s.h3s-qpack-blocked-streams) in
+    let l4 = wrapping-add-u32 (quic-varint-len h3-setting-enable-connect-protocol) (quic-varint-len (u8-to-u64 s.h3s-enable-connect-protocol)) in
+    let l5 = wrapping-add-u32 (quic-varint-len h3-setting-h3-datagram) (quic-varint-len (u8-to-u64 s.h3s-h3-datagram)) in
+    let pay-len = wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 l1 l2) (wrapping-add-u32 l3 l4)) l5 in
+    let hlen = h3-frame-encode-header-raw buf off cap h3-frame-settings (u32-to-u64 pay-len) in
+    if eq-u32 hlen 0 then 0
+    else
+      let p0 = wrapping-add-u32 off hlen in
+      if gt-u32 pay-len (saturating-sub-u32 cap p0) then 0
+      else
+        let w1 = encode-setting-pair buf p0 cap h3-setting-qpack-max-table-capacity s.h3s-qpack-max-table-cap in
+        let p1 = wrapping-add-u32 p0 w1 in
+        let w2 = encode-setting-pair buf p1 cap h3-setting-max-field-section-size s.h3s-max-field-section-size in
+        let p2 = wrapping-add-u32 p1 w2 in
+        let w3 = encode-setting-pair buf p2 cap h3-setting-qpack-blocked-streams s.h3s-qpack-blocked-streams in
+        let p3 = wrapping-add-u32 p2 w3 in
+        let w4 = encode-setting-pair buf p3 cap h3-setting-enable-connect-protocol (u8-to-u64 s.h3s-enable-connect-protocol) in
+        let p4 = wrapping-add-u32 p3 w4 in
+        let w5 = encode-setting-pair buf p4 cap h3-setting-h3-datagram (u8-to-u64 s.h3s-h3-datagram) in
+        if either (eq-u32 w1 0) (either (eq-u32 w2 0) (either (eq-u32 w3 0) (either (eq-u32 w4 0) (eq-u32 w5 0)))) then 0
+        else wrapping-add-u32 hlen pay-len
+
+  -- Scan previously parsed `(id, val)` pairs in `[start..cur)` to reject ANY
+  -- duplicate setting identifier (known OR unknown/GREASE) with zero extra RAM.
+  #[no-alloc]
+  settings-id-seen-before :: I64 -> U32 -> U32 -> U64 ->{MVar} Bool
+  settings-id-seen-before buf pos stop target-id =
+    if ge-u32 pos stop then b-false
+    else
+      let id-d = quic-varint-decode-raw buf pos stop in
+      if eq-u8 id-d.ok 0 then b-false
+      else if eq-u64 id-d.val target-id then b-true
+      else
+        let vpos = wrapping-add-u32 pos id-d.consumed in
+        let val-d = quic-varint-decode-raw buf vpos stop in
+        if eq-u8 val-d.ok 0 then b-false
+        else settings-id-seen-before buf (wrapping-add-u32 vpos val-d.consumed) stop target-id
+
+  #[no-alloc]
+  decode-settings-loop :: I64 -> U32 -> U32 -> U32 -> U64 -> U64 -> U64 -> U8 -> U8 ->{MVar} H3SettingsDecodeRes
+  decode-settings-loop buf start pos end-pos qcap max-fs qblk en-conn en-dg =
+    if eq-u32 pos end-pos then
+      H3SettingsDecodeRes (H3Settings qcap max-fs qblk en-conn en-dg 0 0) h3-err-no-error 1 0 0 0
+    else if gt-u32 pos end-pos then
+      H3SettingsDecodeRes (h3-settings-zero ()) h3-err-frame-error 0 0 0 0
+    else
+      let id-d = quic-varint-decode-raw buf pos end-pos in
+      if eq-u8 id-d.ok 0 then
+        H3SettingsDecodeRes (h3-settings-zero ()) h3-err-frame-error 0 0 0 0
+      else
+        let vpos = wrapping-add-u32 pos id-d.consumed in
+        let val-d = quic-varint-decode-raw buf vpos end-pos in
+        if eq-u8 val-d.ok 0 then
+          H3SettingsDecodeRes (h3-settings-zero ()) h3-err-frame-error 0 0 0 0
+        else if h3-setting-is-forbidden id-d.val then
+          H3SettingsDecodeRes (h3-settings-zero ()) h3-err-settings-error 0 0 0 0
+        else if settings-id-seen-before buf start pos id-d.val then
+          H3SettingsDecodeRes (h3-settings-zero ()) h3-err-settings-error 0 0 0 0
+        else
+          let nxt = wrapping-add-u32 vpos val-d.consumed in
+          if eq-u64 id-d.val h3-setting-qpack-max-table-capacity then
+            decode-settings-loop buf start nxt end-pos val-d.val max-fs qblk en-conn en-dg
+          else if eq-u64 id-d.val h3-setting-max-field-section-size then
+            decode-settings-loop buf start nxt end-pos qcap val-d.val qblk en-conn en-dg
+          else if eq-u64 id-d.val h3-setting-qpack-blocked-streams then
+            decode-settings-loop buf start nxt end-pos qcap max-fs val-d.val en-conn en-dg
+          else if eq-u64 id-d.val h3-setting-enable-connect-protocol then
+            if gt-u64 val-d.val 1 then
+              H3SettingsDecodeRes (h3-settings-zero ()) h3-err-settings-error 0 0 0 0
+            else
+              decode-settings-loop buf start nxt end-pos qcap max-fs qblk (wrapping-u64-to-u8 val-d.val) en-dg
+          else if eq-u64 id-d.val h3-setting-h3-datagram then
+            if gt-u64 val-d.val 1 then
+              H3SettingsDecodeRes (h3-settings-zero ()) h3-err-settings-error 0 0 0 0
+            else
+              decode-settings-loop buf start nxt end-pos qcap max-fs qblk en-conn (wrapping-u64-to-u8 val-d.val)
+          else
+            -- Unknown / GREASE setting: ignore per RFC 9114 §7.2.4
+            decode-settings-loop buf start nxt end-pos qcap max-fs qblk en-conn en-dg
+
+  -- | Decode a `SETTINGS` frame payload at `buf[pay-off .. pay-off + pay-len)`.
+  -- Rejects forbidden HTTP/2 setting IDs (`0x02..0x05`), duplicate setting IDs,
+  -- and out-of-range boolean settings (`ENABLE_CONNECT_PROTOCOL`, `H3_DATAGRAM`)
+  -- with `h3-err-settings-error` (`0x109`), and truncated varints with
+  -- `h3-err-frame-error` (`0x106`).
+  #[no-alloc]
+  h3-settings-decode-raw :: I64 -> U32 -> U32 ->{MVar} H3SettingsDecodeRes
+  h3-settings-decode-raw buf pay-off pay-len =
+    decode-settings-loop buf pay-off pay-off (wrapping-add-u32 pay-off pay-len) 0 18446744073709551615 0 0 0
+
+  -- =========================================================================
+  -- 5. Single-Varint Control Frames (GOAWAY, CANCEL_PUSH, MAX_PUSH_ID) &
+  --    RFC 9218 PRIORITY_UPDATE (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  encode-single-varint-frame :: I64 -> U32 -> U32 -> U64 -> U64 ->{MVar} U32
+  encode-single-varint-frame buf off cap ftype val =
+    let vlen = quic-varint-len val in
+    if eq-u32 vlen 0 then 0
+    else
+      let hlen = h3-frame-encode-header-raw buf off cap ftype (u32-to-u64 vlen) in
+      if eq-u32 hlen 0 then 0
+      else
+        let w = quic-varint-encode-raw buf (wrapping-add-u32 off hlen) cap val in
+        if eq-u32 w 0 then 0
+        else wrapping-add-u32 hlen w
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-encode-goaway-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  h3-frame-encode-goaway-raw buf off cap stream-or-push-id =
+    encode-single-varint-frame buf off cap h3-frame-goaway stream-or-push-id
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-encode-cancel-push-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  h3-frame-encode-cancel-push-raw buf off cap push-id =
+    encode-single-varint-frame buf off cap h3-frame-cancel-push push-id
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-encode-max-push-id-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  h3-frame-encode-max-push-id-raw buf off cap max-push-id =
+    encode-single-varint-frame buf off cap h3-frame-max-push-id max-push-id
+
+  -- | Decode a single-varint payload (`GOAWAY`, `CANCEL_PUSH`, `MAX_PUSH_ID`).
+  -- Enforces exact payload consumption per RFC 9114 §7.1 (trailing bytes -> `H3_FRAME_ERROR`).
+  #[no-alloc]
+  h3-frame-decode-single-varint-raw :: I64 -> U32 -> U32 ->{MVar} H3VarintFrameRes
+  h3-frame-decode-single-varint-raw buf pay-off pay-len =
+    let end-pos = wrapping-add-u32 pay-off pay-len in
+    let d = quic-varint-decode-raw buf pay-off end-pos in
+    if eq-u8 d.ok 0 then
+      H3VarintFrameRes 0 h3-err-frame-error 0 0 0 0
+    else if ne-u32 d.consumed pay-len then
+      H3VarintFrameRes 0 h3-err-frame-error 0 0 0 0
+    else
+      H3VarintFrameRes d.val h3-err-no-error 1 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-frame-decode-goaway-raw :: I64 -> U32 -> U32 ->{MVar} H3VarintFrameRes
+  h3-frame-decode-goaway-raw buf pay-off pay-len =
+    h3-frame-decode-single-varint-raw buf pay-off pay-len
+
+  -- | Encode an RFC 9218 `PRIORITY_UPDATE` frame (`0x0f0700`) for request
+  -- stream `element-id` with Structured Fields priority value `[val-addr, val-len)`.
+  #[no-alloc]
+  h3-frame-encode-priority-update-raw :: I64 -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  h3-frame-encode-priority-update-raw buf off cap element-id val-addr val-len =
+    let elen = quic-varint-len element-id in
+    if eq-u32 elen 0 then 0
+    else
+      let pay-len = wrapping-add-u32 elen val-len in
+      let hlen = h3-frame-encode-header-raw buf off cap h3-frame-priority-update-req (u32-to-u64 pay-len) in
+      if eq-u32 hlen 0 then 0
+      else
+        let p0 = wrapping-add-u32 off hlen in
+        if gt-u32 pay-len (saturating-sub-u32 cap p0) then 0
+        else
+          let ew = quic-varint-encode-raw buf p0 cap element-id in
+          if eq-u32 ew 0 then 0
+          else
+            let vpos = wrapping-add-u32 p0 ew in
+            let _ = (if gt-u32 val-len 0 then dma-copy-raw (wrapping-add-i64 buf (u32-to-i64 vpos)) val-addr val-len else ()) in
+            wrapping-add-u32 hlen pay-len
+
+  -- | Decode an RFC 9218 `PRIORITY_UPDATE` payload at `buf[pay-off .. pay-off + pay-len)`.
+  #[no-alloc]
+  h3-frame-decode-priority-update-raw :: I64 -> U32 -> U32 ->{MVar} H3PriorityUpdateRes
+  h3-frame-decode-priority-update-raw buf pay-off pay-len =
+    let end-pos = wrapping-add-u32 pay-off pay-len in
+    let ed = quic-varint-decode-raw buf pay-off end-pos in
+    if eq-u8 ed.ok 0 then
+      H3PriorityUpdateRes 0 h3-err-frame-error 0 0 0 0 0 0
+    else
+      let voff = wrapping-add-u32 pay-off ed.consumed in
+      let vlen = wrapping-sub-u32 pay-len ed.consumed in
+      H3PriorityUpdateRes ed.val h3-err-no-error voff vlen 1 0 0 0
+
+  -- =========================================================================
+  -- 6. Alt-Svc Header Formatter (`h3=":443"; ma=86400`, #[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  u64-dec-digits :: U64 -> U32
+  u64-dec-digits v =
+    if lt-u64 v 10 then 1
+    else wrapping-add-u32 1 (u64-dec-digits (div-u64 v 10))
+
+  #[no-alloc]
+  write-u64-dec-rev :: I64 -> U32 -> U64 -> U32 ->{MVar} Unit
+  write-u64-dec-rev buf idx v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let dig = wrapping-add-u8 48 (wrapping-u64-to-u8 (rem-u64 v 10)) in
+      let _ = raw-store-u8 (wrapping-add-i64 buf (u32-to-i64 idx)) dig in
+      if eq-u32 rem 1 then ()
+      else write-u64-dec-rev buf (wrapping-sub-u32 idx 1) (div-u64 v 10) (wrapping-sub-u32 rem 1)
+
+  #[no-alloc]
+  write-u64-dec :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  write-u64-dec buf off cap v =
+    let nd = u64-dec-digits v in
+    if gt-u32 nd (saturating-sub-u32 cap off) then 0
+    else
+      let last = wrapping-sub-u32 (wrapping-add-u32 off nd) 1 in
+      let _ = write-u64-dec-rev buf last v nd in
+      nd
+
+  -- | Format an RFC 9114 §3.1 `Alt-Svc` header value `h3=":<port>"; ma=<max-age>`
+  -- directly into `buf[off..cap)` with zero heap allocations.
+  -- Example: `port = 443, max-age = 86400` -> `h3=":443"; ma=86400` (18 bytes).
+  -- Returns bytes written, or `0` if buffer capacity is insufficient.
+  #[no-alloc]
+  h3-format-alt-svc-raw :: I64 -> U32 -> U32 -> U16 -> U64 ->{MVar} U32
+  h3-format-alt-svc-raw buf off cap port max-age =
+    let p-digs = u64-dec-digits (u16-to-u64 port) in
+    let ma-digs = u64-dec-digits max-age in
+    -- Fixed parts: `h3=":` (5B) + `"; ma=` (6B) = 11B
+    let total = wrapping-add-u32 11 (wrapping-add-u32 p-digs ma-digs) in
+    if gt-u32 total (saturating-sub-u32 cap off) then 0
+    else
+      let p = wrapping-add-i64 buf (u32-to-i64 off) in
+      let _0 = raw-store-u8 p 104 in                              -- 'h'
+      let _1 = raw-store-u8 (wrapping-add-i64 p 1) 51 in          -- '3'
+      let _2 = raw-store-u8 (wrapping-add-i64 p 2) 61 in          -- '='
+      let _3 = raw-store-u8 (wrapping-add-i64 p 3) 34 in          -- '"'
+      let _4 = raw-store-u8 (wrapping-add-i64 p 4) 58 in          -- ':'
+      let p-off = wrapping-add-u32 off 5 in
+      let pw = write-u64-dec buf p-off cap (u16-to-u64 port) in
+      let mid-off = wrapping-add-u32 p-off pw in
+      let pm = wrapping-add-i64 buf (u32-to-i64 mid-off) in
+      let _5 = raw-store-u8 pm 34 in                              -- '"'
+      let _6 = raw-store-u8 (wrapping-add-i64 pm 1) 59 in         -- ';'
+      let _7 = raw-store-u8 (wrapping-add-i64 pm 2) 32 in         -- ' '
+      let _8 = raw-store-u8 (wrapping-add-i64 pm 3) 109 in        -- 'm'
+      let _9 = raw-store-u8 (wrapping-add-i64 pm 4) 97 in         -- 'a'
+      let _a = raw-store-u8 (wrapping-add-i64 pm 5) 61 in         -- '='
+      let ma-off = wrapping-add-u32 mid-off 6 in
+      let maw = write-u64-dec buf ma-off cap max-age in
+      if either (eq-u32 pw 0) (eq-u32 maw 0) then 0
+      else total
+
+  -- =========================================================================
+  -- 7. RFC 9297 HTTP/3 Datagram Quarter-Stream-ID Prefix Codec (#[no-alloc])
+  -- =========================================================================
+
+  -- | Encode an RFC 9297 HTTP/3 Datagram payload prefixed by the QUIC varint
+  -- `quarter_stream_id = stream_id / 4` into `buf[off..cap)`.
+  -- Rejects non-client-bidirectional stream IDs (`stream_id % 4 != 0`) or
+  -- insufficient buffer space by returning `0`.
+  #[no-alloc]
+  h3-dgram-encode-raw :: I64 -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  h3-dgram-encode-raw buf off cap stream-id pay-addr pay-len =
+    if ne-u64 (bit-and-u64 stream-id 3) 0 then 0
+    else if gt-u64 stream-id quic-varint-max then 0
+    else
+      let qsid = wrapping-shr-u64 stream-id 2 in
+      let qw = quic-varint-encode-raw buf off cap qsid in
+      if eq-u32 qw 0 then 0
+      else
+        let pay-off = wrapping-add-u32 off qw in
+        if gt-u32 pay-len (saturating-sub-u32 cap pay-off) then 0
+        else
+          let _ = (if gt-u32 pay-len 0 then dma-copy-raw (wrapping-add-i64 buf (u32-to-i64 pay-off)) pay-addr pay-len else ()) in
+          wrapping-add-u32 qw pay-len
+
+  -- | Decode an RFC 9297 HTTP/3 Datagram prefix from `buf[off .. off + len)`.
+  -- Reconstructs `stream_id = quarter_stream_id * 4` and validates it does not
+  -- exceed the 62-bit QUIC stream ID limit (`H3_DATAGRAM_ERROR` / `0x33` on error).
+  #[no-alloc]
+  h3-dgram-decode-raw :: I64 -> U32 -> U32 ->{MVar} H3DgramDecoded
+  h3-dgram-decode-raw buf off len =
+    let end-pos = wrapping-add-u32 off len in
+    let qd = quic-varint-decode-raw buf off end-pos in
+    if eq-u8 qd.ok 0 then
+      H3DgramDecoded 0 0 h3-err-datagram-error 0 0 0 0 0 0
+    else if gt-u64 qd.val (wrapping-shr-u64 quic-varint-max 2) then
+      H3DgramDecoded 0 qd.val h3-err-datagram-error 0 0 0 0 0 0
+    else
+      let sid = wrapping-shl-u64 qd.val 2 in
+      let pay-off = wrapping-add-u32 off qd.consumed in
+      let pay-len = wrapping-sub-u32 len qd.consumed in
+      H3DgramDecoded sid qd.val h3-err-no-error pay-off pay-len 1 0 0 0

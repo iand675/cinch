@@ -1,0 +1,1636 @@
+-- | Zero-allocation (`#[no-alloc]` steady-state) RFC 9114 HTTP/3 connection
+-- engine (`H3Conn`) layered cleanly over `Net.Quic.Conn` + `Net.Http.Qpack.Codec`
+-- + `Net.Http.Priority` + `Net.Http.V3.Frame` (`Net.Http.V3.Conn`).
+--
+-- Features:
+--   * Local Control (`0x00`), QPACK Encoder (`0x02`), and QPACK Decoder (`0x03`)
+--     unidirectional stream initialization with initial `SETTINGS` frame
+--     (`QPACK_MAX_TABLE_CAPACITY = 0` zero-HOL default, `H3_DATAGRAM = 1`,
+--     `ENABLE_CONNECT_PROTOCOL = 1`).
+--   * Strict RFC 9114 critical-stream & framing invariants:
+--       - At most ONE peer Control, ONE peer QPACK Encoder, ONE peer QPACK Decoder
+--         stream (duplicate -> `H3_STREAM_CREATION_ERROR`).
+--       - First frame on peer Control stream MUST be `SETTINGS`
+--         (anything else -> `H3_MISSING_SETTINGS`; second `SETTINGS` -> `H3_FRAME_UNEXPECTED`).
+--       - Closing any critical unidirectional stream -> `H3_CLOSED_CRITICAL_STREAM`.
+--       - `DATA` / `HEADERS` / `PUSH_PROMISE` forbidden on Control stream;
+--         `SETTINGS` / `GOAWAY` / `PRIORITY_UPDATE` forbidden on Request stream;
+--         forbidden HTTP/2 frame types -> `H3_FRAME_UNEXPECTED`.
+--   * Request bidirectional streams: decodes `HEADERS` via `Net.Http.Qpack.Codec`
+--     (zero-HOL `blocked_streams == 0` fast path + bounded dynamic interop),
+--     feeds `DATA` spans, encodes responses (`HEADERS` + `DATA`) prioritized by
+--     `Net.Http.Priority.PriorityScheduler`, handles `GOAWAY` graceful drain,
+--     and dispatches RFC 9297 H3 Datagrams (`h3-conn-send-datagram` /
+--     `h3-conn-recv-datagram`).
+--   * End-to-end client/server H3-over-QUIC driver (`h3-conn-drive-quic`)
+--     exchanging real protected QUIC packets between client and server.
+module Net.Http.V3.Conn where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Types
+  import Net.Http.Types
+  import Net.Http.Priority
+  import Net.Http.Qpack.StaticTable
+  import Net.Http.Qpack.Codec
+  import Net.Http.V3.Frame
+  import Net.Quic.Types
+  import Net.Quic.Varint
+  import Net.Quic.Stream
+  import Net.Quic.Conn
+  import Prim.Atomic
+
+  -- Roles, connection states & feed status codes
+  export h3-role-client, h3-role-server
+  export h3-state-init, h3-state-open, h3-state-goaway, h3-state-error, h3-state-closed
+  export h3-feed-ok, h3-feed-need-more, h3-feed-headers-ready, h3-feed-data-ready
+  export h3-feed-settings-ready, h3-feed-goaway, h3-feed-priority-update, h3-feed-error
+  export h3-req-idle, h3-req-headers-rcvd, h3-req-body-rcvd, h3-req-resp-queued, h3-req-closed
+  export h3-sid-unset, h3-slot-none
+
+  -- Handles & POD result structs
+  export H3Conn, H3FeedResult, H3FlushResult
+  export h3-conn-valid, h3-conn-new, h3-conn-new-with-qpack, h3-conn-destroy
+  export h3-feed-result-ok
+
+  -- Telemetry & accessors (#[no-alloc])
+  export h3-conn-role, h3-conn-state, h3-conn-last-error
+  export h3-conn-peer-settings-seen, h3-conn-peer-settings, h3-conn-local-settings
+  export h3-conn-peer-ctrl-count, h3-conn-peer-qenc-count, h3-conn-peer-qdec-count
+  export h3-conn-local-ctrl-sid, h3-conn-local-qenc-sid, h3-conn-local-qdec-sid
+  export h3-conn-peer-ctrl-sid, h3-conn-peer-qenc-sid, h3-conn-peer-qdec-sid
+  export h3-conn-goaway-sent, h3-conn-goaway-recv, h3-conn-local-goaway-id, h3-conn-peer-goaway-id
+  export h3-conn-active-req-count, h3-conn-total-req-opened, h3-conn-total-req-closed
+  export h3-conn-decoded-hdrs-addr, h3-conn-decoded-text-addr
+  export h3-conn-decoded-hdr-count, h3-conn-decoded-text-len
+  export h3-conn-last-data-addr, h3-conn-last-data-len, h3-conn-last-req-sid
+  export h3-conn-dgram-sent-count, h3-conn-dgram-recv-count
+  export h3-conn-qpack-table, h3-conn-priority-sched
+  export h3-conn-req-priority, h3-conn-req-data-total, h3-conn-req-fin-rcvd, h3-conn-req-status
+
+  -- Direct framing & stream feed APIs (#[no-alloc])
+  export h3-conn-write-initial-control-stream
+  export h3-conn-feed-uni, h3-conn-feed-request
+  export h3-encode-headers-frame-zero-hol, h3-encode-request-raw, h3-encode-response-raw
+  export h3-conn-queue-response, h3-conn-flush-priority-dma
+  export h3-conn-set-req-priority
+
+  -- QUIC-layered HTTP/3 transport operations (#[no-alloc] + end-to-end driver)
+  export h3-conn-init-quic-streams, h3-conn-poll-quic
+  export h3-conn-send-request-quic, h3-conn-send-response-quic
+  export h3-conn-flush-priority-quic
+  export h3-conn-send-goaway-quic, h3-conn-send-priority-update-quic
+  export h3-conn-send-datagram, h3-conn-recv-datagram
+  export h3-conn-drive-quic
+
+  -- =========================================================================
+  -- 0. Constants, Slab Layout & #[no-alloc] Helpers
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)] #[no-alloc] b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)] #[no-alloc] b-not :: Bool -> Bool
+  b-not x = if x then b-false else b-true
+
+  #[inline(always)] #[no-alloc] both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)] #[no-alloc] either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)] #[no-alloc] addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)] #[no-alloc] min-u32 :: U32 -> U32 -> U32
+  min-u32 a b = if lt-u32 a b then a else b
+
+  #[inline(always)] #[no-alloc] store-u16-raw :: I64 -> U16 ->{MVar} Unit
+  store-u16-raw addr v =
+    let _0 = raw-store-u8 addr (wrapping-u16-to-u8 v) in
+    raw-store-u8 (wrapping-add-i64 addr 1) (wrapping-u16-to-u8 (wrapping-shr-u16 v 8))
+
+  #[inline(always)] #[no-alloc] load-u16-raw :: I64 ->{MVar} U16
+  load-u16-raw addr =
+    let lo = u8-to-u16 (raw-load-u8 addr) in
+    let hi = u8-to-u16 (raw-load-u8 (wrapping-add-i64 addr 1)) in
+    bit-or-u16 lo (wrapping-shl-u16 hi 8)
+
+  #[inline(always)] #[no-alloc] h3-sid-unset :: U64
+  h3-sid-unset = 18446744073709551615
+
+  #[inline(always)] #[no-alloc] h3-slot-none :: U32
+  h3-slot-none = 4294967295
+
+  -- Roles
+  #[inline(always)] #[no-alloc] h3-role-client :: U8
+  h3-role-client = 0
+
+  #[inline(always)] #[no-alloc] h3-role-server :: U8
+  h3-role-server = 1
+
+  -- Connection states
+  #[inline(always)] #[no-alloc] h3-state-init :: U8
+  h3-state-init = 0
+
+  #[inline(always)] #[no-alloc] h3-state-open :: U8
+  h3-state-open = 1
+
+  #[inline(always)] #[no-alloc] h3-state-goaway :: U8
+  h3-state-goaway = 2
+
+  #[inline(always)] #[no-alloc] h3-state-error :: U8
+  h3-state-error = 3
+
+  #[inline(always)] #[no-alloc] h3-state-closed :: U8
+  h3-state-closed = 4
+
+  -- Feed status codes
+  #[inline(always)] #[no-alloc] h3-feed-ok :: U32
+  h3-feed-ok = 0
+
+  #[inline(always)] #[no-alloc] h3-feed-need-more :: U32
+  h3-feed-need-more = 1
+
+  #[inline(always)] #[no-alloc] h3-feed-headers-ready :: U32
+  h3-feed-headers-ready = 2
+
+  #[inline(always)] #[no-alloc] h3-feed-data-ready :: U32
+  h3-feed-data-ready = 3
+
+  #[inline(always)] #[no-alloc] h3-feed-settings-ready :: U32
+  h3-feed-settings-ready = 4
+
+  #[inline(always)] #[no-alloc] h3-feed-goaway :: U32
+  h3-feed-goaway = 5
+
+  #[inline(always)] #[no-alloc] h3-feed-priority-update :: U32
+  h3-feed-priority-update = 6
+
+  #[inline(always)] #[no-alloc] h3-feed-error :: U32
+  h3-feed-error = 7
+
+  -- Request stream states
+  #[inline(always)] #[no-alloc] h3-req-idle :: U8
+  h3-req-idle = 0
+
+  #[inline(always)] #[no-alloc] h3-req-headers-rcvd :: U8
+  h3-req-headers-rcvd = 1
+
+  #[inline(always)] #[no-alloc] h3-req-body-rcvd :: U8
+  h3-req-body-rcvd = 2
+
+  #[inline(always)] #[no-alloc] h3-req-resp-queued :: U8
+  h3-req-resp-queued = 3
+
+  #[inline(always)] #[no-alloc] h3-req-closed :: U8
+  h3-req-closed = 4
+
+  -- DMA slab geometry (128 KiB)
+  #[inline(always)] #[no-alloc] h3c-slab-size :: U64
+  h3c-slab-size = 131072
+
+  #[inline(always)] #[no-alloc] h3c-max-uni :: U32
+  h3c-max-uni = 16
+
+  #[inline(always)] #[no-alloc] h3c-max-req :: U32
+  h3c-max-req = 32
+
+  -- Header offsets (0..511)
+  #[inline(always)] #[no-alloc] off-role :: U64
+  off-role = 0
+  #[inline(always)] #[no-alloc] off-state :: U64
+  off-state = 1
+  #[inline(always)] #[no-alloc] off-local-uni-init :: U64
+  off-local-uni-init = 2
+  #[inline(always)] #[no-alloc] off-peer-settings-seen :: U64
+  off-peer-settings-seen = 3
+  #[inline(always)] #[no-alloc] off-peer-ctrl-cnt :: U64
+  off-peer-ctrl-cnt = 4
+  #[inline(always)] #[no-alloc] off-peer-qenc-cnt :: U64
+  off-peer-qenc-cnt = 5
+  #[inline(always)] #[no-alloc] off-peer-qdec-cnt :: U64
+  off-peer-qdec-cnt = 6
+  #[inline(always)] #[no-alloc] off-goaway-sent :: U64
+  off-goaway-sent = 7
+  #[inline(always)] #[no-alloc] off-goaway-recv :: U64
+  off-goaway-recv = 8
+  #[inline(always)] #[no-alloc] off-local-en-conn :: U64
+  off-local-en-conn = 9
+  #[inline(always)] #[no-alloc] off-local-h3-dg :: U64
+  off-local-h3-dg = 10
+  #[inline(always)] #[no-alloc] off-peer-en-conn :: U64
+  off-peer-en-conn = 11
+  #[inline(always)] #[no-alloc] off-peer-h3-dg :: U64
+  off-peer-h3-dg = 12
+  #[inline(always)] #[no-alloc] off-last-err :: U64
+  off-last-err = 16
+  #[inline(always)] #[no-alloc] off-lctrl-sid :: U64
+  off-lctrl-sid = 24
+  #[inline(always)] #[no-alloc] off-lqenc-sid :: U64
+  off-lqenc-sid = 32
+  #[inline(always)] #[no-alloc] off-lqdec-sid :: U64
+  off-lqdec-sid = 40
+  #[inline(always)] #[no-alloc] off-pctrl-sid :: U64
+  off-pctrl-sid = 48
+  #[inline(always)] #[no-alloc] off-pqenc-sid :: U64
+  off-pqenc-sid = 56
+  #[inline(always)] #[no-alloc] off-pqdec-sid :: U64
+  off-pqdec-sid = 64
+  #[inline(always)] #[no-alloc] off-lctrl-qslot :: U64
+  off-lctrl-qslot = 72
+  #[inline(always)] #[no-alloc] off-lqenc-qslot :: U64
+  off-lqenc-qslot = 76
+  #[inline(always)] #[no-alloc] off-lqdec-qslot :: U64
+  off-lqdec-qslot = 80
+  #[inline(always)] #[no-alloc] off-active-req :: U64
+  off-active-req = 84
+  #[inline(always)] #[no-alloc] off-tot-req-open :: U64
+  off-tot-req-open = 88
+  #[inline(always)] #[no-alloc] off-tot-req-close :: U64
+  off-tot-req-close = 96
+  #[inline(always)] #[no-alloc] off-pgoaway-id :: U64
+  off-pgoaway-id = 104
+  #[inline(always)] #[no-alloc] off-lgoaway-id :: U64
+  off-lgoaway-id = 112
+  #[inline(always)] #[no-alloc] off-max-preq-sid :: U64
+  off-max-preq-sid = 120
+  #[inline(always)] #[no-alloc] off-lqpack-cap :: U64
+  off-lqpack-cap = 128
+  #[inline(always)] #[no-alloc] off-lmax-fs :: U64
+  off-lmax-fs = 136
+  #[inline(always)] #[no-alloc] off-lqpack-blk :: U64
+  off-lqpack-blk = 144
+  #[inline(always)] #[no-alloc] off-pqpack-cap :: U64
+  off-pqpack-cap = 160
+  #[inline(always)] #[no-alloc] off-pmax-fs :: U64
+  off-pmax-fs = 168
+  #[inline(always)] #[no-alloc] off-pqpack-blk :: U64
+  off-pqpack-blk = 176
+  #[inline(always)] #[no-alloc] off-dec-hcnt :: U64
+  off-dec-hcnt = 192
+  #[inline(always)] #[no-alloc] off-dec-tlen :: U64
+  off-dec-tlen = 196
+  #[inline(always)] #[no-alloc] off-last-dlen :: U64
+  off-last-dlen = 200
+  #[inline(always)] #[no-alloc] off-last-req-sid :: U64
+  off-last-req-sid = 208
+  #[inline(always)] #[no-alloc] off-dg-tx-cnt :: U64
+  off-dg-tx-cnt = 216
+  #[inline(always)] #[no-alloc] off-dg-rx-cnt :: U64
+  off-dg-rx-cnt = 224
+  #[inline(always)] #[no-alloc] off-ctrl-rx-len :: U64
+  off-ctrl-rx-len = 232
+  #[inline(always)] #[no-alloc] off-qenc-rx-len :: U64
+  off-qenc-rx-len = 236
+  #[inline(always)] #[no-alloc] off-qdec-rx-len :: U64
+  off-qdec-rx-len = 240
+
+  -- Sub-regions inside slab
+  #[inline(always)] #[no-alloc] off-uni-tbl :: U64
+  off-uni-tbl = 512      -- 16 * 32B = 512B (512..1023)
+  #[inline(always)] #[no-alloc] off-req-tbl :: U64
+  off-req-tbl = 1024     -- 32 * 128B = 4096B (1024..5119)
+  #[inline(always)] #[no-alloc] off-dec-hdrs :: U64
+  off-dec-hdrs = 5120    -- 128 * 20B = 2560B (5120..7679)
+  #[inline(always)] #[no-alloc] off-dec-text :: U64
+  off-dec-text = 9216    -- 8192B (9216..17407)
+  #[inline(always)] #[no-alloc] off-last-data :: U64
+  off-last-data = 17408  -- 8192B (17408..25599)
+  #[inline(always)] #[no-alloc] off-tx-scratch :: U64
+  off-tx-scratch = 25600 -- 8192B (25600..33791)
+  #[inline(always)] #[no-alloc] off-rx-scratch :: U64
+  off-rx-scratch = 33792 -- 8192B (33792..41983)
+  #[inline(always)] #[no-alloc] off-ctrl-rx :: U64
+  off-ctrl-rx = 41984    -- 4096B (41984..46079)
+  #[inline(always)] #[no-alloc] off-qenc-rx :: U64
+  off-qenc-rx = 46080    -- 4096B (46080..50175)
+  #[inline(always)] #[no-alloc] off-qdec-rx :: U64
+  off-qdec-rx = 50176    -- 4096B (50176..54271)
+  #[inline(always)] #[no-alloc] off-req-rx-bufs :: U64
+  off-req-rx-bufs = 54272 -- 32 * 2048B = 65536B (54272..119807)
+  #[inline(always)] #[no-alloc] req-rx-cap :: U32
+  req-rx-cap = 2048
+
+  -- Uni entry offsets (stride 32B)
+  #[inline(always)] #[no-alloc] u-off-sid :: U64
+  u-off-sid = 0
+  #[inline(always)] #[no-alloc] u-off-type :: U64
+  u-off-type = 8
+  #[inline(always)] #[no-alloc] u-off-used :: U64
+  u-off-used = 16
+  #[inline(always)] #[no-alloc] u-off-known :: U64
+  u-off-known = 17
+  #[inline(always)] #[no-alloc] u-off-closed :: U64
+  u-off-closed = 18
+  #[inline(always)] #[no-alloc] u-off-crit :: U64
+  u-off-crit = 19
+
+  -- Request slot offsets (stride 128B)
+  #[inline(always)] #[no-alloc] r-off-sid :: U64
+  r-off-sid = 0
+  #[inline(always)] #[no-alloc] r-off-qslot :: U64
+  r-off-qslot = 8
+  #[inline(always)] #[no-alloc] r-off-used :: U64
+  r-off-used = 12
+  #[inline(always)] #[no-alloc] r-off-state :: U64
+  r-off-state = 13
+  #[inline(always)] #[no-alloc] r-off-hdrs-seen :: U64
+  r-off-hdrs-seen = 14
+  #[inline(always)] #[no-alloc] r-off-fin-rcvd :: U64
+  r-off-fin-rcvd = 15
+  #[inline(always)] #[no-alloc] r-off-urg :: U64
+  r-off-urg = 16
+  #[inline(always)] #[no-alloc] r-off-inc :: U64
+  r-off-inc = 17
+  #[inline(always)] #[no-alloc] r-off-resp-status :: U64
+  r-off-resp-status = 18
+  #[inline(always)] #[no-alloc] r-off-resp-hdr-sent :: U64
+  r-off-resp-hdr-sent = 20
+  #[inline(always)] #[no-alloc] r-off-rx-status :: U64
+  r-off-rx-status = 22
+  #[inline(always)] #[no-alloc] r-off-resp-body-addr :: U64
+  r-off-resp-body-addr = 24
+  #[inline(always)] #[no-alloc] r-off-resp-body-len :: U64
+  r-off-resp-body-len = 32
+  #[inline(always)] #[no-alloc] r-off-resp-body-sent :: U64
+  r-off-resp-body-sent = 36
+  #[inline(always)] #[no-alloc] r-off-rx-len :: U64
+  r-off-rx-len = 40
+  #[inline(always)] #[no-alloc] r-off-data-tot :: U64
+  r-off-data-tot = 44
+
+  #[no-alloc]
+  dma-copy :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- Shift bytes left within buffer `buf`: `buf[0..rem) = buf[consumed..consumed+rem)`
+  #[no-alloc]
+  shift-left-bytes :: I64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  shift-left-bytes buf i consumed rem =
+    if ge-u32 i rem then ()
+    else
+      let b = raw-load-u8 (wrapping-add-i64 buf (u32-to-i64 (wrapping-add-u32 consumed i))) in
+      let _ = raw-store-u8 (wrapping-add-i64 buf (u32-to-i64 i)) b in
+      shift-left-bytes buf (wrapping-add-u32 i 1) consumed rem
+
+  -- =========================================================================
+  -- 1. Core Handles & Unboxed Result Types
+  -- =========================================================================
+
+  -- | Handle to an HTTP/3 connection engine (allocated once in `h3-conn-new`;
+  -- all steady-state operations run `#[no-alloc]` with zero atomic RC).
+  record H3Conn where
+    h3c-base :: U64
+    h3c-sched :: PriorityScheduler
+    h3c-qpack :: QpackDynamicTable
+
+  -- | 32-byte POD feed result returned by `h3-conn-feed-uni`,
+  -- `h3-conn-feed-request`, and `h3-conn-poll-quic`.
+  #[repr(C, value)]
+  record H3FeedResult where
+    h3fr-stream-id :: U64
+    h3fr-error :: U64
+    h3fr-status :: U32
+    h3fr-consumed :: U32
+    h3fr-aux :: U32
+    h3fr-pad :: U32
+
+  -- | 24-byte POD result returned by `h3-conn-flush-priority-dma`.
+  #[repr(C, value)]
+  record H3FlushResult where
+    h3fl-stream-id :: U64
+    h3fl-written :: U32
+    h3fl-body-sent :: U32
+    h3fl-done :: U8
+    h3fl-ok :: U8
+    h3fl-pad :: U16
+    h3fl-pad2 :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-feed-result-ok :: U64 -> U32 -> H3FeedResult
+  h3-feed-result-ok sid consumed = H3FeedResult sid h3-err-no-error h3-feed-ok consumed 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h3-conn-valid :: H3Conn -> Bool
+  h3-conn-valid c = ne-u64 c.h3c-base 0
+
+  -- =========================================================================
+  -- 2. Lifecycle (`h3-conn-new`, `h3-conn-new-with-qpack`, `h3-conn-destroy`)
+  -- =========================================================================
+
+  -- | Allocate and initialize an HTTP/3 connection (`role`: `h3-role-client` or
+  -- `h3-role-server`) with configurable local `QPACK_MAX_TABLE_CAPACITY` (`0` =
+  -- zero-HOL default; `> 0` = bounded dynamic QPACK interop).
+  h3-conn-new-with-qpack :: U8 -> U64 ->{IO, MVar} Option H3Conn
+  h3-conn-new-with-qpack role qpack-max-cap =
+    let base = engine-dma-alloc h3c-slab-size 4096 in
+    if eq-u64 base 0 then None
+    else
+      case prio-sched-new h3c-max-req of
+        None ->
+          let _ = engine-dma-free base h3c-slab-size in
+          None
+        Some sched ->
+          case qpack-table-new qpack-max-cap of
+            None ->
+              let _0 = prio-sched-destroy sched in
+              let _1 = engine-dma-free base h3c-slab-size in
+              None
+            Some qtbl ->
+              let def = h3-settings-default () in
+              let _0 = raw-store-u8 (addr-at base off-role) (if ne-u8 role 0 then 1 else 0) in
+              let _1 = raw-store-u8 (addr-at base off-state) h3-state-init in
+              let _2 = raw-store-u64 (addr-at base off-last-err) h3-err-no-error in
+              let _3 = raw-store-u64 (addr-at base off-lctrl-sid) h3-sid-unset in
+              let _4 = raw-store-u64 (addr-at base off-lqenc-sid) h3-sid-unset in
+              let _5 = raw-store-u64 (addr-at base off-lqdec-sid) h3-sid-unset in
+              let _6 = raw-store-u64 (addr-at base off-pctrl-sid) h3-sid-unset in
+              let _7 = raw-store-u64 (addr-at base off-pqenc-sid) h3-sid-unset in
+              let _8 = raw-store-u64 (addr-at base off-pqdec-sid) h3-sid-unset in
+              let _9 = raw-store-u32 (addr-at base off-lctrl-qslot) h3-slot-none in
+              let _a = raw-store-u32 (addr-at base off-lqenc-qslot) h3-slot-none in
+              let _b = raw-store-u32 (addr-at base off-lqdec-qslot) h3-slot-none in
+              let _c = raw-store-u64 (addr-at base off-pgoaway-id) h3-sid-unset in
+              let _d = raw-store-u64 (addr-at base off-lgoaway-id) h3-sid-unset in
+              let _e = raw-store-u64 (addr-at base off-max-preq-sid) h3-sid-unset in
+              let _f = raw-store-u64 (addr-at base off-last-req-sid) h3-sid-unset in
+              -- Local settings (zero-HOL default when qpack-max-cap == 0)
+              let _g = raw-store-u64 (addr-at base off-lqpack-cap) qpack-max-cap in
+              let _h = raw-store-u64 (addr-at base off-lmax-fs) def.h3s-max-field-section-size in
+              let _i = raw-store-u64 (addr-at base off-lqpack-blk) 0 in
+              let _j = raw-store-u8 (addr-at base off-local-en-conn) def.h3s-enable-connect-protocol in
+              let _k = raw-store-u8 (addr-at base off-local-h3-dg) def.h3s-h3-datagram in
+              -- Peer settings start at RFC 9114 initial defaults
+              let _l = raw-store-u64 (addr-at base off-pqpack-cap) 0 in
+              let _m = raw-store-u64 (addr-at base off-pmax-fs) 18446744073709551615 in
+              let _n = raw-store-u64 (addr-at base off-pqpack-blk) 0 in
+              let _o = raw-store-u8 (addr-at base off-peer-en-conn) 0 in
+              let _p = raw-store-u8 (addr-at base off-peer-h3-dg) 0 in
+              Some (H3Conn base sched qtbl)
+
+  -- | Allocate and initialize a zero-HOL (`QPACK_MAX_TABLE_CAPACITY = 0`)
+  -- HTTP/3 connection engine.
+  h3-conn-new :: U8 ->{IO, MVar} Option H3Conn
+  h3-conn-new role = h3-conn-new-with-qpack role 0
+
+  -- | Destroy an `H3Conn`, freeing its DMA slab, `PriorityScheduler`, and QPACK table.
+  h3-conn-destroy :: H3Conn ->{IO, MVar} Unit
+  h3-conn-destroy conn =
+    let _0 = prio-sched-destroy conn.h3c-sched in
+    let _1 = qpack-table-destroy conn.h3c-qpack in
+    if eq-u64 conn.h3c-base 0 then ()
+    else
+      let _2 = engine-dma-free conn.h3c-base h3c-slab-size in
+      ()
+
+  -- =========================================================================
+  -- 3. Accessors & Telemetry (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] h3-conn-role :: H3Conn ->{MVar} U8
+  h3-conn-role c = raw-load-u8 (addr-at c.h3c-base off-role)
+
+  #[inline(always)] #[no-alloc] h3-conn-state :: H3Conn ->{MVar} U8
+  h3-conn-state c = raw-load-u8 (addr-at c.h3c-base off-state)
+
+  #[inline(always)] #[no-alloc] h3-conn-last-error :: H3Conn ->{MVar} U64
+  h3-conn-last-error c = raw-load-u64 (addr-at c.h3c-base off-last-err)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-settings-seen :: H3Conn ->{MVar} Bool
+  h3-conn-peer-settings-seen c = ne-u8 (raw-load-u8 (addr-at c.h3c-base off-peer-settings-seen)) 0
+
+  #[inline(always)] #[no-alloc] h3-conn-local-settings :: H3Conn ->{MVar} H3Settings
+  h3-conn-local-settings c =
+    let b = c.h3c-base in
+    H3Settings
+      (raw-load-u64 (addr-at b off-lqpack-cap))
+      (raw-load-u64 (addr-at b off-lmax-fs))
+      (raw-load-u64 (addr-at b off-lqpack-blk))
+      (raw-load-u8 (addr-at b off-local-en-conn))
+      (raw-load-u8 (addr-at b off-local-h3-dg))
+      0 0
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-settings :: H3Conn ->{MVar} H3Settings
+  h3-conn-peer-settings c =
+    let b = c.h3c-base in
+    H3Settings
+      (raw-load-u64 (addr-at b off-pqpack-cap))
+      (raw-load-u64 (addr-at b off-pmax-fs))
+      (raw-load-u64 (addr-at b off-pqpack-blk))
+      (raw-load-u8 (addr-at b off-peer-en-conn))
+      (raw-load-u8 (addr-at b off-peer-h3-dg))
+      0 0
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-ctrl-count :: H3Conn ->{MVar} U8
+  h3-conn-peer-ctrl-count c = raw-load-u8 (addr-at c.h3c-base off-peer-ctrl-cnt)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-qenc-count :: H3Conn ->{MVar} U8
+  h3-conn-peer-qenc-count c = raw-load-u8 (addr-at c.h3c-base off-peer-qenc-cnt)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-qdec-count :: H3Conn ->{MVar} U8
+  h3-conn-peer-qdec-count c = raw-load-u8 (addr-at c.h3c-base off-peer-qdec-cnt)
+
+  #[inline(always)] #[no-alloc] h3-conn-local-ctrl-sid :: H3Conn ->{MVar} U64
+  h3-conn-local-ctrl-sid c = raw-load-u64 (addr-at c.h3c-base off-lctrl-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-local-qenc-sid :: H3Conn ->{MVar} U64
+  h3-conn-local-qenc-sid c = raw-load-u64 (addr-at c.h3c-base off-lqenc-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-local-qdec-sid :: H3Conn ->{MVar} U64
+  h3-conn-local-qdec-sid c = raw-load-u64 (addr-at c.h3c-base off-lqdec-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-ctrl-sid :: H3Conn ->{MVar} U64
+  h3-conn-peer-ctrl-sid c = raw-load-u64 (addr-at c.h3c-base off-pctrl-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-qenc-sid :: H3Conn ->{MVar} U64
+  h3-conn-peer-qenc-sid c = raw-load-u64 (addr-at c.h3c-base off-pqenc-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-qdec-sid :: H3Conn ->{MVar} U64
+  h3-conn-peer-qdec-sid c = raw-load-u64 (addr-at c.h3c-base off-pqdec-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-goaway-sent :: H3Conn ->{MVar} Bool
+  h3-conn-goaway-sent c = ne-u8 (raw-load-u8 (addr-at c.h3c-base off-goaway-sent)) 0
+
+  #[inline(always)] #[no-alloc] h3-conn-goaway-recv :: H3Conn ->{MVar} Bool
+  h3-conn-goaway-recv c = ne-u8 (raw-load-u8 (addr-at c.h3c-base off-goaway-recv)) 0
+
+  #[inline(always)] #[no-alloc] h3-conn-local-goaway-id :: H3Conn ->{MVar} U64
+  h3-conn-local-goaway-id c = raw-load-u64 (addr-at c.h3c-base off-lgoaway-id)
+
+  #[inline(always)] #[no-alloc] h3-conn-peer-goaway-id :: H3Conn ->{MVar} U64
+  h3-conn-peer-goaway-id c = raw-load-u64 (addr-at c.h3c-base off-pgoaway-id)
+
+  #[inline(always)] #[no-alloc] h3-conn-active-req-count :: H3Conn ->{MVar} U32
+  h3-conn-active-req-count c = raw-load-u32 (addr-at c.h3c-base off-active-req)
+
+  #[inline(always)] #[no-alloc] h3-conn-total-req-opened :: H3Conn ->{MVar} U64
+  h3-conn-total-req-opened c = raw-load-u64 (addr-at c.h3c-base off-tot-req-open)
+
+  #[inline(always)] #[no-alloc] h3-conn-total-req-closed :: H3Conn ->{MVar} U64
+  h3-conn-total-req-closed c = raw-load-u64 (addr-at c.h3c-base off-tot-req-close)
+
+  #[inline(always)] #[no-alloc] h3-conn-decoded-hdrs-addr :: H3Conn -> I64
+  h3-conn-decoded-hdrs-addr c = addr-at c.h3c-base off-dec-hdrs
+
+  #[inline(always)] #[no-alloc] h3-conn-decoded-text-addr :: H3Conn -> I64
+  h3-conn-decoded-text-addr c = addr-at c.h3c-base off-dec-text
+
+  #[inline(always)] #[no-alloc] h3-conn-decoded-hdr-count :: H3Conn ->{MVar} U32
+  h3-conn-decoded-hdr-count c = raw-load-u32 (addr-at c.h3c-base off-dec-hcnt)
+
+  #[inline(always)] #[no-alloc] h3-conn-decoded-text-len :: H3Conn ->{MVar} U32
+  h3-conn-decoded-text-len c = raw-load-u32 (addr-at c.h3c-base off-dec-tlen)
+
+  #[inline(always)] #[no-alloc] h3-conn-last-data-addr :: H3Conn -> I64
+  h3-conn-last-data-addr c = addr-at c.h3c-base off-last-data
+
+  #[inline(always)] #[no-alloc] h3-conn-last-data-len :: H3Conn ->{MVar} U32
+  h3-conn-last-data-len c = raw-load-u32 (addr-at c.h3c-base off-last-dlen)
+
+  #[inline(always)] #[no-alloc] h3-conn-last-req-sid :: H3Conn ->{MVar} U64
+  h3-conn-last-req-sid c = raw-load-u64 (addr-at c.h3c-base off-last-req-sid)
+
+  #[inline(always)] #[no-alloc] h3-conn-dgram-sent-count :: H3Conn ->{MVar} U64
+  h3-conn-dgram-sent-count c = raw-load-u64 (addr-at c.h3c-base off-dg-tx-cnt)
+
+  #[inline(always)] #[no-alloc] h3-conn-dgram-recv-count :: H3Conn ->{MVar} U64
+  h3-conn-dgram-recv-count c = raw-load-u64 (addr-at c.h3c-base off-dg-rx-cnt)
+
+  #[inline(always)] #[no-alloc] h3-conn-qpack-table :: H3Conn -> QpackDynamicTable
+  h3-conn-qpack-table c = c.h3c-qpack
+
+  #[inline(always)] #[no-alloc] h3-conn-priority-sched :: H3Conn -> PriorityScheduler
+  h3-conn-priority-sched c = c.h3c-sched
+
+  -- =========================================================================
+  -- 4. Internal Uni & Request Stream Tables (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] uni-base :: U64 -> U32 -> U64
+  uni-base base i = wrapping-add-u64 (wrapping-add-u64 base off-uni-tbl) (wrapping-shl-u64 (u32-to-u64 i) 5)
+
+  #[inline(always)] #[no-alloc] req-base :: U64 -> U32 -> U64
+  req-base base i = wrapping-add-u64 (wrapping-add-u64 base off-req-tbl) (wrapping-shl-u64 (u32-to-u64 i) 7)
+
+  #[inline(always)] #[no-alloc] req-rx-addr :: U64 -> U32 -> I64
+  req-rx-addr base i = addr-at base (wrapping-add-u64 off-req-rx-bufs (wrapping-shl-u64 (u32-to-u64 i) 11))
+
+  #[inline(always)] #[no-alloc] fail-conn :: U64 -> U64 -> U64 ->{MVar} H3FeedResult
+  fail-conn base sid err =
+    let _0 = raw-store-u8 (addr-at base off-state) h3-state-error in
+    let _1 = raw-store-u64 (addr-at base off-last-err) err in
+    H3FeedResult sid err h3-feed-error 0 0 0
+
+  #[no-alloc]
+  find-uni-slot-loop :: U64 -> U32 -> U64 ->{MVar} U32
+  find-uni-slot-loop base i sid =
+    if ge-u32 i h3c-max-uni then h3-slot-none
+    else
+      let ub = uni-base base i in
+      if both (ne-u8 (raw-load-u8 (addr-at ub u-off-used)) 0) (eq-u64 (raw-load-u64 (addr-at ub u-off-sid)) sid) then i
+      else find-uni-slot-loop base (wrapping-add-u32 i 1) sid
+
+  #[no-alloc]
+  alloc-uni-slot-loop :: U64 -> U32 -> U64 ->{MVar} U32
+  alloc-uni-slot-loop base i sid =
+    if ge-u32 i h3c-max-uni then h3-slot-none
+    else
+      let ub = uni-base base i in
+      if eq-u8 (raw-load-u8 (addr-at ub u-off-used)) 0 then
+        let _0 = raw-store-u64 (addr-at ub u-off-sid) sid in
+        let _1 = raw-store-u64 (addr-at ub u-off-type) h3-sid-unset in
+        let _2 = raw-store-u8 (addr-at ub u-off-used) 1 in
+        let _3 = raw-store-u8 (addr-at ub u-off-known) 0 in
+        let _4 = raw-store-u8 (addr-at ub u-off-closed) 0 in
+        let _5 = raw-store-u8 (addr-at ub u-off-crit) 0 in
+        i
+      else alloc-uni-slot-loop base (wrapping-add-u32 i 1) sid
+
+  #[no-alloc]
+  find-req-slot-loop :: U64 -> U32 -> U64 ->{MVar} U32
+  find-req-slot-loop base i sid =
+    if ge-u32 i h3c-max-req then h3-slot-none
+    else
+      let rb = req-base base i in
+      if both (ne-u8 (raw-load-u8 (addr-at rb r-off-used)) 0) (eq-u64 (raw-load-u64 (addr-at rb r-off-sid)) sid) then i
+      else find-req-slot-loop base (wrapping-add-u32 i 1) sid
+
+  #[no-alloc]
+  alloc-req-slot-loop :: U64 -> U32 -> U64 -> U32 ->{MVar} U32
+  alloc-req-slot-loop base i sid qslot =
+    if ge-u32 i h3c-max-req then h3-slot-none
+    else
+      let rb = req-base base i in
+      if eq-u8 (raw-load-u8 (addr-at rb r-off-used)) 0 then
+        let _0 = raw-store-u64 (addr-at rb r-off-sid) sid in
+        let _1 = raw-store-u32 (addr-at rb r-off-qslot) qslot in
+        let _2 = raw-store-u8 (addr-at rb r-off-used) 1 in
+        let _3 = raw-store-u8 (addr-at rb r-off-state) h3-req-idle in
+        let _4 = raw-store-u8 (addr-at rb r-off-hdrs-seen) 0 in
+        let _5 = raw-store-u8 (addr-at rb r-off-fin-rcvd) 0 in
+        let _6 = raw-store-u8 (addr-at rb r-off-urg) 3 in
+        let _7 = raw-store-u8 (addr-at rb r-off-inc) 0 in
+        let _8 = store-u16-raw (addr-at rb r-off-resp-status) 0 in
+        let _9 = raw-store-u8 (addr-at rb r-off-resp-hdr-sent) 0 in
+        let _a = store-u16-raw (addr-at rb r-off-rx-status) 0 in
+        let _b = raw-store-i64 (addr-at rb r-off-resp-body-addr) 0 in
+        let _c = raw-store-u32 (addr-at rb r-off-resp-body-len) 0 in
+        let _d = raw-store-u32 (addr-at rb r-off-resp-body-sent) 0 in
+        let _e = raw-store-u32 (addr-at rb r-off-rx-len) 0 in
+        let _f = raw-store-u32 (addr-at rb r-off-data-tot) 0 in
+        let act = raw-load-u32 (addr-at base off-active-req) in
+        let _g = raw-store-u32 (addr-at base off-active-req) (wrapping-add-u32 act 1) in
+        let tot = raw-load-u64 (addr-at base off-tot-req-open) in
+        let _h = raw-store-u64 (addr-at base off-tot-req-open) (wrapping-add-u64 tot 1) in
+        i
+      else alloc-req-slot-loop base (wrapping-add-u32 i 1) sid qslot
+
+  #[no-alloc]
+  close-req-slot :: H3Conn -> U32 ->{MVar} Unit
+  close-req-slot conn slot =
+    let base = conn.h3c-base in
+    if ge-u32 slot h3c-max-req then ()
+    else
+      let rb = req-base base slot in
+      if eq-u8 (raw-load-u8 (addr-at rb r-off-used)) 0 then ()
+      else
+        let _0 = prio-sched-remove conn.h3c-sched slot in
+        let _1 = raw-store-u8 (addr-at rb r-off-used) 0 in
+        let _2 = raw-store-u8 (addr-at rb r-off-state) h3-req-closed in
+        let act = raw-load-u32 (addr-at base off-active-req) in
+        let _3 = if gt-u32 act 0 then raw-store-u32 (addr-at base off-active-req) (wrapping-sub-u32 act 1) else () in
+        let tot = raw-load-u64 (addr-at base off-tot-req-close) in
+        raw-store-u64 (addr-at base off-tot-req-close) (wrapping-add-u64 tot 1)
+
+  -- Request slot inspection helpers
+  #[no-alloc]
+  h3-conn-req-priority :: H3Conn -> U64 ->{MVar} StreamPriority
+  h3-conn-req-priority conn sid =
+    let slot = find-req-slot-loop conn.h3c-base 0 sid in
+    if eq-u32 slot h3-slot-none then stream-priority-default ()
+    else
+      let rb = req-base conn.h3c-base slot in
+      StreamPriority (raw-load-u8 (addr-at rb r-off-urg)) (raw-load-u8 (addr-at rb r-off-inc)) 0
+
+  #[no-alloc]
+  h3-conn-set-req-priority :: H3Conn -> U64 -> StreamPriority ->{MVar} Bool
+  h3-conn-set-req-priority conn sid prio =
+    let base = conn.h3c-base in
+    let slot = find-req-slot-loop base 0 sid in
+    if eq-u32 slot h3-slot-none then b-false
+    else
+      let rb = req-base base slot in
+      let _0 = raw-store-u8 (addr-at rb r-off-urg) prio.prio-urgency in
+      let _1 = raw-store-u8 (addr-at rb r-off-inc) prio.prio-incremental in
+      let _2 = prio-sched-reprioritize conn.h3c-sched slot prio in
+      b-true
+
+  #[no-alloc]
+  h3-conn-req-data-total :: H3Conn -> U64 ->{MVar} U32
+  h3-conn-req-data-total conn sid =
+    let slot = find-req-slot-loop conn.h3c-base 0 sid in
+    if eq-u32 slot h3-slot-none then 0
+    else raw-load-u32 (addr-at (req-base conn.h3c-base slot) r-off-data-tot)
+
+  #[no-alloc]
+  h3-conn-req-fin-rcvd :: H3Conn -> U64 ->{MVar} Bool
+  h3-conn-req-fin-rcvd conn sid =
+    let slot = find-req-slot-loop conn.h3c-base 0 sid in
+    if eq-u32 slot h3-slot-none then b-false
+    else ne-u8 (raw-load-u8 (addr-at (req-base conn.h3c-base slot) r-off-fin-rcvd)) 0
+
+  #[no-alloc]
+  h3-conn-req-status :: H3Conn -> U64 ->{MVar} U16
+  h3-conn-req-status conn sid =
+    let slot = find-req-slot-loop conn.h3c-base 0 sid in
+    if eq-u32 slot h3-slot-none then 0
+    else load-u16-raw (addr-at (req-base conn.h3c-base slot) r-off-rx-status)
+
+  -- =========================================================================
+  -- 5. Initial Control Stream Writer & Peer Unidirectional Stream Engine
+  -- =========================================================================
+
+  -- | Write the local Control unidirectional stream preface (`type = 0x00` +
+  -- initial `SETTINGS` frame) into `out-addr[off..cap)`. Returns bytes written.
+  #[no-alloc]
+  h3-conn-write-initial-control-stream :: H3Conn -> I64 -> U32 -> U32 ->{MVar} U32
+  h3-conn-write-initial-control-stream conn out-addr off cap =
+    let w0 = h3-uni-write-type-raw out-addr off cap h3-uni-control in
+    if eq-u32 w0 0 then 0
+    else
+      let settings = h3-conn-local-settings conn in
+      let w1 = h3-settings-encode-raw out-addr (wrapping-add-u32 off w0) cap settings in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- Process frames on the peer Control stream (`off-ctrl-rx[0..len)`).
+  #[no-alloc]
+  process-control-frames :: H3Conn -> U64 -> U32 -> U32 -> U32 ->{MVar} H3FeedResult
+  process-control-frames conn sid pos len best-status =
+    let base = conn.h3c-base in
+    let cbuf = addr-at base off-ctrl-rx in
+    if ge-u32 pos len then
+      let _0 = raw-store-u32 (addr-at base off-ctrl-rx-len) 0 in
+      H3FeedResult sid h3-err-no-error best-status pos 0 0
+    else
+      let hdr = h3-frame-decode-header-raw cbuf pos len in
+      if eq-u8 hdr.h3f-status h3-fdec-error then
+        fail-conn base sid hdr.h3f-error
+      else if eq-u8 hdr.h3f-status h3-fdec-need-more then
+        let rem = wrapping-sub-u32 len pos in
+        let _s = if gt-u32 pos 0 then shift-left-bytes cbuf 0 pos rem else () in
+        let _l = raw-store-u32 (addr-at base off-ctrl-rx-len) rem in
+        H3FeedResult sid h3-err-no-error (if eq-u32 best-status h3-feed-ok then h3-feed-need-more else best-status) pos 0 0
+      else
+        let pay-off = wrapping-add-u32 pos hdr.h3f-hdr-len in
+        let avail = saturating-sub-u32 len pay-off in
+        if gt-u64 hdr.h3f-payload-len (u32-to-u64 avail) then
+          let rem = wrapping-sub-u32 len pos in
+          let _s = if gt-u32 pos 0 then shift-left-bytes cbuf 0 pos rem else () in
+          let _l = raw-store-u32 (addr-at base off-ctrl-rx-len) rem in
+          H3FeedResult sid h3-err-no-error (if eq-u32 best-status h3-feed-ok then h3-feed-need-more else best-status) pos 0 0
+        else
+          let plen = wrapping-u64-to-u32 hdr.h3f-payload-len in
+          let next-pos = wrapping-add-u32 pay-off plen in
+          let ft = hdr.h3f-type in
+          let seen-set = ne-u8 (raw-load-u8 (addr-at base off-peer-settings-seen)) 0 in
+          -- RFC 9114 §6.2.1: first frame on Control stream MUST be SETTINGS!
+          if both (b-not seen-set) (ne-u64 ft h3-frame-settings) then
+            fail-conn base sid h3-err-missing-settings
+          else if eq-u64 ft h3-frame-settings then
+            if seen-set then
+              fail-conn base sid h3-err-frame-unexpected
+            else
+              let sr = h3-settings-decode-raw cbuf pay-off plen in
+              if eq-u8 sr.h3sd-ok 0 then
+                fail-conn base sid sr.h3sd-error
+              else
+                let ps = sr.h3sd-settings in
+                let _0 = raw-store-u64 (addr-at base off-pqpack-cap) ps.h3s-qpack-max-table-cap in
+                let _1 = raw-store-u64 (addr-at base off-pmax-fs) ps.h3s-max-field-section-size in
+                let _2 = raw-store-u64 (addr-at base off-pqpack-blk) ps.h3s-qpack-blocked-streams in
+                let _3 = raw-store-u8 (addr-at base off-peer-en-conn) ps.h3s-enable-connect-protocol in
+                let _4 = raw-store-u8 (addr-at base off-peer-h3-dg) ps.h3s-h3-datagram in
+                let _5 = raw-store-u8 (addr-at base off-peer-settings-seen) 1 in
+                let cur-st = raw-load-u8 (addr-at base off-state) in
+                let _6 = if eq-u8 cur-st h3-state-init then raw-store-u8 (addr-at base off-state) h3-state-open else () in
+                process-control-frames conn sid next-pos len h3-feed-settings-ready
+          else if either (eq-u64 ft h3-frame-data) (either (eq-u64 ft h3-frame-headers) (eq-u64 ft h3-frame-push-promise)) then
+            -- RFC 9114 §7.2: DATA, HEADERS, PUSH_PROMISE forbidden on Control stream!
+            fail-conn base sid h3-err-frame-unexpected
+          else if eq-u64 ft h3-frame-goaway then
+            let gr = h3-frame-decode-goaway-raw cbuf pay-off plen in
+            if eq-u8 gr.h3vf-ok 0 then
+              fail-conn base sid gr.h3vf-error
+            else
+              let role = raw-load-u8 (addr-at base off-role) in
+              -- Client receiving server GOAWAY: ID must be client-initiated bidi (id % 4 == 0)
+              if both (eq-u8 role h3-role-client) (ne-u64 (bit-and-u64 gr.h3vf-val 3) 0) then
+                fail-conn base sid h3-err-id-error
+              else
+                let prev-seen = ne-u8 (raw-load-u8 (addr-at base off-goaway-recv)) 0 in
+                let prev-id = raw-load-u64 (addr-at base off-pgoaway-id) in
+                if both prev-seen (gt-u64 gr.h3vf-val prev-id) then
+                  fail-conn base sid h3-err-id-error
+                else
+                  let _0 = raw-store-u8 (addr-at base off-goaway-recv) 1 in
+                  let _1 = raw-store-u64 (addr-at base off-pgoaway-id) gr.h3vf-val in
+                  let st = raw-load-u8 (addr-at base off-state) in
+                  let _2 = if lt-u8 st h3-state-goaway then raw-store-u8 (addr-at base off-state) h3-state-goaway else () in
+                  process-control-frames conn sid next-pos len h3-feed-goaway
+          else if eq-u64 ft h3-frame-priority-update-req then
+            let role = raw-load-u8 (addr-at base off-role) in
+            if eq-u8 role h3-role-client then
+              fail-conn base sid h3-err-frame-unexpected
+            else
+              let pr = h3-frame-decode-priority-update-raw cbuf pay-off plen in
+              if eq-u8 pr.h3pu-ok 0 then
+                fail-conn base sid pr.h3pu-error
+              else if ne-u64 (bit-and-u64 pr.h3pu-element-id 3) 0 then
+                fail-conn base sid h3-err-id-error
+              else
+                let prio = parse-priority-header-dma (wrapping-add-i64 cbuf (u32-to-i64 pr.h3pu-val-off)) pr.h3pu-val-len in
+                let rslot = find-req-slot-loop base 0 pr.h3pu-element-id in
+                let _up = (if ne-u32 rslot h3-slot-none then
+                  let rb = req-base base rslot in
+                  let _u = raw-store-u8 (addr-at rb r-off-urg) prio.prio-urgency in
+                  let _i = raw-store-u8 (addr-at rb r-off-inc) prio.prio-incremental in
+                  let _rp = prio-sched-reprioritize conn.h3c-sched rslot prio in
+                  ()
+                else ()) in
+                process-control-frames conn sid next-pos len h3-feed-priority-update
+          else if either (eq-u64 ft h3-frame-cancel-push) (eq-u64 ft h3-frame-max-push-id) then
+            let vr = h3-frame-decode-single-varint-raw cbuf pay-off plen in
+            if eq-u8 vr.h3vf-ok 0 then
+              fail-conn base sid vr.h3vf-error
+            else
+              process-control-frames conn sid next-pos len best-status
+          else
+            -- Unknown / GREASE frame type: skip payload per RFC 9114 §7.2.8!
+            process-control-frames conn sid next-pos len best-status
+
+  -- Process QPACK Decoder stream instructions loop.
+  #[no-alloc]
+  process-qpack-dec-loop :: H3Conn -> U64 -> I64 -> U32 -> U32 ->{MVar} H3FeedResult
+  process-qpack-dec-loop conn sid buf pos len =
+    let base = conn.h3c-base in
+    if ge-u32 pos len then h3-feed-result-ok sid pos
+    else
+      let inst = qpack-decode-decoder-inst buf pos len in
+      if ne-u8 inst.qdi-err qpack-ok then
+        fail-conn base sid h3-err-qpack-decoder-stream-error
+      else
+        let err = qpack-apply-decoder-inst conn.h3c-qpack inst in
+        if ne-u8 err qpack-ok then
+          fail-conn base sid h3-err-qpack-decoder-stream-error
+        else
+          process-qpack-dec-loop conn sid buf inst.qdi-next len
+
+  -- | Feed bytes (and optional `is-fin != 0`) from a peer unidirectional stream `sid`
+  -- into `conn` (`#[no-alloc]`). Enforces single Control/QPACK Encoder/QPACK Decoder
+  -- stream creation, `SETTINGS`-first rule, critical-stream closure detection,
+  -- forbidden HTTP/2 frame/setting rejection, GREASE skipping, `GOAWAY`, and `PRIORITY_UPDATE`.
+  #[no-alloc]
+  h3-conn-feed-uni :: H3Conn -> U64 -> I64 -> U32 -> U8 ->{MVar} H3FeedResult
+  h3-conn-feed-uni conn sid data-addr data-len is-fin =
+    let base = conn.h3c-base in
+    if eq-u64 base 0 then H3FeedResult sid h3-err-internal-error h3-feed-error 0 0 0
+    else if eq-u8 (raw-load-u8 (addr-at base off-state)) h3-state-error then
+      H3FeedResult sid (raw-load-u64 (addr-at base off-last-err)) h3-feed-error 0 0 0
+    else
+      let existing = find-uni-slot-loop base 0 sid in
+      let uslot = if ne-u32 existing h3-slot-none then existing else alloc-uni-slot-loop base 0 sid in
+      if eq-u32 uslot h3-slot-none then
+        fail-conn base sid h3-err-stream-creation-error
+      else
+        let ub = uni-base base uslot in
+        let known = ne-u8 (raw-load-u8 (addr-at ub u-off-known)) 0 in
+        if b-not known then
+          if eq-u32 data-len 0 then
+            if ne-u8 is-fin 0 then
+              let _c = raw-store-u8 (addr-at ub u-off-closed) 1 in
+              h3-feed-result-ok sid 0
+            else H3FeedResult sid h3-err-no-error h3-feed-need-more 0 0 0
+          else
+            let td = h3-uni-read-type-raw data-addr 0 data-len in
+            if eq-u8 td.ok 0 then
+              H3FeedResult sid h3-err-no-error h3-feed-need-more 0 0 0
+            else
+              let stype = td.val in
+              let _st = raw-store-u64 (addr-at ub u-off-type) stype in
+              let _kn = raw-store-u8 (addr-at ub u-off-known) 1 in
+              let rest-addr = wrapping-add-i64 data-addr (u32-to-i64 td.consumed) in
+              let rest-len = wrapping-sub-u32 data-len td.consumed in
+              if eq-u64 stype h3-uni-control then
+                let cnt = raw-load-u8 (addr-at base off-peer-ctrl-cnt) in
+                if ge-u8 cnt 1 then
+                  fail-conn base sid h3-err-stream-creation-error
+                else
+                  let _0 = raw-store-u8 (addr-at base off-peer-ctrl-cnt) 1 in
+                  let _1 = raw-store-u64 (addr-at base off-pctrl-sid) sid in
+                  let _2 = raw-store-u8 (addr-at ub u-off-crit) 1 in
+                  if ne-u8 is-fin 0 then
+                    let _3 = raw-store-u8 (addr-at ub u-off-closed) 1 in
+                    fail-conn base sid h3-err-closed-critical-stream
+                  else if gt-u32 rest-len 0 then
+                    h3-conn-feed-uni conn sid rest-addr rest-len 0
+                  else h3-feed-result-ok sid td.consumed
+              else if eq-u64 stype h3-uni-qpack-encoder then
+                let cnt = raw-load-u8 (addr-at base off-peer-qenc-cnt) in
+                if ge-u8 cnt 1 then
+                  fail-conn base sid h3-err-stream-creation-error
+                else
+                  let _0 = raw-store-u8 (addr-at base off-peer-qenc-cnt) 1 in
+                  let _1 = raw-store-u64 (addr-at base off-pqenc-sid) sid in
+                  let _2 = raw-store-u8 (addr-at ub u-off-crit) 1 in
+                  if ne-u8 is-fin 0 then
+                    let _3 = raw-store-u8 (addr-at ub u-off-closed) 1 in
+                    fail-conn base sid h3-err-closed-critical-stream
+                  else if gt-u32 rest-len 0 then
+                    h3-conn-feed-uni conn sid rest-addr rest-len 0
+                  else h3-feed-result-ok sid td.consumed
+              else if eq-u64 stype h3-uni-qpack-decoder then
+                let cnt = raw-load-u8 (addr-at base off-peer-qdec-cnt) in
+                if ge-u8 cnt 1 then
+                  fail-conn base sid h3-err-stream-creation-error
+                else
+                  let _0 = raw-store-u8 (addr-at base off-peer-qdec-cnt) 1 in
+                  let _1 = raw-store-u64 (addr-at base off-pqdec-sid) sid in
+                  let _2 = raw-store-u8 (addr-at ub u-off-crit) 1 in
+                  if ne-u8 is-fin 0 then
+                    let _3 = raw-store-u8 (addr-at ub u-off-closed) 1 in
+                    fail-conn base sid h3-err-closed-critical-stream
+                  else if gt-u32 rest-len 0 then
+                    h3-conn-feed-uni conn sid rest-addr rest-len 0
+                  else h3-feed-result-ok sid td.consumed
+              else if eq-u64 stype h3-uni-push then
+                if eq-u8 (raw-load-u8 (addr-at base off-role)) h3-role-server then
+                  fail-conn base sid h3-err-stream-creation-error
+                else
+                  let _c = if ne-u8 is-fin 0 then raw-store-u8 (addr-at ub u-off-closed) 1 else () in
+                  h3-feed-result-ok sid data-len
+              else
+                -- Unknown / GREASE unidirectional stream type: ignore safely
+                let _c = if ne-u8 is-fin 0 then raw-store-u8 (addr-at ub u-off-closed) 1 else () in
+                h3-feed-result-ok sid data-len
+        else
+          -- Stream type already known! Check critical-stream closure FIRST.
+          let is-crit = ne-u8 (raw-load-u8 (addr-at ub u-off-crit)) 0 in
+          if both is-crit (ne-u8 is-fin 0) then
+            let _c = raw-store-u8 (addr-at ub u-off-closed) 1 in
+            fail-conn base sid h3-err-closed-critical-stream
+          else
+            let stype = raw-load-u64 (addr-at ub u-off-type) in
+            if eq-u64 stype h3-uni-control then
+              let cur = raw-load-u32 (addr-at base off-ctrl-rx-len) in
+              if gt-u32 data-len (saturating-sub-u32 4096 cur) then
+                fail-conn base sid h3-err-excessive-load
+              else
+                let cbuf = addr-at base off-ctrl-rx in
+                let _cp = if gt-u32 data-len 0 then dma-copy (wrapping-add-i64 cbuf (u32-to-i64 cur)) data-addr data-len else () in
+                let tot = wrapping-add-u32 cur data-len in
+                process-control-frames conn sid 0 tot h3-feed-ok
+            else if eq-u64 stype h3-uni-qpack-encoder then
+              if eq-u32 data-len 0 then h3-feed-result-ok sid 0
+              else
+                let r = qpack-process-encoder-stream conn.h3c-qpack data-addr 0 data-len in
+                if ne-u8 r.qe-err qpack-ok then
+                  fail-conn base sid h3-err-qpack-encoder-stream-error
+                else h3-feed-result-ok sid data-len
+            else if eq-u64 stype h3-uni-qpack-decoder then
+              if eq-u32 data-len 0 then h3-feed-result-ok sid 0
+              else process-qpack-dec-loop conn sid data-addr 0 data-len
+            else
+              let _c = if ne-u8 is-fin 0 then raw-store-u8 (addr-at ub u-off-closed) 1 else () in
+              h3-feed-result-ok sid data-len
+
+  -- =========================================================================
+  -- 6. Request Bidirectional Stream Frame Decoder & QPACK Integration (#[no-alloc])
+  -- =========================================================================
+
+  -- Parse 3-digit ASCII status code (e.g. "200") into U16.
+  #[no-alloc]
+  parse-status-ascii :: I64 -> U32 ->{MVar} U16
+  parse-status-ascii addr len =
+    if ne-u32 len 3 then 0
+    else
+      let d0 = raw-load-u8 addr in
+      let d1 = raw-load-u8 (wrapping-add-i64 addr 1) in
+      let d2 = raw-load-u8 (wrapping-add-i64 addr 2) in
+      if both (both (ge-u8 d0 48) (le-u8 d0 57)) (both (both (ge-u8 d1 48) (le-u8 d1 57)) (both (ge-u8 d2 48) (le-u8 d2 57))) then
+        let v0 = wrapping-mul-u16 (u8-to-u16 (wrapping-sub-u8 d0 48)) 100 in
+        let v1 = wrapping-mul-u16 (u8-to-u16 (wrapping-sub-u8 d1 48)) 10 in
+        let v2 = u8-to-u16 (wrapping-sub-u8 d2 48) in
+        wrapping-add-u16 (wrapping-add-u16 v0 v1) v2
+      else 0
+
+  -- Inspect decoded headers on request slot `rslot` for `Priority` (RFC 9218) and `:status`.
+  #[no-alloc]
+  scan-decoded-headers :: H3Conn -> U32 -> U32 -> U32 ->{MVar} Unit
+  scan-decoded-headers conn rslot i count =
+    if ge-u32 i count then ()
+    else
+      let base = conn.h3c-base in
+      let pairs = addr-at base off-dec-hdrs in
+      let text = addr-at base off-dec-text in
+      let hp = qpack-pair-load pairs i in
+      let rb = req-base base rslot in
+      let _p = (if eq-u8 hp.hp-known hdr-priority then
+        let prio = parse-priority-header-dma (wrapping-add-i64 text (u32-to-i64 hp.hp-val-off)) hp.hp-val-len in
+        let _u = raw-store-u8 (addr-at rb r-off-urg) prio.prio-urgency in
+        let _i = raw-store-u8 (addr-at rb r-off-inc) prio.prio-incremental in
+        ()
+      else if eq-u8 hp.hp-known hdr-status then
+        let code = parse-status-ascii (wrapping-add-i64 text (u32-to-i64 hp.hp-val-off)) hp.hp-val-len in
+        store-u16-raw (addr-at rb r-off-rx-status) code
+      else ()) in
+      scan-decoded-headers conn rslot (wrapping-add-u32 i 1) count
+
+  -- Check if frame type is forbidden on a request bidirectional stream.
+  #[inline(always)]
+  #[no-alloc]
+  is-ctrl-only-frame :: U64 -> Bool
+  is-ctrl-only-frame ft =
+    if eq-u64 ft h3-frame-settings then b-true
+    else if eq-u64 ft h3-frame-goaway then b-true
+    else if eq-u64 ft h3-frame-cancel-push then b-true
+    else if eq-u64 ft h3-frame-max-push-id then b-true
+    else if eq-u64 ft h3-frame-priority-update-req then b-true
+    else eq-u64 ft h3-frame-priority-update-push
+
+  -- Process buffered HTTP/3 frames on request stream `rslot`.
+  #[no-alloc]
+  process-req-frames :: H3Conn -> U32 -> U64 -> U32 -> U32 -> U32 -> U32 ->{MVar} H3FeedResult
+  process-req-frames conn rslot sid pos len best-status best-aux =
+    let base = conn.h3c-base in
+    let rbuf = req-rx-addr base rslot in
+    let rb = req-base base rslot in
+    if ge-u32 pos len then
+      let _0 = raw-store-u32 (addr-at rb r-off-rx-len) 0 in
+      H3FeedResult sid h3-err-no-error best-status pos best-aux 0
+    else
+      let hdr = h3-frame-decode-header-raw rbuf pos len in
+      if eq-u8 hdr.h3f-status h3-fdec-error then
+        fail-conn base sid hdr.h3f-error
+      else if eq-u8 hdr.h3f-status h3-fdec-need-more then
+        let rem = wrapping-sub-u32 len pos in
+        let _s = if gt-u32 pos 0 then shift-left-bytes rbuf 0 pos rem else () in
+        let _l = raw-store-u32 (addr-at rb r-off-rx-len) rem in
+        H3FeedResult sid h3-err-no-error (if eq-u32 best-status h3-feed-ok then h3-feed-need-more else best-status) pos best-aux 0
+      else
+        let pay-off = wrapping-add-u32 pos hdr.h3f-hdr-len in
+        let avail = saturating-sub-u32 len pay-off in
+        if gt-u64 hdr.h3f-payload-len (u32-to-u64 avail) then
+          let rem = wrapping-sub-u32 len pos in
+          let _s = if gt-u32 pos 0 then shift-left-bytes rbuf 0 pos rem else () in
+          let _l = raw-store-u32 (addr-at rb r-off-rx-len) rem in
+          H3FeedResult sid h3-err-no-error (if eq-u32 best-status h3-feed-ok then h3-feed-need-more else best-status) pos best-aux 0
+        else
+          let plen = wrapping-u64-to-u32 hdr.h3f-payload-len in
+          let next-pos = wrapping-add-u32 pay-off plen in
+          let ft = hdr.h3f-type in
+          if is-ctrl-only-frame ft then
+            fail-conn base sid h3-err-frame-unexpected
+          else if eq-u64 ft h3-frame-headers then
+            let pay-addr = wrapping-add-i64 rbuf (u32-to-i64 pay-off) in
+            let qcap = raw-load-u64 (addr-at base off-lqpack-cap) in
+            let dec = (if eq-u64 qcap 0 then
+              qpack-decode-section-zero-hol pay-addr plen (addr-at base off-dec-text) 8192 (addr-at base off-dec-hdrs) 128
+            else
+              qpack-decode-section conn.h3c-qpack pay-addr plen (addr-at base off-dec-text) 8192 (addr-at base off-dec-hdrs) 128) in
+            if ne-u8 dec.qd-err qpack-ok then
+              fail-conn base sid h3-err-qpack-decompression-failed
+            else
+              let _0 = raw-store-u32 (addr-at base off-dec-hcnt) dec.qd-header-count in
+              let _1 = raw-store-u32 (addr-at base off-dec-tlen) dec.qd-text-written in
+              let _2 = raw-store-u64 (addr-at base off-last-req-sid) sid in
+              let _3 = raw-store-u8 (addr-at rb r-off-hdrs-seen) 1 in
+              let _4 = raw-store-u8 (addr-at rb r-off-state) h3-req-headers-rcvd in
+              let _5 = scan-decoded-headers conn rslot 0 dec.qd-header-count in
+              process-req-frames conn rslot sid next-pos len h3-feed-headers-ready dec.qd-header-count
+          else if eq-u64 ft h3-frame-data then
+            if eq-u8 (raw-load-u8 (addr-at rb r-off-hdrs-seen)) 0 then
+              fail-conn base sid h3-err-frame-unexpected
+            else
+              let pay-addr = wrapping-add-i64 rbuf (u32-to-i64 pay-off) in
+              let take = min-u32 plen 8192 in
+              let _0 = if gt-u32 take 0 then dma-copy (addr-at base off-last-data) pay-addr take else () in
+              let _1 = raw-store-u32 (addr-at base off-last-dlen) take in
+              let _2 = raw-store-u64 (addr-at base off-last-req-sid) sid in
+              let prev-tot = raw-load-u32 (addr-at rb r-off-data-tot) in
+              let _3 = raw-store-u32 (addr-at rb r-off-data-tot) (wrapping-add-u32 prev-tot plen) in
+              let _4 = raw-store-u8 (addr-at rb r-off-state) h3-req-body-rcvd in
+              let next-st = if eq-u32 best-status h3-feed-headers-ready then h3-feed-headers-ready else h3-feed-data-ready in
+              let next-aux = if eq-u32 best-status h3-feed-headers-ready then best-aux else plen in
+              process-req-frames conn rslot sid next-pos len next-st next-aux
+          else
+            -- Unknown / GREASE frame type on request stream: skip payload cleanly!
+            process-req-frames conn rslot sid next-pos len best-status best-aux
+
+  -- | Feed bytes (and optional `is-fin != 0`) from a bidirectional request stream
+  -- `sid` into `conn` (`#[no-alloc]`). Enforces `GOAWAY` stream rejection,
+  -- forbidden control-frame rejection on request streams, QPACK decoding, and `DATA` spans.
+  #[no-alloc]
+  h3-conn-feed-request :: H3Conn -> U64 -> I64 -> U32 -> U8 ->{MVar} H3FeedResult
+  h3-conn-feed-request conn sid data-addr data-len is-fin =
+    let base = conn.h3c-base in
+    if eq-u64 base 0 then H3FeedResult sid h3-err-internal-error h3-feed-error 0 0 0
+    else if eq-u8 (raw-load-u8 (addr-at base off-state)) h3-state-error then
+      H3FeedResult sid (raw-load-u64 (addr-at base off-last-err)) h3-feed-error 0 0 0
+    else if ne-u64 (bit-and-u64 sid 2) 0 then
+      fail-conn base sid h3-err-stream-creation-error
+    else
+      let existing = find-req-slot-loop base 0 sid in
+      let role = raw-load-u8 (addr-at base off-role) in
+      let rejected-by-goaway = both (eq-u32 existing h3-slot-none) (both (eq-u8 role h3-role-server) (both (ne-u8 (raw-load-u8 (addr-at base off-goaway-sent)) 0) (ge-u64 sid (raw-load-u64 (addr-at base off-lgoaway-id))))) in
+      if rejected-by-goaway then
+        H3FeedResult sid h3-err-request-rejected h3-feed-error 0 0 0
+      else
+        let rslot = if ne-u32 existing h3-slot-none then existing else alloc-req-slot-loop base 0 sid h3-slot-none in
+        if eq-u32 rslot h3-slot-none then
+          fail-conn base sid h3-err-excessive-load
+        else
+          let _mp = (if both (eq-u32 existing h3-slot-none) (eq-u8 role h3-role-server) then
+            let prev = raw-load-u64 (addr-at base off-max-preq-sid) in
+            if either (eq-u64 prev h3-sid-unset) (gt-u64 sid prev) then
+              raw-store-u64 (addr-at base off-max-preq-sid) sid
+            else ()
+          else ()) in
+          let rb = req-base base rslot in
+          let cur = raw-load-u32 (addr-at rb r-off-rx-len) in
+          if gt-u32 data-len (saturating-sub-u32 req-rx-cap cur) then
+            fail-conn base sid h3-err-excessive-load
+          else
+            let rbuf = req-rx-addr base rslot in
+            let _cp = if gt-u32 data-len 0 then dma-copy (wrapping-add-i64 rbuf (u32-to-i64 cur)) data-addr data-len else () in
+            let tot = wrapping-add-u32 cur data-len in
+            let res = process-req-frames conn rslot sid 0 tot h3-feed-ok 0 in
+            let _fn = if ne-u8 is-fin 0 then raw-store-u8 (addr-at rb r-off-fin-rcvd) 1 else () in
+            res
+
+  -- =========================================================================
+  -- 7. Zero-HOL QPACK Request & Response Frame Encoders (#[no-alloc])
+  -- =========================================================================
+
+  -- Map common HTTP status code to RFC 9204 QPACK static table index (`255` = literal).
+  #[inline(always)]
+  #[no-alloc]
+  qpack-status-static-idx :: U16 -> U8
+  qpack-status-static-idx code =
+    if eq-u16 code 200 then 25
+    else if eq-u16 code 204 then 64
+    else if eq-u16 code 206 then 65
+    else if eq-u16 code 302 then 66
+    else if eq-u16 code 304 then 26
+    else if eq-u16 code 400 then 67
+    else if eq-u16 code 403 then 68
+    else if eq-u16 code 404 then 27
+    else if eq-u16 code 500 then 71
+    else if eq-u16 code 503 then 28
+    else 255
+
+  -- Map `HttpMethod` code (`Net.Http.Types.method-code-*`) to QPACK static index.
+  #[inline(always)]
+  #[no-alloc]
+  qpack-method-static-idx :: U8 -> U8
+  qpack-method-static-idx m =
+    if eq-u8 m method-code-get then 17
+    else if eq-u8 m method-code-post then 20
+    else if eq-u8 m method-code-head then 18
+    else if eq-u8 m method-code-put then 21
+    else if eq-u8 m method-code-delete then 16
+    else if eq-u8 m method-code-connect then 15
+    else if eq-u8 m method-code-options then 19
+    else 17
+
+  -- | Encode an HTTP/3 `HEADERS` frame from a DMA `HeaderPair` array using
+  -- QPACK zero-HOL (`0x00 0x00` prefix) into `out-addr[off..cap)`.
+  -- Returns total frame bytes written, or `0` on error.
+  #[no-alloc]
+  h3-encode-headers-frame-zero-hol :: I64 -> U32 -> I64 -> U8 -> I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  h3-encode-headers-frame-zero-hol pairs-addr hcount src-base huff-mode out-addr off cap scratch scratch-cap =
+    let enc = qpack-encode-section-zero-hol pairs-addr hcount src-base huff-mode scratch scratch-cap in
+    if ne-u8 enc.qe-err qpack-ok then 0
+    else h3-frame-encode-raw out-addr off cap h3-frame-headers scratch enc.qe-written
+
+  -- | Encode a complete zero-HOL HTTP/3 request (`HEADERS` + optional `DATA`)
+  -- with `:method`, `:scheme https`, `:path`, `:authority` directly into
+  -- `out-addr[off..cap)` using `scratch[0..scratch-cap)`. Returns bytes written.
+  #[no-alloc]
+  h3-encode-request-raw :: I64 -> U32 -> U32 -> U8 -> I64 -> U32 -> I64 -> U32 -> I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  h3-encode-request-raw out-addr off cap method-code path-addr path-len auth-addr auth-len body-addr body-len scratch scratch-cap =
+    if lt-u32 scratch-cap 32 then 0
+    else
+      -- Field Section Prefix: 0x00 0x00 (zero-HOL)
+      let _p0 = raw-store-u8 scratch 0 in
+      let _p1 = raw-store-u8 (wrapping-add-i64 scratch 1) 0 in
+      let r1 = qpack-encode-indexed-static scratch 2 scratch-cap (qpack-method-static-idx method-code) in
+      if ne-u8 r1.qe-err qpack-ok then 0
+      else
+        -- :scheme https (static index 23)
+        let r2 = qpack-encode-indexed-static scratch r1.qe-written scratch-cap 23 in
+        if ne-u8 r2.qe-err qpack-ok then 0
+        else
+          -- :path (static index 1 if "/" else literal name ref 1)
+          let is-root = both (eq-u32 path-len 1) (eq-u8 (raw-load-u8 path-addr) 47) in
+          let r3 = (if is-root then qpack-encode-indexed-static scratch r2.qe-written scratch-cap 1
+            else qpack-encode-literal-name-ref-static scratch r2.qe-written scratch-cap 0 1 qpack-huff-never path-addr path-len) in
+          if ne-u8 r3.qe-err qpack-ok then 0
+          else
+            -- :authority (static index 0)
+            let r4 = (if gt-u32 auth-len 0 then
+              qpack-encode-literal-name-ref-static scratch r3.qe-written scratch-cap 0 0 qpack-huff-never auth-addr auth-len
+            else r3) in
+            if ne-u8 r4.qe-err qpack-ok then 0
+            else
+              let hw = h3-frame-encode-raw out-addr off cap h3-frame-headers scratch r4.qe-written in
+              if eq-u32 hw 0 then 0
+              else if eq-u32 body-len 0 then hw
+              else
+                let dw = h3-frame-encode-raw out-addr (wrapping-add-u32 off hw) cap h3-frame-data body-addr body-len in
+                if eq-u32 dw 0 then 0
+                else wrapping-add-u32 hw dw
+
+  -- Encode a zero-HOL `:status <code>` QPACK `HEADERS` frame into `out-addr[off..cap)`.
+  #[no-alloc]
+  encode-resp-headers-raw :: I64 -> U32 -> U32 -> U16 -> I64 -> U32 ->{MVar} U32
+  encode-resp-headers-raw out-addr off cap status-code scratch scratch-cap =
+    if lt-u32 scratch-cap 16 then 0
+    else
+      let _p0 = raw-store-u8 scratch 0 in
+      let _p1 = raw-store-u8 (wrapping-add-i64 scratch 1) 0 in
+      let sidx = qpack-status-static-idx status-code in
+      let r1 = (if ne-u8 sidx 255 then
+        qpack-encode-indexed-static scratch 2 scratch-cap sidx
+      else
+        -- Format 3-digit ASCII status into scratch+12..14, then encode literal ref static 24
+        let d0 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 (div-u16 status-code 100) 10)) in
+        let d1 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 (div-u16 status-code 10) 10)) in
+        let d2 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 status-code 10)) in
+        let sa = wrapping-add-i64 scratch 12 in
+        let _d0 = raw-store-u8 sa d0 in
+        let _d1 = raw-store-u8 (wrapping-add-i64 sa 1) d1 in
+        let _d2 = raw-store-u8 (wrapping-add-i64 sa 2) d2 in
+        qpack-encode-literal-name-ref-static scratch 2 12 0 24 qpack-huff-never sa 3) in
+      if ne-u8 r1.qe-err qpack-ok then 0
+      else h3-frame-encode-raw out-addr off cap h3-frame-headers scratch r1.qe-written
+
+  -- | Encode a complete zero-HOL HTTP/3 response (`HEADERS` + optional `DATA`)
+  -- directly into `out-addr[off..cap)` using `scratch[0..scratch-cap)`.
+  #[no-alloc]
+  h3-encode-response-raw :: I64 -> U32 -> U32 -> U16 -> I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  h3-encode-response-raw out-addr off cap status-code body-addr body-len scratch scratch-cap =
+    let hw = encode-resp-headers-raw out-addr off cap status-code scratch scratch-cap in
+    if eq-u32 hw 0 then 0
+    else if eq-u32 body-len 0 then hw
+    else
+      let dw = h3-frame-encode-raw out-addr (wrapping-add-u32 off hw) cap h3-frame-data body-addr body-len in
+      if eq-u32 dw 0 then 0
+      else wrapping-add-u32 hw dw
+
+  -- =========================================================================
+  -- 8. RFC 9218 Priority-Scheduled Response Queuing & Flushing (#[no-alloc])
+  -- =========================================================================
+
+  -- | Queue a response `(status-code, body-addr, body-len)` on stream `sid`
+  -- and enqueue it into `PriorityScheduler` at the stream's RFC 9218 priority.
+  #[no-alloc]
+  h3-conn-queue-response :: H3Conn -> U64 -> U16 -> I64 -> U32 ->{MVar} Bool
+  h3-conn-queue-response conn sid status-code body-addr body-len =
+    let base = conn.h3c-base in
+    let rslot = find-req-slot-loop base 0 sid in
+    if eq-u32 rslot h3-slot-none then b-false
+    else
+      let rb = req-base base rslot in
+      let _0 = store-u16-raw (addr-at rb r-off-resp-status) status-code in
+      let _1 = raw-store-u8 (addr-at rb r-off-resp-hdr-sent) 0 in
+      let _2 = raw-store-i64 (addr-at rb r-off-resp-body-addr) body-addr in
+      let _3 = raw-store-u32 (addr-at rb r-off-resp-body-len) body-len in
+      let _4 = raw-store-u32 (addr-at rb r-off-resp-body-sent) 0 in
+      let _5 = raw-store-u8 (addr-at rb r-off-state) h3-req-resp-queued in
+      let prio = StreamPriority (raw-load-u8 (addr-at rb r-off-urg)) (raw-load-u8 (addr-at rb r-off-inc)) 0 in
+      let _6 = prio-sched-enqueue conn.h3c-sched rslot prio in
+      b-true
+
+  -- | Flush one priority-scheduled quantum (`<= max-data-bytes` of body) directly
+  -- into `out-addr[off..cap)` (`#[no-alloc]`). Removes and closes stream when complete.
+  #[no-alloc]
+  h3-conn-flush-priority-dma :: H3Conn -> U32 -> I64 -> U32 -> U32 ->{MVar} H3FlushResult
+  h3-conn-flush-priority-dma conn quantum out-addr off cap =
+    let base = conn.h3c-base in
+    let rslot = prio-sched-next conn.h3c-sched in
+    if eq-u32 rslot prio-slot-none then
+      H3FlushResult h3-sid-unset 0 0 0 0 0 0
+    else
+      let rb = req-base base rslot in
+      let sid = raw-load-u64 (addr-at rb r-off-sid) in
+      let hdr-sent = ne-u8 (raw-load-u8 (addr-at rb r-off-resp-hdr-sent)) 0 in
+      let hw = (if hdr-sent then 0
+        else
+          let status = load-u16-raw (addr-at rb r-off-resp-status) in
+          let w = encode-resp-headers-raw out-addr off cap status (addr-at base off-tx-scratch) 64 in
+          let _m = if gt-u32 w 0 then raw-store-u8 (addr-at rb r-off-resp-hdr-sent) 1 else () in
+          w) in
+      let blen = raw-load-u32 (addr-at rb r-off-resp-body-len) in
+      let bsent = raw-load-u32 (addr-at rb r-off-resp-body-sent) in
+      let rem = saturating-sub-u32 blen bsent in
+      let take = min-u32 rem quantum in
+      let dw = (if gt-u32 take 0 then
+        let baddr = wrapping-add-i64 (raw-load-i64 (addr-at rb r-off-resp-body-addr)) (u32-to-i64 bsent) in
+        h3-frame-encode-raw out-addr (wrapping-add-u32 off hw) cap h3-frame-data baddr take
+      else 0) in
+      let new-sent = if gt-u32 dw 0 then wrapping-add-u32 bsent take else bsent in
+      let _ns = raw-store-u32 (addr-at rb r-off-resp-body-sent) new-sent in
+      let is-done = ge-u32 new-sent blen in
+      let _cl = if is-done then close-req-slot conn rslot else () in
+      H3FlushResult sid (wrapping-add-u32 hw dw) (if gt-u32 dw 0 then take else 0) (if is-done then 1 else 0) 1 0 0
+
+  -- =========================================================================
+  -- 9. QUIC-Layered HTTP/3 Transport Operations (#[no-alloc])
+  -- =========================================================================
+
+  -- | Open local Control (`0x00`), QPACK Encoder (`0x02`), and QPACK Decoder
+  -- (`0x03`) unidirectional streams on `qconn` and write the initial `SETTINGS`
+  -- frame on the Control stream (idempotent, `#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-init-quic-streams :: H3Conn -> QuicConn ->{MVar} Bool
+  h3-conn-init-quic-streams conn qconn =
+    let base = conn.h3c-base in
+    if either (eq-u64 base 0) (b-not (quic-conn-is-valid qconn)) then b-false
+    else if ne-u8 (raw-load-u8 (addr-at base off-local-uni-init)) 0 then b-true
+    else
+      let stbl = quic-conn-streams qconn in
+      let cslot = quic-conn-open-stream qconn 1 in
+      let eslot = quic-conn-open-stream qconn 1 in
+      let dslot = quic-conn-open-stream qconn 1 in
+      if either (eq-u32 cslot stream-slot-none) (either (eq-u32 eslot stream-slot-none) (eq-u32 dslot stream-slot-none)) then
+        b-false
+      else
+        let csid = (quic-stream-id-at stbl cslot).stream-id-raw in
+        let esid = (quic-stream-id-at stbl eslot).stream-id-raw in
+        let dsid = (quic-stream-id-at stbl dslot).stream-id-raw in
+        let _0 = raw-store-u64 (addr-at base off-lctrl-sid) csid in
+        let _1 = raw-store-u64 (addr-at base off-lqenc-sid) esid in
+        let _2 = raw-store-u64 (addr-at base off-lqdec-sid) dsid in
+        let _3 = raw-store-u32 (addr-at base off-lctrl-qslot) cslot in
+        let _4 = raw-store-u32 (addr-at base off-lqenc-qslot) eslot in
+        let _5 = raw-store-u32 (addr-at base off-lqdec-qslot) dslot in
+        let tx = addr-at base off-tx-scratch in
+        let cw = h3-conn-write-initial-control-stream conn tx 0 256 in
+        let _wc = quic-conn-stream-write qconn cslot tx cw 0 in
+        let ew = h3-uni-write-type-raw tx 0 16 h3-uni-qpack-encoder in
+        let _we = quic-conn-stream-write qconn eslot tx ew 0 in
+        let dw = h3-uni-write-type-raw tx 0 16 h3-uni-qpack-decoder in
+        let _wd = quic-conn-stream-write qconn dslot tx dw 0 in
+        let _6 = raw-store-u8 (addr-at base off-local-uni-init) 1 in
+        let cur-st = raw-load-u8 (addr-at base off-state) in
+        let _7 = if eq-u8 cur-st h3-state-init then raw-store-u8 (addr-at base off-state) h3-state-open else () in
+        b-true
+
+  -- | Open a new client request bidi stream on `qconn` and write `HEADERS` (+ optional `DATA`)
+  -- with FIN (`#[no-alloc]`). Returns the QUIC stream ID, or `h3-sid-unset` on failure.
+  #[no-alloc]
+  h3-conn-send-request-quic :: H3Conn -> QuicConn -> U8 -> I64 -> U32 -> I64 -> U32 -> I64 -> U32 ->{MVar} U64
+  h3-conn-send-request-quic conn qconn method-code path-addr path-len auth-addr auth-len body-addr body-len =
+    let base = conn.h3c-base in
+    if either (eq-u64 base 0) (ne-u8 (raw-load-u8 (addr-at base off-role)) h3-role-client) then h3-sid-unset
+    else if ne-u8 (raw-load-u8 (addr-at base off-goaway-recv)) 0 then h3-sid-unset
+    else
+      let qslot = quic-conn-open-stream qconn 0 in
+      if eq-u32 qslot stream-slot-none then h3-sid-unset
+      else
+        let stbl = quic-conn-streams qconn in
+        let sid = (quic-stream-id-at stbl qslot).stream-id-raw in
+        let tx = addr-at base off-tx-scratch in
+        let qpack-tmp = wrapping-add-i64 tx 4096 in
+        let n = h3-encode-request-raw tx 0 4096 method-code path-addr path-len auth-addr auth-len body-addr body-len qpack-tmp 2048 in
+        if eq-u32 n 0 then h3-sid-unset
+        else
+          let wr = quic-conn-stream-write qconn qslot tx n 1 in
+          if ne-u32 wr n then h3-sid-unset
+          else
+            let _rs = alloc-req-slot-loop base 0 sid qslot in
+            sid
+
+  -- | Write an HTTP/3 response (`HEADERS` + optional `DATA`) with FIN on bidi stream `sid`
+  -- over `qconn` (`#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-send-response-quic :: H3Conn -> QuicConn -> U64 -> U16 -> I64 -> U32 ->{MVar} Bool
+  h3-conn-send-response-quic conn qconn sid status-code body-addr body-len =
+    let base = conn.h3c-base in
+    let qslot = quic-conn-stream-find qconn (StreamId sid) in
+    if eq-u32 qslot stream-slot-none then b-false
+    else
+      let tx = addr-at base off-tx-scratch in
+      let qpack-tmp = wrapping-add-i64 tx 4096 in
+      let n = h3-encode-response-raw tx 0 4096 status-code body-addr body-len qpack-tmp 2048 in
+      if eq-u32 n 0 then b-false
+      else
+        let wr = quic-conn-stream-write qconn qslot tx n 1 in
+        if ne-u32 wr n then b-false
+        else
+          let rslot = find-req-slot-loop base 0 sid in
+          let _cl = if ne-u32 rslot h3-slot-none then close-req-slot conn rslot else () in
+          b-true
+
+  -- | Flush one priority-scheduled response quantum onto `qconn` (`#[no-alloc]`).
+  -- Returns the `stream-id` serviced, or `h3-sid-unset` when no queued responses remain.
+  #[no-alloc]
+  h3-conn-flush-priority-quic :: H3Conn -> QuicConn -> U32 ->{MVar} U64
+  h3-conn-flush-priority-quic conn qconn quantum =
+    let base = conn.h3c-base in
+    let tx = addr-at base off-tx-scratch in
+    let out = wrapping-add-i64 tx 128 in
+    let fl = h3-conn-flush-priority-dma conn quantum out 0 4096 in
+    if eq-u8 fl.h3fl-ok 0 then h3-sid-unset
+    else
+      let qslot = quic-conn-stream-find qconn (StreamId fl.h3fl-stream-id) in
+      let _wr = (if ne-u32 qslot stream-slot-none then
+        let _ = quic-conn-stream-write qconn qslot out fl.h3fl-written fl.h3fl-done in
+        ()
+      else ()) in
+      fl.h3fl-stream-id
+
+  -- | Transmit a `GOAWAY(id)` frame on the local Control stream (without FIN)
+  -- and transition the connection into graceful drain (`h3-state-goaway`, `#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-send-goaway-quic :: H3Conn -> QuicConn -> U64 ->{MVar} Bool
+  h3-conn-send-goaway-quic conn qconn goaway-id =
+    let base = conn.h3c-base in
+    let cslot = raw-load-u32 (addr-at base off-lctrl-qslot) in
+    if eq-u32 cslot h3-slot-none then b-false
+    else
+      let tx = addr-at base off-tx-scratch in
+      let n = h3-frame-encode-goaway-raw tx 0 64 goaway-id in
+      if eq-u32 n 0 then b-false
+      else
+        let wr = quic-conn-stream-write qconn cslot tx n 0 in
+        if ne-u32 wr n then b-false
+        else
+          let _0 = raw-store-u8 (addr-at base off-goaway-sent) 1 in
+          let _1 = raw-store-u64 (addr-at base off-lgoaway-id) goaway-id in
+          let st = raw-load-u8 (addr-at base off-state) in
+          let _2 = if lt-u8 st h3-state-goaway then raw-store-u8 (addr-at base off-state) h3-state-goaway else () in
+          b-true
+
+  -- | Transmit an RFC 9218 `PRIORITY_UPDATE` frame on the local Control stream (`#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-send-priority-update-quic :: H3Conn -> QuicConn -> U64 -> I64 -> U32 ->{MVar} Bool
+  h3-conn-send-priority-update-quic conn qconn element-id val-addr val-len =
+    let base = conn.h3c-base in
+    let cslot = raw-load-u32 (addr-at base off-lctrl-qslot) in
+    if eq-u32 cslot h3-slot-none then b-false
+    else
+      let tx = addr-at base off-tx-scratch in
+      let n = h3-frame-encode-priority-update-raw tx 0 256 element-id val-addr val-len in
+      if eq-u32 n 0 then b-false
+      else eq-u32 (quic-conn-stream-write qconn cslot tx n 0) n
+
+  -- | Send an RFC 9297 HTTP/3 Datagram associated with client bidi `stream-id`
+  -- over `qconn`'s RFC 9221 `DATAGRAM` channel (`#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-send-datagram :: H3Conn -> QuicConn -> U64 -> I64 -> U32 ->{MVar} Bool
+  h3-conn-send-datagram conn qconn stream-id pay-addr pay-len =
+    let base = conn.h3c-base in
+    let tx = addr-at base off-tx-scratch in
+    let n = h3-dgram-encode-raw tx 0 1200 stream-id pay-addr pay-len in
+    if eq-u32 n 0 then b-false
+    else if quic-conn-send-datagram qconn tx n then
+      let cnt = raw-load-u64 (addr-at base off-dg-tx-cnt) in
+      let _0 = raw-store-u64 (addr-at base off-dg-tx-cnt) (wrapping-add-u64 cnt 1) in
+      b-true
+    else b-false
+
+  -- | Receive an RFC 9297 HTTP/3 Datagram from `qconn`, decoding the
+  -- quarter-stream-id varint prefix and copying payload into `out-addr[0..out-cap)`
+  -- (`#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-recv-datagram :: H3Conn -> QuicConn -> I64 -> U32 ->{MVar} H3DgramDecoded
+  h3-conn-recv-datagram conn qconn out-addr out-cap =
+    let base = conn.h3c-base in
+    let rx = addr-at base off-rx-scratch in
+    let raw-len = quic-conn-recv-datagram qconn rx 1200 in
+    if eq-u32 raw-len 0 then
+      H3DgramDecoded 0 0 h3-err-no-error 0 0 0 0 0 0
+    else
+      let d = h3-dgram-decode-raw rx 0 raw-len in
+      if eq-u8 d.h3dg-ok 0 then d
+      else
+        let take = min-u32 d.h3dg-payload-len out-cap in
+        let _cp = if gt-u32 take 0 then dma-copy out-addr (wrapping-add-i64 rx (u32-to-i64 d.h3dg-payload-off)) take else () in
+        let cnt = raw-load-u64 (addr-at base off-dg-rx-cnt) in
+        let _0 = raw-store-u64 (addr-at base off-dg-rx-cnt) (wrapping-add-u64 cnt 1) in
+        H3DgramDecoded d.h3dg-stream-id d.h3dg-quarter-id h3-err-no-error 0 take 1 0 0 0
+
+  -- Scan QUIC stream slots `0..15` and feed any newly readable bytes / FINs into `H3Conn`.
+  #[no-alloc]
+  poll-quic-slots-loop :: H3Conn -> QuicConn -> QuicStreamTable -> U32 -> H3FeedResult ->{MVar} H3FeedResult
+  poll-quic-slots-loop conn qconn stbl slot best =
+    if ge-u32 slot 16 then best
+    else if eq-u32 best.h3fr-status h3-feed-error then best
+    else
+      let base = conn.h3c-base in
+      let sid-rec = quic-stream-id-at stbl slot in
+      if ne-u32 (quic-stream-find-slot stbl sid-rec) slot then
+        poll-quic-slots-loop conn qconn stbl (wrapping-add-u32 slot 1) best
+      else
+        let sid = sid-rec.stream-id-raw in
+        let is-uni = stream-id-is-uni sid-rec in
+        let role = raw-load-u8 (addr-at base off-role) in
+        let is-remote-uni = if eq-u8 role h3-role-server then stream-id-is-client sid-rec else stream-id-is-server sid-rec in
+        let readable = quic-stream-readable-bytes stbl slot in
+        let fin-already = quic-stream-recv-fin-reached stbl slot in
+        if is-uni then
+          if b-not is-remote-uni then
+            poll-quic-slots-loop conn qconn stbl (wrapping-add-u32 slot 1) best
+          else
+            let uslot = find-uni-slot-loop base 0 sid in
+            let already-closed = if ne-u32 uslot h3-slot-none then ne-u8 (raw-load-u8 (addr-at (uni-base base uslot) u-off-closed)) 0 else b-false in
+            if either (gt-u64 readable 0) (both fin-already (b-not already-closed)) then
+              let rx = addr-at base off-rx-scratch in
+              let got = if gt-u64 readable 0 then quic-conn-stream-read qconn slot rx 2048 else 0 in
+              let fin-now = if quic-stream-recv-fin-reached stbl slot then (1 :: U8) else 0 in
+              let res = h3-conn-feed-uni conn sid rx got fin-now in
+              let next-best = if ne-u32 res.h3fr-status h3-feed-ok then res else best in
+              poll-quic-slots-loop conn qconn stbl (wrapping-add-u32 slot 1) next-best
+            else poll-quic-slots-loop conn qconn stbl (wrapping-add-u32 slot 1) best
+        else
+          -- Bidirectional request stream
+          let rslot = find-req-slot-loop base 0 sid in
+          let already-fin = if ne-u32 rslot h3-slot-none then ne-u8 (raw-load-u8 (addr-at (req-base base rslot) r-off-fin-rcvd)) 0 else b-false in
+          if either (gt-u64 readable 0) (both fin-already (b-not already-fin)) then
+            let rx = addr-at base off-rx-scratch in
+            let got = if gt-u64 readable 0 then quic-conn-stream-read qconn slot rx 2048 else 0 in
+            let fin-now = if quic-stream-recv-fin-reached stbl slot then (1 :: U8) else 0 in
+            let res = h3-conn-feed-request conn sid rx got fin-now in
+            let next-best = if either (eq-u32 res.h3fr-status h3-feed-error) (either (eq-u32 res.h3fr-status h3-feed-headers-ready) (eq-u32 res.h3fr-status h3-feed-data-ready)) then res else best in
+            poll-quic-slots-loop conn qconn stbl (wrapping-add-u32 slot 1) next-best
+          else poll-quic-slots-loop conn qconn stbl (wrapping-add-u32 slot 1) best
+
+  -- | Poll all active QUIC streams on `qconn` and feed any incoming HTTP/3
+  -- unidirectional/bidirectional frames into `conn` (`#[no-alloc]`).
+  #[no-alloc]
+  h3-conn-poll-quic :: H3Conn -> QuicConn ->{MVar} H3FeedResult
+  h3-conn-poll-quic conn qconn =
+    let base = conn.h3c-base in
+    if either (eq-u64 base 0) (b-not (quic-conn-is-valid qconn)) then
+      H3FeedResult 0 h3-err-internal-error h3-feed-error 0 0 0
+    else
+      let _init = if quic-conn-is-established qconn then h3-conn-init-quic-streams conn qconn else b-false in
+      poll-quic-slots-loop conn qconn (quic-conn-streams qconn) 0 (h3-feed-result-ok 0 0)
+
+  -- =========================================================================
+  -- 10. End-to-End Client/Server H3-over-QUIC Packet Driver (`h3-conn-drive-quic`)
+  -- =========================================================================
+
+  pump-quic-one-dir :: QuicConn -> QuicConn -> U64 -> I64 -> U64 -> U32 ->{IO, MVar} U32
+  pump-quic-one-dir src dst src-addr pkt-buf now-ns lim =
+    if eq-u32 lim 0 then 0
+    else
+      let _s1 = if quic-conn-needs-crypto-step src then let _ = quic-conn-step-crypto src now-ns in () else () in
+      let p = quic-conn-poll-tx src pkt-buf 2048 now-ns in
+      if eq-u8 p.tx-ok 0 then 0
+      else
+        let t-rx = wrapping-add-u64 now-ns 500000 in
+        let _rx = quic-conn-on-datagram dst pkt-buf p.tx-len src-addr t-rx in
+        let _s2 = if quic-conn-needs-crypto-step dst then let _ = quic-conn-step-crypto dst t-rx in () else () in
+        wrapping-add-u32 1 (pump-quic-one-dir src dst src-addr pkt-buf (wrapping-add-u64 now-ns 100000) (wrapping-sub-u32 lim 1))
+
+  -- | Drive real encrypted QUIC UDP packet exchange + HTTP/3 stream polling
+  -- between client (`cli-h3`, `cli-q`) and server (`srv-h3`, `srv-q`) for up
+  -- to `rounds` bidirectional flights. Returns updated monotonic timestamp `now-ns`.
+  h3-conn-drive-quic :: H3Conn -> QuicConn -> H3Conn -> QuicConn -> U64 -> U64 -> I64 -> U64 -> U32 ->{IO, MVar} U64
+  h3-conn-drive-quic cli-h3 cli-q srv-h3 srv-q cli-addr srv-addr pkt-buf now-ns rounds =
+    if eq-u32 rounds 0 then now-ns
+    else
+      let _ic = if quic-conn-is-established cli-q then h3-conn-init-quic-streams cli-h3 cli-q else False in
+      let _is = if quic-conn-is-established srv-q then h3-conn-init-quic-streams srv-h3 srv-q else False in
+      let n1 = pump-quic-one-dir cli-q srv-q cli-addr pkt-buf now-ns 8 in
+      let _ps = if quic-conn-is-established srv-q then let _ = h3-conn-poll-quic srv-h3 srv-q in () else () in
+      let t1 = wrapping-add-u64 now-ns 3000000 in
+      let n2 = pump-quic-one-dir srv-q cli-q srv-addr pkt-buf t1 8 in
+      let _pc = if quic-conn-is-established cli-q then let _ = h3-conn-poll-quic cli-h3 cli-q in () else () in
+      let t2 = wrapping-add-u64 t1 3000000 in
+      if eq-u32 n1 0 && eq-u32 n2 0 && quic-conn-is-established cli-q && quic-conn-is-established srv-q then t2
+      else h3-conn-drive-quic cli-h3 cli-q srv-h3 srv-q cli-addr srv-addr pkt-buf t2 (wrapping-sub-u32 rounds 1)

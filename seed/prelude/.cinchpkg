@@ -1579,6 +1579,18 @@
     {
       "name": "Store.Kv.Resp",
       "path": "Store/Kv/Resp.cinch"
+    },
+    {
+      "name": "Net.Http.V3.Frame",
+      "path": "Net/Http/V3/Frame.cinch"
+    },
+    {
+      "name": "Net.Http.V3.Conn",
+      "path": "Net/Http/V3/Conn.cinch"
+    },
+    {
+      "name": "Net.Http.V3.Spec",
+      "path": "Net/Http/V3/Spec.cinch"
     }
   ],
   "order": [
@@ -1975,6 +1987,9 @@
     "Store.Wal.Format",
     "Store.Wal.Engine",
     "Store.Wal.Spec",
-    "Store.Kv.Resp"
+    "Store.Kv.Resp",
+    "Net.Http.V3.Frame",
+    "Net.Http.V3.Conn",
+    "Net.Http.V3.Spec"
   ]
 }
