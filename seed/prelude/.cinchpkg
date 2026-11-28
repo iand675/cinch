@@ -1437,6 +1437,18 @@
       "path": "Net/Http/Router.cinch"
     },
     {
+      "name": "Net.Http.Hpack.StaticTable",
+      "path": "Net/Http/Hpack/StaticTable.cinch"
+    },
+    {
+      "name": "Net.Http.Hpack.Huffman",
+      "path": "Net/Http/Hpack/Huffman.cinch"
+    },
+    {
+      "name": "Net.Http.Hpack.Codec",
+      "path": "Net/Http/Hpack/Codec.cinch"
+    },
+    {
       "name": "Net.Tls.Fast",
       "path": "Net/Tls/Fast.cinch"
     },
@@ -1812,6 +1824,9 @@
     "Net.Http.Types",
     "Net.Http.Priority",
     "Net.Http.Router",
+    "Net.Http.Hpack.StaticTable",
+    "Net.Http.Hpack.Huffman",
+    "Net.Http.Hpack.Codec",
     "Net.Tls.Fast",
     "Net.Tls.Ktls",
     "Net.Tls.QuicBridge",

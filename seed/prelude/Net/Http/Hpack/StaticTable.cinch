@@ -1,0 +1,671 @@
+-- | RFC 7541 Appendix A 61-entry HPACK Static Table with O(1) `#[no-alloc]`
+-- mapping to/from `Net.Http.Types.KnownHeader`, zero-allocation DMA serialization
+-- of static header names and values, fast exact `(name, value)` matching for
+-- common pseudo-headers and `accept-encoding`, and high-entropy sensitive header
+-- classification (`Authorization`, `Cookie`, `Set-Cookie`, `Proxy-Authorization`).
+module Net.Http.Hpack.StaticTable where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Net.Http.Types
+  import Prim.Atomic
+
+  export hpack-static-table-len
+  export HpackStaticMatch, hpack-static-match-none, hpack-static-match-make
+  export hpack-static-name, hpack-static-value
+  export hpack-static-name-len, hpack-static-value-len
+  export hpack-static-from-known, hpack-static-to-known
+  export hpack-static-write-name-dma, hpack-static-write-value-dma
+  export hpack-static-match-known-dma, hpack-static-match-dma
+  export hpack-is-sensitive-known, hpack-is-sensitive-name-dma
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either-bool :: Bool -> Bool -> Bool
+  either-bool a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-put1 base pos b0 =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  dma-put2 base pos b0 b1 =
+    let p1 = dma-put1 base pos b0 in
+    dma-put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put3 base pos b0 b1 b2 =
+    let p2 = dma-put2 base pos b0 b1 in
+    dma-put1 base p2 b2
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put4 base pos b0 b1 b2 b3 =
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  dma-put8 base pos b0 b1 b2 b3 b4 b5 b6 b7 =
+    let _ = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 b0 b1 b2 b3 b4 b5 b6 b7) in
+    wrapping-add-u32 pos 8
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-byte-at :: I64 -> U32 ->{MVar} U8
+  dma-byte-at addr off = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 off))
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq4-exact :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-eq4-exact addr off c0 c1 c2 c3 =
+    eq-u32 (raw-load-u32 (wrapping-add-i64 addr (u32-to-i64 off))) (pack-le4 c0 c1 c2 c3)
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-eq8-exact :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  dma-eq8-exact addr off c0 c1 c2 c3 c4 c5 c6 c7 =
+    eq-u64 (raw-load-u64 (wrapping-add-i64 addr (u32-to-i64 off))) (pack-le8 c0 c1 c2 c3 c4 c5 c6 c7)
+
+  -- Check that DMA bytes `[addr, addr + len)` contain no uppercase ASCII `'A'..'Z'`.
+  #[no-alloc]
+  dma-has-no-upper :: I64 -> U32 -> U32 ->{MVar} Bool
+  dma-has-no-upper addr len i =
+    if ge-u32 i len then b-true
+    else
+      let b = dma-byte-at addr i in
+      if lt-u8 (wrapping-sub-u8 b 65) 26 then b-false
+      else dma-has-no-upper addr len (wrapping-add-u32 i 1)
+
+  -- =========================================================================
+  -- 1. Constants & POD static match result
+  -- =========================================================================
+
+  -- | Number of entries in the RFC 7541 Appendix A HPACK static table (`1..61`).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-static-table-len :: U32
+  hpack-static-table-len = 61
+
+  -- | 8-byte POD result from static table lookup:
+  --   * `sm-index`: RFC 7541 static index (`1..61`), or `0` if not found.
+  --   * `sm-exact`: `1` if both name and value matched, `0` if name-only or miss.
+  #[repr(C, value)]
+  record HpackStaticMatch where
+    sm-index :: U32
+    sm-exact :: U8
+    sm-pad0 :: U8
+    sm-pad1 :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-static-match-none :: Unit -> HpackStaticMatch
+  hpack-static-match-none _ = HpackStaticMatch 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hpack-static-match-make :: U32 -> U8 -> HpackStaticMatch
+  hpack-static-match-make idx exact = HpackStaticMatch idx exact 0 0
+
+  -- =========================================================================
+  -- 2. O(1) KnownHeader <-> HPACK static index mapping
+  -- =========================================================================
+
+  -- | Map a `Net.Http.Types.KnownHeader` ID (`0..60`) to its primary RFC 7541
+  -- HPACK static table index (`1..61`), or `0` if absent from HPACK static table.
+  #[inline(always)]
+  #[no-alloc]
+  hpack-static-from-known :: U8 -> U32
+  hpack-static-from-known hdr-id = u8-to-u32 (known-header-hpack-index hdr-id)
+
+  -- | Map an RFC 7541 HPACK static table index (`1..61`) to its canonical
+  -- `Net.Http.Types.KnownHeader` ID (`0..59`), or `hdr-unknown` (`255`) if invalid.
+  #[no-alloc]
+  hpack-static-to-known :: U32 -> U8
+  hpack-static-to-known idx =
+    if eq-u32 idx 0 then hdr-unknown
+    else if gt-u32 idx 61 then hdr-unknown
+    else if le-u32 idx 14 then
+      if eq-u32 idx 1 then hdr-authority
+      else if le-u32 idx 3 then hdr-method
+      else if le-u32 idx 5 then hdr-path
+      else if le-u32 idx 7 then hdr-scheme
+      else hdr-status
+    else if le-u32 idx 30 then
+      if eq-u32 idx 15 then hdr-accept-charset
+      else if eq-u32 idx 16 then hdr-accept-encoding
+      else if eq-u32 idx 17 then hdr-accept-language
+      else if eq-u32 idx 18 then hdr-accept-ranges
+      else if eq-u32 idx 19 then hdr-accept
+      else if eq-u32 idx 20 then hdr-access-control-allow-origin
+      else if eq-u32 idx 21 then hdr-age
+      else if eq-u32 idx 22 then hdr-allow
+      else if eq-u32 idx 23 then hdr-authorization
+      else if eq-u32 idx 24 then hdr-cache-control
+      else if eq-u32 idx 25 then hdr-content-disposition
+      else if eq-u32 idx 26 then hdr-content-encoding
+      else if eq-u32 idx 27 then hdr-content-language
+      else if eq-u32 idx 28 then hdr-content-length
+      else if eq-u32 idx 29 then hdr-content-location
+      else hdr-content-range
+    else if le-u32 idx 46 then
+      if eq-u32 idx 31 then hdr-content-type
+      else if eq-u32 idx 32 then hdr-cookie
+      else if eq-u32 idx 33 then hdr-date
+      else if eq-u32 idx 34 then hdr-etag
+      else if eq-u32 idx 35 then hdr-expect
+      else if eq-u32 idx 36 then hdr-expires
+      else if eq-u32 idx 37 then hdr-from
+      else if eq-u32 idx 38 then hdr-host
+      else if eq-u32 idx 39 then hdr-if-match
+      else if eq-u32 idx 40 then hdr-if-modified-since
+      else if eq-u32 idx 41 then hdr-if-none-match
+      else if eq-u32 idx 42 then hdr-if-range
+      else if eq-u32 idx 43 then hdr-if-unmodified-since
+      else if eq-u32 idx 44 then hdr-last-modified
+      else if eq-u32 idx 45 then hdr-link
+      else hdr-location
+    else
+      if eq-u32 idx 47 then hdr-max-forwards
+      else if eq-u32 idx 48 then hdr-proxy-authenticate
+      else if eq-u32 idx 49 then hdr-proxy-authorization
+      else if eq-u32 idx 50 then hdr-range
+      else if eq-u32 idx 51 then hdr-referer
+      else if eq-u32 idx 52 then hdr-refresh
+      else if eq-u32 idx 53 then hdr-retry-after
+      else if eq-u32 idx 54 then hdr-server
+      else if eq-u32 idx 55 then hdr-set-cookie
+      else if eq-u32 idx 56 then hdr-strict-transport-security
+      else if eq-u32 idx 57 then hdr-transfer-encoding
+      else if eq-u32 idx 58 then hdr-user-agent
+      else if eq-u32 idx 59 then hdr-vary
+      else if eq-u32 idx 60 then hdr-via
+      else hdr-www-authenticate
+
+  -- =========================================================================
+  -- 3. RFC 7541 Appendix A Static Table Names, Values, & Byte Lengths
+  -- =========================================================================
+
+  -- | Return the exact RFC 7541 Appendix A header name for static index `1..61`
+  -- as an immortal (`rc == 0`) string literal, or `""` if out of range.
+  #[no-alloc]
+  hpack-static-name :: U32 -> String
+  hpack-static-name idx =
+    let k = hpack-static-to-known idx in
+    if eq-u8 k hdr-unknown then ""
+    else known-header-wire-name k
+
+  -- | Return the exact RFC 7541 Appendix A header value for static index `1..61`
+  -- as an immortal (`rc == 0`) string literal (`""` for empty-value entries).
+  #[no-alloc]
+  hpack-static-value :: U32 -> String
+  hpack-static-value idx =
+    if eq-u32 idx 2 then "GET"
+    else if eq-u32 idx 3 then "POST"
+    else if eq-u32 idx 4 then "/"
+    else if eq-u32 idx 5 then "/index.html"
+    else if eq-u32 idx 6 then "http"
+    else if eq-u32 idx 7 then "https"
+    else if eq-u32 idx 8 then "200"
+    else if eq-u32 idx 9 then "204"
+    else if eq-u32 idx 10 then "206"
+    else if eq-u32 idx 11 then "304"
+    else if eq-u32 idx 12 then "400"
+    else if eq-u32 idx 13 then "404"
+    else if eq-u32 idx 14 then "500"
+    else if eq-u32 idx 16 then "gzip, deflate"
+    else ""
+
+  -- | Exact byte length of static entry `idx`'s name (`0` if out of range).
+  #[no-alloc]
+  hpack-static-name-len :: U32 -> U32
+  hpack-static-name-len idx =
+    if eq-u32 idx 0 then 0
+    else if gt-u32 idx 61 then 0
+    else if le-u32 idx 14 then
+      if eq-u32 idx 1 then 10
+      else if le-u32 idx 3 then 7
+      else if le-u32 idx 5 then 5
+      else 7
+    else if le-u32 idx 30 then
+      if eq-u32 idx 15 then 14
+      else if eq-u32 idx 16 then 15
+      else if eq-u32 idx 17 then 15
+      else if eq-u32 idx 18 then 13
+      else if eq-u32 idx 19 then 6
+      else if eq-u32 idx 20 then 27
+      else if eq-u32 idx 21 then 3
+      else if eq-u32 idx 22 then 5
+      else if eq-u32 idx 23 then 13
+      else if eq-u32 idx 24 then 13
+      else if eq-u32 idx 25 then 19
+      else if eq-u32 idx 26 then 16
+      else if eq-u32 idx 27 then 16
+      else if eq-u32 idx 28 then 14
+      else if eq-u32 idx 29 then 16
+      else 13
+    else if le-u32 idx 46 then
+      if eq-u32 idx 31 then 12
+      else if eq-u32 idx 32 then 6
+      else if eq-u32 idx 33 then 4
+      else if eq-u32 idx 34 then 4
+      else if eq-u32 idx 35 then 6
+      else if eq-u32 idx 36 then 7
+      else if eq-u32 idx 37 then 4
+      else if eq-u32 idx 38 then 4
+      else if eq-u32 idx 39 then 8
+      else if eq-u32 idx 40 then 17
+      else if eq-u32 idx 41 then 13
+      else if eq-u32 idx 42 then 8
+      else if eq-u32 idx 43 then 19
+      else if eq-u32 idx 44 then 13
+      else if eq-u32 idx 45 then 4
+      else 8
+    else
+      if eq-u32 idx 47 then 12
+      else if eq-u32 idx 48 then 18
+      else if eq-u32 idx 49 then 19
+      else if eq-u32 idx 50 then 5
+      else if eq-u32 idx 51 then 7
+      else if eq-u32 idx 52 then 7
+      else if eq-u32 idx 53 then 11
+      else if eq-u32 idx 54 then 6
+      else if eq-u32 idx 55 then 10
+      else if eq-u32 idx 56 then 25
+      else if eq-u32 idx 57 then 17
+      else if eq-u32 idx 58 then 10
+      else if eq-u32 idx 59 then 4
+      else if eq-u32 idx 60 then 3
+      else 16
+
+  -- | Exact byte length of static entry `idx`'s value (`0` if empty or invalid).
+  #[no-alloc]
+  hpack-static-value-len :: U32 -> U32
+  hpack-static-value-len idx =
+    if eq-u32 idx 2 then 3
+    else if eq-u32 idx 3 then 4
+    else if eq-u32 idx 4 then 1
+    else if eq-u32 idx 5 then 11
+    else if eq-u32 idx 6 then 4
+    else if eq-u32 idx 7 then 5
+    else if both (ge-u32 idx 8) (le-u32 idx 14) then 3
+    else if eq-u32 idx 16 then 13
+    else 0
+
+  -- =========================================================================
+  -- 4. Zero-Alloc DMA Serialization of Static Names & Values
+  -- =========================================================================
+
+  #[no-alloc]
+  write-static-name-lo :: U32 -> I64 ->{MVar} U32
+  write-static-name-lo idx dst =
+    if eq-u32 idx 1 then
+      let p1 = dma-put8 dst 0 58 97 117 116 104 111 114 105 in
+      dma-put2 dst p1 116 121
+    else if le-u32 idx 3 then
+      let p1 = dma-put4 dst 0 58 109 101 116 in
+      dma-put3 dst p1 104 111 100
+    else if le-u32 idx 5 then
+      let p1 = dma-put4 dst 0 58 112 97 116 in
+      dma-put1 dst p1 104
+    else if le-u32 idx 7 then
+      let p1 = dma-put4 dst 0 58 115 99 104 in
+      dma-put3 dst p1 101 109 101
+    else if le-u32 idx 14 then
+      let p1 = dma-put4 dst 0 58 115 116 97 in
+      dma-put3 dst p1 116 117 115
+    else if eq-u32 idx 15 then
+      let p1 = dma-put8 dst 0 97 99 99 101 112 116 45 99 in
+      let p2 = dma-put4 dst p1 104 97 114 115 in
+      dma-put2 dst p2 101 116
+    else if eq-u32 idx 16 then
+      let p1 = dma-put8 dst 0 97 99 99 101 112 116 45 101 in
+      let p2 = dma-put4 dst p1 110 99 111 100 in
+      dma-put3 dst p2 105 110 103
+    else if eq-u32 idx 17 then
+      let p1 = dma-put8 dst 0 97 99 99 101 112 116 45 108 in
+      let p2 = dma-put4 dst p1 97 110 103 117 in
+      dma-put3 dst p2 97 103 101
+    else if eq-u32 idx 18 then
+      let p1 = dma-put8 dst 0 97 99 99 101 112 116 45 114 in
+      let p2 = dma-put4 dst p1 97 110 103 101 in
+      dma-put1 dst p2 115
+    else if eq-u32 idx 19 then
+      let p1 = dma-put4 dst 0 97 99 99 101 in
+      dma-put2 dst p1 112 116
+    else if eq-u32 idx 20 then
+      let p1 = dma-put8 dst 0 97 99 99 101 115 115 45 99 in
+      let p2 = dma-put8 dst p1 111 110 116 114 111 108 45 97 in
+      let p3 = dma-put8 dst p2 108 108 111 119 45 111 114 105 in
+      dma-put3 dst p3 103 105 110
+    else if eq-u32 idx 21 then
+      dma-put3 dst 0 97 103 101
+    else if eq-u32 idx 22 then
+      let p1 = dma-put4 dst 0 97 108 108 111 in
+      dma-put1 dst p1 119
+    else if eq-u32 idx 23 then
+      let p1 = dma-put8 dst 0 97 117 116 104 111 114 105 122 in
+      let p2 = dma-put4 dst p1 97 116 105 111 in
+      dma-put1 dst p2 110
+    else if eq-u32 idx 24 then
+      let p1 = dma-put8 dst 0 99 97 99 104 101 45 99 111 in
+      let p2 = dma-put4 dst p1 110 116 114 111 in
+      dma-put1 dst p2 108
+    else if eq-u32 idx 25 then
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put8 dst p1 100 105 115 112 111 115 105 116 in
+      dma-put3 dst p2 105 111 110
+    else if eq-u32 idx 26 then
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      dma-put8 dst p1 101 110 99 111 100 105 110 103
+    else if eq-u32 idx 27 then
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      dma-put8 dst p1 108 97 110 103 117 97 103 101
+    else if eq-u32 idx 28 then
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put4 dst p1 108 101 110 103 in
+      dma-put2 dst p2 116 104
+    else if eq-u32 idx 29 then
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      dma-put8 dst p1 108 111 99 97 116 105 111 110
+    else
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      let p2 = dma-put4 dst p1 114 97 110 103 in
+      dma-put1 dst p2 101
+
+  #[no-alloc]
+  write-static-name-hi :: U32 -> I64 ->{MVar} U32
+  write-static-name-hi idx dst =
+    if eq-u32 idx 31 then
+      let p1 = dma-put8 dst 0 99 111 110 116 101 110 116 45 in
+      dma-put4 dst p1 116 121 112 101
+    else if eq-u32 idx 32 then
+      let p1 = dma-put4 dst 0 99 111 111 107 in
+      dma-put2 dst p1 105 101
+    else if eq-u32 idx 33 then
+      dma-put4 dst 0 100 97 116 101
+    else if eq-u32 idx 34 then
+      dma-put4 dst 0 101 116 97 103
+    else if eq-u32 idx 35 then
+      let p1 = dma-put4 dst 0 101 120 112 101 in
+      dma-put2 dst p1 99 116
+    else if eq-u32 idx 36 then
+      let p1 = dma-put4 dst 0 101 120 112 105 in
+      dma-put3 dst p1 114 101 115
+    else if eq-u32 idx 37 then
+      dma-put4 dst 0 102 114 111 109
+    else if eq-u32 idx 38 then
+      dma-put4 dst 0 104 111 115 116
+    else if eq-u32 idx 39 then
+      dma-put8 dst 0 105 102 45 109 97 116 99 104
+    else if eq-u32 idx 40 then
+      let p1 = dma-put8 dst 0 105 102 45 109 111 100 105 102 in
+      let p2 = dma-put8 dst p1 105 101 100 45 115 105 110 99 in
+      dma-put1 dst p2 101
+    else if eq-u32 idx 41 then
+      let p1 = dma-put8 dst 0 105 102 45 110 111 110 101 45 in
+      let p2 = dma-put4 dst p1 109 97 116 99 in
+      dma-put1 dst p2 104
+    else if eq-u32 idx 42 then
+      dma-put8 dst 0 105 102 45 114 97 110 103 101
+    else if eq-u32 idx 43 then
+      let p1 = dma-put8 dst 0 105 102 45 117 110 109 111 100 in
+      let p2 = dma-put8 dst p1 105 102 105 101 100 45 115 105 in
+      dma-put3 dst p2 110 99 101
+    else if eq-u32 idx 44 then
+      let p1 = dma-put8 dst 0 108 97 115 116 45 109 111 100 in
+      let p2 = dma-put4 dst p1 105 102 105 101 in
+      dma-put1 dst p2 100
+    else if eq-u32 idx 45 then
+      dma-put4 dst 0 108 105 110 107
+    else if eq-u32 idx 46 then
+      dma-put8 dst 0 108 111 99 97 116 105 111 110
+    else if eq-u32 idx 47 then
+      let p1 = dma-put8 dst 0 109 97 120 45 102 111 114 119 in
+      dma-put4 dst p1 97 114 100 115
+    else if eq-u32 idx 48 then
+      let p1 = dma-put8 dst 0 112 114 111 120 121 45 97 117 in
+      let p2 = dma-put8 dst p1 116 104 101 110 116 105 99 97 in
+      dma-put2 dst p2 116 101
+    else if eq-u32 idx 49 then
+      let p1 = dma-put8 dst 0 112 114 111 120 121 45 97 117 in
+      let p2 = dma-put8 dst p1 116 104 111 114 105 122 97 116 in
+      dma-put3 dst p2 105 111 110
+    else if eq-u32 idx 50 then
+      let p1 = dma-put4 dst 0 114 97 110 103 in
+      dma-put1 dst p1 101
+    else if eq-u32 idx 51 then
+      let p1 = dma-put4 dst 0 114 101 102 101 in
+      dma-put3 dst p1 114 101 114
+    else if eq-u32 idx 52 then
+      let p1 = dma-put4 dst 0 114 101 102 114 in
+      dma-put3 dst p1 101 115 104
+    else if eq-u32 idx 53 then
+      let p1 = dma-put8 dst 0 114 101 116 114 121 45 97 102 in
+      dma-put3 dst p1 116 101 114
+    else if eq-u32 idx 54 then
+      let p1 = dma-put4 dst 0 115 101 114 118 in
+      dma-put2 dst p1 101 114
+    else if eq-u32 idx 55 then
+      let p1 = dma-put8 dst 0 115 101 116 45 99 111 111 107 in
+      dma-put2 dst p1 105 101
+    else if eq-u32 idx 56 then
+      let p1 = dma-put8 dst 0 115 116 114 105 99 116 45 116 in
+      let p2 = dma-put8 dst p1 114 97 110 115 112 111 114 116 in
+      let p3 = dma-put8 dst p2 45 115 101 99 117 114 105 116 in
+      dma-put1 dst p3 121
+    else if eq-u32 idx 57 then
+      let p1 = dma-put8 dst 0 116 114 97 110 115 102 101 114 in
+      let p2 = dma-put8 dst p1 45 101 110 99 111 100 105 110 in
+      dma-put1 dst p2 103
+    else if eq-u32 idx 58 then
+      let p1 = dma-put8 dst 0 117 115 101 114 45 97 103 101 in
+      dma-put2 dst p1 110 116
+    else if eq-u32 idx 59 then
+      dma-put4 dst 0 118 97 114 121
+    else if eq-u32 idx 60 then
+      dma-put3 dst 0 118 105 97
+    else
+      let p1 = dma-put8 dst 0 119 119 119 45 97 117 116 104 in
+      dma-put8 dst p1 101 110 116 105 99 97 116 101
+
+  -- | Write static entry `idx`'s wire name into DMA `[dst, dst + cap)`.
+  -- Returns bytes written on success, or `wrapping-add-u32 cap 1` on invalid index or overflow.
+  #[no-alloc]
+  hpack-static-write-name-dma :: U32 -> I64 -> U32 ->{MVar} U32
+  hpack-static-write-name-dma idx dst cap =
+    let n = hpack-static-name-len idx in
+    if eq-u32 n 0 then wrapping-add-u32 cap 1
+    else if gt-u32 n cap then wrapping-add-u32 cap 1
+    else if le-u32 idx 30 then write-static-name-lo idx dst
+    else write-static-name-hi idx dst
+
+  -- | Write static entry `idx`'s value into DMA `[dst, dst + cap)`.
+  -- Returns bytes written (`0` for empty-value entries) on success, or
+  -- `wrapping-add-u32 cap 1` on invalid index or overflow.
+  #[no-alloc]
+  hpack-static-write-value-dma :: U32 -> I64 -> U32 ->{MVar} U32
+  hpack-static-write-value-dma idx dst cap =
+    if eq-u32 idx 0 then wrapping-add-u32 cap 1
+    else if gt-u32 idx 61 then wrapping-add-u32 cap 1
+    else
+      let n = hpack-static-value-len idx in
+      if eq-u32 n 0 then 0
+      else if gt-u32 n cap then wrapping-add-u32 cap 1
+      else if eq-u32 idx 2 then dma-put3 dst 0 71 69 84             -- "GET"
+      else if eq-u32 idx 3 then dma-put4 dst 0 80 79 83 84          -- "POST"
+      else if eq-u32 idx 4 then dma-put1 dst 0 47                   -- "/"
+      else if eq-u32 idx 5 then
+        let p1 = dma-put8 dst 0 47 105 110 100 101 120 46 104 in    -- "/index.h"
+        dma-put3 dst p1 116 109 108                                 -- "tml"
+      else if eq-u32 idx 6 then dma-put4 dst 0 104 116 116 112      -- "http"
+      else if eq-u32 idx 7 then
+        let p1 = dma-put4 dst 0 104 116 116 112 in                  -- "http"
+        dma-put1 dst p1 115                                         -- "s"
+      else if eq-u32 idx 8 then dma-put3 dst 0 50 48 48             -- "200"
+      else if eq-u32 idx 9 then dma-put3 dst 0 50 48 52             -- "204"
+      else if eq-u32 idx 10 then dma-put3 dst 0 50 48 54            -- "206"
+      else if eq-u32 idx 11 then dma-put3 dst 0 51 48 52            -- "304"
+      else if eq-u32 idx 12 then dma-put3 dst 0 52 48 48            -- "400"
+      else if eq-u32 idx 13 then dma-put3 dst 0 52 48 52            -- "404"
+      else if eq-u32 idx 14 then dma-put3 dst 0 53 48 48            -- "500"
+      else
+        let p1 = dma-put8 dst 0 103 122 105 112 44 32 100 101 in    -- "gzip, de"
+        let p2 = dma-put4 dst p1 102 108 97 116 in                  -- "flat"
+        dma-put1 dst p2 101                                         -- "e"
+
+  -- =========================================================================
+  -- 5. Fast O(1) Static Table Exact Match & Sensitive Header Policy
+  -- =========================================================================
+
+  -- | O(1) `#[no-alloc]` static table lookup given a `KnownHeader` ID and raw
+  -- DMA header value `[val-addr, val-addr + val-len)`.
+  -- Returns exact match (`sm-exact == 1`) for `:method`, `:scheme`, `:path`,
+  -- `:status`, `accept-encoding`, and empty-value static entries; name-only
+  -- match (`sm-exact == 0`) otherwise; or `sm-index == 0` if not in HPACK static table.
+  #[no-alloc]
+  hpack-static-match-known-dma :: U8 -> I64 -> U32 ->{MVar} HpackStaticMatch
+  hpack-static-match-known-dma hdr-id val-addr val-len =
+    if eq-u8 hdr-id hdr-method then
+      if eq-u32 val-len 3 then
+        if both (eq-u8 (dma-byte-at val-addr 0) 71)
+          (both (eq-u8 (dma-byte-at val-addr 1) 69) (eq-u8 (dma-byte-at val-addr 2) 84))
+        then HpackStaticMatch 2 1 0 0
+        else HpackStaticMatch 2 0 0 0
+      else if eq-u32 val-len 4 then
+        if dma-eq4-exact val-addr 0 80 79 83 84 then HpackStaticMatch 3 1 0 0
+        else HpackStaticMatch 2 0 0 0
+      else HpackStaticMatch 2 0 0 0
+    else if eq-u8 hdr-id hdr-path then
+      if eq-u32 val-len 1 then
+        if eq-u8 (dma-byte-at val-addr 0) 47 then HpackStaticMatch 4 1 0 0
+        else HpackStaticMatch 4 0 0 0
+      else if eq-u32 val-len 11 then
+        if both
+          (dma-eq8-exact val-addr 0 47 105 110 100 101 120 46 104)
+          (both (eq-u8 (dma-byte-at val-addr 8) 116)
+            (both (eq-u8 (dma-byte-at val-addr 9) 109) (eq-u8 (dma-byte-at val-addr 10) 108)))
+        then HpackStaticMatch 5 1 0 0
+        else HpackStaticMatch 4 0 0 0
+      else HpackStaticMatch 4 0 0 0
+    else if eq-u8 hdr-id hdr-scheme then
+      if eq-u32 val-len 4 then
+        if dma-eq4-exact val-addr 0 104 116 116 112 then HpackStaticMatch 6 1 0 0
+        else HpackStaticMatch 6 0 0 0
+      else if eq-u32 val-len 5 then
+        if both (dma-eq4-exact val-addr 0 104 116 116 112) (eq-u8 (dma-byte-at val-addr 4) 115)
+        then HpackStaticMatch 7 1 0 0
+        else HpackStaticMatch 6 0 0 0
+      else HpackStaticMatch 6 0 0 0
+    else if eq-u8 hdr-id hdr-status then
+      if eq-u32 val-len 3 then
+        let c0 = dma-byte-at val-addr 0 in
+        let c1 = dma-byte-at val-addr 1 in
+        let c2 = dma-byte-at val-addr 2 in
+        if eq-u8 c1 48 then
+          if eq-u8 c0 50 then
+            if eq-u8 c2 48 then HpackStaticMatch 8 1 0 0
+            else if eq-u8 c2 52 then HpackStaticMatch 9 1 0 0
+            else if eq-u8 c2 54 then HpackStaticMatch 10 1 0 0
+            else HpackStaticMatch 8 0 0 0
+          else if eq-u8 c0 51 then
+            if eq-u8 c2 52 then HpackStaticMatch 11 1 0 0
+            else HpackStaticMatch 8 0 0 0
+          else if eq-u8 c0 52 then
+            if eq-u8 c2 48 then HpackStaticMatch 12 1 0 0
+            else if eq-u8 c2 52 then HpackStaticMatch 13 1 0 0
+            else HpackStaticMatch 8 0 0 0
+          else if eq-u8 c0 53 then
+            if eq-u8 c2 48 then HpackStaticMatch 14 1 0 0
+            else HpackStaticMatch 8 0 0 0
+          else HpackStaticMatch 8 0 0 0
+        else HpackStaticMatch 8 0 0 0
+      else HpackStaticMatch 8 0 0 0
+    else if eq-u8 hdr-id hdr-accept-encoding then
+      if eq-u32 val-len 13 then
+        if both
+          (dma-eq8-exact val-addr 0 103 122 105 112 44 32 100 101)
+          (both (dma-eq4-exact val-addr 8 102 108 97 116) (eq-u8 (dma-byte-at val-addr 12) 101))
+        then HpackStaticMatch 16 1 0 0
+        else HpackStaticMatch 16 0 0 0
+      else HpackStaticMatch 16 0 0 0
+    else
+      let base = known-header-hpack-index hdr-id in
+      if eq-u8 base 0 then HpackStaticMatch 0 0 0 0
+      else if eq-u32 val-len 0 then HpackStaticMatch (u8-to-u32 base) 1 0 0
+      else HpackStaticMatch (u8-to-u32 base) 0 0 0
+
+  -- | O(1) `#[no-alloc]` static table lookup from raw lowercase DMA name and value.
+  #[no-alloc]
+  hpack-static-match-dma :: I64 -> U32 -> I64 -> U32 ->{MVar} HpackStaticMatch
+  hpack-static-match-dma name-addr name-len val-addr val-len =
+    let k = known-header-match-dma name-addr name-len in
+    if eq-u8 k hdr-unknown then HpackStaticMatch 0 0 0 0
+    else if dma-has-no-upper name-addr name-len 0 then
+      hpack-static-match-known-dma k val-addr val-len
+    else HpackStaticMatch 0 0 0 0
+
+  -- | High-entropy / credential header classification for automatic RFC 7541
+  -- §6.2.3 Never-Indexed policy (`Authorization`, `Cookie`, `Set-Cookie`,
+  -- `Proxy-Authorization`).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-is-sensitive-known :: U8 -> Bool
+  hpack-is-sensitive-known hdr-id =
+    either-bool
+      (either-bool (eq-u8 hdr-id hdr-authorization) (eq-u8 hdr-id hdr-cookie))
+      (either-bool (eq-u8 hdr-id hdr-set-cookie) (eq-u8 hdr-id hdr-proxy-authorization))
+
+  -- | Check whether raw DMA header name `[name-addr, name-addr + name-len)` is a
+  -- high-entropy / credential header (`Authorization`, `Cookie`, `Set-Cookie`,
+  -- `Proxy-Authorization`, case-insensitively).
+  #[inline(always)]
+  #[no-alloc]
+  hpack-is-sensitive-name-dma :: I64 -> U32 ->{MVar} Bool
+  hpack-is-sensitive-name-dma name-addr name-len =
+    hpack-is-sensitive-known (known-header-match-dma name-addr name-len)
