@@ -1770,6 +1770,7 @@
     "Engine.Sim.Faults",
     "Engine.Sim",
     "Engine.Reactor.Linux",
-    "Engine.Reactor.Spec"
+    "Engine.Reactor.Spec",
+    "Engine.Reactor.Darwin"
   ]
 }
