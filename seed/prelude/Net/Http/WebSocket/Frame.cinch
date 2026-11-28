@@ -1,0 +1,1249 @@
+-- | Zero-allocation (`#[no-alloc]`) RFC 6455 / RFC 8441 WebSocket handshake,
+-- incremental frame parser, in-place 128-bit SIMD unmasking, strict streaming
+-- UTF-8 validator, and zero-copy headroom frame encoder.
+--
+-- Built directly over `Engine.Simd.Mask` (`ws-mask-dma-in-place`),
+-- `Engine.Types`, `Net.Http.Types`, `Prim.Atomic`, `Prim.SimdExt`, and
+-- `Data.Wide`.
+--
+-- Strict RFC 6455 / Autobahn conformance enforced in `#[no-alloc]` hot paths:
+--   * RFC 6455 §1.3 / §4.2.2 HTTP/1.1 `101 Switching Protocols` handshake with
+--     zero-alloc register SHA-1 + Base64 `Sec-WebSocket-Accept` computation
+--     directly into caller DMA buffers.
+--   * RFC 8441 Extended `CONNECT` (`:protocol = websocket`) validation and
+--     HPACK (`:status: 200`) / QPACK (`:status: 200`) response helpers for
+--     HTTP/2 and HTTP/3 WebSockets.
+--   * Full 7-bit, 16-bit (`126`), and 64-bit (`127`, MSB=0) payload lengths
+--     with configurable `max-frame-size` guard (`1009 Message Too Big`).
+--   * Rejects RSV1/RSV2/RSV3 when no extension is negotiated (`1002`).
+--   * Rejects unmasked client-to-server frames and masked server-to-client
+--     frames (`1002`).
+--   * Rejects fragmented control frames (`FIN=0` on Close/Ping/Pong) and
+--     control frame payloads `> 125` bytes (`1002`).
+--   * Rejects reserved opcodes `3..7` and `0xB..0xF` (`1002`).
+--   * Rejects invalid Close status codes (`< 1000`, `1004`, `1005`, `1006`,
+--     `1015`, `1016..2999`, `>= 5000`, or 1-byte Close payload) (`1002`) and
+--     invalid UTF-8 Close reason text (`1007`).
+--   * Rejects interleaved data fragments (`Cont` without active fragmented
+--     message, or new `Text`/`Binary` while fragmented message in progress)
+--     (`1002`), while allowing interleaved control frames (`Ping`/`Pong`/`Close`).
+--   * Strict streaming RFC 3629 UTF-8 DFA with 16-byte SIMD ASCII fast path
+--     rejecting overlong encodings, UTF-16 surrogates (`U+D800..U+DFFF`),
+--     codepoints `> U+10FFFF`, and truncated multi-byte sequences on `FIN=1`
+--     (`1007 Invalid frame payload data`).
+module Net.Http.WebSocket.Frame where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.String
+  import Data.Wide
+  import Engine.Simd.Mask
+  import Engine.Types
+  import Net.Http.Types
+  import Prim.Atomic
+  import Prim.SimdExt
+  import Text.Base64
+  import Text.Sha1
+
+  -- Opcodes, parse statuses, close codes, and defaults
+  export ws-op-cont, ws-op-text, ws-op-binary, ws-op-close, ws-op-ping, ws-op-pong
+  export WsOpcode, WsOpCont, WsOpText, WsOpBinary, WsOpClose, WsOpPing, WsOpPong, WsOpReserved
+  export ws-opcode-to-u8, ws-opcode-from-u8, ws-opcode-is-control, ws-opcode-is-data, ws-opcode-is-valid
+  export ws-parse-ok, ws-parse-need-more, ws-parse-err-protocol, ws-parse-err-invalid-utf8, ws-parse-err-too-big
+  export ws-close-normal, ws-close-going-away, ws-close-protocol-error, ws-close-unsupported-data
+  export ws-close-no-status, ws-close-abnormal, ws-close-invalid-payload, ws-close-policy-violation
+  export ws-close-message-too-big, ws-close-mandatory-ext, ws-close-internal-error, ws-close-tls-handshake
+  export ws-close-code-is-valid, ws-default-max-frame-size
+
+  -- RFC 6455 HTTP/1.1 & RFC 8441 HTTP/2 + HTTP/3 handshake helpers
+  export ws-guid-byte, ws-compute-accept-dma, ws-compute-accept
+  export ws-handshake-validate-h1-key-dma, ws-handshake-write-upgrade-dma
+  export ws-rfc8441-is-protocol-websocket-dma, ws-rfc8441-validate-connect-dma
+  export ws-rfc8441-write-ok-h2-dma, ws-rfc8441-write-ok-h3-dma, ws-rfc8441-ok-status
+
+  -- Strict streaming UTF-8 validator (#[no-alloc] DFA + 16B SIMD ASCII fast path)
+  export ws-utf8-accept, ws-utf8-reject
+  export ws-utf8-validate-step, ws-utf8-validate-raw
+  export ws-utf8-is-valid-final, ws-utf8-is-rejected
+
+  -- Incremental RFC 6455 frame parser & state (#[no-alloc])
+  export WsParserState, ws-parser-init-server, ws-parser-init-client, ws-parser-init, ws-parser-apply
+  export WsFrameHeader, ws-parse-header-dma
+  export WsFrameResult, ws-parse-frame-dma
+
+  -- Zero-alloc headroom & DMA frame encoders
+  export ws-frame-header-len, ws-frame-encode-header-dma
+  export ws-frame-encode-raw, ws-frame-encode-headroom-raw, ws-frame-encode-masked-raw
+  export ws-encode-pong-dma, ws-encode-ping-dma, ws-encode-close-dma
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & byte helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  load-u8-at :: I64 -> U32 ->{MVar} U8
+  load-u8-at base off = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off))
+
+  #[inline(always)]
+  #[no-alloc]
+  store-u8-at :: I64 -> U32 -> U8 ->{MVar} U32
+  store-u8-at base off val =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 off)) val in
+    wrapping-add-u32 off 1
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put4 base pos c0 c1 c2 c3 =
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 c0 c1 c2 c3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put8 base pos c0 c1 c2 c3 c4 c5 c6 c7 =
+    let _ = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 c0 c1 c2 c3 c4 c5 c6 c7) in
+    wrapping-add-u32 pos 8
+
+  #[no-alloc]
+  dma-copy-loop16 :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-loop16 dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy-loop16 (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy-loop16 (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if ge-u32 rem 4 then
+      let v = raw-load-u32 src in
+      let _ = raw-store-u32 dst v in
+      dma-copy-loop16 (wrapping-add-i64 dst 4) (wrapping-add-i64 src 4) (wrapping-sub-u32 rem 4)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy-loop16 (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- =========================================================================
+  -- 1. RFC 6455 Opcodes, Parse Statuses, and Close Codes
+  -- =========================================================================
+
+  #[no-alloc]
+  ws-op-cont :: U8
+  ws-op-cont = 0
+
+  #[no-alloc]
+  ws-op-text :: U8
+  ws-op-text = 1
+
+  #[no-alloc]
+  ws-op-binary :: U8
+  ws-op-binary = 2
+
+  #[no-alloc]
+  ws-op-close :: U8
+  ws-op-close = 8
+
+  #[no-alloc]
+  ws-op-ping :: U8
+  ws-op-ping = 9
+
+  #[no-alloc]
+  ws-op-pong :: U8
+  ws-op-pong = 10
+
+  -- | Canonical RFC 6455 WebSocket frame opcode (auto-niched single-word enum).
+  data WsOpcode where
+    WsOpCont :: WsOpcode
+    WsOpText :: WsOpcode
+    WsOpBinary :: WsOpcode
+    WsOpClose :: WsOpcode
+    WsOpPing :: WsOpcode
+    WsOpPong :: WsOpcode
+    WsOpReserved :: WsOpcode
+
+  #[no-alloc]
+  ws-opcode-to-u8 :: WsOpcode -> U8
+  ws-opcode-to-u8 op = case op of
+    WsOpCont -> 0
+    WsOpText -> 1
+    WsOpBinary -> 2
+    WsOpClose -> 8
+    WsOpPing -> 9
+    WsOpPong -> 10
+    WsOpReserved -> 15
+
+  -- Auto-niched single-word enum: zero runtime heap allocation.
+  ws-opcode-from-u8 :: U8 -> WsOpcode
+  ws-opcode-from-u8 code =
+    if eq-u8 code 0 then WsOpCont
+    else if eq-u8 code 1 then WsOpText
+    else if eq-u8 code 2 then WsOpBinary
+    else if eq-u8 code 8 then WsOpClose
+    else if eq-u8 code 9 then WsOpPing
+    else if eq-u8 code 10 then WsOpPong
+    else WsOpReserved
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-opcode-is-control :: U8 -> Bool
+  ws-opcode-is-control op = ne-u8 (bit-and-u8 op 8) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-opcode-is-data :: U8 -> Bool
+  ws-opcode-is-data op = le-u8 op 2
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-opcode-is-valid :: U8 -> Bool
+  ws-opcode-is-valid op =
+    either (le-u8 op 2) (both (ge-u8 op 8) (le-u8 op 10))
+
+  -- Parse outcome codes
+  #[no-alloc]
+  ws-parse-ok :: U8
+  ws-parse-ok = 0
+
+  #[no-alloc]
+  ws-parse-need-more :: U8
+  ws-parse-need-more = 1
+
+  #[no-alloc]
+  ws-parse-err-protocol :: U8
+  ws-parse-err-protocol = 2
+
+  #[no-alloc]
+  ws-parse-err-invalid-utf8 :: U8
+  ws-parse-err-invalid-utf8 = 3
+
+  #[no-alloc]
+  ws-parse-err-too-big :: U8
+  ws-parse-err-too-big = 4
+
+  -- RFC 6455 §7.4.1 Close status codes
+  #[no-alloc]
+  ws-close-normal :: U16
+  ws-close-normal = 1000
+
+  #[no-alloc]
+  ws-close-going-away :: U16
+  ws-close-going-away = 1001
+
+  #[no-alloc]
+  ws-close-protocol-error :: U16
+  ws-close-protocol-error = 1002
+
+  #[no-alloc]
+  ws-close-unsupported-data :: U16
+  ws-close-unsupported-data = 1003
+
+  #[no-alloc]
+  ws-close-no-status :: U16
+  ws-close-no-status = 1005
+
+  #[no-alloc]
+  ws-close-abnormal :: U16
+  ws-close-abnormal = 1006
+
+  #[no-alloc]
+  ws-close-invalid-payload :: U16
+  ws-close-invalid-payload = 1007
+
+  #[no-alloc]
+  ws-close-policy-violation :: U16
+  ws-close-policy-violation = 1008
+
+  #[no-alloc]
+  ws-close-message-too-big :: U16
+  ws-close-message-too-big = 1009
+
+  #[no-alloc]
+  ws-close-mandatory-ext :: U16
+  ws-close-mandatory-ext = 1010
+
+  #[no-alloc]
+  ws-close-internal-error :: U16
+  ws-close-internal-error = 1011
+
+  #[no-alloc]
+  ws-close-tls-handshake :: U16
+  ws-close-tls-handshake = 1015
+
+  -- | Default maximum accepted WebSocket frame payload size (16 MiB).
+  #[no-alloc]
+  ws-default-max-frame-size :: U64
+  ws-default-max-frame-size = 16777216
+
+  -- | RFC 6455 §7.4.2 / Autobahn Close status code validation.
+  -- Accepts `1000..1003`, `1007..1014`, and `3000..4999`; rejects `< 1000`,
+  -- `1004`, `1005`, `1006`, `1015`, `1016..2999`, and `>= 5000`.
+  #[inline(always)]
+  #[no-alloc]
+  ws-close-code-is-valid :: U16 -> Bool
+  ws-close-code-is-valid code =
+    if lt-u16 code 1000 then b-false
+    else if le-u16 code 1003 then b-true
+    else if lt-u16 code 1007 then b-false
+    else if le-u16 code 1014 then b-true
+    else if lt-u16 code 3000 then b-false
+    else lt-u16 code 5000
+
+  -- =========================================================================
+  -- 2. RFC 6455 HTTP/1.1 & RFC 8441 HTTP/2 + HTTP/3 Handshake Helpers
+  -- =========================================================================
+
+  -- | Byte `idx` (`0..35`) of the RFC 6455 GUID `"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"`.
+  #[inline(always)]
+  #[no-alloc]
+  ws-guid-byte :: U32 -> U8
+  ws-guid-byte i =
+    if lt-u32 i 18 then
+      if lt-u32 i 9 then
+        if eq-u32 i 0 then 50        -- '2'
+        else if eq-u32 i 1 then 53   -- '5'
+        else if eq-u32 i 2 then 56   -- '8'
+        else if eq-u32 i 3 then 69   -- 'E'
+        else if eq-u32 i 4 then 65   -- 'A'
+        else if eq-u32 i 5 then 70   -- 'F'
+        else if eq-u32 i 6 then 65   -- 'A'
+        else if eq-u32 i 7 then 53   -- '5'
+        else 45                      -- '-'
+      else
+        if eq-u32 i 9 then 69        -- 'E'
+        else if eq-u32 i 10 then 57  -- '9'
+        else if eq-u32 i 11 then 49  -- '1'
+        else if eq-u32 i 12 then 52  -- '4'
+        else if eq-u32 i 13 then 45  -- '-'
+        else if eq-u32 i 14 then 52  -- '4'
+        else if eq-u32 i 15 then 55  -- '7'
+        else if eq-u32 i 16 then 68  -- 'D'
+        else 65                      -- 'A'
+    else
+      if lt-u32 i 27 then
+        if eq-u32 i 18 then 45       -- '-'
+        else if eq-u32 i 19 then 57  -- '9'
+        else if eq-u32 i 20 then 53  -- '5'
+        else if eq-u32 i 21 then 67  -- 'C'
+        else if eq-u32 i 22 then 65  -- 'A'
+        else if eq-u32 i 23 then 45  -- '-'
+        else if eq-u32 i 24 then 67  -- 'C'
+        else if eq-u32 i 25 then 53  -- '5'
+        else 65                      -- 'A'
+      else
+        if eq-u32 i 27 then 66       -- 'B'
+        else if eq-u32 i 28 then 48  -- '0'
+        else if eq-u32 i 29 then 68  -- 'D'
+        else if eq-u32 i 30 then 67  -- 'C'
+        else if eq-u32 i 31 then 56  -- '8'
+        else if eq-u32 i 32 then 53  -- '5'
+        else if eq-u32 i 33 then 66  -- 'B'
+        else if eq-u32 i 34 then 49  -- '1'
+        else 49                      -- '1'
+
+  -- Register-only #[no-alloc] SHA-1 over virtual stream `key[0..key-len) || GUID || padding`.
+  #[repr(C, value)]
+  record Sha1RegState where
+    sh-h0 :: U32
+    sh-h1 :: U32
+    sh-h2 :: U32
+    sh-h3 :: U32
+    sh-h4 :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  sha1-virtual-byte :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U8
+  sha1-virtual-byte key-addr key-len msg-len padded-len pos =
+    if lt-u32 pos key-len then raw-load-u8 (wrapping-add-i64 key-addr (u32-to-i64 pos))
+    else if lt-u32 pos msg-len then ws-guid-byte (wrapping-sub-u32 pos key-len)
+    else if eq-u32 pos msg-len then 128
+    else
+      let len-start = wrapping-sub-u32 padded-len 8 in
+      if lt-u32 pos len-start then 0
+      else
+        let bit-len = wrapping-shl-u64 (u32-to-u64 msg-len) 3 in
+        let shift = wrapping-shl-u32 (wrapping-sub-u32 (wrapping-sub-u32 padded-len 1) pos) 3 in
+        wrapping-u64-to-u8 (wrapping-shr-u64 bit-len shift)
+
+  #[inline(always)]
+  #[no-alloc]
+  sha1-virtual-word :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  sha1-virtual-word key-addr key-len msg-len padded-len pos =
+    let b0 = u8-to-u32 (sha1-virtual-byte key-addr key-len msg-len padded-len pos) in
+    let b1 = u8-to-u32 (sha1-virtual-byte key-addr key-len msg-len padded-len (wrapping-add-u32 pos 1)) in
+    let b2 = u8-to-u32 (sha1-virtual-byte key-addr key-len msg-len padded-len (wrapping-add-u32 pos 2)) in
+    let b3 = u8-to-u32 (sha1-virtual-byte key-addr key-len msg-len padded-len (wrapping-add-u32 pos 3)) in
+    bit-or-u32
+      (bit-or-u32 (wrapping-shl-u32 b0 24) (wrapping-shl-u32 b1 16))
+      (bit-or-u32 (wrapping-shl-u32 b2 8) b3)
+
+  #[inline(always)]
+  #[no-alloc]
+  sha1-virtual-group :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U128
+  sha1-virtual-group key-addr key-len msg-len padded-len pos =
+    let w0 = sha1-virtual-word key-addr key-len msg-len padded-len pos in
+    let w1 = sha1-virtual-word key-addr key-len msg-len padded-len (wrapping-add-u32 pos 4) in
+    let w2 = sha1-virtual-word key-addr key-len msg-len padded-len (wrapping-add-u32 pos 8) in
+    let w3 = sha1-virtual-word key-addr key-len msg-len padded-len (wrapping-add-u32 pos 12) in
+    let lo = bit-or-u64 (u32-to-u64 w0) (wrapping-shl-u64 (u32-to-u64 w1) 32) in
+    let hi = bit-or-u64 (u32-to-u64 w2) (wrapping-shl-u64 (u32-to-u64 w3) 32) in
+    simd-u64x2-pack lo hi
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-lane0 :: U128 -> U32
+  ws-sha1-lane0 g = wrapping-u128-to-u32 g
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-lane1 :: U128 -> U32
+  ws-sha1-lane1 g = wrapping-u128-to-u32 (wrapping-shr-u128 g 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-lane2 :: U128 -> U32
+  ws-sha1-lane2 g = wrapping-u128-to-u32 (wrapping-shr-u128 g 64)
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-lane3 :: U128 -> U32
+  ws-sha1-lane3 g = wrapping-u128-to-u32 (wrapping-shr-u128 g 96)
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-sched :: U128 -> U128 -> U128 -> U128 -> U128
+  ws-sha1-sched g0 g1 g2 g3 =
+    let w3 = wrapping-shr-u128 g3 32 in
+    let w14 = bit-or-u128 (wrapping-shr-u128 g0 64) (wrapping-shl-u128 g1 64) in
+    let x = bit-xor-u128 (bit-xor-u128 (bit-xor-u128 w3 g2) w14) g0 in
+    let r = simd-u32x4-rotl x 1 in
+    let fix = wrapping-shl-u128 (u32-to-u128 (rotate-left-u32 (wrapping-u128-to-u32 r) 1)) 96 in
+    bit-xor-u128 r fix
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-step :: U32 -> U32 -> U32 -> U32 -> U32 -> U32
+  ws-sha1-step a f e w k =
+    wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 (rotate-left-u32 a 5) f) e) w) k
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-ch :: U32 -> U32 -> U32 -> U32
+  ws-sha1-ch b c d = bit-xor-u32 (bit-and-u32 b c) (bit-and-u32 (bit-not-u32 b) d)
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-par :: U32 -> U32 -> U32 -> U32
+  ws-sha1-par b c d = bit-xor-u32 (bit-xor-u32 b c) d
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-sha1-maj :: U32 -> U32 -> U32 -> U32
+  ws-sha1-maj b c d = bit-or-u32 (bit-or-u32 (bit-and-u32 b c) (bit-and-u32 b d)) (bit-and-u32 c d)
+
+  #[no-alloc]
+  ws-sha1-rounds
+    :: U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32
+    -> U128 -> U128 -> U128 -> U128 -> Sha1RegState
+  ws-sha1-rounds r h0 h1 h2 h3 h4 a b c d e g0 g1 g2 g3 =
+    if ge-u32 r 80 then
+      Sha1RegState
+        (wrapping-add-u32 h0 a)
+        (wrapping-add-u32 h1 b)
+        (wrapping-add-u32 h2 c)
+        (wrapping-add-u32 h3 d)
+        (wrapping-add-u32 h4 e)
+    else
+      let g4 = if lt-u32 r 64 then ws-sha1-sched g0 g1 g2 g3 else g0 in
+      let next-r = wrapping-add-u32 r 4 in
+      if lt-u32 r 20 then
+        let a0 = ws-sha1-step a (ws-sha1-ch b c d) e (ws-sha1-lane0 g0) 1518500249 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = ws-sha1-step a0 (ws-sha1-ch a b0 c) d (ws-sha1-lane1 g0) 1518500249 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = ws-sha1-step a1 (ws-sha1-ch a0 b1 b0) c (ws-sha1-lane2 g0) 1518500249 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = ws-sha1-step a2 (ws-sha1-ch a1 b2 b1) b0 (ws-sha1-lane3 g0) 1518500249 in
+        let b3 = rotate-left-u32 a1 30 in
+        ws-sha1-rounds next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+      else if lt-u32 r 40 then
+        let a0 = ws-sha1-step a (ws-sha1-par b c d) e (ws-sha1-lane0 g0) 1859775393 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = ws-sha1-step a0 (ws-sha1-par a b0 c) d (ws-sha1-lane1 g0) 1859775393 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = ws-sha1-step a1 (ws-sha1-par a0 b1 b0) c (ws-sha1-lane2 g0) 1859775393 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = ws-sha1-step a2 (ws-sha1-par a1 b2 b1) b0 (ws-sha1-lane3 g0) 1859775393 in
+        let b3 = rotate-left-u32 a1 30 in
+        ws-sha1-rounds next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+      else if lt-u32 r 60 then
+        let a0 = ws-sha1-step a (ws-sha1-maj b c d) e (ws-sha1-lane0 g0) 2400959708 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = ws-sha1-step a0 (ws-sha1-maj a b0 c) d (ws-sha1-lane1 g0) 2400959708 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = ws-sha1-step a1 (ws-sha1-maj a0 b1 b0) c (ws-sha1-lane2 g0) 2400959708 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = ws-sha1-step a2 (ws-sha1-maj a1 b2 b1) b0 (ws-sha1-lane3 g0) 2400959708 in
+        let b3 = rotate-left-u32 a1 30 in
+        ws-sha1-rounds next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+      else
+        let a0 = ws-sha1-step a (ws-sha1-par b c d) e (ws-sha1-lane0 g0) 3395469782 in
+        let b0 = rotate-left-u32 b 30 in
+        let a1 = ws-sha1-step a0 (ws-sha1-par a b0 c) d (ws-sha1-lane1 g0) 3395469782 in
+        let b1 = rotate-left-u32 a 30 in
+        let a2 = ws-sha1-step a1 (ws-sha1-par a0 b1 b0) c (ws-sha1-lane2 g0) 3395469782 in
+        let b2 = rotate-left-u32 a0 30 in
+        let a3 = ws-sha1-step a2 (ws-sha1-par a1 b2 b1) b0 (ws-sha1-lane3 g0) 3395469782 in
+        let b3 = rotate-left-u32 a1 30 in
+        ws-sha1-rounds next-r h0 h1 h2 h3 h4 a3 a2 b3 b2 b1 g1 g2 g3 g4
+
+  #[no-alloc]
+  ws-sha1-blocks :: I64 -> U32 -> U32 -> U32 -> U32 -> Sha1RegState ->{MVar} Sha1RegState
+  ws-sha1-blocks key-addr key-len msg-len padded-len pos st =
+    if ge-u32 pos padded-len then st
+    else
+      let g0 = sha1-virtual-group key-addr key-len msg-len padded-len pos in
+      let g1 = sha1-virtual-group key-addr key-len msg-len padded-len (wrapping-add-u32 pos 16) in
+      let g2 = sha1-virtual-group key-addr key-len msg-len padded-len (wrapping-add-u32 pos 32) in
+      let g3 = sha1-virtual-group key-addr key-len msg-len padded-len (wrapping-add-u32 pos 48) in
+      let next-st = ws-sha1-rounds 0 st.sh-h0 st.sh-h1 st.sh-h2 st.sh-h3 st.sh-h4 st.sh-h0 st.sh-h1 st.sh-h2 st.sh-h3 st.sh-h4 g0 g1 g2 g3 in
+      ws-sha1-blocks key-addr key-len msg-len padded-len (wrapping-add-u32 pos 64) next-st
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-b64-char :: U8 -> U8
+  ws-b64-char v =
+    if lt-u8 v 26 then wrapping-add-u8 v 65
+    else if lt-u8 v 52 then wrapping-add-u8 v 71
+    else if lt-u8 v 62 then wrapping-sub-u8 v 4
+    else if eq-u8 v 62 then 43
+    else 47
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-b64-put-group24 :: I64 -> U32 -> U32 ->{MVar} U32
+  ws-b64-put-group24 dst pos g =
+    let c0 = ws-b64-char (wrapping-u32-to-u8 (bit-and-u32 (wrapping-shr-u32 g 18) 63)) in
+    let c1 = ws-b64-char (wrapping-u32-to-u8 (bit-and-u32 (wrapping-shr-u32 g 12) 63)) in
+    let c2 = ws-b64-char (wrapping-u32-to-u8 (bit-and-u32 (wrapping-shr-u32 g 6) 63)) in
+    let c3 = ws-b64-char (wrapping-u32-to-u8 (bit-and-u32 g 63)) in
+    put4 dst pos c0 c1 c2 c3
+
+  -- | Zero-allocation RFC 6455 `Sec-WebSocket-Accept` computation directly in
+  -- DMA memory: writes the exact 28-byte Base64(SHA-1(key || GUID)) string to
+  -- `dst[0..28)` and returns `28` (or `0` if `key-len == 0` or `key-len > 1024`).
+  #[no-alloc]
+  ws-compute-accept-dma :: I64 -> U32 -> I64 ->{MVar} U32
+  ws-compute-accept-dma key-addr key-len dst =
+    if either (eq-u32 key-len 0) (gt-u32 key-len 1024) then 0
+    else
+      let msg-len = wrapping-add-u32 key-len 36 in
+      -- Padded length = smallest multiple of 64 >= msg-len + 9
+      let padded-len = bit-and-u32 (wrapping-add-u32 (wrapping-add-u32 msg-len 9) 63) (bit-not-u32 63) in
+      let init = Sha1RegState 1732584193 4023233417 2562383102 271733878 3285377520 in
+      let d = ws-sha1-blocks key-addr key-len msg-len padded-len 0 init in
+      let h0 = d.sh-h0 in
+      let h1 = d.sh-h1 in
+      let h2 = d.sh-h2 in
+      let h3 = d.sh-h3 in
+      let h4 = d.sh-h4 in
+      let g0 = wrapping-shr-u32 h0 8 in
+      let g1 = bit-or-u32 (wrapping-shl-u32 (bit-and-u32 h0 255) 16) (wrapping-shr-u32 h1 16) in
+      let g2 = bit-or-u32 (wrapping-shl-u32 (bit-and-u32 h1 65535) 8) (wrapping-shr-u32 h2 24) in
+      let g3 = bit-and-u32 h2 16777215 in
+      let g4 = wrapping-shr-u32 h3 8 in
+      let g5 = bit-or-u32 (wrapping-shl-u32 (bit-and-u32 h3 255) 16) (wrapping-shr-u32 h4 16) in
+      let p1 = ws-b64-put-group24 dst 0 g0 in
+      let p2 = ws-b64-put-group24 dst p1 g1 in
+      let p3 = ws-b64-put-group24 dst p2 g2 in
+      let p4 = ws-b64-put-group24 dst p3 g3 in
+      let p5 = ws-b64-put-group24 dst p4 g4 in
+      let p6 = ws-b64-put-group24 dst p5 g5 in
+      let b18 = wrapping-u32-to-u8 (bit-and-u32 (wrapping-shr-u32 h4 8) 255) in
+      let b19 = wrapping-u32-to-u8 (bit-and-u32 h4 255) in
+      let c0 = ws-b64-char (wrapping-shr-u8 b18 2) in
+      let c1 = ws-b64-char (bit-or-u8 (wrapping-shl-u8 (bit-and-u8 b18 3) 4) (wrapping-shr-u8 b19 4)) in
+      let c2 = ws-b64-char (wrapping-shl-u8 (bit-and-u8 b19 15) 2) in
+      put4 dst p6 c0 c1 c2 61
+
+  -- | Pure string convenience helper computing RFC 6455 `Sec-WebSocket-Accept`
+  -- via `Text.Sha1` + `Text.Base64`.
+  ws-compute-accept :: String -> String
+  ws-compute-accept key =
+    let combined = string-concat key "258EAFA5-E914-47DA-95CA-C5AB0DC85B11" in
+    base64-encode (sha1-sum (string-to-bytes combined))
+
+  #[inline(always)]
+  #[no-alloc]
+  is-b64-std-char :: U8 -> Bool
+  is-b64-std-char c =
+    either
+      (either (both (ge-u8 c 65) (le-u8 c 90)) (both (ge-u8 c 97) (le-u8 c 122)))
+      (either (both (ge-u8 c 48) (le-u8 c 57)) (either (eq-u8 c 43) (eq-u8 c 47)))
+
+  #[no-alloc]
+  check-b64-prefix22 :: I64 -> U32 ->{MVar} Bool
+  check-b64-prefix22 addr i =
+    if ge-u32 i 22 then b-true
+    else if is-b64-std-char (load-u8-at addr i) then check-b64-prefix22 addr (wrapping-add-u32 i 1)
+    else b-false
+
+  -- | Validate an RFC 6455 §4.1 `Sec-WebSocket-Key` (exact 24-byte Base64 of
+  -- 16 random bytes: 22 standard Base64 chars followed by `"=="`).
+  #[no-alloc]
+  ws-handshake-validate-h1-key-dma :: I64 -> U32 ->{MVar} Bool
+  ws-handshake-validate-h1-key-dma key-addr key-len =
+    if ne-u32 key-len 24 then b-false
+    else
+      both
+        (check-b64-prefix22 key-addr 0)
+        (both (eq-u8 (load-u8-at key-addr 22) 61) (eq-u8 (load-u8-at key-addr 23) 61))
+
+  -- | Format a complete RFC 6455 HTTP/1.1 `101 Switching Protocols` response
+  -- directly into `dst[pos..cap)` (129 bytes):
+  --
+  --   HTTP/1.1 101 Switching Protocols\r\n
+  --   Upgrade: websocket\r\n
+  --   Connection: Upgrade\r\n
+  --   Sec-WebSocket-Accept: <28 bytes>\r\n
+  --   \r\n
+  --
+  -- Returns the updated write position (`pos + 129`), or `0` if `key-len == 0`
+  -- or insufficient buffer capacity.
+  #[no-alloc]
+  ws-handshake-write-upgrade-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  ws-handshake-write-upgrade-dma dst pos cap key-addr key-len =
+    if either (eq-u32 key-len 0) (gt-u32 key-len 1024) then 0
+    else if lt-u32 cap 129 then 0
+    else if gt-u32 pos (wrapping-sub-u32 cap 129) then 0
+    else
+      -- "HTTP/1.1 101 Switching Protocols\r\n" (34B)
+      let p1 = put8 dst pos 72 84 84 80 47 49 46 49 in     -- "HTTP/1.1"
+      let p2 = put8 dst p1 32 49 48 49 32 83 119 105 in    -- " 101 Swi"
+      let p3 = put8 dst p2 116 99 104 105 110 103 32 80 in -- "tching P"
+      let p4 = put8 dst p3 114 111 116 111 99 111 108 115 in -- "rotocols"
+      let p5 = store-u8-at dst p4 13 in
+      let p6 = store-u8-at dst p5 10 in
+      -- "Upgrade: websocket\r\n" (20B)
+      let p7 = put8 dst p6 85 112 103 114 97 100 101 58 in -- "Upgrade:"
+      let p8 = put8 dst p7 32 119 101 98 115 111 99 107 in -- " websock"
+      let p9 = put4 dst p8 101 116 13 10 in                -- "et\r\n"
+      -- "Connection: Upgrade\r\n" (21B)
+      let p10 = put8 dst p9 67 111 110 110 101 99 116 105 in -- "Connecti"
+      let p11 = put8 dst p10 111 110 58 32 85 112 103 114 in -- "on: Upgr"
+      let p12 = put4 dst p11 97 100 101 13 in                -- "ade\r"
+      let p13 = store-u8-at dst p12 10 in                    -- "\n"
+      -- "Sec-WebSocket-Accept: " (22B)
+      let p14 = put8 dst p13 83 101 99 45 87 101 98 83 in    -- "Sec-WebS"
+      let p15 = put8 dst p14 111 99 107 101 116 45 65 99 in  -- "ocket-Ac"
+      let p16 = put4 dst p15 99 101 112 116 in               -- "cept"
+      let p17 = store-u8-at dst p16 58 in                    -- ":"
+      let p18 = store-u8-at dst p17 32 in                    -- " "
+      -- 28-byte Base64(SHA-1(key || GUID))
+      let accept-addr = wrapping-add-i64 dst (u32-to-i64 p18) in
+      let n = ws-compute-accept-dma key-addr key-len accept-addr in
+      if ne-u32 n 28 then 0
+      else
+        let p19 = wrapping-add-u32 p18 28 in
+        put4 dst p19 13 10 13 10                             -- "\r\n\r\n"
+
+  -- | Exact RFC 8441 `:protocol = websocket` matcher in DMA memory (`#[no-alloc]`).
+  #[no-alloc]
+  ws-rfc8441-is-protocol-websocket-dma :: I64 -> U32 -> U32 ->{MVar} Bool
+  ws-rfc8441-is-protocol-websocket-dma base off len =
+    if ne-u32 len 9 then b-false
+    else
+      let p = wrapping-add-i64 base (u32-to-i64 off) in
+      let w = raw-load-u64 p in
+      let b8 = raw-load-u8 (wrapping-add-i64 p 8) in
+      both (eq-u64 w (pack-le8 119 101 98 115 111 99 107 101)) (eq-u8 b8 116)
+
+  #[no-alloc]
+  is-scheme-http-or-https :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-scheme-http-or-https base off len =
+    let p = wrapping-add-i64 base (u32-to-i64 off) in
+    if eq-u32 len 4 then
+      eq-u32 (raw-load-u32 p) (pack-le4 104 116 116 112) -- "http"
+    else if eq-u32 len 5 then
+      both (eq-u32 (raw-load-u32 p) (pack-le4 104 116 116 112)) (eq-u8 (raw-load-u8 (wrapping-add-i64 p 4)) 115) -- "https"
+    else b-false
+
+  #[no-alloc]
+  is-ws-version13 :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-ws-version13 base off len =
+    if ne-u32 len 2 then b-false
+    else
+      let p = wrapping-add-i64 base (u32-to-i64 off) in
+      both (eq-u8 (raw-load-u8 p) 49) (eq-u8 (raw-load-u8 (wrapping-add-i64 p 1)) 51) -- "13"
+
+  -- | Validate an RFC 8441 Extended `CONNECT` request for HTTP/2 & HTTP/3 WebSockets:
+  -- requires `:method == CONNECT`, `:protocol == "websocket"`, `:scheme` in
+  -- `{"http", "https"}`, non-empty `:authority`, non-empty `:path`, and
+  -- `sec-websocket-version == "13"`.
+  #[no-alloc]
+  ws-rfc8441-validate-connect-dma
+    :: U8
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    -> U32
+    -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} Bool
+  ws-rfc8441-validate-connect-dma method proto-base proto-off proto-len scheme-base scheme-off scheme-len auth-len path-len ver-base ver-off ver-len =
+    both
+      (both (eq-u8 method method-code-connect) (ws-rfc8441-is-protocol-websocket-dma proto-base proto-off proto-len))
+      (both
+        (both (is-scheme-http-or-https scheme-base scheme-off scheme-len) (both (gt-u32 auth-len 0) (gt-u32 path-len 0)))
+        (is-ws-version13 ver-base ver-off ver-len))
+
+  -- | Write an RFC 8441 HTTP/2 `200` Extended `CONNECT` response header block
+  -- (HPACK static indexed `:status: 200`, index 8 -> single byte `0x88`) directly
+  -- into `dst[pos..cap)`. Returns `pos + 1` or `0` on short capacity.
+  #[no-alloc]
+  ws-rfc8441-write-ok-h2-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  ws-rfc8441-write-ok-h2-dma dst pos cap =
+    if ge-u32 pos cap then 0
+    else store-u8-at dst pos 136 -- 0x80 | 8 = 0x88 (RFC 7541 Appendix A index 8: :status 200)
+
+  -- | Write an RFC 8441 / RFC 9220 HTTP/3 `200` Extended `CONNECT` response
+  -- header block (QPACK prefix `0x00 0x00` + static indexed `:status: 200`,
+  -- index 25 -> `0xD9`) directly into `dst[pos..cap)`. Returns `pos + 3` or `0`.
+  #[no-alloc]
+  ws-rfc8441-write-ok-h3-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  ws-rfc8441-write-ok-h3-dma dst pos cap =
+    if lt-u32 cap 3 then 0
+    else if gt-u32 pos (wrapping-sub-u32 cap 3) then 0
+    else
+      let p1 = store-u8-at dst pos 0 in   -- Required Insert Count = 0
+      let p2 = store-u8-at dst p1 0 in    -- Delta Base = 0
+      store-u8-at dst p2 217              -- 0xC0 | 25 = 0xD9 (RFC 9204 Appendix A index 25: :status 200)
+
+  -- | Canonical HTTP `200` status for RFC 8441 Extended `CONNECT` responses.
+  #[inline(always)]
+  #[no-alloc]
+  ws-rfc8441-ok-status :: Unit -> HttpStatus
+  ws-rfc8441-ok-status _ = status-ok ()
+
+  -- =========================================================================
+  -- 3. Strict Streaming RFC 3629 UTF-8 Validator (#[no-alloc] DFA + SIMD)
+  -- =========================================================================
+
+  -- | UTF-8 DFA accepting / initial state (valid at message boundaries `FIN=1`).
+  #[no-alloc]
+  ws-utf8-accept :: U8
+  ws-utf8-accept = 0
+
+  -- | UTF-8 DFA sticky rejection state (triggers WebSocket close `1007`).
+  #[no-alloc]
+  ws-utf8-reject :: U8
+  ws-utf8-reject = 1
+
+  -- Internal intermediate DFA states:
+  --   2: need 1 continuation byte in 0x80..0xBF -> 0
+  --   3: need 2 continuation bytes, next in 0x80..0xBF -> 2
+  --   4: after 0xE0, need 0xA0..0xBF -> 2 (rejects overlong 3-byte)
+  --   5: after 0xED, need 0x80..0x9F -> 2 (rejects UTF-16 surrogates U+D800..U+DFFF)
+  --   6: after 0xF1..0xF3, need 0x80..0xBF -> 3
+  --   7: after 0xF0, need 0x90..0xBF -> 3 (rejects overlong 4-byte)
+  --   8: after 0xF4, need 0x80..0x8F -> 3 (rejects > U+10FFFF)
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-utf8-is-valid-final :: U8 -> Bool
+  ws-utf8-is-valid-final st = eq-u8 st ws-utf8-accept
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-utf8-is-rejected :: U8 -> Bool
+  ws-utf8-is-rejected st = eq-u8 st ws-utf8-reject
+
+  -- | Single-byte strict RFC 3629 UTF-8 DFA transition (`#[no-alloc]`).
+  -- Rejects overlong sequences (`0xC0..0xC1`, `0xE0 0x80..0x9F`, `0xF0 0x80..0x8F`),
+  -- UTF-16 surrogates (`0xED 0xA0..0xBF`), codepoints `> U+10FFFF`
+  -- (`0xF4 0x90..0xBF`, `0xF5..0xFF`), and unexpected continuation/lead bytes.
+  #[inline(always)]
+  #[no-alloc]
+  ws-utf8-validate-step :: U8 -> U8 -> U8
+  ws-utf8-validate-step st b =
+    if eq-u8 st 0 then
+      if lt-u8 b 128 then 0                       -- 0x00..0x7F ASCII
+      else if lt-u8 b 194 then 1                  -- 0x80..0xC1 lone cont or overlong 2B
+      else if lt-u8 b 224 then 2                  -- 0xC2..0xDF 2-byte lead
+      else if eq-u8 b 224 then 4                  -- 0xE0 3-byte lead (next 0xA0..0xBF)
+      else if lt-u8 b 237 then 3                  -- 0xE1..0xEC 3-byte lead
+      else if eq-u8 b 237 then 5                  -- 0xED 3-byte lead (next 0x80..0x9F)
+      else if lt-u8 b 240 then 3                  -- 0xEE..0xEF 3-byte lead
+      else if eq-u8 b 240 then 7                  -- 0xF0 4-byte lead (next 0x90..0xBF)
+      else if lt-u8 b 244 then 6                  -- 0xF1..0xF3 4-byte lead
+      else if eq-u8 b 244 then 8                  -- 0xF4 4-byte lead (next 0x80..0x8F)
+      else 1                                      -- 0xF5..0xFF invalid
+    else if eq-u8 st 2 then
+      if both (ge-u8 b 128) (lt-u8 b 192) then 0 else 1
+    else if eq-u8 st 3 then
+      if both (ge-u8 b 128) (lt-u8 b 192) then 2 else 1
+    else if eq-u8 st 4 then
+      if both (ge-u8 b 160) (lt-u8 b 192) then 2 else 1
+    else if eq-u8 st 5 then
+      if both (ge-u8 b 128) (lt-u8 b 160) then 2 else 1
+    else if eq-u8 st 6 then
+      if both (ge-u8 b 128) (lt-u8 b 192) then 3 else 1
+    else if eq-u8 st 7 then
+      if both (ge-u8 b 144) (lt-u8 b 192) then 3 else 1
+    else if eq-u8 st 8 then
+      if both (ge-u8 b 128) (lt-u8 b 144) then 3 else 1
+    else 1
+
+  -- | Validate `len` DMA bytes starting at `addr` from streaming DFA state `st`
+  -- (`#[no-alloc]`). Uses a 16-byte SIMD ASCII fast path whenever `st == 0`
+  -- and falls back to exact byte-by-byte DFA transitions on multi-byte sequences.
+  #[no-alloc]
+  ws-utf8-validate-raw :: U8 -> I64 -> U32 ->{MVar} U8
+  ws-utf8-validate-raw st addr rem =
+    if eq-u8 st 1 then 1
+    else if eq-u32 rem 0 then st
+    else if both (eq-u8 st 0) (ge-u32 rem 16) then
+      let chunk = raw-load-u128 addr in
+      let ascii = simd-u8x16-cmplt chunk (simd-u8x16-splat 128) in
+      if eq-u32 (simd-u8x16-movemask ascii) 65535 then
+        ws-utf8-validate-raw 0 (wrapping-add-i64 addr 16) (wrapping-sub-u32 rem 16)
+      else
+        let next-st = ws-utf8-validate-step 0 (raw-load-u8 addr) in
+        ws-utf8-validate-raw next-st (wrapping-add-i64 addr 1) (wrapping-sub-u32 rem 1)
+    else
+      let next-st = ws-utf8-validate-step st (raw-load-u8 addr) in
+      ws-utf8-validate-raw next-st (wrapping-add-i64 addr 1) (wrapping-sub-u32 rem 1)
+
+  -- =========================================================================
+  -- 4. Incremental RFC 6455 Frame Parser (#[no-alloc] + SIMD Unmasking)
+  -- =========================================================================
+
+  -- | 16-byte POD incremental WebSocket parser state tracking active
+  -- fragmentation, streaming UTF-8 DFA state, masking direction, allowed RSV
+  -- bits, close status, and max frame size guard.
+  #[repr(C, value)]
+  record WsParserState where
+    ws-ps-frag-opcode :: U8
+    ws-ps-utf8-state :: U8
+    ws-ps-expect-masked :: U8
+    ws-ps-rsv-mask :: U8
+    ws-ps-closed :: U8
+    ws-ps-pad0 :: U8
+    ws-ps-pad1 :: U16
+    ws-ps-max-frame-size :: U64
+
+  -- | Initialize server-side parser state (requires client frames to be masked,
+  -- rejects RSV1/2/3).
+  #[inline(always)]
+  #[no-alloc]
+  ws-parser-init-server :: U64 -> WsParserState
+  ws-parser-init-server max-frame-size =
+    WsParserState 0 0 1 0 0 0 0 max-frame-size
+
+  -- | Initialize client-side parser state (requires server frames to be unmasked,
+  -- rejects RSV1/2/3).
+  #[inline(always)]
+  #[no-alloc]
+  ws-parser-init-client :: U64 -> WsParserState
+  ws-parser-init-client max-frame-size =
+    WsParserState 0 0 0 0 0 0 0 max-frame-size
+
+  -- | Initialize parser state with explicit masking expectation, allowed RSV
+  -- bitmask (`0..7`), and maximum frame payload size.
+  #[inline(always)]
+  #[no-alloc]
+  ws-parser-init :: Bool -> U8 -> U64 -> WsParserState
+  ws-parser-init expect-masked rsv-mask max-frame-size =
+    let m = if expect-masked then 1 else 0 in
+    WsParserState 0 0 m (bit-and-u8 rsv-mask 7) 0 0 0 max-frame-size
+
+  -- | Parsed RFC 6455 frame header (24-byte POD).
+  #[repr(C, value)]
+  record WsFrameHeader where
+    wfh-status :: U8
+    wfh-fin :: U8
+    wfh-rsv :: U8
+    wfh-opcode :: U8
+    wfh-masked :: U8
+    wfh-header-len :: U8
+    wfh-close-code :: U16
+    wfh-mask-key :: U32
+    wfh-pad :: U32
+    wfh-payload-len :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  header-err :: U8 -> U16 -> WsFrameHeader
+  header-err st close-code =
+    WsFrameHeader st 0 0 0 0 0 close-code 0 0 0
+
+  -- | Incrementally parse an RFC 6455 frame header from DMA buffer `base[off..end)`.
+  -- Validates RSV bits, opcode validity, masking direction, control-frame rules,
+  -- fragmentation sequencing, 64-bit length MSB=0, and `max-frame-size`.
+  #[no-alloc]
+  ws-parse-header-dma :: WsParserState -> I64 -> U32 -> U32 ->{MVar} WsFrameHeader
+  ws-parse-header-dma ps base off end =
+    if ge-u32 off end then header-err ws-parse-need-more 0
+    else
+      let avail = wrapping-sub-u32 end off in
+      if lt-u32 avail 2 then header-err ws-parse-need-more 0
+      else
+        let b0 = load-u8-at base off in
+        let b1 = load-u8-at base (wrapping-add-u32 off 1) in
+        let fin = wrapping-shr-u8 b0 7 in
+        let rsv = bit-and-u8 (wrapping-shr-u8 b0 4) 7 in
+        let opcode = bit-and-u8 b0 15 in
+        let masked = wrapping-shr-u8 b1 7 in
+        let len7 = bit-and-u8 b1 127 in
+        -- 1. Reject non-negotiated RSV1/RSV2/RSV3 bits
+        if ne-u8 (bit-and-u8 rsv (bit-not-u8 ps.ws-ps-rsv-mask)) 0 then
+          header-err ws-parse-err-protocol ws-close-protocol-error
+        -- 2. Reject reserved opcodes (3..7, 0xB..0xF)
+        else if not-b (ws-opcode-is-valid opcode) then
+          header-err ws-parse-err-protocol ws-close-protocol-error
+        -- 3. Reject invalid masking direction (client MUST mask, server MUST NOT)
+        else if ne-u8 masked ps.ws-ps-expect-masked then
+          header-err ws-parse-err-protocol ws-close-protocol-error
+        -- 4. Reject fragmented control frames (FIN=0) or control payload > 125 bytes
+        else if both (ws-opcode-is-control opcode) (either (eq-u8 fin 0) (gt-u8 len7 125)) then
+          header-err ws-parse-err-protocol ws-close-protocol-error
+        -- 5. Reject Cont without active fragmented message
+        else if both (eq-u8 opcode ws-op-cont) (eq-u8 ps.ws-ps-frag-opcode 0) then
+          header-err ws-parse-err-protocol ws-close-protocol-error
+        -- 6. Reject new Text/Binary while fragmented message is in progress
+        else if both (either (eq-u8 opcode ws-op-text) (eq-u8 opcode ws-op-binary)) (ne-u8 ps.ws-ps-frag-opcode 0) then
+          header-err ws-parse-err-protocol ws-close-protocol-error
+        else
+          -- 7. Decode extended payload length (7-bit / 16-bit / 64-bit)
+          let mask-bytes = if eq-u8 masked 1 then 4 else 0 in
+          if lt-u8 len7 126 then
+            let hdr-len = wrapping-add-u32 2 mask-bytes in
+            let plen = u8-to-u64 len7 in
+            if gt-u64 plen ps.ws-ps-max-frame-size then
+              header-err ws-parse-err-too-big ws-close-message-too-big
+            else if lt-u32 avail hdr-len then
+              header-err ws-parse-need-more 0
+            else
+              let mkey = if eq-u8 masked 1 then raw-load-u32 (wrapping-add-i64 base (u32-to-i64 (wrapping-add-u32 off 2))) else 0 in
+              WsFrameHeader ws-parse-ok fin rsv opcode masked (wrapping-u32-to-u8 hdr-len) 0 mkey 0 plen
+          else if eq-u8 len7 126 then
+            let hdr-len = wrapping-add-u32 4 mask-bytes in
+            if lt-u32 avail 4 then header-err ws-parse-need-more 0
+            else
+              let hi = u8-to-u64 (load-u8-at base (wrapping-add-u32 off 2)) in
+              let lo = u8-to-u64 (load-u8-at base (wrapping-add-u32 off 3)) in
+              let plen = bit-or-u64 (wrapping-shl-u64 hi 8) lo in
+              if gt-u64 plen ps.ws-ps-max-frame-size then
+                header-err ws-parse-err-too-big ws-close-message-too-big
+              else if lt-u32 avail hdr-len then
+                header-err ws-parse-need-more 0
+              else
+                let mkey = if eq-u8 masked 1 then raw-load-u32 (wrapping-add-i64 base (u32-to-i64 (wrapping-add-u32 off 4))) else 0 in
+                WsFrameHeader ws-parse-ok fin rsv opcode masked (wrapping-u32-to-u8 hdr-len) 0 mkey 0 plen
+          else
+            -- len7 == 127: 64-bit network-order length with mandatory MSB == 0 check
+            let hdr-len = wrapping-add-u32 10 mask-bytes in
+            if lt-u32 avail 10 then header-err ws-parse-need-more 0
+            else
+              let raw-be = raw-load-u64 (wrapping-add-i64 base (u32-to-i64 (wrapping-add-u32 off 2))) in
+              let plen = swap-bytes-u64 raw-be in
+              -- RFC 6455 §5.2: most significant bit MUST be 0
+              if ne-u64 (bit-and-u64 plen 9223372036854775808) 0 then
+                header-err ws-parse-err-protocol ws-close-protocol-error
+              else if gt-u64 plen ps.ws-ps-max-frame-size then
+                header-err ws-parse-err-too-big ws-close-message-too-big
+              else if lt-u32 avail hdr-len then
+                header-err ws-parse-need-more 0
+              else
+                let mkey = if eq-u8 masked 1 then raw-load-u32 (wrapping-add-i64 base (u32-to-i64 (wrapping-add-u32 off 10))) else 0 in
+                WsFrameHeader ws-parse-ok fin rsv opcode masked (wrapping-u32-to-u8 hdr-len) 0 mkey 0 plen
+
+  -- | Result of parsing, SIMD-unmasking, and validating one complete RFC 6455
+  -- frame in place inside a DMA buffer (24-byte POD).
+  #[repr(C, value)]
+  record WsFrameResult where
+    wfr-status :: U8
+    wfr-fin :: U8
+    wfr-opcode :: U8
+    wfr-msg-opcode :: U8
+    wfr-close-code :: U16
+    wfr-header-len :: U16
+    wfr-payload-off :: U32
+    wfr-payload-len :: U32
+    wfr-consumed :: U32
+    wfr-next-frag-opcode :: U8
+    wfr-next-utf8-state :: U8
+    wfr-next-closed :: U8
+    wfr-pad :: U8
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-res-err :: WsParserState -> U8 -> U16 -> WsFrameResult
+  frame-res-err ps st close-code =
+    WsFrameResult st 0 0 0 close-code 0 0 0 0 ps.ws-ps-frag-opcode ps.ws-ps-utf8-state ps.ws-ps-closed 0
+
+  -- | Advance `WsParserState` using the state transition recorded in `WsFrameResult`.
+  #[inline(always)]
+  #[no-alloc]
+  ws-parser-apply :: WsParserState -> WsFrameResult -> WsParserState
+  ws-parser-apply ps res =
+    WsParserState
+      res.wfr-next-frag-opcode
+      res.wfr-next-utf8-state
+      ps.ws-ps-expect-masked
+      ps.ws-ps-rsv-mask
+      res.wfr-next-closed
+      0
+      0
+      ps.ws-ps-max-frame-size
+
+  -- | Incrementally parse one RFC 6455 frame from `base[off..end)`, unmask its
+  -- payload in place via `Engine.Simd.Mask.ws-mask-dma-in-place`, validate
+  -- Close status codes and streaming UTF-8 (including across fragmented Text
+  -- frames and Close reason text), and return updated parser state fields.
+  -- Zero heap allocations (`#[no-alloc]`).
+  #[no-alloc]
+  ws-parse-frame-dma :: WsParserState -> I64 -> U32 -> U32 ->{MVar} WsFrameResult
+  ws-parse-frame-dma ps base off end =
+    let hdr = ws-parse-header-dma ps base off end in
+    if ne-u8 hdr.wfh-status ws-parse-ok then
+      frame-res-err ps hdr.wfh-status hdr.wfh-close-code
+    else
+      let avail = wrapping-sub-u32 end off in
+      let hlen = u8-to-u32 hdr.wfh-header-len in
+      let avail-payload = u32-to-u64 (wrapping-sub-u32 avail hlen) in
+      if gt-u64 hdr.wfh-payload-len avail-payload then
+        frame-res-err ps ws-parse-need-more 0
+      else
+        let plen32 = wrapping-u64-to-u32 hdr.wfh-payload-len in
+        let payload-off = wrapping-add-u32 off hlen in
+        let payload-addr = wrapping-add-i64 base (u32-to-i64 payload-off) in
+        let consumed = wrapping-add-u32 hlen plen32 in
+        -- In-place 128-bit SIMD unmasking via LRAT-verified Engine.Simd.Mask kernel
+        let _unmask = (
+          if both (eq-u8 hdr.wfh-masked 1) (gt-u32 plen32 0) then
+            ws-mask-dma-in-place payload-addr plen32 hdr.wfh-mask-key
+          else ()) in
+        let op = hdr.wfh-opcode in
+        let fin = hdr.wfh-fin in
+        if eq-u8 op ws-op-close then
+          if eq-u32 plen32 0 then
+            WsFrameResult ws-parse-ok 1 op op 0 (u8-to-u16 hdr.wfh-header-len) payload-off 0 consumed ps.ws-ps-frag-opcode ps.ws-ps-utf8-state 1 0
+          else if eq-u32 plen32 1 then
+            frame-res-err ps ws-parse-err-protocol ws-close-protocol-error
+          else
+            let c-hi = u8-to-u16 (raw-load-u8 payload-addr) in
+            let c-lo = u8-to-u16 (raw-load-u8 (wrapping-add-i64 payload-addr 1)) in
+            let ccode = bit-or-u16 (wrapping-shl-u16 c-hi 8) c-lo in
+            if not-b (ws-close-code-is-valid ccode) then
+              frame-res-err ps ws-parse-err-protocol ws-close-protocol-error
+            else
+              let reason-len = wrapping-sub-u32 plen32 2 in
+              let u-st = (
+                if gt-u32 reason-len 0 then
+                  ws-utf8-validate-raw ws-utf8-accept (wrapping-add-i64 payload-addr 2) reason-len
+                else ws-utf8-accept) in
+              if not-b (ws-utf8-is-valid-final u-st) then
+                frame-res-err ps ws-parse-err-invalid-utf8 ws-close-invalid-payload
+              else
+                WsFrameResult ws-parse-ok 1 op op ccode (u8-to-u16 hdr.wfh-header-len) payload-off plen32 consumed ps.ws-ps-frag-opcode ps.ws-ps-utf8-state 1 0
+        else if either (eq-u8 op ws-op-ping) (eq-u8 op ws-op-pong) then
+          -- Control frames preserve active fragmentation & streaming UTF-8 state
+          WsFrameResult ws-parse-ok 1 op op 0 (u8-to-u16 hdr.wfh-header-len) payload-off plen32 consumed ps.ws-ps-frag-opcode ps.ws-ps-utf8-state ps.ws-ps-closed 0
+        else
+          -- Data frame: Text, Binary, or Continuation
+          let msg-op = if eq-u8 op ws-op-cont then ps.ws-ps-frag-opcode else op in
+          if eq-u8 msg-op ws-op-text then
+            let init-u = if eq-u8 op ws-op-cont then ps.ws-ps-utf8-state else ws-utf8-accept in
+            let u-st = ws-utf8-validate-raw init-u payload-addr plen32 in
+            if ws-utf8-is-rejected u-st then
+              frame-res-err ps ws-parse-err-invalid-utf8 ws-close-invalid-payload
+            else if eq-u8 fin 1 then
+              if not-b (ws-utf8-is-valid-final u-st) then
+                frame-res-err ps ws-parse-err-invalid-utf8 ws-close-invalid-payload
+              else
+                WsFrameResult ws-parse-ok 1 op msg-op 0 (u8-to-u16 hdr.wfh-header-len) payload-off plen32 consumed 0 ws-utf8-accept ps.ws-ps-closed 0
+            else
+              WsFrameResult ws-parse-ok 0 op msg-op 0 (u8-to-u16 hdr.wfh-header-len) payload-off plen32 consumed ws-op-text u-st ps.ws-ps-closed 0
+          else
+            -- Binary message / continuation
+            let next-frag = if eq-u8 fin 1 then 0 else ws-op-binary in
+            WsFrameResult ws-parse-ok fin op msg-op 0 (u8-to-u16 hdr.wfh-header-len) payload-off plen32 consumed next-frag ws-utf8-accept ps.ws-ps-closed 0
+
+  -- =========================================================================
+  -- 5. Zero-Alloc Headroom & DMA Frame Encoders
+  -- =========================================================================
+
+  -- | Compute the exact RFC 6455 wire header length (`2`, `4`, or `10` bytes
+  -- for unmasked server frames; `+4` bytes when masked).
+  #[inline(always)]
+  #[no-alloc]
+  ws-frame-header-len :: U64 -> Bool -> U32
+  ws-frame-header-len payload-len masked =
+    let base = (
+      if le-u64 payload-len 125 then 2
+      else if le-u64 payload-len 65535 then 4
+      else 10) in
+    if masked then wrapping-add-u32 base 4 else base
+
+  -- | Write an RFC 6455 frame header directly into `dst[0..cap)`.
+  -- Returns header bytes written (`2..14`), or `0` on insufficient capacity.
+  #[no-alloc]
+  ws-frame-encode-header-dma :: I64 -> U32 -> Bool -> U8 -> Bool -> U32 -> U64 ->{MVar} U32
+  ws-frame-encode-header-dma dst cap fin opcode masked mask-key payload-len =
+    let hlen = ws-frame-header-len payload-len masked in
+    if lt-u32 cap hlen then 0
+    else
+      let fin-bit = if fin then 128 else 0 in
+      let b0 = bit-or-u8 fin-bit (bit-and-u8 opcode 15) in
+      let mask-bit = if masked then 128 else 0 in
+      let _0 = raw-store-u8 dst b0 in
+      let after-len = (
+        if le-u64 payload-len 125 then
+          let _1 = raw-store-u8 (wrapping-add-i64 dst 1) (bit-or-u8 mask-bit (wrapping-u64-to-u8 payload-len)) in
+          2
+        else if le-u64 payload-len 65535 then
+          let _1 = raw-store-u8 (wrapping-add-i64 dst 1) (bit-or-u8 mask-bit 126) in
+          let _2 = raw-store-u8 (wrapping-add-i64 dst 2) (wrapping-u64-to-u8 (wrapping-shr-u64 payload-len 8)) in
+          let _3 = raw-store-u8 (wrapping-add-i64 dst 3) (wrapping-u64-to-u8 payload-len) in
+          4
+        else
+          let _1 = raw-store-u8 (wrapping-add-i64 dst 1) (bit-or-u8 mask-bit 127) in
+          let _2 = raw-store-u64 (wrapping-add-i64 dst 2) (swap-bytes-u64 payload-len) in
+          10) in
+      if masked then
+        let _m = raw-store-u32 (wrapping-add-i64 dst (u32-to-i64 after-len)) mask-key in
+        wrapping-add-u32 after-len 4
+      else after-len
+
+  -- | Zero-alloc server frame encoder: writes the 2/4/10-byte unmasked RFC 6455
+  -- header + payload directly into `dst[0..cap)`. Returns total bytes written,
+  -- or `0` on insufficient capacity.
+  #[no-alloc]
+  ws-frame-encode-raw :: I64 -> U32 -> Bool -> U8 -> I64 -> U32 ->{MVar} U32
+  ws-frame-encode-raw dst cap fin opcode payload-addr payload-len =
+    let hlen = ws-frame-header-len (u32-to-u64 payload-len) b-false in
+    let total = wrapping-add-u32 hlen payload-len in
+    if either (lt-u32 total hlen) (lt-u32 cap total) then 0
+    else
+      let wrote-h = ws-frame-encode-header-dma dst cap fin opcode b-false 0 (u32-to-u64 payload-len) in
+      if eq-u32 wrote-h 0 then 0
+      else
+        let _cp = (
+          if gt-u32 payload-len 0 then
+            dma-copy-loop16 (wrapping-add-i64 dst (u32-to-i64 wrote-h)) payload-addr payload-len
+          else ()) in
+        total
+
+  -- | Zero-copy headroom server frame encoder: writes the 2/4/10-byte RFC 6455
+  -- header immediately before `payload-addr` at `payload-addr - hdr-len`
+  -- (caller MUST ensure at least 10 bytes of headroom before `payload-addr`).
+  -- Returns `hdr-len` so the caller transmits `[payload-addr - hdr-len, hdr-len + payload-len)`
+  -- with zero payload copying.
+  #[no-alloc]
+  ws-frame-encode-headroom-raw :: I64 -> U32 -> Bool -> U8 ->{MVar} U32
+  ws-frame-encode-headroom-raw payload-addr payload-len fin opcode =
+    let hlen = ws-frame-header-len (u32-to-u64 payload-len) b-false in
+    let hdr-addr = wrapping-sub-i64 payload-addr (u32-to-i64 hlen) in
+    ws-frame-encode-header-dma hdr-addr hlen fin opcode b-false 0 (u32-to-u64 payload-len)
+
+  -- | Zero-alloc client (masked) frame encoder: writes masked RFC 6455 header
+  -- + copies payload + masks payload in place with `ws-mask-dma-in-place`.
+  #[no-alloc]
+  ws-frame-encode-masked-raw :: I64 -> U32 -> Bool -> U8 -> U32 -> I64 -> U32 ->{MVar} U32
+  ws-frame-encode-masked-raw dst cap fin opcode mask-key payload-addr payload-len =
+    let hlen = ws-frame-header-len (u32-to-u64 payload-len) b-true in
+    let total = wrapping-add-u32 hlen payload-len in
+    if either (lt-u32 total hlen) (lt-u32 cap total) then 0
+    else
+      let wrote-h = ws-frame-encode-header-dma dst cap fin opcode b-true mask-key (u32-to-u64 payload-len) in
+      if eq-u32 wrote-h 0 then 0
+      else
+        let out-payload = wrapping-add-i64 dst (u32-to-i64 wrote-h) in
+        let _cp = (
+          if gt-u32 payload-len 0 then
+            let _c = dma-copy-loop16 out-payload payload-addr payload-len in
+            ws-mask-dma-in-place out-payload payload-len mask-key
+          else ()) in
+        total
+
+  -- | Encode an unmasked server `Pong` control frame echoing `payload[0..len)` (`len <= 125`).
+  #[no-alloc]
+  ws-encode-pong-dma :: I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  ws-encode-pong-dma dst cap payload-addr payload-len =
+    if gt-u32 payload-len 125 then 0
+    else ws-frame-encode-raw dst cap b-true ws-op-pong payload-addr payload-len
+
+  -- | Encode an unmasked server `Ping` control frame with `payload[0..len)` (`len <= 125`).
+  #[no-alloc]
+  ws-encode-ping-dma :: I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  ws-encode-ping-dma dst cap payload-addr payload-len =
+    if gt-u32 payload-len 125 then 0
+    else ws-frame-encode-raw dst cap b-true ws-op-ping payload-addr payload-len
+
+  -- | Encode an unmasked server `Close` control frame with 16-bit big-endian
+  -- `status-code` and optional UTF-8 `reason[0..reason-len)` (`reason-len <= 123`).
+  #[no-alloc]
+  ws-encode-close-dma :: I64 -> U32 -> U16 -> I64 -> U32 ->{MVar} U32
+  ws-encode-close-dma dst cap status-code reason-addr reason-len =
+    if gt-u32 reason-len 123 then 0
+    else
+      let plen = wrapping-add-u32 2 reason-len in
+      let total = wrapping-add-u32 2 plen in
+      if lt-u32 cap total then 0
+      else
+        let _0 = raw-store-u8 dst (bit-or-u8 128 ws-op-close) in
+        let _1 = raw-store-u8 (wrapping-add-i64 dst 1) (wrapping-u32-to-u8 plen) in
+        let _2 = raw-store-u8 (wrapping-add-i64 dst 2) (wrapping-u16-to-u8 (wrapping-shr-u16 status-code 8)) in
+        let _3 = raw-store-u8 (wrapping-add-i64 dst 3) (wrapping-u16-to-u8 status-code) in
+        let _cp = (
+          if gt-u32 reason-len 0 then
+            dma-copy-loop16 (wrapping-add-i64 dst 4) reason-addr reason-len
+          else ()) in
+        total

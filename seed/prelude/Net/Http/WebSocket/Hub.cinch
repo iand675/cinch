@@ -1,0 +1,809 @@
+-- | Zero-allocation (`#[no-alloc]`) share-nothing per-core WebSocket Topic
+-- Pub/Sub Hub (`WsHub`) with intrusive O(1) subscribe/unsubscribe, O(K) local
+-- fanout, lock-free cross-core `Engine.Ring.Spsc` (`CoreMesh`) broadcast, and
+-- automatic `Ping`/`Pong` and `Close` control-frame echo helpers.
+--
+-- Architecture:
+--   * Connections are stored in a flat DMA-backed `Engine.Mem.Slab.RawSlab`
+--     (64-byte stride per connection) indexed by generational `GenHandle`.
+--   * Topic subscriptions are stored in a companion DMA-backed `RawSlab`
+--     (40-byte stride) and wired into TWO intrusive doubly-linked lists:
+--       1. Per-topic subscriber list (`topic-prev` / `topic-next`) for O(1)
+--          subscribe, O(1) unsubscribe, and O(K) local fanout.
+--       2. Per-connection subscription list (`conn-prev` / `conn-next`) for
+--          O(deg(conn)) cleanup on disconnect with zero leaked nodes.
+--   * Publishing to a topic fans out locally to all subscribers on the owning
+--     core AND pushes one compact 64-byte `MsgEnvelope` per peer core through
+--     the `Engine.Ring.Spsc` `CoreMesh` (carrying `topic-id`, opcode, shared
+--     payload DMA address/length, epoch/ref token, and publish timestamp) so
+--     peer cores broadcast locally with zero lock contention and zero heap
+--     allocations.
+module Net.Http.WebSocket.Hub where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Mem.Slab
+  import Engine.Ring.Spsc
+  import Engine.Types
+  import Net.Http.WebSocket.Frame
+  import Prim.Atomic
+
+  -- Constants & wire message / control action codes
+  export ws-hub-none, ws-msg-kind-publish
+  export ws-conn-open, ws-conn-closing, ws-conn-closed
+  export ws-ctrl-noop, ws-ctrl-send-pong, ws-ctrl-pong-acked, ws-ctrl-send-close
+
+  -- Hub handle & POD telemetry/result types
+  export WsHub, WsPublishStats, WsDrainStats, WsCtrlAction, WsConnStats
+
+  -- Lifecycle
+  export ws-hub-new, ws-hub-new-standalone, ws-hub-new-from-mesh-raw, ws-hub-destroy
+
+  -- O(1) Connection & Topic Subscription management (#[no-alloc])
+  export ws-hub-connect, ws-hub-disconnect, ws-hub-conn-is-live, ws-hub-conn-stats
+  export ws-hub-conn-count, ws-hub-conn-mark-closing
+  export ws-hub-subscribe, ws-hub-unsubscribe, ws-hub-topic-sub-count, ws-hub-topic-msg-count
+
+  -- Local O(K) fanout & Cross-Core SPSC CoreMesh Pub/Sub (#[no-alloc])
+  export ws-hub-fanout-local, ws-hub-publish, ws-hub-drain-remote
+
+  -- Automatic Ping/Pong & Close control-frame echo helper (#[no-alloc])
+  export ws-hub-handle-control-dma
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA layout helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  -- | Sentinel index marking the end of an intrusive doubly-linked list.
+  #[no-alloc]
+  ws-hub-none :: U32
+  ws-hub-none = 4294967295
+
+  -- | `MsgEnvelope.msg-kind` tag (`0x57530001`) for cross-core WebSocket topic broadcasts.
+  #[no-alloc]
+  ws-msg-kind-publish :: U32
+  ws-msg-kind-publish = 1465057281
+
+  -- Connection lifecycle states
+  #[no-alloc]
+  ws-conn-open :: U32
+  ws-conn-open = 0
+
+  #[no-alloc]
+  ws-conn-closing :: U32
+  ws-conn-closing = 1
+
+  #[no-alloc]
+  ws-conn-closed :: U32
+  ws-conn-closed = 2
+
+  -- Control-frame action codes
+  #[no-alloc]
+  ws-ctrl-noop :: U8
+  ws-ctrl-noop = 0
+
+  #[no-alloc]
+  ws-ctrl-send-pong :: U8
+  ws-ctrl-send-pong = 1
+
+  #[no-alloc]
+  ws-ctrl-pong-acked :: U8
+  ws-ctrl-pong-acked = 2
+
+  #[no-alloc]
+  ws-ctrl-send-close :: U8
+  ws-ctrl-send-close = 3
+
+  -- DMA slab strides & offsets:
+  --
+  -- Topic slab layout (`hub-topics-base`):
+  --   +0  : seq-counter :: U64  (per-core monotonic publish sequence)
+  --   +8  : rr-peer     :: U32  (round-robin cursor for `ws-hub-drain-remote`)
+  --   +64 : TopicSlot[max-topics], each 16 bytes:
+  --           +0  : head      :: U32  (sub-slab slot index or `ws-hub-none`)
+  --           +4  : reserved  :: U32
+  --           +8  : sub-count :: U32
+  --           +12 : msg-count :: U32
+  --
+  -- Connection slot layout (`hub-conns`, stride = 64 bytes):
+  --   +0  : fd               :: I32
+  --   +4  : state            :: U32  (0=open, 1=closing, 2=closed)
+  --   +8  : subs-head        :: U32  (head of per-conn sub list or `ws-hub-none`)
+  --   +12 : sub-count        :: U32
+  --   +16 : frames-sent      :: U64
+  --   +24 : bytes-sent       :: U64
+  --   +32 : last-seq         :: U64
+  --   +40 : last-payload-addr:: U64
+  --   +48 : last-payload-len :: U32
+  --   +52 : last-opcode      :: U32
+  --   +56 : user-data        :: U64
+  --
+  -- Subscription node layout (`hub-subs`, stride = 40 bytes):
+  --   +0  : conn-handle :: U64
+  --   +8  : self-handle :: U64
+  --   +16 : topic-id    :: U32
+  --   +20 : topic-prev  :: U32
+  --   +24 : topic-next  :: U32
+  --   +28 : conn-prev   :: U32
+  --   +32 : conn-next   :: U32
+  --   +36 : active      :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-slot-stride :: U32
+  conn-slot-stride = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  sub-node-stride :: U32
+  sub-node-stride = 40
+
+  #[inline(always)]
+  #[no-alloc]
+  topic-hdr-bytes :: U64
+  topic-hdr-bytes = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  topic-slot-stride :: U64
+  topic-slot-stride = 16
+
+  #[no-alloc]
+  align-up-page :: U64 -> U64
+  align-up-page v =
+    bit-and-u64 (wrapping-add-u64 v 4095) (bit-not-u64 4095)
+
+  -- =========================================================================
+  -- 1. WsHub Handle & Unboxed POD Telemetry Types
+  -- =========================================================================
+
+  -- | Per-core share-nothing WebSocket Topic Pub/Sub Hub.
+  -- Created once at worker boot (`ws-hub-new` / `ws-hub-new-standalone`) and
+  -- passed to `#[no-alloc]` hot-path operations with zero heap allocations.
+  record WsHub where
+    hub-core-raw :: U16
+    hub-pad0 :: U16
+    hub-core-count :: U32
+    hub-max-topics :: U32
+    hub-pad1 :: U32
+    hub-conns :: RawSlab
+    hub-subs :: RawSlab
+    hub-topics-base :: I64
+    hub-topics-bytes :: U64
+    hub-mesh-base :: I64
+    hub-mesh-cap :: I64
+    hub-mesh-stride :: I64
+
+  -- | Unboxed POD summary returned by `ws-hub-publish`.
+  #[repr(C, value)]
+  record WsPublishStats where
+    pub-local-delivered :: U32
+    pub-remote-pushed :: U32
+    pub-remote-dropped :: U32
+    pub-pad :: U32
+    pub-seq :: U64
+
+  -- | Unboxed POD summary returned by `ws-hub-drain-remote`.
+  #[repr(C, value)]
+  record WsDrainStats where
+    drain-envelopes :: U32
+    drain-delivered :: U32
+    drain-last-topic :: U32
+    drain-pad :: U32
+    drain-max-latency-ns :: U64
+
+  -- | Unboxed POD control-frame response action returned by `ws-hub-handle-control-dma`.
+  #[repr(C, value)]
+  record WsCtrlAction where
+    ctrl-kind :: U8
+    ctrl-pad0 :: U8
+    ctrl-close-code :: U16
+    ctrl-tx-len :: U32
+
+  -- | Unboxed POD snapshot of a subscriber connection's delivery telemetry.
+  #[repr(C, value)]
+  record WsConnStats where
+    cs-fd :: I32
+    cs-state :: U32
+    cs-sub-count :: U32
+    cs-last-payload-len :: U32
+    cs-frames-sent :: U64
+    cs-bytes-sent :: U64
+    cs-last-seq :: U64
+    cs-last-payload-addr :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  topic-slot-addr :: WsHub -> U32 -> I64
+  topic-slot-addr hub topic-id =
+    wrapping-add-i64
+      (wrapping-add-i64 hub.hub-topics-base 64)
+      (wrapping-shl-i64 (u32-to-i64 topic-id) 4)
+
+  #[inline(always)]
+  #[no-alloc]
+  sub-node-addr :: WsHub -> U32 -> I64
+  sub-node-addr hub sub-idx =
+    let off = wrapping-mul-u64 (u32-to-u64 sub-idx) (u32-to-u64 hub.hub-subs.raw-slab-stride) in
+    wrapping-u64-to-i64 (wrapping-add-u64 (wrapping-add-u64 hub.hub-subs.raw-slab-base hub.hub-subs.raw-slab-data-off) off)
+
+  -- =========================================================================
+  -- 2. Lifecycle: Create & Destroy
+  -- =========================================================================
+
+  init-topics-loop :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-topics-loop base i max-topics =
+    if ge-u32 i max-topics then ()
+    else
+      let slot = wrapping-add-i64 (wrapping-add-i64 base 64) (wrapping-shl-i64 (u32-to-i64 i) 4) in
+      let _0 = raw-store-u32 slot ws-hub-none in
+      let _1 = raw-store-u32 (wrapping-add-i64 slot 4) 0 in
+      let _2 = raw-store-u32 (wrapping-add-i64 slot 8) 0 in
+      let _3 = raw-store-u32 (wrapping-add-i64 slot 12) 0 in
+      init-topics-loop base (wrapping-add-u32 i 1) max-topics
+
+  -- | Scalar-parameter constructor backing `ws-hub-new`, `ws-hub-new-standalone`,
+  -- and `ws-hub-new-from-mesh-raw`.
+  #[inline(never)]
+  ws-hub-new-internal
+    :: U16 -> U32 -> I64 -> I64 -> I64 -> U32 -> U32 -> U32 ->{IO, MVar} Option WsHub
+  ws-hub-new-internal cid-raw core-count mesh-base mesh-cap mesh-stride max-conns max-topics max-subs =
+    if eq-u32 max-conns 0 || eq-u32 max-topics 0 || eq-u32 max-subs 0 then None
+    else
+      let conns = raw-slab-new max-conns conn-slot-stride in
+      if not (raw-slab-is-valid conns) then None
+      else
+        let subs = raw-slab-new max-subs sub-node-stride in
+        if not (raw-slab-is-valid subs) then
+          let _fc = raw-slab-destroy conns in
+          None
+        else
+          let raw-bytes = wrapping-add-u64 topic-hdr-bytes (wrapping-mul-u64 (u32-to-u64 max-topics) topic-slot-stride) in
+          let total-bytes = align-up-page raw-bytes in
+          let topics-u = engine-dma-alloc total-bytes 4096 in
+          if eq-u64 topics-u 0 then
+            let _fs = raw-slab-destroy subs in
+            let _fc = raw-slab-destroy conns in
+            None
+          else
+            let topics-base = wrapping-u64-to-i64 topics-u in
+            let _s0 = raw-store-u64 topics-base 0 in
+            let _s1 = raw-store-u32 (wrapping-add-i64 topics-base 8) 0 in
+            let _it = init-topics-loop topics-base 0 max-topics in
+            let cc = if eq-u32 core-count 0 then 1 else core-count in
+            Some (WsHub cid-raw 0 cc max-topics 0 conns subs topics-base total-bytes mesh-base mesh-cap mesh-stride)
+
+  -- | Create a per-core `WsHub` wired to a multi-core `Engine.Ring.Spsc.CoreMesh`.
+  ws-hub-new :: CoreId -> CoreMesh -> U32 -> U32 -> U32 ->{IO, MVar} Option WsHub
+  ws-hub-new cid mesh max-conns max-topics max-subs =
+    ws-hub-new-internal
+      cid.core-id-raw
+      mesh.mesh-cores
+      mesh.mesh-base
+      mesh.mesh-cap
+      mesh.mesh-ring-stride
+      max-conns
+      max-topics
+      max-subs
+
+  -- | Create a standalone single-core `WsHub` (no cross-core SPSC mesh).
+  ws-hub-new-standalone :: CoreId -> U32 -> U32 -> U32 ->{IO, MVar} Option WsHub
+  ws-hub-new-standalone cid max-conns max-topics max-subs =
+    ws-hub-new-internal cid.core-id-raw 1 0 0 0 max-conns max-topics max-subs
+
+  -- | Create a per-core `WsHub` from raw `CoreMesh` DMA parameters (for pinned OS workers).
+  ws-hub-new-from-mesh-raw
+    :: CoreId -> U32 -> I64 -> I64 -> I64 -> U32 -> U32 -> U32 ->{IO, MVar} Option WsHub
+  ws-hub-new-from-mesh-raw cid core-count mesh-base mesh-cap mesh-stride max-conns max-topics max-subs =
+    ws-hub-new-internal cid.core-id-raw core-count mesh-base mesh-cap mesh-stride max-conns max-topics max-subs
+
+  -- | Unmap all DMA slabs owned by `hub` (does not destroy the shared `CoreMesh`).
+  ws-hub-destroy :: WsHub ->{IO, MVar} Unit
+  ws-hub-destroy hub =
+    let _t = (
+      if ne-i64 hub.hub-topics-base 0 then
+        engine-dma-free (wrapping-i64-to-u64 hub.hub-topics-base) hub.hub-topics-bytes
+      else IoOk) in
+    let _s = raw-slab-destroy hub.hub-subs in
+    let _c = raw-slab-destroy hub.hub-conns in
+    ()
+
+  -- =========================================================================
+  -- 3. O(1) Connections & Intrusive Doubly-Linked Topic Subscriptions (#[no-alloc])
+  -- =========================================================================
+
+  -- | Register a new WebSocket connection in O(1) with zero heap allocation.
+  -- Returns `gen-handle-null ()` if `hub` is at connection capacity.
+  #[no-alloc]
+  ws-hub-connect :: WsHub -> Fd -> U64 ->{MVar} GenHandle
+  ws-hub-connect hub fd user-data =
+    let h = raw-slab-alloc hub.hub-conns in
+    if gen-handle-is-null h then h
+    else
+      let addr = wrapping-u64-to-i64 (raw-slab-slot-addr hub.hub-conns h) in
+      let _0 = raw-store-u32 addr (wrapping-i32-to-u32 fd.fd-raw) in
+      let _1 = raw-store-u32 (wrapping-add-i64 addr 4) ws-conn-open in
+      let _2 = raw-store-u32 (wrapping-add-i64 addr 8) ws-hub-none in
+      let _3 = raw-store-u32 (wrapping-add-i64 addr 12) 0 in
+      let _4 = raw-store-u64 (wrapping-add-i64 addr 16) 0 in
+      let _5 = raw-store-u64 (wrapping-add-i64 addr 24) 0 in
+      let _6 = raw-store-u64 (wrapping-add-i64 addr 32) 0 in
+      let _7 = raw-store-u64 (wrapping-add-i64 addr 40) 0 in
+      let _8 = raw-store-u32 (wrapping-add-i64 addr 48) 0 in
+      let _9 = raw-store-u32 (wrapping-add-i64 addr 52) 0 in
+      let _10 = raw-store-u64 (wrapping-add-i64 addr 56) user-data in
+      h
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-hub-conn-is-live :: WsHub -> GenHandle ->{MVar} Bool
+  ws-hub-conn-is-live hub h = raw-slab-is-live hub.hub-conns h
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-hub-conn-count :: WsHub ->{MVar} U32
+  ws-hub-conn-count hub = raw-slab-live-count hub.hub-conns
+
+  -- | Mark connection `h` as closing (stops future topic fanout deliveries to `h`).
+  #[no-alloc]
+  ws-hub-conn-mark-closing :: WsHub -> GenHandle ->{MVar} Bool
+  ws-hub-conn-mark-closing hub h =
+    let addr-u = raw-slab-slot-addr hub.hub-conns h in
+    if eq-u64 addr-u 0 then b-false
+    else
+      let _ = raw-store-u32 (wrapping-add-i64 (wrapping-u64-to-i64 addr-u) 4) ws-conn-closing in
+      b-true
+
+  -- | Read a connection's delivery telemetry snapshot (`#[no-alloc]`).
+  #[no-alloc]
+  ws-hub-conn-stats :: WsHub -> GenHandle ->{MVar} WsConnStats
+  ws-hub-conn-stats hub h =
+    let addr-u = raw-slab-slot-addr hub.hub-conns h in
+    if eq-u64 addr-u 0 then WsConnStats (-1) ws-conn-closed 0 0 0 0 0 0
+    else
+      let addr = wrapping-u64-to-i64 addr-u in
+      let fd-raw = wrapping-u32-to-i32 (raw-load-u32 addr) in
+      let st = raw-load-u32 (wrapping-add-i64 addr 4) in
+      let sc = raw-load-u32 (wrapping-add-i64 addr 12) in
+      let frames = raw-load-u64 (wrapping-add-i64 addr 16) in
+      let bytes = raw-load-u64 (wrapping-add-i64 addr 24) in
+      let seq = raw-load-u64 (wrapping-add-i64 addr 32) in
+      let paddr = raw-load-u64 (wrapping-add-i64 addr 40) in
+      let plen = raw-load-u32 (wrapping-add-i64 addr 48) in
+      WsConnStats fd-raw st sc plen frames bytes seq paddr
+
+  -- | Subscribe connection `conn-h` to `topic-id` in O(1) time with zero heap
+  -- allocations. Returns the subscription `GenHandle`, or `gen-handle-null ()`
+  -- on invalid topic, dead connection, or full subscription slab.
+  #[no-alloc]
+  ws-hub-subscribe :: WsHub -> GenHandle -> U32 ->{MVar} GenHandle
+  ws-hub-subscribe hub conn-h topic-id =
+    if ge-u32 topic-id hub.hub-max-topics then gen-handle-null ()
+    else
+      let conn-addr-u = raw-slab-slot-addr hub.hub-conns conn-h in
+      if eq-u64 conn-addr-u 0 then gen-handle-null ()
+      else
+        let sub-h = raw-slab-alloc hub.hub-subs in
+        if gen-handle-is-null sub-h then sub-h
+        else
+          let sub-idx = gen-handle-idx sub-h in
+          let sub-addr = sub-node-addr hub sub-idx in
+          let t-addr = topic-slot-addr hub topic-id in
+          let c-addr = wrapping-u64-to-i64 conn-addr-u in
+          -- Link into topic's intrusive doubly-linked list at head
+          let old-thead = raw-load-u32 t-addr in
+          let _tp = (
+            if ne-u32 old-thead ws-hub-none then
+              raw-store-u32 (wrapping-add-i64 (sub-node-addr hub old-thead) 20) sub-idx
+            else ()) in
+          let _th = raw-store-u32 t-addr sub-idx in
+          let t-cnt = raw-load-u32 (wrapping-add-i64 t-addr 8) in
+          let _tc = raw-store-u32 (wrapping-add-i64 t-addr 8) (wrapping-add-u32 t-cnt 1) in
+          -- Link into connection's intrusive doubly-linked list at head
+          let old-chead = raw-load-u32 (wrapping-add-i64 c-addr 8) in
+          let _cp = (
+            if ne-u32 old-chead ws-hub-none then
+              raw-store-u32 (wrapping-add-i64 (sub-node-addr hub old-chead) 28) sub-idx
+            else ()) in
+          let _ch = raw-store-u32 (wrapping-add-i64 c-addr 8) sub-idx in
+          let c-cnt = raw-load-u32 (wrapping-add-i64 c-addr 12) in
+          let _cc = raw-store-u32 (wrapping-add-i64 c-addr 12) (wrapping-add-u32 c-cnt 1) in
+          -- Populate subscription node
+          let _0 = raw-store-u64 sub-addr conn-h.gen-handle-raw in
+          let _1 = raw-store-u64 (wrapping-add-i64 sub-addr 8) sub-h.gen-handle-raw in
+          let _2 = raw-store-u32 (wrapping-add-i64 sub-addr 16) topic-id in
+          let _3 = raw-store-u32 (wrapping-add-i64 sub-addr 20) ws-hub-none in
+          let _4 = raw-store-u32 (wrapping-add-i64 sub-addr 24) old-thead in
+          let _5 = raw-store-u32 (wrapping-add-i64 sub-addr 28) ws-hub-none in
+          let _6 = raw-store-u32 (wrapping-add-i64 sub-addr 32) old-chead in
+          let _7 = raw-store-u32 (wrapping-add-i64 sub-addr 36) 1 in
+          sub-h
+
+  -- | Unsubscribe `sub-h` in O(1) time, unlinking it from both the topic list
+  -- and the connection list and releasing its slab slot (`#[no-alloc]`).
+  #[no-alloc]
+  ws-hub-unsubscribe :: WsHub -> GenHandle ->{MVar} Bool
+  ws-hub-unsubscribe hub sub-h =
+    if not-b (raw-slab-is-live hub.hub-subs sub-h) then b-false
+    else
+      let sub-idx = gen-handle-idx sub-h in
+      let sub-addr = sub-node-addr hub sub-idx in
+      let conn-raw = raw-load-u64 sub-addr in
+      let topic-id = raw-load-u32 (wrapping-add-i64 sub-addr 16) in
+      let t-prev = raw-load-u32 (wrapping-add-i64 sub-addr 20) in
+      let t-next = raw-load-u32 (wrapping-add-i64 sub-addr 24) in
+      let c-prev = raw-load-u32 (wrapping-add-i64 sub-addr 28) in
+      let c-next = raw-load-u32 (wrapping-add-i64 sub-addr 32) in
+      -- Unlink from topic list
+      let t-addr = topic-slot-addr hub topic-id in
+      let _u1 = (
+        if ne-u32 t-prev ws-hub-none then
+          raw-store-u32 (wrapping-add-i64 (sub-node-addr hub t-prev) 24) t-next
+        else
+          raw-store-u32 t-addr t-next) in
+      let _u2 = (
+        if ne-u32 t-next ws-hub-none then
+          raw-store-u32 (wrapping-add-i64 (sub-node-addr hub t-next) 20) t-prev
+        else ()) in
+      let t-cnt = raw-load-u32 (wrapping-add-i64 t-addr 8) in
+      let _u3 = if gt-u32 t-cnt 0 then raw-store-u32 (wrapping-add-i64 t-addr 8) (wrapping-sub-u32 t-cnt 1) else () in
+      -- Unlink from connection list
+      let conn-addr-u = raw-slab-slot-addr hub.hub-conns (GenHandle conn-raw) in
+      let _u4 = (
+        if ne-u64 conn-addr-u 0 then
+          let c-addr = wrapping-u64-to-i64 conn-addr-u in
+          let _a = (
+            if ne-u32 c-prev ws-hub-none then
+              raw-store-u32 (wrapping-add-i64 (sub-node-addr hub c-prev) 32) c-next
+            else
+              raw-store-u32 (wrapping-add-i64 c-addr 8) c-next) in
+          let _b = (
+            if ne-u32 c-next ws-hub-none then
+              raw-store-u32 (wrapping-add-i64 (sub-node-addr hub c-next) 28) c-prev
+            else ()) in
+          let c-cnt = raw-load-u32 (wrapping-add-i64 c-addr 12) in
+          if gt-u32 c-cnt 0 then raw-store-u32 (wrapping-add-i64 c-addr 12) (wrapping-sub-u32 c-cnt 1) else ()
+        else ()) in
+      let _clr = raw-store-u32 (wrapping-add-i64 sub-addr 36) 0 in
+      raw-slab-free hub.hub-subs sub-h
+
+  #[no-alloc]
+  detach-all-conn-subs :: WsHub -> I64 ->{MVar} Unit
+  detach-all-conn-subs hub c-addr =
+    let head = raw-load-u32 (wrapping-add-i64 c-addr 8) in
+    if eq-u32 head ws-hub-none then ()
+    else
+      let sub-raw = raw-load-u64 (wrapping-add-i64 (sub-node-addr hub head) 8) in
+      let ok = ws-hub-unsubscribe hub (GenHandle sub-raw) in
+      if ok then detach-all-conn-subs hub c-addr else ()
+
+  -- | Disconnect `conn-h`, detaching all of its topic subscriptions in
+  -- O(deg(conn)) time and freeing its generational slab slot (`#[no-alloc]`).
+  #[no-alloc]
+  ws-hub-disconnect :: WsHub -> GenHandle ->{MVar} Bool
+  ws-hub-disconnect hub conn-h =
+    let conn-addr-u = raw-slab-slot-addr hub.hub-conns conn-h in
+    if eq-u64 conn-addr-u 0 then b-false
+    else
+      let c-addr = wrapping-u64-to-i64 conn-addr-u in
+      let _d = detach-all-conn-subs hub c-addr in
+      let _s = raw-store-u32 (wrapping-add-i64 c-addr 4) ws-conn-closed in
+      raw-slab-free hub.hub-conns conn-h
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-hub-topic-sub-count :: WsHub -> U32 ->{MVar} U32
+  ws-hub-topic-sub-count hub topic-id =
+    if ge-u32 topic-id hub.hub-max-topics then 0
+    else raw-load-u32 (wrapping-add-i64 (topic-slot-addr hub topic-id) 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  ws-hub-topic-msg-count :: WsHub -> U32 ->{MVar} U32
+  ws-hub-topic-msg-count hub topic-id =
+    if ge-u32 topic-id hub.hub-max-topics then 0
+    else raw-load-u32 (wrapping-add-i64 (topic-slot-addr hub topic-id) 12)
+
+  -- =========================================================================
+  -- 4. O(K) Local Fanout & Cross-Core Lock-Free SPSC CoreMesh Broadcast
+  -- =========================================================================
+
+  #[no-alloc]
+  fanout-list-loop :: WsHub -> U32 -> U8 -> U64 -> U32 -> U64 -> U32 ->{MVar} U32
+  fanout-list-loop hub idx opcode payload-addr payload-len seq acc =
+    if eq-u32 idx ws-hub-none then acc
+    else
+      let s-addr = sub-node-addr hub idx in
+      let next-idx = raw-load-u32 (wrapping-add-i64 s-addr 24) in
+      let conn-raw = raw-load-u64 s-addr in
+      let c-addr-u = raw-slab-slot-addr hub.hub-conns (GenHandle conn-raw) in
+      let acc1 = (
+        if eq-u64 c-addr-u 0 then acc
+        else
+          let c-addr = wrapping-u64-to-i64 c-addr-u in
+          let st = raw-load-u32 (wrapping-add-i64 c-addr 4) in
+          if ne-u32 st ws-conn-open then acc
+          else
+            let f0 = raw-load-u64 (wrapping-add-i64 c-addr 16) in
+            let b0 = raw-load-u64 (wrapping-add-i64 c-addr 24) in
+            let _0 = raw-store-u64 (wrapping-add-i64 c-addr 16) (wrapping-add-u64 f0 1) in
+            let _1 = raw-store-u64 (wrapping-add-i64 c-addr 24) (wrapping-add-u64 b0 (u32-to-u64 payload-len)) in
+            let _2 = raw-store-u64 (wrapping-add-i64 c-addr 32) seq in
+            let _3 = raw-store-u64 (wrapping-add-i64 c-addr 40) payload-addr in
+            let _4 = raw-store-u32 (wrapping-add-i64 c-addr 48) payload-len in
+            let _5 = raw-store-u32 (wrapping-add-i64 c-addr 52) (u8-to-u32 opcode) in
+            wrapping-add-u32 acc 1) in
+      fanout-list-loop hub next-idx opcode payload-addr payload-len seq acc1
+
+  -- | Fan out a message locally in O(K) time to every open subscriber on
+  -- `topic-id` owned by this core (`#[no-alloc]`). Returns the number of local
+  -- subscribers delivered.
+  #[no-alloc]
+  ws-hub-fanout-local :: WsHub -> U32 -> U8 -> U64 -> U32 -> U64 ->{MVar} U32
+  ws-hub-fanout-local hub topic-id opcode payload-addr payload-len seq =
+    if ge-u32 topic-id hub.hub-max-topics then 0
+    else
+      let t-addr = topic-slot-addr hub topic-id in
+      let m0 = raw-load-u32 (wrapping-add-i64 t-addr 12) in
+      let _m = raw-store-u32 (wrapping-add-i64 t-addr 12) (wrapping-add-u32 m0 1) in
+      let head = raw-load-u32 t-addr in
+      fanout-list-loop hub head opcode payload-addr payload-len seq 0
+
+  -- Inline #[no-alloc] SPSC CoreMesh helpers matching `Engine.Ring.Spsc` exact ABI layout.
+  #[inline(always)]
+  #[no-alloc]
+  hub-mesh-ring-index :: U32 -> U32 -> U32 -> I64
+  hub-mesh-ring-index cores src dst =
+    let s = wrapping-u32-to-i64 src in
+    let d = wrapping-u32-to-i64 dst in
+    let c1 = wrapping-sub-i64 (wrapping-u32-to-i64 cores) 1 in
+    let col = if lt-i64 d s then d else wrapping-sub-i64 d 1 in
+    wrapping-add-i64 (wrapping-mul-i64 s c1) col
+
+  #[inline(always)]
+  #[no-alloc]
+  hub-spsc-slot-addr :: I64 -> I64 -> I64 -> I64
+  hub-spsc-slot-addr base mask idx =
+    let slot = bit-and-i64 idx mask in
+    wrapping-add-i64 base (wrapping-add-i64 spsc-off-slots (wrapping-shl-i64 slot 6))
+
+  #[inline(always)]
+  #[no-alloc]
+  hub-store-envelope :: I64 -> MsgEnvelope ->{MVar} Unit
+  hub-store-envelope addr msg =
+    let hdr = bit-or-u64 (u32-to-u64 msg.msg-kind) (bit-or-u64 (wrapping-shl-u64 (u16-to-u64 msg.msg-src) 32) (wrapping-shl-u64 (u16-to-u64 msg.msg-dst) 48)) in
+    let _0 = raw-store-u64 addr hdr in
+    let _1 = raw-store-u64 (wrapping-add-i64 addr 8) msg.msg-seq in
+    let _2 = raw-store-u64 (wrapping-add-i64 addr 16) msg.msg-w0 in
+    let _3 = raw-store-u64 (wrapping-add-i64 addr 24) msg.msg-w1 in
+    let _4 = raw-store-u64 (wrapping-add-i64 addr 32) msg.msg-w2 in
+    let _5 = raw-store-u64 (wrapping-add-i64 addr 40) msg.msg-w3 in
+    let _6 = raw-store-u64 (wrapping-add-i64 addr 48) msg.msg-w4 in
+    raw-store-u64 (wrapping-add-i64 addr 56) msg.msg-w5
+
+  #[no-alloc]
+  hub-mesh-try-push :: WsHub -> U32 -> MsgEnvelope ->{MVar} Bool
+  hub-mesh-try-push hub dst-peer msg =
+    let s = u16-to-u32 hub.hub-core-raw in
+    if either (eq-i64 hub.hub-mesh-base 0) (either (ge-u32 dst-peer hub.hub-core-count) (eq-u32 s dst-peer)) then
+      b-false
+    else
+      let idx = hub-mesh-ring-index hub.hub-core-count s dst-peer in
+      let base = wrapping-add-i64 hub.hub-mesh-base (wrapping-mul-i64 idx hub.hub-mesh-stride) in
+      let mask = wrapping-sub-i64 hub.hub-mesh-cap 1 in
+      let head-addr = wrapping-add-i64 base spsc-off-head in
+      let ctail-addr = wrapping-add-i64 base spsc-off-cached-tail in
+      let head = atomic-load-relaxed-i64 head-addr in
+      let ctail = raw-load-i64 ctail-addr in
+      let used0 = wrapping-sub-i64 head ctail in
+      let used = (
+        if lt-i64 used0 hub.hub-mesh-cap then used0
+        else
+          let fresh = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-tail) in
+          let _c = raw-store-i64 ctail-addr fresh in
+          wrapping-sub-i64 head fresh) in
+      if ge-i64 used hub.hub-mesh-cap then b-false
+      else
+        let slot = hub-spsc-slot-addr base mask head in
+        let _w = hub-store-envelope slot msg in
+        let _p = atomic-store-release-i64 head-addr (wrapping-add-i64 head 1) in
+        b-true
+
+  #[no-alloc]
+  hub-mesh-try-pop :: WsHub -> U32 ->{MVar} PopEnvelope
+  hub-mesh-try-pop hub src-peer =
+    let d = u16-to-u32 hub.hub-core-raw in
+    if either (eq-i64 hub.hub-mesh-base 0) (either (ge-u32 src-peer hub.hub-core-count) (eq-u32 src-peer d)) then
+      pop-envelope-empty ()
+    else
+      let idx = hub-mesh-ring-index hub.hub-core-count src-peer d in
+      let base = wrapping-add-i64 hub.hub-mesh-base (wrapping-mul-i64 idx hub.hub-mesh-stride) in
+      let mask = wrapping-sub-i64 hub.hub-mesh-cap 1 in
+      let tail-addr = wrapping-add-i64 base spsc-off-tail in
+      let chead-addr = wrapping-add-i64 base spsc-off-cached-head in
+      let tail = atomic-load-relaxed-i64 tail-addr in
+      let chead = raw-load-i64 chead-addr in
+      let avail = (
+        if lt-i64 tail chead then chead
+        else
+          let fresh = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in
+          let _c = raw-store-i64 chead-addr fresh in
+          fresh) in
+      if ge-i64 tail avail then pop-envelope-empty ()
+      else
+        let slot = hub-spsc-slot-addr base mask tail in
+        let hdr = raw-load-u64 slot in
+        let seq = raw-load-u64 (wrapping-add-i64 slot 8) in
+        let w0 = raw-load-u64 (wrapping-add-i64 slot 16) in
+        let w1 = raw-load-u64 (wrapping-add-i64 slot 24) in
+        let w2 = raw-load-u64 (wrapping-add-i64 slot 32) in
+        let w3 = raw-load-u64 (wrapping-add-i64 slot 40) in
+        let w4 = raw-load-u64 (wrapping-add-i64 slot 48) in
+        let w5 = raw-load-u64 (wrapping-add-i64 slot 56) in
+        let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail 1) in
+        PopEnvelope 1
+          (wrapping-u64-to-u32 hdr)
+          (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32))
+          (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48))
+          seq w0 w1 w2 w3 w4 w5
+
+  #[no-alloc]
+  push-peers-loop
+    :: WsHub -> U32 -> U32 -> U8 -> U64 -> U32 -> U64 -> U64 -> U64 -> U32 -> U32 -> U32 ->{MVar} WsPublishStats
+  push-peers-loop hub peer topic-id opcode payload-addr payload-len epoch-token ts-ns seq local-del pushed dropped =
+    if ge-u32 peer hub.hub-core-count then
+      WsPublishStats local-del pushed dropped 0 seq
+    else if eq-u32 peer (u16-to-u32 hub.hub-core-raw) then
+      push-peers-loop hub (wrapping-add-u32 peer 1) topic-id opcode payload-addr payload-len epoch-token ts-ns seq local-del pushed dropped
+    else
+      let w0 = bit-or-u64 (u32-to-u64 topic-id) (wrapping-shl-u64 (u8-to-u64 opcode) 32) in
+      let env = MsgEnvelope ws-msg-kind-publish hub.hub-core-raw (wrapping-u32-to-u16 peer) seq w0 payload-addr (u32-to-u64 payload-len) epoch-token ts-ns 0 in
+      if hub-mesh-try-push hub peer env then
+        push-peers-loop hub (wrapping-add-u32 peer 1) topic-id opcode payload-addr payload-len epoch-token ts-ns seq local-del (wrapping-add-u32 pushed 1) dropped
+      else
+        push-peers-loop hub (wrapping-add-u32 peer 1) topic-id opcode payload-addr payload-len epoch-token ts-ns seq local-del pushed (wrapping-add-u32 dropped 1)
+
+  -- | Publish a WebSocket message on `topic-id`:
+  --   1. Fans out locally in O(K) to all open subscribers on this core.
+  --   2. Pushes one compact 64-byte `MsgEnvelope` per peer core through the
+  --      lock-free SPSC `CoreMesh` (carrying `topic-id`, `opcode`, shared
+  --      `payload-addr`/`payload-len`, `epoch-token`, and `ts-ns`).
+  -- Zero heap allocations (`#[no-alloc]`).
+  #[no-alloc]
+  ws-hub-publish :: WsHub -> U32 -> U8 -> U64 -> U32 -> U64 -> U64 ->{MVar} WsPublishStats
+  ws-hub-publish hub topic-id opcode payload-addr payload-len epoch-token ts-ns =
+    if ge-u32 topic-id hub.hub-max-topics then WsPublishStats 0 0 0 0 0
+    else
+      let seq = wrapping-add-u64 (raw-load-u64 hub.hub-topics-base) 1 in
+      let _s = raw-store-u64 hub.hub-topics-base seq in
+      let local-del = ws-hub-fanout-local hub topic-id opcode payload-addr payload-len seq in
+      if both (ne-i64 hub.hub-mesh-base 0) (gt-u32 hub.hub-core-count 1) then
+        push-peers-loop hub 0 topic-id opcode payload-addr payload-len epoch-token ts-ns seq local-del 0 0
+      else
+        WsPublishStats local-del 0 0 0 seq
+
+  #[no-alloc]
+  drain-peer-loop
+    :: WsHub -> U32 -> U32 -> U64 -> U32 -> U32 -> U32 -> U64 ->{MVar} WsDrainStats
+  drain-peer-loop hub peer budget now-ns envs delivered last-topic max-lat =
+    if eq-u32 budget 0 then WsDrainStats envs delivered last-topic 0 max-lat
+    else
+      let pop = hub-mesh-try-pop hub peer in
+      if not-b (pop-envelope-is-some pop) then
+        WsDrainStats envs delivered last-topic 0 max-lat
+      else if eq-u32 pop.pop-kind ws-msg-kind-publish then
+        let topic-id = wrapping-u64-to-u32 pop.pop-w0 in
+        let opcode = wrapping-u64-to-u8 (wrapping-shr-u64 pop.pop-w0 32) in
+        let payload-addr = pop.pop-w1 in
+        let payload-len = wrapping-u64-to-u32 pop.pop-w2 in
+        let ts-ns = pop.pop-w4 in
+        let lat = if both (ne-u64 ts-ns 0) (gt-u64 now-ns ts-ns) then wrapping-sub-u64 now-ns ts-ns else 0 in
+        let next-max-lat = if gt-u64 lat max-lat then lat else max-lat in
+        let d = ws-hub-fanout-local hub topic-id opcode payload-addr payload-len pop.pop-seq in
+        drain-peer-loop hub peer (wrapping-sub-u32 budget 1) now-ns
+          (wrapping-add-u32 envs 1)
+          (wrapping-add-u32 delivered d)
+          topic-id
+          next-max-lat
+      else
+        drain-peer-loop hub peer (wrapping-sub-u32 budget 1) now-ns
+          (wrapping-add-u32 envs 1)
+          delivered
+          last-topic
+          max-lat
+
+  #[no-alloc]
+  drain-all-peers-loop
+    :: WsHub -> U32 -> U32 -> U32 -> U64 -> U32 -> U32 -> U32 -> U64 ->{MVar} WsDrainStats
+  drain-all-peers-loop hub start-peer step budget now-ns envs delivered last-topic max-lat =
+    if either (ge-u32 step hub.hub-core-count) (eq-u32 budget 0) then
+      WsDrainStats envs delivered last-topic 0 max-lat
+    else
+      let raw-peer = wrapping-add-u32 start-peer step in
+      let peer = if ge-u32 raw-peer hub.hub-core-count then wrapping-sub-u32 raw-peer hub.hub-core-count else raw-peer in
+      if eq-u32 peer (u16-to-u32 hub.hub-core-raw) then
+        drain-all-peers-loop hub start-peer (wrapping-add-u32 step 1) budget now-ns envs delivered last-topic max-lat
+      else
+        let st = drain-peer-loop hub peer budget now-ns envs delivered last-topic max-lat in
+        let used = wrapping-sub-u32 st.drain-envelopes envs in
+        let rem-budget = wrapping-sub-u32 budget used in
+        drain-all-peers-loop hub start-peer (wrapping-add-u32 step 1) rem-budget now-ns
+          st.drain-envelopes st.drain-delivered st.drain-last-topic st.drain-max-latency-ns
+
+  -- | Drain up to `max-batch` inbound cross-core topic broadcast envelopes from
+  -- all peer SPSC rings in round-robin order and fan each out locally to all
+  -- subscribers on this core (`#[no-alloc]`).
+  #[no-alloc]
+  ws-hub-drain-remote :: WsHub -> U32 -> U64 ->{MVar} WsDrainStats
+  ws-hub-drain-remote hub max-batch now-ns =
+    if either (eq-i64 hub.hub-mesh-base 0) (either (le-u32 hub.hub-core-count 1) (eq-u32 max-batch 0)) then
+      WsDrainStats 0 0 0 0 0
+    else
+      let rr-addr = wrapping-add-i64 hub.hub-topics-base 8 in
+      let rr0 = raw-load-u32 rr-addr in
+      let start = if ge-u32 rr0 hub.hub-core-count then 0 else rr0 in
+      let next-rr0 = wrapping-add-u32 start 1 in
+      let next-rr = if ge-u32 next-rr0 hub.hub-core-count then 0 else next-rr0 in
+      let _rr = raw-store-u32 rr-addr next-rr in
+      drain-all-peers-loop hub start 0 max-batch now-ns 0 0 0 0
+
+  -- =========================================================================
+  -- 5. Automatic Ping/Pong & Close Echo Helper (#[no-alloc])
+  -- =========================================================================
+
+  -- | Automatically handle an inbound RFC 6455 control frame (`Ping`, `Pong`,
+  -- or `Close`) for `conn-h`, writing any required server `Pong` or `Close`
+  -- echo frame directly into `tx-buf[0..tx-cap)` with zero heap allocations.
+  #[no-alloc]
+  ws-hub-handle-control-dma :: WsHub -> GenHandle -> WsFrameResult -> I64 -> I64 -> U32 ->{MVar} WsCtrlAction
+  ws-hub-handle-control-dma hub conn-h frame rx-base tx-buf tx-cap =
+    if ne-u8 frame.wfr-status ws-parse-ok then
+      let code = (
+        if eq-u8 frame.wfr-status ws-parse-err-invalid-utf8 then ws-close-invalid-payload
+        else if eq-u8 frame.wfr-status ws-parse-err-too-big then ws-close-message-too-big
+        else ws-close-protocol-error) in
+      let _mc = ws-hub-conn-mark-closing hub conn-h in
+      let n = ws-encode-close-dma tx-buf tx-cap code 0 0 in
+      WsCtrlAction ws-ctrl-send-close 0 code n
+    else
+      let op = frame.wfr-opcode in
+      let payload-addr = wrapping-add-i64 rx-base (u32-to-i64 frame.wfr-payload-off) in
+      if eq-u8 op ws-op-ping then
+        let n = ws-encode-pong-dma tx-buf tx-cap payload-addr frame.wfr-payload-len in
+        WsCtrlAction ws-ctrl-send-pong 0 0 n
+      else if eq-u8 op ws-op-pong then
+        WsCtrlAction ws-ctrl-pong-acked 0 0 0
+      else if eq-u8 op ws-op-close then
+        let _mc = ws-hub-conn-mark-closing hub conn-h in
+        let echo-code = if eq-u16 frame.wfr-close-code 0 then ws-close-normal else frame.wfr-close-code in
+        let n = ws-encode-close-dma tx-buf tx-cap echo-code 0 0 in
+        WsCtrlAction ws-ctrl-send-close 0 echo-code n
+      else
+        WsCtrlAction ws-ctrl-noop 0 0 0
