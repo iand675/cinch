@@ -1451,6 +1451,22 @@
     {
       "name": "Net.Tls.Fast.Spec",
       "path": "Net/Tls/Fast/Spec.cinch"
+    },
+    {
+      "name": "Net.Quic.AckMap",
+      "path": "Net/Quic/AckMap.cinch"
+    },
+    {
+      "name": "Net.Quic.Recovery",
+      "path": "Net/Quic/Recovery.cinch"
+    },
+    {
+      "name": "Net.Quic.Bbr",
+      "path": "Net/Quic/Bbr.cinch"
+    },
+    {
+      "name": "Net.Quic.Pacer",
+      "path": "Net/Quic/Pacer.cinch"
     }
   ],
   "order": [
@@ -1815,6 +1831,10 @@
     "Net.Tls.Fast",
     "Net.Tls.Ktls",
     "Net.Tls.QuicBridge",
-    "Net.Tls.Fast.Spec"
+    "Net.Tls.Fast.Spec",
+    "Net.Quic.AckMap",
+    "Net.Quic.Recovery",
+    "Net.Quic.Bbr",
+    "Net.Quic.Pacer"
   ]
 }
