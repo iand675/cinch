@@ -1319,10 +1319,120 @@ fn lower_shufflevector(
     ))
 }
 
-/// Lower pure register-only hardware crypto inline-asm templates (`pclmulqdq`, `pmull`,
-/// `aesenc`/`aesenclast`/`aesdec`/`aesdeclast`, `aese`/`aesmc`/`aesd`/`aesimc`) into
-/// exact `SemGraph` nodes (`BvClmul` / `AesCore`). Any `sideeffect`, memory clobber, or
-/// unmodeled ISA instruction is strictly rejected.
+/// Pack a 128-bit vector SemVal (`<2 x i64>` or `<16 x i8>`) into `(Bv(128), poison)`.
+fn pack_vec128(g: &mut SemGraph, v: &SemVal) -> Result<(NodeId, NodeId), SemError> {
+    let SemVal::Vector { lanes, .. } = v else {
+        return Err(SemError::Unsupported("expected 128-bit vector for SIMD/crypto op".to_string()));
+    };
+    let mut acc = lanes[0].0;
+    let mut p = lanes[0].1;
+    for &(lv, lp) in &lanes[1..] {
+        acc = g.bv_concat(lv, acc);
+        p = g.or(p, lp);
+    }
+    Ok((acc, p))
+}
+
+/// Unpack a 128-bit `(Bv(128), poison)` into `<N x iW>`.
+fn unpack_vec128(
+    g: &mut SemGraph,
+    bits: NodeId,
+    poison: NodeId,
+    ret_t: &LlvmTy,
+) -> Result<SemVal, SemError> {
+    let LlvmTy::Vec(n, elem) = ret_t else {
+        return Err(SemError::Unsupported("expected vector return type for SIMD/crypto op".to_string()));
+    };
+    let Some(SemTy::Bv(ew)) = elem.to_sem_ty() else {
+        return Err(SemError::Unsupported("expected integer vector element for SIMD/crypto op".to_string()));
+    };
+    if (*n as u16) * ew != 128 {
+        return Err(SemError::Unsupported("expected 128-bit vector return for SIMD/crypto op".to_string()));
+    }
+    let mut lanes = Vec::with_capacity(*n as usize);
+    for i in 0..(*n as u16) {
+        let lo = i * ew;
+        let hi = lo + ew - 1;
+        let lane = g.bv_extract(bits, hi, lo);
+        lanes.push((lane, poison));
+    }
+    Ok(SemVal::Vector { elem_ty: SemTy::Bv(ew), lanes })
+}
+
+/// Exact x86_64 SSSE3 `pshufb` mask: clears bits 4..6 of every byte lane while
+/// preserving bit 7 (zero-output flag) and bits 0..3 (table index `0..15`).
+const X86_PSHUFB_IDX_MASK: u128 = 0x8F8F_8F8F_8F8F_8F8F_8F8F_8F8F_8F8F_8F8F;
+
+/// Lower a CRC32C operation (scalar `acc`, scalar `data`, `data_bits` ∈ `{8, 32, 64}`)
+/// into `SemOp::BvCrc32c`, zero-extending to `i64` if `ret_t` is `i64`.
+fn lower_crc32c_op(
+    g: &mut SemGraph,
+    acc_val: &SemVal,
+    data_val: &SemVal,
+    data_bits: u16,
+    ret_t: &LlvmTy,
+) -> Result<SemVal, SemError> {
+    let (acc, pa) = acc_val.as_scalar().ok_or_else(|| {
+        SemError::Unsupported("CRC32C accumulator must be scalar".to_string())
+    })?;
+    let (data, pd) = data_val.as_scalar().ok_or_else(|| {
+        SemError::Unsupported("CRC32C data must be scalar".to_string())
+    })?;
+    let acc_w = g.bv_width(acc);
+    let acc32 = if acc_w == 32 {
+        acc
+    } else if acc_w > 32 {
+        g.bv_extract(acc, 31, 0)
+    } else {
+        g.bv_zext(acc, 32)
+    };
+    let data_w = g.bv_width(data);
+    let data_n = if data_w == data_bits {
+        data
+    } else if data_w > data_bits {
+        g.bv_extract(data, data_bits - 1, 0)
+    } else {
+        return Err(SemError::Parse(format!(
+            "CRC32C data operand width i{data_w} narrower than {data_bits} bits"
+        )));
+    };
+    let crc32 = g.bv_crc32c(acc32, data_n, data_bits);
+    let out = match *ret_t {
+        LlvmTy::Int(32) => crc32,
+        LlvmTy::Int(64) => g.bv_zext(crc32, 64),
+        _ => {
+            return Err(SemError::Unsupported(format!(
+                "unsupported CRC32C return type {ret_t:?}"
+            )));
+        }
+    };
+    let poison = g.or(pa, pd);
+    Ok(SemVal::Scalar { val: out, poison })
+}
+
+/// Normalize whitespace around commas/braces in inline asm templates for deterministic matching.
+fn normalize_asm_tpl(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut prev_space = false;
+    for ch in s.trim().chars() {
+        if ch.is_whitespace() {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(ch);
+            prev_space = false;
+        }
+    }
+    out
+}
+
+/// Lower pure register-only hardware crypto/SIMD inline-asm templates (`pclmulqdq`, `pmull`,
+/// `aesenc`/`aesenclast`/`aesdec`/`aesdeclast`, `aese`/`aesmc`/`aesd`/`aesimc`,
+/// `pshufb`/`vpshufb`/`tbl`, and `crc32b`/`crc32l`/`crc32q`/`crc32cb`/`crc32cw`/`crc32cx`)
+/// into exact `SemGraph` nodes (`BvClmul` / `AesCore` / `BvShuffle16` / `BvCrc32c`).
+/// Any `sideeffect`, memory clobber, or unmodeled ISA instruction is strictly rejected.
 fn lower_verified_crypto_asm(
     g: &mut SemGraph,
     env: &HashMap<String, (LlvmTy, SemVal)>,
@@ -1335,12 +1445,18 @@ fn lower_verified_crypto_asm(
             "inline `asm` call requires an ISA semantics plugin (e.g. Sail)".to_string(),
         ));
     }
-    let after_asm = after_ret[4..].trim();
+    let mut after_asm = after_ret[4..].trim();
     if after_asm.starts_with("sideeffect ") || after_asm.contains("~{memory}") {
         return Err(SemError::Unsupported(
             "sideeffect/memory inline `asm` requires an ISA semantics plugin".to_string(),
         ));
     }
+    let is_intel = if let Some(stripped) = after_asm.strip_prefix("inteldialect ") {
+        after_asm = stripped.trim();
+        true
+    } else {
+        false
+    };
     // Extract the two quoted strings: `"<template>"`, `"<constraints>"`
     let mut quoted = Vec::new();
     let mut chars = after_asm.char_indices().peekable();
@@ -1385,50 +1501,12 @@ fn lower_verified_crypto_asm(
         eval_args.push((aty, aop, av));
     }
 
-    // Helper: pack a 128-bit vector SemVal (<2 x i64> or <16 x i8>) into (Bv(128), poison).
-    fn pack_vec128(g: &mut SemGraph, v: &SemVal) -> Result<(NodeId, NodeId), SemError> {
-        let SemVal::Vector { lanes, .. } = v else {
-            return Err(SemError::Unsupported("expected 128-bit vector for crypto asm".to_string()));
-        };
-        let mut acc = lanes[0].0;
-        let mut p = lanes[0].1;
-        for &(lv, lp) in &lanes[1..] {
-            acc = g.bv_concat(lv, acc);
-            p = g.or(p, lp);
-        }
-        Ok((acc, p))
-    }
-
-    // Helper: unpack a 128-bit (Bv(128), poison) into `<N x iW>`.
-    fn unpack_vec128(
-        g: &mut SemGraph,
-        bits: NodeId,
-        poison: NodeId,
-        ret_t: &LlvmTy,
-    ) -> Result<SemVal, SemError> {
-        let LlvmTy::Vec(n, elem) = ret_t else {
-            return Err(SemError::Unsupported("expected vector return type for crypto asm".to_string()));
-        };
-        let Some(SemTy::Bv(ew)) = elem.to_sem_ty() else {
-            return Err(SemError::Unsupported("expected integer vector element for crypto asm".to_string()));
-        };
-        if (*n as u16) * ew != 128 {
-            return Err(SemError::Unsupported("expected 128-bit vector return for crypto asm".to_string()));
-        }
-        let mut lanes = Vec::with_capacity(*n as usize);
-        for i in 0..(*n as u16) {
-            let lo = i * ew;
-            let hi = lo + ew - 1;
-            let lane = g.bv_extract(bits, hi, lo);
-            lanes.push((lane, poison));
-        }
-        Ok(SemVal::Vector { elem_ty: SemTy::Bv(ew), lanes })
-    }
-
-    // Strip optional `.arch_extension aes\0A` prefix on aarch64 templates.
+    // Strip optional `.arch_extension aes\0A` or `.arch_extension crc\0A` prefix on aarch64 templates.
     let norm_tpl = tpl
         .strip_prefix(".arch_extension aes\\0A")
         .or_else(|| tpl.strip_prefix(".arch_extension aes\n"))
+        .or_else(|| tpl.strip_prefix(".arch_extension crc\\0A"))
+        .or_else(|| tpl.strip_prefix(".arch_extension crc\n"))
         .unwrap_or(tpl)
         .trim();
 
@@ -1510,6 +1588,94 @@ fn lower_verified_crypto_asm(
             let out = g.aes_core(kind, xored);
             let p = g.or(sp, kp);
             return Ok((ret_t.clone(), unpack_vec128(g, out, p, &ret_t)?));
+        }
+    }
+
+    let compact = normalize_asm_tpl(norm_tpl);
+
+    // 5. x86_64 SSSE3/AVX `pshufb` / `vpshufb`: bit 7 zeroes lane, bits 0..3 select 0..15.
+    let is_x86_pshufb = (!is_intel
+        && ((compact == "pshufb $2, $0" && constraints == "=x,0,x")
+            || (compact == "vpshufb $2, $1, $0" && constraints == "=x,x,x")))
+        || (is_intel
+            && ((compact == "pshufb $0, $2" && constraints == "=x,0,x")
+                || (compact == "vpshufb $0, $1, $2" && constraints == "=x,x,x")));
+    if is_x86_pshufb && eval_args.len() == 2 {
+        let (tbl_bits, tp) = pack_vec128(g, &eval_args[0].2)?;
+        let (idx_bits, ip) = pack_vec128(g, &eval_args[1].2)?;
+        let mask = g.bv_const(128, X86_PSHUFB_IDX_MASK);
+        let masked_idx = g.bv_and(idx_bits, mask);
+        let out = g.bv_shuffle16(tbl_bits, masked_idx);
+        let p = g.or(tp, ip);
+        return Ok((ret_t.clone(), unpack_vec128(g, out, p, &ret_t)?));
+    }
+
+    // 6. aarch64 NEON `tbl $0.16b, {$1.16b}, $2.16b`, `"=w,w,w"` / `"=&w,w,w"`
+    let compact_arm_tbl = compact.replace("{ ", "{").replace(" }", "}");
+    if compact_arm_tbl == "tbl $0.16b, {$1.16b}, $2.16b"
+        && matches!(constraints, "=w,w,w" | "=&w,w,w")
+        && eval_args.len() == 2
+    {
+        let (tbl_bits, tp) = pack_vec128(g, &eval_args[0].2)?;
+        let (idx_bits, ip) = pack_vec128(g, &eval_args[1].2)?;
+        let out = g.bv_shuffle16(tbl_bits, idx_bits);
+        let p = g.or(tp, ip);
+        return Ok((ret_t.clone(), unpack_vec128(g, out, p, &ret_t)?));
+    }
+
+    // 7. x86_64 SSE4.2 `crc32b`/`crc32l`/`crc32q` (AT&T or Intel dialect)
+    if eval_args.len() == 2 && matches!(constraints, "=r,0,r" | "=r,0,q" | "=r,0,rm" | "=r,0,qm") {
+        let x86_crc_bits = if !is_intel {
+            match compact.as_str() {
+                "crc32b $2, $0" => Some(8u16),
+                "crc32l $2, $0" => Some(32u16),
+                "crc32q $2, $0" => Some(64u16),
+                _ => None,
+            }
+        } else {
+            match compact.as_str() {
+                "crc32b $0, $2" => Some(8u16),
+                "crc32l $0, $2" => Some(32u16),
+                "crc32q $0, $2" => Some(64u16),
+                "crc32 $0, $2" => match eval_args[1].0 {
+                    LlvmTy::Int(8) => Some(8u16),
+                    LlvmTy::Int(32) => Some(32u16),
+                    LlvmTy::Int(64) => Some(64u16),
+                    _ => None,
+                },
+                _ => None,
+            }
+        };
+        if let Some(data_bits) = x86_crc_bits {
+            let res = lower_crc32c_op(g, &eval_args[0].2, &eval_args[1].2, data_bits, &ret_t)?;
+            return Ok((ret_t, res));
+        }
+    }
+
+    // 8. aarch64 ARMv8 CRC `crc32cb`/`crc32cw`/`crc32cx`
+    if eval_args.len() == 2 && matches!(constraints, "=r,r,r" | "=r,0,r") {
+        let (mnemonic, rest_ops) = split_head_word(&compact);
+        let arm_crc_bits = match mnemonic {
+            "crc32cb" => Some(8u16),
+            "crc32cw" => Some(32u16),
+            "crc32cx" => Some(64u16),
+            _ => None,
+        };
+        if let Some(data_bits) = arm_crc_bits {
+            let ops: Vec<&str> = rest_ops.split(',').map(|s| s.trim()).collect();
+            let dst_ok = ops.first().is_some_and(|&o| matches!(o, "$0" | "${0:w}"));
+            let acc_ok = ops.get(1).is_some_and(|&o| {
+                matches!(o, "$1" | "${1:w}")
+                    || (constraints == "=r,0,r" && matches!(o, "$0" | "${0:w}"))
+            });
+            let data_ok = ops.get(2).is_some_and(|&o| match data_bits {
+                64 => matches!(o, "$2" | "${2:x}"),
+                _ => matches!(o, "$2" | "${2:w}"),
+            });
+            if ops.len() == 3 && dst_ok && acc_ok && data_ok {
+                let res = lower_crc32c_op(g, &eval_args[0].2, &eval_args[1].2, data_bits, &ret_t)?;
+                return Ok((ret_t, res));
+            }
         }
     }
 
@@ -1749,6 +1915,50 @@ fn lower_intrinsic(
             let poison = g.or(pa, pb);
             Ok(SemVal::Scalar { val, poison })
         }
+        "x86" => match sym {
+            "llvm.x86.ssse3.pshuf.b.128" if args.len() == 2 => {
+                let (tbl_bits, tp) = pack_vec128(g, &args[0].2)?;
+                let (idx_bits, ip) = pack_vec128(g, &args[1].2)?;
+                let mask = g.bv_const(128, X86_PSHUFB_IDX_MASK);
+                let masked_idx = g.bv_and(idx_bits, mask);
+                let out = g.bv_shuffle16(tbl_bits, masked_idx);
+                let poison = g.or(tp, ip);
+                unpack_vec128(g, out, poison, ret_ty)
+            }
+            "llvm.x86.sse42.crc32.32.8" if args.len() == 2 => {
+                lower_crc32c_op(g, &args[0].2, &args[1].2, 8, ret_ty)
+            }
+            "llvm.x86.sse42.crc32.32.32" if args.len() == 2 => {
+                lower_crc32c_op(g, &args[0].2, &args[1].2, 32, ret_ty)
+            }
+            "llvm.x86.sse42.crc32.64.64" if args.len() == 2 => {
+                lower_crc32c_op(g, &args[0].2, &args[1].2, 64, ret_ty)
+            }
+            _ => Err(SemError::Unsupported(format!(
+                "intrinsic `@{sym}` is not modeled in {LLVM_SEMANTICS_ID}"
+            ))),
+        },
+        "aarch64" => match sym {
+            "llvm.aarch64.neon.tbl1.v16i8" if args.len() == 2 => {
+                let (tbl_bits, tp) = pack_vec128(g, &args[0].2)?;
+                let (idx_bits, ip) = pack_vec128(g, &args[1].2)?;
+                let out = g.bv_shuffle16(tbl_bits, idx_bits);
+                let poison = g.or(tp, ip);
+                unpack_vec128(g, out, poison, ret_ty)
+            }
+            "llvm.aarch64.crc32cb" if args.len() == 2 => {
+                lower_crc32c_op(g, &args[0].2, &args[1].2, 8, ret_ty)
+            }
+            "llvm.aarch64.crc32cw" if args.len() == 2 => {
+                lower_crc32c_op(g, &args[0].2, &args[1].2, 32, ret_ty)
+            }
+            "llvm.aarch64.crc32cx" if args.len() == 2 => {
+                lower_crc32c_op(g, &args[0].2, &args[1].2, 64, ret_ty)
+            }
+            _ => Err(SemError::Unsupported(format!(
+                "intrinsic `@{sym}` is not modeled in {LLVM_SEMANTICS_ID}"
+            ))),
+        },
         _ => {
             let _ = ret_ty;
             Err(SemError::Unsupported(format!(
@@ -2113,6 +2323,9 @@ fn parse_operand(s: &str) -> Result<Operand, SemError> {
     }
     if let Ok(v) = s.parse::<i128>() {
         return Ok(Operand::Int(v));
+    }
+    if let Ok(v) = s.parse::<u128>() {
+        return Ok(Operand::Int(v as i128));
     }
     if s.contains('.') || s.contains('e') || s.contains('E') {
         return Ok(Operand::FloatDec(s.to_string()));

@@ -27,7 +27,7 @@ module Main where
   import Cinch.Infer (elaboration-core)
   import Cinch.Parallel (default-tuning, tuning-with-prim-verify, tuning-with-jpl, tuning-with-proof-cache, tuning-with-replay-only, tuning-with-word-size)
   import Cinch.Parse (parse-program)
-  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-prim-body-cached, verify-prim-cross-target, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-goal-hash, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
+  import Cinch.PrimVerify (LratAdd, verify-lrat, verify-lrat-text, VerifyOutcome, OutcomeVerified, OutcomeAssumed, OutcomeDisproved, OutcomeRejected, OutcomeOpen, MkPrimParamSpec, verify-prim-body, verify-prim-body-cached, verify-prim-cross-target, verify-alethe, audit-memory-atomic-contract, audit-memory-atomic-contract-for, lookup-linux-syscall, validate-linux-syscall-pair, MkCacheLineField, MkCacheLineStructLayout, audit-cache-line-layout, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety, receipt-goal-hash, receipt-checker-id, receipt-tier, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved, tv-report-status, tv-report-details)
   import Cinch.Report (Diagnostic, render-diagnostics)
   import Cinch.Resolve (resolve-program)
   import Cinch.Target (TargetProfile, host-profile, profile-of-triple, profile-with-prim-verify, target-view-program)
@@ -850,6 +850,42 @@ module Main where
           other -> Err "stronger atomic/syscall boundary contract audit mismatch")
       other -> Err "hardware crypto inline-asm cross-target verification failed"
 
+  -- 24. SIMD 16-byte shuffle (`pshufb` == `tbl1`), Hardware Castagnoli CRC32C (`crc32b/l/q` == `crc32cb/w/x` == scalar),
+  --     and mem_contract v2 Linux syscall + cache-line layout audits.
+  test-simd-shuffle-crc32c-and-v2-contracts :: Result String Unit
+  test-simd-shuffle-crc32c-and-v2-contracts =
+    let u128-p0 = MkPrimParamSpec "tbl" "U128" 128 False False False in
+    let u128-p1 = MkPrimParamSpec "idx" "U128" 128 False False False in
+    let u32-p0 = MkPrimParamSpec "acc" "U32" 32 False False False in
+    let u8-p1 = MkPrimParamSpec "b" "U8" 8 False False False in
+    let u32-p1 = MkPrimParamSpec "w" "U32" 32 False False False in
+    let u64-p1 = MkPrimParamSpec "q" "U64" 64 False False False in
+    -- Masked index (`idx & 0x8F..8F`) makes x86 `pshufb` == aarch64 `tbl1` bit-for-bit!
+    let shuf-x86 = "%vt = bitcast i128 %0 to <16 x i8>\n%m = and i128 %1, 190825013606643922648088505344089624463\n%vi = bitcast i128 %m to <16 x i8>\n%vr = call <16 x i8> @llvm.x86.ssse3.pshuf.b.128(<16 x i8> %vt, <16 x i8> %vi)\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    let shuf-arm = "%vt = bitcast i128 %0 to <16 x i8>\n%m = and i128 %1, 190825013606643922648088505344089624463\n%vi = bitcast i128 %m to <16 x i8>\n%vr = call <16 x i8> @llvm.aarch64.neon.tbl1.v16i8(<16 x i8> %vt, <16 x i8> %vi)\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    let shuf-x86-raw = "%vt = bitcast i128 %0 to <16 x i8>\n%vi = bitcast i128 %1 to <16 x i8>\n%vr = call <16 x i8> asm \"pshufb $2, $0\", \"=x,0,x\"(<16 x i8> %vt, <16 x i8> %vi)\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    let shuf-arm-raw = "%vt = bitcast i128 %0 to <16 x i8>\n%vi = bitcast i128 %1 to <16 x i8>\n%vr = call <16 x i8> asm \"tbl $0.16b, {$1.16b}, $2.16b\", \"=w,w,w\"(<16 x i8> %vt, <16 x i8> %vi)\n%r = bitcast <16 x i8> %vr to i128\nret i128 %r\n" in
+    let crc8-x86 = "%r = call i32 asm \"crc32b $2, $0\", \"=r,0,q\"(i32 %0, i8 %1)\nret i32 %r\n" in
+    let crc8-arm = "%d = zext i8 %1 to i32\n%r = call i32 asm \".arch_extension crc\\0Acrc32cb ${0:w}, ${1:w}, ${2:w}\", \"=r,r,r\"(i32 %0, i32 %d)\nret i32 %r\n" in
+    let crc32-x86 = "%r = call i32 @llvm.x86.sse42.crc32.32.32(i32 %0, i32 %1)\nret i32 %r\n" in
+    let crc32-arm = "%r = call i32 @llvm.aarch64.crc32cw(i32 %0, i32 %1)\nret i32 %r\n" in
+    let crc64-x86 = "%a64 = zext i32 %0 to i64\n%r64 = call i64 asm \"crc32q $2, $0\", \"=r,0,r\"(i64 %a64, i64 %1)\n%r = trunc i64 %r64 to i32\nret i32 %r\n" in
+    let crc64-arm = "%r = call i32 asm \".arch_extension crc\\0Acrc32cx ${0:w}, ${1:w}, $2\", \"=r,r,r\"(i32 %0, i64 %1)\nret i32 %r\n" in
+    case (verify-prim-cross-target "simd-shuffle16" True "strict" "verify" Nil False shuf-x86 shuf-arm [u128-p0, u128-p1] u128-p0 Nil Nil,
+          verify-prim-cross-target "simd-shuffle16-raw" True "strict" "verify" Nil False shuf-x86-raw shuf-arm-raw [u128-p0, u128-p1] u128-p0 Nil Nil,
+          verify-prim-cross-target "crc32c-u8" True "strict" "verify" Nil False crc8-x86 crc8-arm [u32-p0, u8-p1] u32-p0 Nil Nil,
+          verify-prim-cross-target "crc32c-u32" True "strict" "verify" Nil False crc32-x86 crc32-arm [u32-p0, u32-p1] u32-p0 Nil Nil,
+          verify-prim-cross-target "crc32c-u64" True "strict" "verify" Nil False crc64-x86 crc64-arm [u32-p0, u64-p1] u32-p0 Nil Nil) of
+      (OutcomeVerified _, OutcomeDisproved _, OutcomeVerified _, OutcomeVerified _, OutcomeVerified _) ->
+        let v-sys-ok = audit-memory-atomic-contract "linux-io-uring-setup" False "%r = call i64 asm sideeffect inteldialect \"mov rax, 425\\0A syscall\", \"={rax},~{rcx},~{r11},~{memory}\"(i64 %0)" in
+        let v-sys-bad = audit-memory-atomic-contract "linux-socket" False "%r = call i64 asm sideeffect \"mov x8, #41\\0A svc #0\", \"={x0},~{x8},~{memory}\"(i64 %0)" in
+        let cl-ok = audit-cache-line-layout (MkCacheLineStructLayout "RingOk" "C" 256 128 [MkCacheLineField "head" 0 8 8 True, MkCacheLineField "_pad0" 8 120 1 False, MkCacheLineField "tail" 128 8 8 True]) 128 in
+        let cl-bad = audit-cache-line-layout (MkCacheLineStructLayout "RingBad" "C" 128 128 [MkCacheLineField "head" 0 8 8 True, MkCacheLineField "tail" 64 8 8 True]) 128 in
+        (case (v-sys-ok, v-sys-bad, cl-ok, cl-bad, validate-linux-syscall-pair 41 198, validate-linux-syscall-pair 41 41) of
+          (Nil, Cons _ _, Nil, Cons _ _, Ok "socket", Err _) -> Ok ()
+          other -> Err "mem_contract v2 syscall or cache-line audit mismatch")
+      other -> Err "SIMD shuffle16 / CRC32C cross-target verification failed"
+
   run-all :: Result String Unit
   run-all =
     case test-lrat-kernel of
@@ -896,11 +932,13 @@ module Main where
                                               Err e -> Err e
                                               Ok u21 -> case test-extended-tv-and-rc of
                                                 Err e -> Err e
-                                                Ok u22 -> test-crypto-asm-and-atomic-contracts
+                                                Ok u22 -> case test-crypto-asm-and-atomic-contracts of
+                                                  Err e -> Err e
+                                                  Ok u23 -> test-simd-shuffle-crc32c-and-v2-contracts
 
   run-io :: forall r. using (io :: Io r) => Unit ->{IO r} Int
   run-io u = case run-all of
-    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 23 self-hosted verification tests PASSED\n") of _ -> 0
+    Ok done -> case ioWrite (string-to-bytes "Run.PrimVerify: all 24 self-hosted verification tests PASSED\n") of _ -> 0
     Err msg -> case ioWrite (string-to-bytes (string-concat-all ["Run.PrimVerify FAILED: ", msg, "\n"])) of _ -> 1
 
   main :: Unit ->{IO r} Int

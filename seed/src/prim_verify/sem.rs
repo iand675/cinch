@@ -158,11 +158,20 @@ pub enum SemOp {
     BvFshl(NodeId, NodeId, NodeId),
     BvFshr(NodeId, NodeId, NodeId),
 
-    // Hardware crypto / SIMD bit-vector primitives (exact GF(2) clmul & FIPS-197 AES round cores)
+    // Hardware crypto / SIMD bit-vector primitives (exact GF(2) clmul, FIPS-197 AES,
+    // 16-byte SIMD table lookup, and Castagnoli CRC32C)
     /// Exact 64x64->128 carry-less (GF(2)) multiplication (`pclmulqdq` / `pmull`).
     BvClmul(NodeId, NodeId),
     /// Exact 128-bit FIPS-197 AES round core transformation (`aesenc`/`aesdec`/`aese`/`aesmc`).
     AesCore(AesRoundKind, NodeId),
+    /// Exact 16-byte SIMD table lookup (`tbl1` / masked `pshufb`):
+    /// for each byte lane `i` in `0..16`, if `(idx[i] & 0x80) != 0 || idx[i] >= 16` -> `0x00`,
+    /// else `tbl[idx[i] & 0x0F]`.
+    BvShuffle16(NodeId, NodeId),
+    /// Exact reflected Castagnoli CRC32C (RFC 3720 polynomial `0x82F63B78`):
+    /// `acc` (32-bit) XOR `data`, shifted right `data_bits` (`8`, `32`, or `64`) times
+    /// XORing `0x82F63B78` whenever LSB is 1.
+    BvCrc32c { acc: NodeId, data: NodeId, data_bits: u16 },
 
     // Bit-vector comparisons
     BvEq(NodeId, NodeId),
@@ -676,6 +685,14 @@ impl SemGraph {
         self.push(SemOp::AesCore(kind, state), SemTy::Bv(128))
     }
 
+    pub fn bv_shuffle16(&mut self, tbl: NodeId, idx: NodeId) -> NodeId {
+        self.push(SemOp::BvShuffle16(tbl, idx), SemTy::Bv(128))
+    }
+
+    pub fn bv_crc32c(&mut self, acc: NodeId, data: NodeId, data_bits: u16) -> NodeId {
+        self.push(SemOp::BvCrc32c { acc, data, data_bits }, SemTy::Bv(32))
+    }
+
     /// True if any node in the entire graph (even outside `goal`) uses FP arithmetic
     /// (`fadd`/`fsub`/`fmul`/`fdiv`/`sqrt`/rounding/casts), distinguishing pure bit-level
     /// IEEE-754 prims from arithmetic float prims that require an SMT/FP solver.
@@ -800,6 +817,8 @@ impl SemOp {
             | SemOp::BvSub(a, b)
             | SemOp::BvMul(a, b)
             | SemOp::BvClmul(a, b)
+            | SemOp::BvShuffle16(a, b)
+            | SemOp::BvCrc32c { acc: a, data: b, .. }
             | SemOp::BvUDiv(a, b)
             | SemOp::BvURem(a, b)
             | SemOp::BvSDiv(a, b)
@@ -1079,6 +1098,10 @@ fn remap_op_slice(op: &SemOp, map: &[NodeId]) -> SemOp {
         SemOp::BvFshr(a, b, c) => SemOp::BvFshr(r(a), r(b), r(c)),
         SemOp::BvClmul(a, b) => SemOp::BvClmul(r(a), r(b)),
         SemOp::AesCore(k, a) => SemOp::AesCore(k, r(a)),
+        SemOp::BvShuffle16(a, b) => SemOp::BvShuffle16(r(a), r(b)),
+        SemOp::BvCrc32c { acc, data, data_bits } => {
+            SemOp::BvCrc32c { acc: r(acc), data: r(data), data_bits }
+        }
         SemOp::BvEq(a, b) => SemOp::BvEq(r(a), r(b)),
         SemOp::BvULt(a, b) => SemOp::BvULt(r(a), r(b)),
         SemOp::BvULe(a, b) => SemOp::BvULe(r(a), r(b)),
@@ -1148,6 +1171,10 @@ fn remap_op(op: &SemOp, map: &HashMap<NodeId, u32>) -> SemOp {
         SemOp::BvFshr(a, b, c) => SemOp::BvFshr(r(a), r(b), r(c)),
         SemOp::BvClmul(a, b) => SemOp::BvClmul(r(a), r(b)),
         SemOp::AesCore(k, a) => SemOp::AesCore(k, r(a)),
+        SemOp::BvShuffle16(a, b) => SemOp::BvShuffle16(r(a), r(b)),
+        SemOp::BvCrc32c { acc, data, data_bits } => {
+            SemOp::BvCrc32c { acc: r(acc), data: r(data), data_bits }
+        }
         SemOp::BvEq(a, b) => SemOp::BvEq(r(a), r(b)),
         SemOp::BvULt(a, b) => SemOp::BvULt(r(a), r(b)),
         SemOp::BvULe(a, b) => SemOp::BvULe(r(a), r(b)),
@@ -1362,6 +1389,19 @@ pub fn eval_node(graph: &SemGraph, target: NodeId, args: &[ConcreteVal]) -> Conc
             SemOp::AesCore(kind, a) => {
                 let (_, va) = go(g, *a, args, memo).as_bv();
                 ConcreteVal::Bv { width: 128, bits: eval_aes_core(*kind, va) }
+            }
+            SemOp::BvShuffle16(tbl, idx) => {
+                let (_, vt) = go(g, *tbl, args, memo).as_bv();
+                let (_, vi) = go(g, *idx, args, memo).as_bv();
+                ConcreteVal::Bv { width: 128, bits: eval_bv_shuffle16(vt, vi) }
+            }
+            SemOp::BvCrc32c { acc, data, data_bits } => {
+                let (_, va) = go(g, *acc, args, memo).as_bv();
+                let (_, vd) = go(g, *data, args, memo).as_bv();
+                ConcreteVal::Bv {
+                    width: 32,
+                    bits: eval_bv_crc32c(va as u32, vd as u64, *data_bits) as u128,
+                }
             }
             SemOp::BvUDiv(a, b) => {
                 let (w, va) = go(g, *a, args, memo).as_bv();
@@ -1770,4 +1810,39 @@ pub fn eval_aes_core(kind: AesRoundKind, state_bits: u128) -> u128 {
         }
     }
     u128::from_le_bytes(s)
+}
+
+/// Reflected Castagnoli CRC32C polynomial (RFC 3720 / iSCSI).
+pub const CRC32C_CASTAGNOLI_POLY: u32 = 0x82F6_3B78;
+
+/// Exact 16-byte SIMD table lookup (`tbl1` / masked `pshufb`, little-endian lane packing):
+/// for each byte lane `i` in `0..16`, if `(idx[i] & 0x80) != 0 || idx[i] >= 16` -> `0x00`,
+/// else `tbl[idx[i] & 0x0F]`.
+pub fn eval_bv_shuffle16(tbl_bits: u128, idx_bits: u128) -> u128 {
+    let tbl = tbl_bits.to_le_bytes();
+    let idx = idx_bits.to_le_bytes();
+    let mut out = [0u8; 16];
+    for i in 0..16 {
+        let b = idx[i];
+        out[i] = if (b & 0x80) != 0 || b >= 16 {
+            0
+        } else {
+            tbl[(b & 0x0F) as usize]
+        };
+    }
+    u128::from_le_bytes(out)
+}
+
+/// Exact hardware Castagnoli CRC32C update over `data_bits` ∈ `{8, 32, 64}` LSB-first bits.
+pub fn eval_bv_crc32c(acc: u32, data: u64, data_bits: u16) -> u32 {
+    let mask = if data_bits >= 64 { u64::MAX } else { (1u64 << data_bits) - 1 };
+    let mut c: u64 = (acc as u64) ^ (data & mask);
+    for _ in 0..data_bits {
+        let lsb = c & 1;
+        c >>= 1;
+        if lsb != 0 {
+            c ^= CRC32C_CASTAGNOLI_POLY as u64;
+        }
+    }
+    c as u32
 }

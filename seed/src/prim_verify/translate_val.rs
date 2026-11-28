@@ -1495,6 +1495,8 @@ fn import_graph_preserving_extra_params(
             SemOp::FpIsFinite(a) => dst.fp_is_finite(m(*a)),
             SemOp::BvClmul(a, b) => dst.bv_clmul(m(*a), m(*b)),
             SemOp::AesCore(k, a) => dst.aes_core(*k, m(*a)),
+            SemOp::BvShuffle16(tbl, idx) => dst.bv_shuffle16(m(*tbl), m(*idx)),
+            SemOp::BvCrc32c { acc, data, data_bits } => dst.bv_crc32c(m(*acc), m(*data), *data_bits),
         };
         map.push(mapped);
     }

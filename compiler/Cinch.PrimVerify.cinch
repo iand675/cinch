@@ -54,6 +54,7 @@ module Cinch.PrimVerify where
   export SemGraph, SemType, SBool, SBv, SFp, SVec, obligation-to-smtlib2
   export verify-prim-body, verify-prim-body-cached, verify-prim-cross-target
   export verify-alethe, verify-rewrite-rule, verify-rewrite-rule-for, audit-memory-atomic-contract, audit-memory-atomic-contract-for, validate-llvm-equiv, validate-llvm-memory-equiv, validate-fn-rc-safety, validate-module-rc-safety
+  export lookup-linux-syscall, validate-linux-syscall-pair, CacheLineField, MkCacheLineField, CacheLineStructLayout, MkCacheLineStructLayout, audit-cache-line-layout
   export TvReport, MkTvReport, tv-report-fn, tv-report-stage, tv-report-status, tv-report-details, validate-program-codegen-for-word-bits, render-tv-reports, tv-reports-disproved
   export is-verify-justification-word, worst-trust-tier, receipts-tcb-union
 
@@ -1266,6 +1267,23 @@ module Cinch.PrimVerify where
                           let (z-poison, g6) = g-and (sv-val vz) is-z g5 in
                           let (p, g7) = g-or (sv-poison va) z-poison g6 in
                           Ok (MkLlvmEnv (Cons (lhs, MkSemVal res p (SBv w)) binds) ub g7 ret)
+            else if same fn-tok "@llvm.x86.sse42.crc32.32.8" || same fn-tok "@llvm.x86.sse42.crc32.32.32" || same fn-tok "@llvm.x86.sse42.crc32.64.64" || same fn-tok "@llvm.aarch64.crc32cb" || same fn-tok "@llvm.aarch64.crc32cw" || same fn-tok "@llvm.aarch64.crc32cx" then
+              let dbits =
+                    if same fn-tok "@llvm.x86.sse42.crc32.32.8" || same fn-tok "@llvm.aarch64.crc32cb" then 8
+                    else if same fn-tok "@llvm.x86.sse42.crc32.32.32" || same fn-tok "@llvm.aarch64.crc32cw" then 32
+                    else 64 in
+              (case (parse-llvm-type aty-tok, parse-llvm-type bty-tok) of
+                (Some aty, Some bty) ->
+                  (case resolve-operand a-tok aty env of
+                    Err e -> Err e
+                    Ok (va, g1) ->
+                      case env of
+                        MkLlvmEnv binds ub g0 ret ->
+                          (case resolve-operand b-tok bty (MkLlvmEnv binds ub g1 ret) of
+                            Err e -> Err e
+                            Ok (vb, g2) ->
+                              lower-crc32c-sem lhs w dbits va vb binds ub g2 ret))
+                other -> Err (string-concat "malformed CRC32C intrinsic operand types " fn-tok))
             else
               case resolve-operand a-tok (SBv w) env of
                 Err e -> Err e
@@ -1315,6 +1333,10 @@ module Cinch.PrimVerify where
                             (case bin-vec-intrinsic-lanes name ew la lb g2 of
                               Err e -> Err e
                               Ok (lanes, g3) -> Ok (MkLlvmEnv (Cons (lhs, MkSemVec lanes ew) binds) ub g3 ret))
+                          (None, MkSemVec la _, MkSemVec lb _) | same fn-tok "@llvm.x86.ssse3.pshuf.b.128" && n == 16 && ew == 8 ->
+                            lower-shuffle16-sem lhs True n ew la lb binds ub g2 ret
+                          (None, MkSemVec la _, MkSemVec lb _) | same fn-tok "@llvm.aarch64.neon.tbl1.v16i8" && n == 16 && ew == 8 ->
+                            lower-shuffle16-sem lhs False n ew la lb binds ub g2 ret
                           other -> Err (string-concat "unsupported vector binary intrinsic " fn-tok))
           Some (SFp w) ->
             case resolve-operand a-tok (SFp w) env of
@@ -1583,12 +1605,83 @@ module Cinch.PrimVerify where
         Nil -> None)
     other -> None
 
+  lower-shuffle16-sem :: String -> Bool -> Nat -> Nat -> List (Nat, Nat) -> List (Nat, Nat) -> List (String, SemVal) -> Nat -> SemGraph -> Option SemVal -> Result String LlvmEnv
+  lower-shuffle16-sem lhs is-x86-pshufb out-n out-ew la lb binds ub g ret =
+    case pack-vec128 la g of
+      Err e -> Err e
+      Ok (tbl-bits, tp, g1) ->
+        case pack-vec128 lb g1 of
+          Err e -> Err e
+          Ok (idx-bits, ip, g2) ->
+            let (eff-idx, g3) =
+                  if is-x86-pshufb then
+                    let (mask, gm) = g-bv-pair 128 0x8F8F8F8F8F8F8F8F 0x8F8F8F8F8F8F8F8F g2 in
+                    g-bv-bin "and" 128 idx-bits mask gm
+                  else (idx-bits, g2) in
+            let (out, g4) = g-bv-bin "shuffle16" 128 tbl-bits eff-idx g3 in
+            let (p, g5) = g-or tp ip g4 in
+            let (out-lanes, g6) = unpack-vec128-loop out p out-ew 0 out-n g5 in
+            Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g6 ret)
+
+  lower-crc32c-sem :: String -> Nat -> Nat -> SemVal -> SemVal -> List (String, SemVal) -> Nat -> SemGraph -> Option SemVal -> Result String LlvmEnv
+  lower-crc32c-sem lhs ret-w dbits va vb binds ub g ret =
+    let acc-w = sem-type-width (sv-type va) in
+    let data-w = sem-type-width (sv-type vb) in
+    let (acc32, g1) =
+          if acc-w == 32 then (sv-val va, g)
+          else if acc-w > 32 then g-intern (NBvExtract 31 0 (sv-val va)) g
+          else g-intern (NBvCast "zext" acc-w 32 (sv-val va)) g in
+    let (data-n, g2) =
+          if data-w == dbits then (sv-val vb, g1)
+          else if data-w > dbits then g-intern (NBvExtract (saturating-sub dbits 1) 0 (sv-val vb)) g1
+          else (sv-val vb, g1) in
+    let op-nm =
+          if dbits == 8 then "crc32c_8"
+          else if dbits == 32 then "crc32c_32"
+          else "crc32c_64" in
+    let (crc32, g3) = g-bv-bin op-nm 32 acc32 data-n g2 in
+    let (out, g4) =
+          if ret-w == 64 then g-intern (NBvCast "zext" 32 64 crc32) g3
+          else (crc32, g3) in
+    let (p, g5) = g-or (sv-poison va) (sv-poison vb) g4 in
+    Ok (MkLlvmEnv (Cons (lhs, MkSemVal out p (SBv ret-w)) binds) ub g5 ret)
+
   strip-arm-aes-ext :: String -> String
   strip-arm-aes-ext tpl =
     let t = string-strip tpl in
     if string-starts-with ".arch_extension aes\\0A" t then
       string-strip (string-slice t 22 (string-length t))
+    else if string-starts-with ".arch_extension crc\\0A" t then
+      string-strip (string-slice t 22 (string-length t))
     else t
+
+  parse-asm-ret-type :: String -> Option SemType
+  parse-asm-ret-type rhs =
+    case string-split-on " asm " rhs of
+      Cons prefix _ ->
+        (case ir-words prefix of
+          Cons "call" (Cons ty-tok _) -> parse-llvm-type ty-tok
+          Cons "tail" (Cons "call" (Cons ty-tok _)) -> parse-llvm-type ty-tok
+          other -> None)
+      Nil -> None
+
+  split-comma-stripped :: String -> List String
+  split-comma-stripped s = strip-list (string-split-on "," s)
+
+  strip-list :: List String -> List String
+  strip-list xs = case xs of
+    Nil -> Nil
+    Cons h t -> Cons (string-strip h) (strip-list t)
+
+  is-arm-crc-operands :: Nat -> String -> String -> Bool
+  is-arm-crc-operands dbits cons ops-str =
+    case split-comma-stripped ops-str of
+      Cons o0 (Cons o1 (Cons o2 Nil)) ->
+        let d-ok = same o0 "$0" || same o0 "${0:w}" in
+        let a-ok = same o1 "$1" || same o1 "${1:w}" || (same cons "=r,0,r" && (same o1 "$0" || same o1 "${0:w}")) in
+        let b-ok = if dbits == 64 then same o2 "$2" || same o2 "${2:x}" else same o2 "$2" || same o2 "${2:w}" in
+        d-ok && a-ok && b-ok
+      other -> False
 
   lower-crypto-asm-line :: String -> LlvmEnv -> Result String LlvmEnv
   lower-crypto-asm-line raw env =
@@ -1599,12 +1692,10 @@ module Cinch.PrimVerify where
       Cons lhs-raw (Cons r1 rmore) ->
         let lhs = string-strip lhs-raw in
         let rhs = string-strip (join-str "=" (Cons r1 rmore)) in
-        let rty-opt =
-              if string-contains "<2 x i64>" rhs then Some (SVec 2 64)
-              else if string-contains "<16 x i8>" rhs then Some (SVec 16 8)
-              else None in
+        let is-intel = string-contains "inteldialect" rhs in
+        let rty-opt = parse-asm-ret-type rhs in
         (case (rty-opt, extract-quoted-two rhs) of
-          (Some (SVec out-n out-ew), Some (tpl-raw, cons-raw, tail)) ->
+          (Some rty, Some (tpl-raw, cons-raw, tail)) ->
             let tpl = strip-arm-aes-ext tpl-raw in
             let cons = string-strip cons-raw in
             (case extract-asm-call-args tail of
@@ -1620,73 +1711,116 @@ module Cinch.PrimVerify where
                             (case resolve-operand a2-tok t2 (MkLlvmEnv binds ub g1 ret) of
                               Err e -> Err e
                               Ok (vb, g2) ->
-                                if string-starts-with "pclmulqdq " tpl && same cons "=x,0,x" then
-                                  let imm-part = case string-split-on "," (string-slice tpl 10 (string-length tpl)) of
-                                        Cons h _ -> string-strip h
-                                        Nil -> "" in
-                                  let imm-digits =
-                                        if string-starts-with "$$" imm-part then string-slice imm-part 2 (string-length imm-part)
-                                        else if string-starts-with "$" imm-part then string-slice imm-part 1 (string-length imm-part)
-                                        else imm-part in
-                                  (case (parse-nat-str imm-digits, va, vb) of
-                                    (Some imm, MkSemVec la _, MkSemVec lb _) ->
-                                      let ai = imm % 2 in
-                                      let bi = (imm / 16) % 2 in
-                                      (case (get-lane-at ai la, get-lane-at bi lb) of
-                                        (Some (a-val, a-p), Some (b-val, b-p)) ->
+                                case rty of
+                                  SVec out-n out-ew ->
+                                    if string-starts-with "pclmulqdq " tpl && same cons "=x,0,x" then
+                                      let imm-part = case string-split-on "," (string-slice tpl 10 (string-length tpl)) of
+                                            Cons h _ -> string-strip h
+                                            Nil -> "" in
+                                      let imm-digits =
+                                            if string-starts-with "$$" imm-part then string-slice imm-part 2 (string-length imm-part)
+                                            else if string-starts-with "$" imm-part then string-slice imm-part 1 (string-length imm-part)
+                                            else imm-part in
+                                      (case (parse-nat-str imm-digits, va, vb) of
+                                        (Some imm, MkSemVec la _, MkSemVec lb _) ->
+                                          let ai = imm % 2 in
+                                          let bi = (imm / 16) % 2 in
+                                          (case (get-lane-at ai la, get-lane-at bi lb) of
+                                            (Some (a-val, a-p), Some (b-val, b-p)) ->
+                                              let (prod, g3) = g-intern (NBvBin "clmul" 128 a-val b-val) g2 in
+                                              let (p, g4) = g-or a-p b-p g3 in
+                                              let (out-lanes, g5) = unpack-vec128-loop prod p out-ew 0 out-n g4 in
+                                              Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g5 ret)
+                                            other -> Err "pclmulqdq lane out of range")
+                                        other -> Err (string-concat "unsupported pclmulqdq template: " tpl))
+                                    else if same tpl "pmull $0.1q, $1.1d, $2.1d" && same cons "=w,w,w" then
+                                      (case (va, vb) of
+                                        (MkSemVec (Cons (a-val, a-p) _) _, MkSemVec (Cons (b-val, b-p) _) _) ->
                                           let (prod, g3) = g-intern (NBvBin "clmul" 128 a-val b-val) g2 in
                                           let (p, g4) = g-or a-p b-p g3 in
                                           let (out-lanes, g5) = unpack-vec128-loop prod p out-ew 0 out-n g4 in
                                           Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g5 ret)
-                                        other -> Err "pclmulqdq lane out of range")
-                                    other -> Err (string-concat "unsupported pclmulqdq template: " tpl))
-                                else if same tpl "pmull $0.1q, $1.1d, $2.1d" && same cons "=w,w,w" then
-                                  (case (va, vb) of
-                                    (MkSemVec (Cons (a-val, a-p) _) _, MkSemVec (Cons (b-val, b-p) _) _) ->
-                                      let (prod, g3) = g-intern (NBvBin "clmul" 128 a-val b-val) g2 in
-                                      let (p, g4) = g-or a-p b-p g3 in
-                                      let (out-lanes, g5) = unpack-vec128-loop prod p out-ew 0 out-n g4 in
-                                      Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g5 ret)
-                                    other -> Err "pmull expects <1 x i64> vector operands")
-                                else
-                                  let x86-aes =
-                                        if same tpl "aesenc $2, $0" then Some "aes-enc-core"
-                                        else if same tpl "aesenclast $2, $0" then Some "aes-enc-last-core"
-                                        else if same tpl "aesdec $2, $0" then Some "aes-dec-core"
-                                        else if same tpl "aesdeclast $2, $0" then Some "aes-dec-last-core"
-                                        else None in
-                                  let arm-aes =
-                                        if same tpl "aese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b" then Some "aes-enc-core"
-                                        else if same tpl "aese $0.16b, $2.16b" then Some "aes-enc-last-core"
-                                        else if same tpl "aesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b" then Some "aes-dec-core"
-                                        else if same tpl "aesd $0.16b, $2.16b" then Some "aes-dec-last-core"
-                                        else None in
-                                  (case (x86-aes, arm-aes, va, vb) of
-                                    (Some op-nm, _, MkSemVec la _, MkSemVec lb _) | same cons "=x,0,x" ->
-                                      (case pack-vec128 la g2 of
-                                        Err e -> Err e
-                                        Ok (s-bits, sp, g3) ->
-                                          (case pack-vec128 lb g3 of
+                                        other -> Err "pmull expects <1 x i64> vector operands")
+                                    else if ((not is-intel && ((same tpl "pshufb $2, $0" && same cons "=x,0,x") || (same tpl "vpshufb $2, $1, $0" && same cons "=x,x,x")))
+                                             || (is-intel && ((same tpl "pshufb $0, $2" && same cons "=x,0,x") || (same tpl "vpshufb $0, $1, $2" && same cons "=x,x,x")))) then
+                                      (case (va, vb) of
+                                        (MkSemVec la _, MkSemVec lb _) ->
+                                          lower-shuffle16-sem lhs True out-n out-ew la lb binds ub g2 ret
+                                        other -> Err "pshufb expects 128-bit vector operands")
+                                    else if (same tpl "tbl $0.16b, {$1.16b}, $2.16b" || same tpl "tbl $0.16b, { $1.16b }, $2.16b") && (same cons "=w,w,w" || same cons "=&w,w,w") then
+                                      (case (va, vb) of
+                                        (MkSemVec la _, MkSemVec lb _) ->
+                                          lower-shuffle16-sem lhs False out-n out-ew la lb binds ub g2 ret
+                                        other -> Err "tbl expects 128-bit vector operands")
+                                    else
+                                      let x86-aes =
+                                            if same tpl "aesenc $2, $0" then Some "aes-enc-core"
+                                            else if same tpl "aesenclast $2, $0" then Some "aes-enc-last-core"
+                                            else if same tpl "aesdec $2, $0" then Some "aes-dec-core"
+                                            else if same tpl "aesdeclast $2, $0" then Some "aes-dec-last-core"
+                                            else None in
+                                      let arm-aes =
+                                            if same tpl "aese $0.16b, $2.16b\\0Aaesmc $0.16b, $0.16b" then Some "aes-enc-core"
+                                            else if same tpl "aese $0.16b, $2.16b" then Some "aes-enc-last-core"
+                                            else if same tpl "aesd $0.16b, $2.16b\\0Aaesimc $0.16b, $0.16b" then Some "aes-dec-core"
+                                            else if same tpl "aesd $0.16b, $2.16b" then Some "aes-dec-last-core"
+                                            else None in
+                                      (case (x86-aes, arm-aes, va, vb) of
+                                        (Some op-nm, _, MkSemVec la _, MkSemVec lb _) | same cons "=x,0,x" ->
+                                          (case pack-vec128 la g2 of
                                             Err e -> Err e
-                                            Ok (k-bits, kp, g4) ->
-                                              let (core, g5) = g-intern (NBvUn op-nm 128 s-bits) g4 in
-                                              let (out, g6) = g-bv-bin "xor" 128 core k-bits g5 in
-                                              let (p, g7) = g-or sp kp g6 in
-                                              let (out-lanes, g8) = unpack-vec128-loop out p out-ew 0 out-n g7 in
-                                              Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g8 ret)))
-                                    (_, Some op-nm, MkSemVec la _, MkSemVec lb _) | same cons "=w,0,w" ->
-                                      (case pack-vec128 la g2 of
-                                        Err e -> Err e
-                                        Ok (s-bits, sp, g3) ->
-                                          (case pack-vec128 lb g3 of
+                                            Ok (s-bits, sp, g3) ->
+                                              (case pack-vec128 lb g3 of
+                                                Err e -> Err e
+                                                Ok (k-bits, kp, g4) ->
+                                                  let (core, g5) = g-intern (NBvUn op-nm 128 s-bits) g4 in
+                                                  let (out, g6) = g-bv-bin "xor" 128 core k-bits g5 in
+                                                  let (p, g7) = g-or sp kp g6 in
+                                                  let (out-lanes, g8) = unpack-vec128-loop out p out-ew 0 out-n g7 in
+                                                  Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g8 ret)))
+                                        (_, Some op-nm, MkSemVec la _, MkSemVec lb _) | same cons "=w,0,w" ->
+                                          (case pack-vec128 la g2 of
                                             Err e -> Err e
-                                            Ok (k0-bits, kp, g4) ->
-                                              let (xored, g5) = g-bv-bin "xor" 128 s-bits k0-bits g4 in
-                                              let (out, g6) = g-intern (NBvUn op-nm 128 xored) g5 in
-                                              let (p, g7) = g-or sp kp g6 in
-                                              let (out-lanes, g8) = unpack-vec128-loop out p out-ew 0 out-n g7 in
-                                              Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g8 ret)))
-                                    other -> Err (string-concat-all ["inline `asm` call `", tpl, "` requires an ISA semantics plugin"]))))
+                                            Ok (s-bits, sp, g3) ->
+                                              (case pack-vec128 lb g3 of
+                                                Err e -> Err e
+                                                Ok (k0-bits, kp, g4) ->
+                                                  let (xored, g5) = g-bv-bin "xor" 128 s-bits k0-bits g4 in
+                                                  let (out, g6) = g-intern (NBvUn op-nm 128 xored) g5 in
+                                                  let (p, g7) = g-or sp kp g6 in
+                                                  let (out-lanes, g8) = unpack-vec128-loop out p out-ew 0 out-n g7 in
+                                                  Ok (MkLlvmEnv (Cons (lhs, MkSemVec out-lanes out-ew) binds) ub g8 ret)))
+                                        other -> Err (string-concat-all ["inline `asm` call `", tpl, "` requires an ISA semantics plugin"]))
+                                  SBv ret-w | ret-w == 32 || ret-w == 64 ->
+                                    let x86-cons = same cons "=r,0,r" || same cons "=r,0,q" || same cons "=r,0,rm" || same cons "=r,0,qm" in
+                                    let x86-crc =
+                                          if not x86-cons then None
+                                          else if not is-intel then
+                                            if same tpl "crc32b $2, $0" then Some 8
+                                            else if same tpl "crc32l $2, $0" then Some 32
+                                            else if same tpl "crc32q $2, $0" then Some 64
+                                            else None
+                                          else
+                                            if same tpl "crc32b $0, $2" then Some 8
+                                            else if same tpl "crc32l $0, $2" then Some 32
+                                            else if same tpl "crc32q $0, $2" then Some 64
+                                            else if same tpl "crc32 $0, $2" then
+                                              let dw = sem-type-width t2 in
+                                              if dw == 8 || dw == 32 || dw == 64 then Some dw else None
+                                            else None in
+                                    let arm-cons = same cons "=r,r,r" || same cons "=r,0,r" in
+                                    let arm-crc =
+                                          if not arm-cons then None
+                                          else if string-starts-with "crc32cb " tpl && is-arm-crc-operands 8 cons (string-slice tpl 8 (string-length tpl)) then Some 8
+                                          else if string-starts-with "crc32cw " tpl && is-arm-crc-operands 32 cons (string-slice tpl 8 (string-length tpl)) then Some 32
+                                          else if string-starts-with "crc32cx " tpl && is-arm-crc-operands 64 cons (string-slice tpl 8 (string-length tpl)) then Some 64
+                                          else None in
+                                    (case x86-crc of
+                                      Some dbits -> lower-crc32c-sem lhs ret-w dbits va vb binds ub g2 ret
+                                      None -> case arm-crc of
+                                        Some dbits -> lower-crc32c-sem lhs ret-w dbits va vb binds ub g2 ret
+                                        None -> Err (string-concat-all ["inline `asm` call `", tpl, "` requires an ISA semantics plugin"]))
+                                  other -> Err "unsupported crypto inline `asm` return type"))
                   other -> Err "unsupported crypto inline `asm` operand types"))
           other -> Err "inline `asm` call requires an ISA semantics plugin")
       other -> Err "inline `asm` call requires an ISA semantics plugin"
@@ -2367,6 +2501,53 @@ module Cinch.PrimVerify where
     Cons (idx, ty, nm) rest ->
       Cons (string-concat-all ["(declare-const v", nat-to-string idx, " ", smt-sort ty, ")"]) (smt-decls rest)
 
+  smt-shuffle16-sel :: Nat -> String -> String -> String
+  smt-shuffle16-sel k st nib =
+    let tlo = k * 8 in
+    let thi = tlo + 7 in
+    let tb = string-concat-all ["((_ extract ", nat-to-string thi, " ", nat-to-string tlo, ") ", st, ")"] in
+    if k >= 15 then tb
+    else
+      let rest = smt-shuffle16-sel (k + 1) st nib in
+      string-concat-all ["(ite (= ", nib, " (_ bv", nat-to-string k, " 4)) ", tb, " ", rest, ")"]
+
+  smt-shuffle16-lanes :: Nat -> String -> String -> String
+  smt-shuffle16-lanes lane st si =
+    let lo = lane * 8 in
+    let hi = lo + 7 in
+    let lo4-hi = lo + 3 in
+    let ib = string-concat-all ["((_ extract ", nat-to-string hi, " ", nat-to-string lo, ") ", si, ")"] in
+    let nib = string-concat-all ["((_ extract ", nat-to-string lo4-hi, " ", nat-to-string lo, ") ", si, ")"] in
+    let sel = smt-shuffle16-sel 0 st nib in
+    let lane-expr = string-concat-all ["(ite (bvuge ", ib, " #x10) #x00 ", sel, ")"] in
+    if lane == 0 then lane-expr
+    else string-concat-all ["(concat ", lane-expr, " ", smt-shuffle16-lanes (saturating-sub lane 1) st si, ")"]
+
+  smt-crc32c-steps :: Nat -> Nat -> Nat -> String
+  smt-crc32c-steps step total reg-w =
+    if step >= total then
+      let last = string-concat "c" (nat-to-string total) in
+      if reg-w == 32 then last else string-concat-all ["((_ extract 31 0) ", last, ")"]
+    else
+      let prev = string-concat "c" (nat-to-string step) in
+      let next = string-concat "c" (nat-to-string (step + 1)) in
+      let one = if reg-w == 32 then "(_ bv1 32)" else "(_ bv1 64)" in
+      let poly = if reg-w == 32 then "(_ bv2197175160 32)" else "(_ bv2197175160 64)" in
+      let body = smt-crc32c-steps (step + 1) total reg-w in
+      string-concat-all [
+        "(let ((", next, " (ite (= ((_ extract 0 0) ", prev, ") #b1) (bvxor (bvlshr ", prev, " ", one, ") ", poly, ") (bvlshr ", prev, " ", one, ")))) ",
+        body, ")"
+      ]
+
+  smt-crc32c-expr :: Nat -> String -> String -> String
+  smt-crc32c-expr dbits sa sb =
+    let reg-w = if dbits > 32 then dbits else 32 in
+    let acc-e = if reg-w == 32 then sa else string-concat-all ["((_ zero_extend 32) ", sa, ")"] in
+    let data-e =
+          if dbits == reg-w then sb
+          else string-concat-all ["((_ zero_extend ", nat-to-string (saturating-sub reg-w dbits), ") ", sb, ")"] in
+    string-concat-all ["(let ((c0 (bvxor ", acc-e, " ", data-e, "))) ", smt-crc32c-steps 0 dbits reg-w, ")"]
+
   smt-expr :: Nat -> SemGraph -> String
   smt-expr id g = case graph-node id g of
     None -> "false"
@@ -2384,22 +2565,27 @@ module Cinch.PrimVerify where
       NEqBool a b -> string-concat-all ["(= ", smt-expr a g, " ", smt-expr b g, ")"]
       NIte c t e -> string-concat-all ["(ite ", smt-expr c g, " ", smt-expr t g, " ", smt-expr e g, ")"]
       NBvBin op w a b ->
-        let smt-op =
-              if same op "add" then "bvadd"
-              else if same op "sub" then "bvsub"
-              else if same op "mul" then "bvmul"
-              else if same op "udiv" then "bvudiv"
-              else if same op "sdiv" then "bvsdiv"
-              else if same op "urem" then "bvurem"
-              else if same op "srem" then "bvsrem"
-              else if same op "shl" then "bvshl"
-              else if same op "lshr" then "bvlshr"
-              else if same op "ashr" then "bvashr"
-              else if same op "and" then "bvand"
-              else if same op "or" then "bvor"
-              else if same op "xor" then "bvxor"
-              else op in
-        string-concat-all ["(", smt-op, " ", smt-expr a g, " ", smt-expr b g, ")"]
+        if same op "shuffle16" then smt-shuffle16-lanes 15 (smt-expr a g) (smt-expr b g)
+        else if same op "crc32c_8" then smt-crc32c-expr 8 (smt-expr a g) (smt-expr b g)
+        else if same op "crc32c_32" then smt-crc32c-expr 32 (smt-expr a g) (smt-expr b g)
+        else if same op "crc32c_64" then smt-crc32c-expr 64 (smt-expr a g) (smt-expr b g)
+        else
+          let smt-op =
+                if same op "add" then "bvadd"
+                else if same op "sub" then "bvsub"
+                else if same op "mul" then "bvmul"
+                else if same op "udiv" then "bvudiv"
+                else if same op "sdiv" then "bvsdiv"
+                else if same op "urem" then "bvurem"
+                else if same op "srem" then "bvsrem"
+                else if same op "shl" then "bvshl"
+                else if same op "lshr" then "bvlshr"
+                else if same op "ashr" then "bvashr"
+                else if same op "and" then "bvand"
+                else if same op "or" then "bvor"
+                else if same op "xor" then "bvxor"
+                else op in
+          string-concat-all ["(", smt-op, " ", smt-expr a g, " ", smt-expr b g, ")"]
       NBvCmp op w a b ->
         if same op "eq" then string-concat-all ["(= ", smt-expr a g, " ", smt-expr b g, ")"]
         else if same op "ne" then string-concat-all ["(not (= ", smt-expr a g, " ", smt-expr b g, "))"]
@@ -2853,6 +3039,104 @@ module Cinch.PrimVerify where
               MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 aesc1 ->
                 (fresh, MkBlastState nv1 nc1 cs1 memo1 vbits1 ac1 xc1 ic1 (Cons (key, fresh) aesc1))
 
+  -- Exact 16-byte SIMD table lookup bit-blaster (`BvShuffle16`).
+  bb-split-bytes :: Nat -> List Int -> List (List Int)
+  bb-split-bytes count xs =
+    if count == 0 then Nil
+    else Cons (take-bits 8 xs) (bb-split-bytes (saturating-sub count 1) (drop-bits 8 xs))
+
+  bb-mux-pair-level :: Int -> List (List Int) -> BlastState -> (List (List Int), BlastState)
+  bb-mux-pair-level sel bytes st = case bytes of
+    Cons b0 (Cons b1 rest) ->
+      let (chosen, st1) = bb-ite-vec sel b1 b0 st in
+      let (more, st2) = bb-mux-pair-level sel rest st1 in
+      (Cons chosen more, st2)
+    other -> (other, st)
+
+  bb-and-scalar :: Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-and-scalar mask xs st = case xs of
+    Nil -> (Nil, st)
+    Cons h t ->
+      let (b, st1) = bb-and h mask st in
+      let (more, st2) = bb-and-scalar mask t st1 in
+      (Cons b more, st2)
+
+  bb-shuffle16-lane :: List (List Int) -> List Int -> BlastState -> (List Int, BlastState)
+  bb-shuffle16-lane tbl-bytes idx-byte st =
+    let b0 = bb-nth-bit 0 idx-byte in
+    let b1 = bb-nth-bit 1 idx-byte in
+    let b2 = bb-nth-bit 2 idx-byte in
+    let b3 = bb-nth-bit 3 idx-byte in
+    let b4 = bb-nth-bit 4 idx-byte in
+    let b5 = bb-nth-bit 5 idx-byte in
+    let b6 = bb-nth-bit 6 idx-byte in
+    let b7 = bb-nth-bit 7 idx-byte in
+    let (hi45, st1) = bb-or b4 b5 st in
+    let (hi67, st2) = bb-or b6 b7 st1 in
+    let (oob, st3) = bb-or hi45 hi67 st2 in
+    let in-range = lit-neg oob in
+    let (l0, st4) = bb-mux-pair-level b0 tbl-bytes st3 in
+    let (l1, st5) = bb-mux-pair-level b1 l0 st4 in
+    let (l2, st6) = bb-mux-pair-level b2 l1 st5 in
+    let (l3, st7) = bb-mux-pair-level b3 l2 st6 in
+    case l3 of
+      Cons sel _ -> bb-and-scalar in-range sel st7
+      Nil -> (repeat-bit 8 lit-false, st7)
+
+  bb-shuffle16-lanes :: List (List Int) -> List (List Int) -> BlastState -> (List Int, BlastState)
+  bb-shuffle16-lanes tbl-bytes idx-bytes st = case idx-bytes of
+    Nil -> (Nil, st)
+    Cons ib rest ->
+      let (out-b, st1) = bb-shuffle16-lane tbl-bytes ib st in
+      let (more, st2) = bb-shuffle16-lanes tbl-bytes rest st1 in
+      (out-b <> more, st2)
+
+  bb-shuffle16 :: List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-shuffle16 tbl idx st =
+    bb-shuffle16-lanes (bb-split-bytes 16 tbl) (bb-split-bytes 16 idx) st
+
+  -- Exact reflected Castagnoli CRC32C (`0x82F63B78`) bit-blaster for 8/32/64-bit data.
+  crc32c-poly-bit :: Nat -> Bool
+  crc32c-poly-bit bit =
+    if bit >= 32 then False
+    else not (eq-u64 (bit-and-u64 (wrapping-shr-u64 0x82F63B78 (nat-u32 bit)) 1) 0)
+
+  bb-crc32c-init :: Nat -> Nat -> Nat -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-crc32c-init bit reg-w dbits acc data-bits st =
+    if bit >= reg-w then (Nil, st)
+    else
+      let ab = if bit < 32 then bb-nth-bit bit acc else lit-false in
+      let db = if bit < dbits then bb-nth-bit bit data-bits else lit-false in
+      let (x, st1) = bb-xor ab db st in
+      let (more, st2) = bb-crc32c-init (bit + 1) reg-w dbits acc data-bits st1 in
+      (Cons x more, st2)
+
+  bb-crc32c-step-bits :: Nat -> Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-crc32c-step-bits bit lsb shifted-rest st = case shifted-rest of
+    Nil ->
+      let (b, st1) = if crc32c-poly-bit bit then bb-xor lit-false lsb st else (lit-false, st) in
+      ([b], st1)
+    Cons sh more ->
+      let (b, st1) = if crc32c-poly-bit bit then bb-xor sh lsb st else (sh, st) in
+      let (rest, st2) = bb-crc32c-step-bits (bit + 1) lsb more st1 in
+      (Cons b rest, st2)
+
+  bb-crc32c-steps :: Nat -> List Int -> BlastState -> (List Int, BlastState)
+  bb-crc32c-steps remaining c st =
+    if remaining == 0 then (c, st)
+    else case c of
+      Nil -> (Nil, st)
+      Cons lsb tail ->
+        let (next, st1) = bb-crc32c-step-bits 0 lsb tail st in
+        bb-crc32c-steps (saturating-sub remaining 1) next st1
+
+  bb-crc32c :: Nat -> List Int -> List Int -> BlastState -> (List Int, BlastState)
+  bb-crc32c dbits acc data-bits st =
+    let reg-w = if dbits > 32 then dbits else 32 in
+    let (c0, st1) = bb-crc32c-init 0 reg-w dbits acc data-bits st in
+    let (c-end, st2) = bb-crc32c-steps dbits c0 st1 in
+    (take-bits 32 c-end, st2)
+
   bb-node :: Nat -> SemGraph -> BlastState -> Result String (List Int, BlastState)
   bb-node id g st = case st of
     MkBlastState nv nc cs memo vbits ac xc ic aesc ->
@@ -2947,6 +3231,10 @@ module Cinch.PrimVerify where
           else if same op "or" then Ok (bb-zip-map bb-or la lb st2)
           else if same op "xor" then Ok (bb-zip-map bb-xor la lb st2)
           else if same op "clmul" then Ok (bb-clmul-loop 0 128 la lb st2)
+          else if same op "shuffle16" then Ok (bb-shuffle16 la lb st2)
+          else if same op "crc32c_8" then Ok (bb-crc32c 8 la lb st2)
+          else if same op "crc32c_32" then Ok (bb-crc32c 32 la lb st2)
+          else if same op "crc32c_64" then Ok (bb-crc32c 64 la lb st2)
           else if same op "shl" || same op "lshr" || same op "ashr" then Ok (bb-shift op w la lb st2)
           else if same op "mul" && w <= 64 then Ok (bb-mul-loop w 0 la lb (repeat-bit w lit-false) st2)
           else if same op "umin" then
@@ -4257,6 +4545,196 @@ module Cinch.PrimVerify where
     Cons "atomic" (Cons ty rest) -> Some ty
     Cons w rest -> first-atomic-ty rest
 
+  -- Pinned Linux kernel syscall number table `(canonical-name, x86_64-nr, aarch64-nr)`.
+  linux-syscall-table :: List (String, Nat, Nat)
+  linux-syscall-table =
+    [ ("read", 0, 63), ("write", 1, 64), ("close", 3, 57), ("lseek", 8, 62)
+    , ("getpid", 39, 172), ("fsync", 74, 82), ("openat", 257, 56), ("mkdirat", 258, 34)
+    , ("newfstatat", 262, 79), ("unlinkat", 263, 35), ("renameat", 264, 38)
+    , ("io_uring_setup", 425, 425), ("io_uring_enter", 426, 426), ("io_uring_register", 427, 427)
+    , ("socket", 41, 198), ("bind", 49, 200), ("listen", 50, 201), ("accept4", 288, 242)
+    , ("setsockopt", 54, 208), ("getsockopt", 55, 209), ("sendto", 44, 206), ("recvfrom", 45, 207)
+    , ("sendmsg", 46, 211), ("recvmsg", 47, 212), ("sendmmsg", 307, 269), ("recvmmsg", 299, 243)
+    , ("mmap", 9, 222), ("munmap", 11, 215), ("madvise", 28, 233), ("eventfd2", 290, 19)
+    , ("sched_setaffinity", 203, 122), ("clock_gettime", 228, 113), ("fallocate", 285, 47)
+    , ("fdatasync", 75, 83), ("fcntl", 72, 25), ("splice", 275, 76), ("sendfile", 40, 71)
+    , ("epoll_create1", 291, 20), ("epoll_ctl", 233, 21), ("epoll_pwait", 281, 22)
+    ]
+
+  norm-syscall-chars :: List Char -> List Char
+  norm-syscall-chars cs = case cs of
+    Nil -> Nil
+    Cons c rest ->
+      let code = char-code c in
+      let nc =
+            if c == '-' then '_'
+            else if code >= 65 && code <= 90 then
+              (case char-from-code (code + 32) of Some lc -> lc; None -> c)
+            else c in
+      Cons nc (norm-syscall-chars rest)
+
+  strip-syscall-prefix :: String -> String
+  strip-syscall-prefix s =
+    if string-starts-with "prim_linux_" s then string-slice s 11 (string-length s)
+    else if string-starts-with "prim_sys_" s then string-slice s 9 (string-length s)
+    else if string-starts-with "linux_raw_" s then string-slice s 10 (string-length s)
+    else if string-starts-with "sys_linux_" s then string-slice s 10 (string-length s)
+    else if string-starts-with "linux_" s then string-slice s 6 (string-length s)
+    else if string-starts-with "sys_" s then string-slice s 4 (string-length s)
+    else if string-starts-with "raw_" s then string-slice s 4 (string-length s)
+    else s
+
+  lookup-syscall-in :: String -> String -> List (String, Nat, Nat) -> Option (String, Nat, Nat)
+  lookup-syscall-in stripped norm xs = case xs of
+    Nil -> None
+    Cons (nm, x, a) rest ->
+      if same nm stripped || same nm norm then Some (nm, x, a)
+      else lookup-syscall-in stripped norm rest
+
+  lookup-linux-syscall :: String -> Option (String, Nat, Nat)
+  lookup-linux-syscall name =
+    let norm = pack (norm-syscall-chars (unpack (string-strip name))) in
+    lookup-syscall-in (strip-syscall-prefix norm) norm linux-syscall-table
+
+  lookup-syscall-by-x86 :: Nat -> List (String, Nat, Nat) -> Option (String, Nat, Nat)
+  lookup-syscall-by-x86 nr xs = case xs of
+    Nil -> None
+    Cons (nm, x, a) rest -> if x == nr then Some (nm, x, a) else lookup-syscall-by-x86 nr rest
+
+  lookup-syscall-by-arm64 :: Nat -> List (String, Nat, Nat) -> Option (String, Nat, Nat)
+  lookup-syscall-by-arm64 nr xs = case xs of
+    Nil -> None
+    Cons (nm, x, a) rest -> if a == nr then Some (nm, x, a) else lookup-syscall-by-arm64 nr rest
+
+  validate-linux-syscall-pair :: Nat -> Nat -> Result String String
+  validate-linux-syscall-pair xnr anr =
+    case (lookup-syscall-by-x86 xnr linux-syscall-table, lookup-syscall-by-arm64 anr linux-syscall-table) of
+      (Some (nx, _, exp-a), Some (na, exp-x, _)) ->
+        if same nx na then Ok nx
+        else Err (string-concat-all ["mismatched Linux syscall pair: x86_64 #", nat-to-string xnr, " is `", nx, "` (expected aarch64 #", nat-to-string exp-a, "), got aarch64 #", nat-to-string anr, " (`", na, "`)"])
+      (Some (nx, _, exp-a), None) ->
+        Err (string-concat-all ["mismatched Linux syscall pair: x86_64 #", nat-to-string xnr, " is `", nx, "` (expected aarch64 #", nat-to-string exp-a, "), got unpinned aarch64 #", nat-to-string anr])
+      (None, Some (na, exp-x, _)) ->
+        Err (string-concat-all ["mismatched Linux syscall pair: aarch64 #", nat-to-string anr, " is `", na, "` (expected x86_64 #", nat-to-string exp-x, "), got unpinned x86_64 #", nat-to-string xnr])
+      (None, None) ->
+        Err (string-concat-all ["unpinned Linux syscall pair (x86_64=#", nat-to-string xnr, ", aarch64=#", nat-to-string anr, ")"])
+
+  parse-asm-imm-nat :: String -> Option Nat
+  parse-asm-imm-nat raw =
+    let s0 = string-strip raw in
+    let s1 =
+          if string-starts-with "#" s0 then string-slice s0 1 (string-length s0)
+          else if string-starts-with "$$" s0 then string-slice s0 2 (string-length s0)
+          else if string-starts-with "$" s0 then string-slice s0 1 (string-length s0)
+          else s0 in
+    parse-nat-str s1
+
+  split-asm-insns :: String -> List String
+  split-asm-insns s = string-split-on "\\0A" s
+
+  extract-x86-nr-from :: List String -> Option Nat
+  extract-x86-nr-from insns = case insns of
+    Nil -> None
+    Cons insn rest ->
+      let ws = ir-words insn in
+      case ws of
+        Cons op (Cons dst (Cons src _)) | (same op "mov" || same op "movq" || same op "movl") && (same dst "rax" || same dst "eax") ->
+          (case parse-asm-imm-nat src of Some n -> Some n; None -> extract-x86-nr-from rest)
+        Cons op (Cons src (Cons dst _)) | (same op "mov" || same op "movq" || same op "movl") && (same dst "%rax" || same dst "%eax" || same dst "%%rax" || same dst "%%eax") ->
+          (case parse-asm-imm-nat src of Some n -> Some n; None -> extract-x86-nr-from rest)
+        other -> extract-x86-nr-from rest
+
+  extract-arm64-nr-from :: List String -> Option Nat
+  extract-arm64-nr-from insns = case insns of
+    Nil -> None
+    Cons insn rest ->
+      let ws = ir-words insn in
+      case ws of
+        Cons op (Cons dst (Cons src _)) | (same op "mov" || same op "movz") && (same dst "x8" || same dst "w8") ->
+          (case parse-asm-imm-nat src of Some n -> Some n; None -> extract-arm64-nr-from rest)
+        other -> extract-arm64-nr-from rest
+
+  -- Cache-line isolation audit (`#[repr(C, align(128))]` atomic ring structs).
+  data CacheLineField where
+    MkCacheLineField :: String -> Nat -> Nat -> Nat -> Bool -> CacheLineField
+
+  data CacheLineStructLayout where
+    MkCacheLineStructLayout :: String -> String -> Nat -> Nat -> List CacheLineField -> CacheLineStructLayout
+
+  cl-field-name :: CacheLineField -> String
+  cl-field-name f = case f of MkCacheLineField n o s a at -> n
+
+  cl-field-offset :: CacheLineField -> Nat
+  cl-field-offset f = case f of MkCacheLineField n o s a at -> o
+
+  cl-field-size :: CacheLineField -> Nat
+  cl-field-size f = case f of MkCacheLineField n o s a at -> s
+
+  cl-field-align :: CacheLineField -> Nat
+  cl-field-align f = case f of MkCacheLineField n o s a at -> a
+
+  cl-field-atomic :: CacheLineField -> Bool
+  cl-field-atomic f = case f of MkCacheLineField n o s a at -> at
+
+  is-cl-pad-field :: String -> Bool
+  is-cl-pad-field nm =
+    string-starts-with "_pad" nm || string-starts-with "pad_" nm || string-starts-with "padding" nm || same nm "pad"
+
+  filter-cl-atomic :: List CacheLineField -> List CacheLineField
+  filter-cl-atomic xs = case xs of
+    Nil -> Nil
+    Cons f rest -> if cl-field-atomic f then Cons f (filter-cl-atomic rest) else filter-cl-atomic rest
+
+  filter-cl-nonpad :: List CacheLineField -> List CacheLineField
+  filter-cl-nonpad xs = case xs of
+    Nil -> Nil
+    Cons f rest -> if is-cl-pad-field (cl-field-name f) then filter-cl-nonpad rest else Cons f (filter-cl-nonpad rest)
+
+  audit-cl-pair :: String -> Nat -> CacheLineField -> CacheLineField -> List String
+  audit-cl-pair sname spacing a b =
+    let oa = cl-field-offset a in
+    let ob = cl-field-offset b in
+    let (lo, hi) = if oa <= ob then (a, b) else (b, a) in
+    let delta = saturating-sub (cl-field-offset hi) (cl-field-offset lo) in
+    if delta < spacing then
+      [string-concat-all [sname, ": atomic cursors `", cl-field-name lo, "` (offset ", nat-to-string (cl-field-offset lo), ") and `", cl-field-name hi, "` (offset ", nat-to-string (cl-field-offset hi), ") are only ", nat-to-string delta, " bytes apart (min ", nat-to-string spacing, ")"]]
+    else
+      let lo-end = cl-field-offset lo + saturating-sub (cl-field-size lo) 1 in
+      let line-lo = case checked-div lo-end spacing of Some q -> q; None -> 0 in
+      let line-hi = case checked-div (cl-field-offset hi) spacing of Some q -> q; None -> 0 in
+      if line-lo == line-hi then
+        [string-concat-all [sname, ": atomic cursors `", cl-field-name lo, "` and `", cl-field-name hi, "` share cache line #", nat-to-string line-lo]]
+      else Nil
+
+  audit-cl-pairs-with :: String -> Nat -> CacheLineField -> List CacheLineField -> List String
+  audit-cl-pairs-with sname spacing a bs = case bs of
+    Nil -> Nil
+    Cons b rest -> audit-cl-pair sname spacing a b <> audit-cl-pairs-with sname spacing a rest
+
+  audit-cl-all-pairs :: String -> Nat -> List CacheLineField -> List String
+  audit-cl-all-pairs sname spacing fs = case fs of
+    Nil -> Nil
+    Cons a rest -> audit-cl-pairs-with sname spacing a rest <> audit-cl-all-pairs sname spacing rest
+
+  audit-cache-line-layout :: CacheLineStructLayout -> Nat -> List String
+  audit-cache-line-layout layout min-spacing =
+    let spacing = if min-spacing == 0 then 128 else min-spacing in
+    case layout of
+      MkCacheLineStructLayout sname repr sz al fields ->
+        let repr-v =
+              if same repr "C" || same repr "c" || string-starts-with "C," repr || string-starts-with "repr(C" repr then Nil
+              else [string-concat-all [sname, ": atomic ring struct must use #[repr(C, align(", nat-to-string spacing, "))], got repr `", repr, "`"]] in
+        let al-v =
+              if is-power-of-two-nat al && al >= spacing then Nil
+              else [string-concat-all [sname, ": atomic ring struct requires power-of-two align >= ", nat-to-string spacing, ", got ", nat-to-string al]] in
+        let stride-rem = case checked-rem sz spacing of Some r -> r; None -> 1 in
+        let stride-v =
+              if sz > 0 && stride-rem == 0 then Nil
+              else [string-concat-all [sname, ": atomic ring struct size ", nat-to-string sz, " must be a positive multiple of ", nat-to-string spacing]] in
+        let explicit = filter-cl-atomic fields in
+        let cursors = case explicit of Nil -> filter-cl-nonpad fields; other -> explicit in
+        repr-v <> al-v <> stride-v <> audit-cl-all-pairs sname spacing cursors
+
   audit-boundary-line :: Nat -> String -> Bool -> String -> List String
   audit-boundary-line word-bits prim-name is-pure raw =
     let clean = strip-ir-comment raw in
@@ -4370,7 +4848,14 @@ module Cinch.PrimVerify where
             let e2 = if string-contains "sideeffect" clean && not (string-contains "~{memory}" clean) then
                        [string-concat prim-name ": x86_64 `syscall` with `sideeffect` must clobber `~{memory}`"]
                      else Nil in
-            e1 <> e2
+            let e3 = case (extract-quoted-two clean, lookup-linux-syscall prim-name) of
+                  (Some (tpl-q, _, _), Some (cnm, exp-x, _)) ->
+                    (case extract-x86-nr-from (split-asm-insns tpl-q) of
+                      Some nr | nr /= exp-x ->
+                        [string-concat-all [prim-name, ": x86_64 Linux syscall `", cnm, "` pinned as #", nat-to-string nr, ", expected #", nat-to-string exp-x]]
+                      other -> Nil)
+                  other -> Nil in
+            e1 <> e2 <> e3
           else if string-contains "asm " clean && (string-contains "svc #0" clean || string-contains "svc 0" clean) then
             let e1 = if not (string-contains "~{x8}" clean || string-contains "{x8}" clean || string-contains "~{x16}" clean || string-contains "{x16}" clean) then
                        [string-concat prim-name ": aarch64 `svc #0` must account for syscall register (`x8`/`x16`)"]
@@ -4378,7 +4863,14 @@ module Cinch.PrimVerify where
             let e2 = if string-contains "sideeffect" clean && not (string-contains "~{memory}" clean) then
                        [string-concat prim-name ": aarch64 `svc #0` with `sideeffect` must clobber `~{memory}`"]
                      else Nil in
-            e1 <> e2
+            let e3 = case (extract-quoted-two clean, lookup-linux-syscall prim-name) of
+                  (Some (tpl-q, _, _), Some (cnm, _, exp-a)) ->
+                    (case extract-arm64-nr-from (split-asm-insns tpl-q) of
+                      Some nr | nr /= exp-a ->
+                        [string-concat-all [prim-name, ": aarch64 Linux syscall `", cnm, "` pinned as #", nat-to-string nr, ", expected #", nat-to-string exp-a]]
+                      other -> Nil)
+                  other -> Nil in
+            e1 <> e2 <> e3
           else Nil in
     pure-v <> ptr-v <> scope-v <> atomic-v <> asm-v
 

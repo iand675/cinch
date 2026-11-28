@@ -570,6 +570,87 @@ impl Tseitin {
         self.aes_core_cache.insert(key, fresh.clone());
         Ok(fresh)
     }
+
+    /// Exact 16-byte SIMD table lookup (`tbl1` / masked `pshufb`):
+    /// for each byte lane `i` in `0..16`, if `(idx[i] & 0xF0) != 0` -> `0x00`,
+    /// else `tbl[idx[i] & 0x0F]` via a 16-to-1 ITE mux tree.
+    fn mk_bv_shuffle16(&mut self, tbl: &[i32], idx: &[i32]) -> Result<Vec<i32>, BitBlastError> {
+        if tbl.len() != 128 || idx.len() != 128 {
+            return Err(BitBlastError::UnsupportedOp(format!(
+                "BvShuffle16 expects 128-bit operands, got {} and {}",
+                tbl.len(),
+                idx.len()
+            )));
+        }
+        let tbl_bytes: Vec<&[i32]> = (0..16).map(|k| &tbl[k * 8..(k + 1) * 8]).collect();
+        let mut out = Vec::with_capacity(128);
+        for lane in 0..16 {
+            let ib = &idx[lane * 8..(lane + 1) * 8];
+            // out_of_range iff any of bits 4..7 is set (`idx[lane] >= 16`).
+            let hi45 = self.mk_or(ib[4], ib[5])?;
+            let hi67 = self.mk_or(ib[6], ib[7])?;
+            let oob = self.mk_or(hi45, hi67)?;
+            let in_range = -oob;
+
+            // 16-to-1 byte mux tree driven by ib[0..4].
+            let mut cur: Vec<Vec<i32>> = Vec::with_capacity(8);
+            for k in 0..8 {
+                cur.push(self.mk_bv_ite(ib[0], tbl_bytes[2 * k + 1], tbl_bytes[2 * k])?);
+            }
+            for level in 1..4 {
+                let mut next = Vec::with_capacity(cur.len() / 2);
+                for k in 0..(cur.len() / 2) {
+                    next.push(self.mk_bv_ite(ib[level], &cur[2 * k + 1], &cur[2 * k])?);
+                }
+                cur = next;
+            }
+            for &bit in &cur[0] {
+                out.push(self.mk_and(bit, in_range)?);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Exact reflected Castagnoli CRC32C (`0x82F63B78`, RFC 3720 / iSCSI):
+    /// `c = zext(acc, reg_w) ^ zext(data, reg_w)`, shifted right `data_bits` times
+    /// XORing `0x82F63B78` whenever LSB is 1, returning the low 32 bits.
+    fn mk_bv_crc32c(
+        &mut self,
+        acc: &[i32],
+        data: &[i32],
+        data_bits: u16,
+    ) -> Result<Vec<i32>, BitBlastError> {
+        if acc.len() < 32 || data.len() < data_bits as usize || !matches!(data_bits, 8 | 32 | 64) {
+            return Err(BitBlastError::UnsupportedOp(format!(
+                "BvCrc32c invalid widths: acc={}, data={}, data_bits={data_bits}",
+                acc.len(),
+                data.len()
+            )));
+        }
+        let reg_w = (data_bits as usize).max(32);
+        let f = self.false_lit();
+        let mut c: Vec<i32> = Vec::with_capacity(reg_w);
+        for bit in 0..reg_w {
+            let ab = if bit < 32 { acc[bit] } else { f };
+            let db = if bit < data_bits as usize { data[bit] } else { f };
+            c.push(self.mk_xor(ab, db)?);
+        }
+        let poly = super::sem::CRC32C_CASTAGNOLI_POLY;
+        for _ in 0..(data_bits as usize) {
+            let lsb = c[0];
+            let mut next = Vec::with_capacity(reg_w);
+            for bit in 0..reg_w {
+                let shifted = if bit + 1 < reg_w { c[bit + 1] } else { f };
+                if bit < 32 && ((poly >> bit) & 1) != 0 {
+                    next.push(self.mk_xor(shifted, lsb)?);
+                } else {
+                    next.push(shifted);
+                }
+            }
+            c = next;
+        }
+        Ok(c[0..32].to_vec())
+    }
 }
 
 #[derive(Clone)]
@@ -889,6 +970,16 @@ pub fn bitblast_obligation(
             SemOp::AesCore(kind, a) => {
                 let va = lower(g, *a, ts, param_vars, memo)?;
                 BbVal::Bv(ts.mk_aes_core(*kind, va.as_bv())?)
+            }
+            SemOp::BvShuffle16(tbl, idx) => {
+                let vt = lower(g, *tbl, ts, param_vars, memo)?;
+                let vi = lower(g, *idx, ts, param_vars, memo)?;
+                BbVal::Bv(ts.mk_bv_shuffle16(vt.as_bv(), vi.as_bv())?)
+            }
+            SemOp::BvCrc32c { acc, data, data_bits } => {
+                let va = lower(g, *acc, ts, param_vars, memo)?;
+                let vd = lower(g, *data, ts, param_vars, memo)?;
+                BbVal::Bv(ts.mk_bv_crc32c(va.as_bv(), vd.as_bv(), *data_bits)?)
             }
             SemOp::BvEq(a, b) => {
                 let va = lower(g, *a, ts, param_vars, memo)?;

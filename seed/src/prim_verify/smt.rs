@@ -266,6 +266,70 @@ fn emit_op(g: &SemGraph, id: NodeId) -> String {
             };
             format!("({fname} {})", n(*a))
         }
+        SemOp::BvShuffle16(tbl, idx) => {
+            let st = n(*tbl);
+            let si = n(*idx);
+            let mut lanes = Vec::with_capacity(16);
+            for lane in (0..16u16).rev() {
+                let lo = lane * 8;
+                let hi = lo + 7;
+                let lo4_hi = lo + 3;
+                let ib = format!("((_ extract {hi} {lo}) {si})");
+                let nib = format!("((_ extract {lo4_hi} {lo}) {si})");
+                let mut sel = format!("((_ extract 127 120) {st})");
+                for k in (0..15u16).rev() {
+                    let tlo = k * 8;
+                    let thi = tlo + 7;
+                    let tb = format!("((_ extract {thi} {tlo}) {st})");
+                    sel = format!("(ite (= {nib} {}) {tb} {sel})", bv_lit(4, k as u128));
+                }
+                lanes.push(format!("(ite (bvuge {ib} #x10) #x00 {sel})"));
+            }
+            let mut acc = lanes[0].clone();
+            for lane_expr in &lanes[1..] {
+                acc = format!("(concat {acc} {lane_expr})");
+            }
+            acc
+        }
+        SemOp::BvCrc32c { acc, data, data_bits } => {
+            let reg_w = (*data_bits).max(32);
+            let acc_w = g.bv_width(*acc);
+            let data_w = g.bv_width(*data);
+            let acc_expr = if acc_w == reg_w {
+                n(*acc)
+            } else if acc_w < reg_w {
+                format!("((_ zero_extend {}) {})", reg_w - acc_w, n(*acc))
+            } else {
+                format!("((_ extract {} 0) {})", reg_w - 1, n(*acc))
+            };
+            let data_expr = if data_w == reg_w {
+                n(*data)
+            } else if data_w < reg_w {
+                format!("((_ zero_extend {}) {})", reg_w - data_w, n(*data))
+            } else {
+                format!("((_ extract {} 0) {})", reg_w - 1, n(*data))
+            };
+            let one = bv_lit(reg_w, 1);
+            let poly = bv_lit(reg_w, super::sem::CRC32C_CASTAGNOLI_POLY as u128);
+            let mut s = format!("(let ((c0 (bvxor {acc_expr} {data_expr}))) ");
+            for step in 0..(*data_bits) {
+                let prev = format!("c{step}");
+                let next = format!("c{}", step + 1);
+                s.push_str(&format!(
+                    "(let (({next} (ite (= ((_ extract 0 0) {prev}) #b1) (bvxor (bvlshr {prev} {one}) {poly}) (bvlshr {prev} {one})))) "
+                ));
+            }
+            let last = format!("c{data_bits}");
+            if reg_w == 32 {
+                s.push_str(&last);
+            } else {
+                s.push_str(&format!("((_ extract 31 0) {last})"));
+            }
+            for _ in 0..=(*data_bits) {
+                s.push(')');
+            }
+            s
+        }
         SemOp::BvEq(a, b) => format!("(= {} {})", n(*a), n(*b)),
         SemOp::BvULt(a, b) => format!("(bvult {} {})", n(*a), n(*b)),
         SemOp::BvULe(a, b) => format!("(bvule {} {})", n(*a), n(*b)),

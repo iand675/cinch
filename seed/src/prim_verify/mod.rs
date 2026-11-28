@@ -726,6 +726,7 @@ pub fn cli(args: &[String]) -> i32 {
     let mut replay_only = replay_only_from_env();
     let mut emit_smt_dir: Option<PathBuf> = None;
     let mut audit_unsafe = false;
+    let mut audit_cache_line_files: Vec<PathBuf> = Vec::new();
     let mut word_bits: u16 = 64;
     let mut json_out = false;
     let mut verbose = false;
@@ -766,6 +767,8 @@ pub fn cli(args: &[String]) -> i32 {
             replay_only = true;
         } else if a == "--audit-unsafe" {
             audit_unsafe = true;
+        } else if let Some(p) = a.strip_prefix("--audit-cache-line=") {
+            audit_cache_line_files.push(PathBuf::from(p));
         } else if let Some(d) = a.strip_prefix("--emit-smt=") {
             emit_smt_dir = Some(PathBuf::from(d));
         } else if a == "--json" {
@@ -785,6 +788,8 @@ pub fn cli(args: &[String]) -> i32 {
                  \x20 --proof-cache=<dir>       content-addressed evidence cache directory (--cache-dir)\n\
                  \x20 --replay-only             replay cached proofs only (zero provers; fail closed)\n\
                  \x20 --emit-smt=<dir>          write generated .smt2 files for unverified/all goals\n\
+                 \x20 --audit-unsafe            audit unsafe llvm memory/atomic/syscall contracts\n\
+                 \x20 --audit-cache-line=<file> audit #[repr(C, align(128))] ring struct cache-line isolation\n\
                  \x20 --json                    emit machine-readable JSON report\n\
                  \x20 --verbose                 print every verified obligation receipt"
             );
@@ -798,7 +803,7 @@ pub fn cli(args: &[String]) -> i32 {
         i += 1;
     }
 
-    if files.is_empty() {
+    if files.is_empty() && audit_cache_line_files.is_empty() {
         eprintln!("cinch verify-prims: expected at least one `.cinch` file");
         return 2;
     }
@@ -966,12 +971,13 @@ pub fn cli(args: &[String]) -> i32 {
                     boundary_violations += rep.violations.len();
                     if !json_out {
                         println!(
-                            "boundary-audit {}: unsafe={} atomics={} mem={} asm={} violations={}",
+                            "boundary-audit {}: unsafe={} atomics={} mem={} asm={} syscalls={} violations={}",
                             file.display(),
                             rep.unsafe_bodies_audited,
                             rep.atomic_ops_checked,
                             rep.memory_ops_checked,
                             rep.inline_asm_checked,
+                            rep.linux_syscalls_checked,
                             rep.violations.len()
                         );
                         for v in &rep.violations {
@@ -983,6 +989,32 @@ pub fn cli(args: &[String]) -> i32 {
                     eprintln!("cinch verify-prims: boundary audit {}: {err}", file.display());
                     return 1;
                 }
+            }
+        }
+    }
+
+    for cl_file in &audit_cache_line_files {
+        match mem_contract::audit_cache_line_file(cl_file, mem_contract::MIN_CACHE_LINE_BYTES) {
+            Ok(rep) => {
+                boundary_violations += rep.violations.len();
+                if json_out {
+                    println!("{}", serde_json::to_string_pretty(&rep).unwrap());
+                } else {
+                    println!(
+                        "cache-line-audit {}: structs={} cursor_pairs={} violations={}",
+                        cl_file.display(),
+                        rep.structs_checked,
+                        rep.cursor_pairs_checked,
+                        rep.violations.len()
+                    );
+                    for v in &rep.violations {
+                        println!("  [CACHE-LINE] {} ({}): {}", v.struct_name, v.rule, v.message);
+                    }
+                }
+            }
+            Err(err) => {
+                eprintln!("cinch verify-prims: cache-line audit {}: {err}", cl_file.display());
+                return 1;
             }
         }
     }

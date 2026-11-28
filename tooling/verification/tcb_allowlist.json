@@ -1,0 +1,268 @@
+{
+  "schema_version": 1,
+  "description": "Allowlist of explicitly audited unsafe llvm / Assumed boundary primitives permitted in strict formal verification builds.",
+  "policy": {
+    "allow_unlisted_assumed": false,
+    "require_boundary_audit": true
+  },
+  "allowed_assumed_prims": [
+    {
+      "module": "Effect.Stm",
+      "name_prefix": "",
+      "reason": "C11/LLVM atomic memory and STM commit boundary primitives audited by mem_contract.rs",
+      "audit_rule": "mem_contract:atomic-ordering+alignment+effect-accountability"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-openat",
+      "reason": "Linux openat(2) syscall boundary (x86_64=257, aarch64=56)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-read",
+      "reason": "Linux read(2) syscall boundary (x86_64=0, aarch64=63)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-write",
+      "reason": "Linux write(2) syscall boundary (x86_64=1, aarch64=64)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-close",
+      "reason": "Linux close(2) syscall boundary (x86_64=3, aarch64=57)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-lseek",
+      "reason": "Linux lseek(2) syscall boundary (x86_64=8, aarch64=62)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-renameat",
+      "reason": "Linux renameat(2) syscall boundary (x86_64=264, aarch64=38)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-mkdirat",
+      "reason": "Linux mkdirat(2) syscall boundary (x86_64=258, aarch64=34)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-unlinkat",
+      "reason": "Linux unlinkat(2) syscall boundary (x86_64=263, aarch64=35)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-newfstatat",
+      "reason": "Linux newfstatat(2) syscall boundary (x86_64=262, aarch64=79)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-fsync",
+      "reason": "Linux fsync(2) syscall boundary (x86_64=74, aarch64=82)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-getpid",
+      "reason": "Linux getpid(2) syscall boundary (x86_64=39, aarch64=172)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-io-uring-setup",
+      "reason": "Linux io_uring_setup(2) syscall boundary (x86_64=425, aarch64=425)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-io-uring-enter",
+      "reason": "Linux io_uring_enter(2) syscall boundary (x86_64=426, aarch64=426)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-io-uring-register",
+      "reason": "Linux io_uring_register(2) syscall boundary (x86_64=427, aarch64=427)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-socket",
+      "reason": "Linux socket(2) syscall boundary (x86_64=41, aarch64=198)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-bind",
+      "reason": "Linux bind(2) syscall boundary (x86_64=49, aarch64=200)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-listen",
+      "reason": "Linux listen(2) syscall boundary (x86_64=50, aarch64=201)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-accept4",
+      "reason": "Linux accept4(2) syscall boundary (x86_64=288, aarch64=242)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-setsockopt",
+      "reason": "Linux setsockopt(2) syscall boundary (x86_64=54, aarch64=208)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-getsockopt",
+      "reason": "Linux getsockopt(2) syscall boundary (x86_64=55, aarch64=209)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-sendto",
+      "reason": "Linux sendto(2) syscall boundary (x86_64=44, aarch64=206)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-recvfrom",
+      "reason": "Linux recvfrom(2) syscall boundary (x86_64=45, aarch64=207)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-sendmsg",
+      "reason": "Linux sendmsg(2) syscall boundary (x86_64=46, aarch64=211)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-recvmsg",
+      "reason": "Linux recvmsg(2) syscall boundary (x86_64=47, aarch64=212)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-sendmmsg",
+      "reason": "Linux sendmmsg(2) syscall boundary (x86_64=307, aarch64=269)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-recvmmsg",
+      "reason": "Linux recvmmsg(2) syscall boundary (x86_64=299, aarch64=243)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-mmap",
+      "reason": "Linux mmap(2) syscall boundary (x86_64=9, aarch64=222)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-munmap",
+      "reason": "Linux munmap(2) syscall boundary (x86_64=11, aarch64=215)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-madvise",
+      "reason": "Linux madvise(2) syscall boundary (x86_64=28, aarch64=233)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-eventfd2",
+      "reason": "Linux eventfd2(2) syscall boundary (x86_64=290, aarch64=19)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-sched-setaffinity",
+      "reason": "Linux sched_setaffinity(2) syscall boundary (x86_64=203, aarch64=122)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-clock-gettime",
+      "reason": "Linux clock_gettime(2) syscall boundary (x86_64=228, aarch64=113)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-fallocate",
+      "reason": "Linux fallocate(2) syscall boundary (x86_64=285, aarch64=47)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-fdatasync",
+      "reason": "Linux fdatasync(2) syscall boundary (x86_64=75, aarch64=83)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-fcntl",
+      "reason": "Linux fcntl(2) syscall boundary (x86_64=72, aarch64=25)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-splice",
+      "reason": "Linux splice(2) syscall boundary (x86_64=275, aarch64=76)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-sendfile",
+      "reason": "Linux sendfile(2) syscall boundary (x86_64=40, aarch64=71)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-epoll-create1",
+      "reason": "Linux epoll_create1(2) syscall boundary (x86_64=291, aarch64=20)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-epoll-ctl",
+      "reason": "Linux epoll_ctl(2) syscall boundary (x86_64=233, aarch64=21)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Linux",
+      "name": "linux-epoll-pwait",
+      "reason": "Linux epoll_pwait(2) syscall boundary (x86_64=281, aarch64=22)",
+      "audit_rule": "mem_contract:linux-syscall-table+clobbers"
+    },
+    {
+      "module": "Prim.Sys.Darwin",
+      "name_prefix": "darwin-",
+      "reason": "Darwin libSystem/syscall boundary primitives audited by mem_contract.rs",
+      "audit_rule": "mem_contract:inline-asm-clobbers"
+    },
+    {
+      "module": "Prim.Sys.Portable",
+      "name_prefix": "portable-",
+      "reason": "Portable OS boundary fallback primitives",
+      "audit_rule": "mem_contract:effect-accountability"
+    }
+  ]
+}
