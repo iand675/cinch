@@ -1,0 +1,1127 @@
+-- | Zero-allocation (`#[no-alloc]`) L7 HTTP/1.1 Streaming Reverse Proxy
+-- Forwarder & L4 Zero-Copy Passthrough (`io_uring` `SPLICE` pair builder +
+-- portable/macOS DMA bidirectional relay with `SHUT_WR` half-close propagation
+-- and high/low watermark backpressure).
+--
+-- L7 RFC 9110 §7.6.1 compliance:
+--   * Strips all hop-by-hop headers: `Connection`, `Keep-Alive`,
+--     `Proxy-Connection`, `Transfer-Encoding`, `TE`, `Trailer`,
+--     `Proxy-Authenticate`, `Proxy-Authorization`, `Upgrade` (unless explicit
+--     WebSocket / protocol upgrade is enabled), PLUS any custom header names
+--     nominated in the request/response `Connection:` field value.
+--   * Injects `X-Forwarded-For` (appending to existing value if present),
+--     `X-Forwarded-Proto` (`http` / `https`), and `Via: 1.1 cinch-proxy`
+--     directly into the caller's DMA transmit buffer with zero heap allocation.
+--   * Enforces hysteresis backpressure (`high_water` / `low_water`) on bounded
+--     DMA ring buffers so a fast upstream can never OOM a slow client.
+--   * Cleanly maps upstream failure / circuit-open / timeout to RFC-compliant
+--     `502 Bad Gateway`, `503 Service Unavailable`, and `504 Gateway Timeout`
+--     responses.
+--
+-- L4 zero-copy passthrough:
+--   * `proxy-l4-splice-plan` and `proxy-l4-splice-step`: emit exact 64-byte
+--     Linux `io_uring` linked `IORING_OP_SPLICE` SQE pairs (`src -> pipe-wr`
+--     with `IOSQE_IO_LINK`, followed by `pipe-rd -> dst`, `off = -1`,
+--     `SPLICE_F_MOVE | SPLICE_F_NONBLOCK`) directly into `Engine.Reactor.Linux`.
+--   * `proxy-l4-relay-dma`: live macOS/portable DMA bidirectional zero-alloc
+--     relay over `Engine.Reactor.Darwin` non-blocking sockets with hysteresis
+--     backpressure and POSIX `shutdown(fd, SHUT_WR)` half-close propagation.
+module Net.Http.Proxy.Forward where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Reactor.Darwin
+  import Engine.Reactor.Linux
+  import Engine.Simd.Scan
+  import Engine.Types
+  import Net.Http.Types
+  import Net.Http.V1.Parser
+  import Net.Http.V1.Conn
+  import Net.Http.Proxy.Maglev
+  import Net.Http.Proxy.Pool
+  import Prim.Atomic
+
+  -- Proxy error codes & status mapping
+  export proxy-err-none, proxy-err-upstream-fail, proxy-err-circuit-open
+  export proxy-err-timeout, proxy-err-pool-full, proxy-err-bad-response
+  export proxy-error-to-status, proxy-write-error-response-dma
+
+  -- Hop-by-hop classification & L7 zero-alloc DMA request/response rewriting
+  export proxy-is-hop-by-hop-header, proxy-header-in-connection-list
+  export proxy-rewrite-request-dma, proxy-rewrite-response-dma
+
+  -- Bounded DMA Backpressure Ring Buffer (high-water / low-water hysteresis)
+  export ProxyRingMeta, proxy-ring-slot-stride
+  export proxy-ring-init, proxy-ring-load, proxy-ring-buffered, proxy-ring-free-space
+  export proxy-ring-is-paused, proxy-ring-write-dma, proxy-ring-read-dma
+
+  -- L4 Zero-Copy Passthrough (Linux io_uring SPLICE + macOS/portable DMA relay)
+  export splice-f-move, splice-f-nonblock, splice-off-none
+  export l4-splice-ok, l4-splice-sq-full, l4-splice-invalid
+  export l4-relay-active, l4-relay-done, l4-relay-error
+  export l4-relay-state-stride
+  export SplicePairPlan
+  export proxy-l4-splice-plan, proxy-l4-splice-step
+  export proxy-shutdown-wr
+  export proxy-l4-relay-init, proxy-l4-relay-dma
+  export proxy-l4-relay-bytes-c2u, proxy-l4-relay-bytes-u2c
+  export proxy-l4-relay-c2u-paused, proxy-l4-relay-u2c-paused
+  export proxy-l4-relay-upstream-shut-wr, proxy-l4-relay-client-shut-wr
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean, byte-packing & DMA copy helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  ascii-lower :: U8 -> U8
+  ascii-lower b =
+    if lt-u8 (wrapping-sub-u8 b 65) 26 then bit-or-u8 b 32 else b
+
+  #[inline(always)]
+  #[no-alloc]
+  is-ows :: U8 -> Bool
+  is-ows b = either (eq-u8 b 32) (eq-u8 b 9)
+
+  #[inline(always)]
+  #[no-alloc]
+  load-u8-at :: I64 -> U32 ->{MVar} U8
+  load-u8-at base off = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  put1 base pos b0 =
+    let _0 = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  put2 base pos b0 b1 =
+    let p1 = put1 base pos b0 in
+    put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  put3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} U32
+  put3 base pos b0 b1 b2 =
+    let p2 = put2 base pos b0 b1 in
+    put1 base p2 b2
+
+  #[inline(always)]
+  #[no-alloc]
+  put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put4 base pos b0 b1 b2 b3 =
+    let _0 = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put8 base pos b0 b1 b2 b3 b4 b5 b6 b7 =
+    let _0 = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 b0 b1 b2 b3 b4 b5 b6 b7) in
+    wrapping-add-u32 pos 8
+
+  #[no-alloc]
+  dma-copy-raw :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-raw dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _0 = raw-store-u128 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _0 = raw-store-u64 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _0 = raw-store-u8 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- POSIX `shutdown(fd, how)` FFI binding (`SHUT_WR = 1` on Darwin & Linux).
+  foreign import ccall "shutdown" io-shutdown :: I32 -> I32 ->{IO} I32
+
+  -- | Half-close the write side (`SHUT_WR = 1`) of socket `fd`.
+  proxy-shutdown-wr :: Fd ->{IO} I32
+  proxy-shutdown-wr fd =
+    if not (fd-is-valid fd) then -9
+    else io-shutdown fd.fd-raw 1
+
+  -- =========================================================================
+  -- 1. Proxy Error Codes & 502 / 503 / 504 Zero-Alloc Response Writer
+  -- =========================================================================
+
+  #[no-alloc]
+  proxy-err-none :: U8
+  proxy-err-none = 0
+
+  #[no-alloc]
+  proxy-err-upstream-fail :: U8
+  proxy-err-upstream-fail = 1
+
+  #[no-alloc]
+  proxy-err-circuit-open :: U8
+  proxy-err-circuit-open = 2
+
+  #[no-alloc]
+  proxy-err-timeout :: U8
+  proxy-err-timeout = 3
+
+  #[no-alloc]
+  proxy-err-pool-full :: U8
+  proxy-err-pool-full = 4
+
+  #[no-alloc]
+  proxy-err-bad-response :: U8
+  proxy-err-bad-response = 5
+
+  -- | Map a proxy failure reason to its canonical HTTP status code
+  -- (`502 Bad Gateway`, `503 Service Unavailable`, or `504 Gateway Timeout`).
+  #[inline(always)]
+  #[no-alloc]
+  proxy-error-to-status :: U8 -> U16
+  proxy-error-to-status err =
+    if eq-u8 err proxy-err-circuit-open then 503
+    else if eq-u8 err proxy-err-pool-full then 503
+    else if eq-u8 err proxy-err-timeout then 504
+    else 502
+
+  -- | Write a complete HTTP/1.1 `502 Bad Gateway`, `503 Service Unavailable`,
+  -- or `504 Gateway Timeout` response directly into DMA buffer `[base+pos, base+cap)`.
+  -- Returns updated `pos`, or `cap + 1` on buffer overflow. Zero heap allocations.
+  #[no-alloc]
+  proxy-write-error-response-dma :: I64 -> U32 -> U32 -> U16 ->{MVar} U32
+  proxy-write-error-response-dma base pos cap status =
+    let rem = saturating-sub-u32 cap pos in
+    if eq-u16 status 503 then
+      -- "HTTP/1.1 503 Service Unavailable\r\n" (34)
+      -- "Content-Length: 19\r\n" (20)
+      -- "Connection: close\r\n" (19)
+      -- "Via: 1.1 cinch-proxy\r\n\r\n" (24)
+      -- "Service Unavailable" (19) => total 116 bytes
+      if lt-u32 rem 116 then wrapping-add-u32 cap 1
+      else
+        let p0 = put8 base pos 72 84 84 80 47 49 46 49 in -- "HTTP/1.1"
+        let p1 = put8 base p0 32 53 48 51 32 83 101 114 in -- " 503 Ser"
+        let p2 = put8 base p1 118 105 99 101 32 85 110 97 in -- "vice Una"
+        let p3 = put8 base p2 118 97 105 108 97 98 108 101 in -- "vailable"
+        let p4 = put2 base p3 13 10 in
+        let p5 = put8 base p4 67 111 110 116 101 110 116 45 in -- "Content-"
+        let p6 = put8 base p5 76 101 110 103 116 104 58 32 in -- "Length: "
+        let p7 = put4 base p6 49 57 13 10 in -- "19\r\n"
+        let p8 = put8 base p7 67 111 110 110 101 99 116 105 in -- "Connecti"
+        let p9 = put8 base p8 111 110 58 32 99 108 111 115 in -- "on: clos"
+        let p10 = put3 base p9 101 13 10 in -- "e\r\n"
+        let p11 = put8 base p10 86 105 97 58 32 49 46 49 in -- "Via: 1.1"
+        let p12 = put8 base p11 32 99 105 110 99 104 45 112 in -- " cinch-p"
+        let p13 = put8 base p12 114 111 120 121 13 10 13 10 in -- "roxy\r\n\r\n"
+        let p14 = put8 base p13 83 101 114 118 105 99 101 32 in -- "Service "
+        let p15 = put8 base p14 85 110 97 118 97 105 108 97 in -- "Unavaila"
+        put3 base p15 98 108 101 -- "ble"
+    else if eq-u16 status 504 then
+      -- "HTTP/1.1 504 Gateway Timeout\r\n" (30)
+      -- "Content-Length: 15\r\n" (20)
+      -- "Connection: close\r\n" (19)
+      -- "Via: 1.1 cinch-proxy\r\n\r\n" (24)
+      -- "Gateway Timeout" (15) => total 108 bytes
+      if lt-u32 rem 108 then wrapping-add-u32 cap 1
+      else
+        let p0 = put8 base pos 72 84 84 80 47 49 46 49 in -- "HTTP/1.1"
+        let p1 = put8 base p0 32 53 48 52 32 71 97 116 in -- " 504 Gat"
+        let p2 = put8 base p1 101 119 97 121 32 84 105 109 in -- "eway Tim"
+        let p3 = put4 base p2 101 111 117 116 in -- "eout"
+        let p4 = put2 base p3 13 10 in
+        let p5 = put8 base p4 67 111 110 116 101 110 116 45 in
+        let p6 = put8 base p5 76 101 110 103 116 104 58 32 in
+        let p7 = put4 base p6 49 53 13 10 in -- "15\r\n"
+        let p8 = put8 base p7 67 111 110 110 101 99 116 105 in
+        let p9 = put8 base p8 111 110 58 32 99 108 111 115 in
+        let p10 = put3 base p9 101 13 10 in
+        let p11 = put8 base p10 86 105 97 58 32 49 46 49 in
+        let p12 = put8 base p11 32 99 105 110 99 104 45 112 in
+        let p13 = put8 base p12 114 111 120 121 13 10 13 10 in
+        let p14 = put8 base p13 71 97 116 101 119 97 121 32 in -- "Gateway "
+        let p15 = put4 base p14 84 105 109 101 in -- "Time"
+        put3 base p15 111 117 116 -- "out"
+    else
+      -- Default: 502 Bad Gateway
+      -- "HTTP/1.1 502 Bad Gateway\r\n" (26)
+      -- "Content-Length: 11\r\n" (20)
+      -- "Connection: close\r\n" (19)
+      -- "Via: 1.1 cinch-proxy\r\n\r\n" (24)
+      -- "Bad Gateway" (11) => total 100 bytes
+      if lt-u32 rem 100 then wrapping-add-u32 cap 1
+      else
+        let p0 = put8 base pos 72 84 84 80 47 49 46 49 in -- "HTTP/1.1"
+        let p1 = put8 base p0 32 53 48 50 32 66 97 100 in -- " 502 Bad"
+        let p2 = put8 base p1 32 71 97 116 101 119 97 121 in -- " Gateway"
+        let p3 = put2 base p2 13 10 in
+        let p4 = put8 base p3 67 111 110 116 101 110 116 45 in
+        let p5 = put8 base p4 76 101 110 103 116 104 58 32 in
+        let p6 = put4 base p5 49 49 13 10 in -- "11\r\n"
+        let p7 = put8 base p6 67 111 110 110 101 99 116 105 in
+        let p8 = put8 base p7 111 110 58 32 99 108 111 115 in
+        let p9 = put3 base p8 101 13 10 in
+        let p10 = put8 base p9 86 105 97 58 32 49 46 49 in
+        let p11 = put8 base p10 32 99 105 110 99 104 45 112 in
+        let p12 = put8 base p11 114 111 120 121 13 10 13 10 in
+        let p13 = put8 base p12 66 97 100 32 71 97 116 101 in -- "Bad Gate"
+        put3 base p13 119 97 121 -- "way"
+
+  -- =========================================================================
+  -- 2. RFC 9110 §7.6.1 Hop-by-Hop Stripping & L7 DMA Header Rewriting
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  eq-ci1 :: I64 -> U32 -> U8 ->{MVar} Bool
+  eq-ci1 base off c = eq-u8 (ascii-lower (load-u8-at base off)) c
+
+  #[inline(always)]
+  #[no-alloc]
+  eq-ci4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  eq-ci4 base off c0 c1 c2 c3 =
+    both
+      (both (eq-ci1 base off c0) (eq-ci1 base (wrapping-add-u32 off 1) c1))
+      (both (eq-ci1 base (wrapping-add-u32 off 2) c2) (eq-ci1 base (wrapping-add-u32 off 3) c3))
+
+  #[no-alloc]
+  is-name-keep-alive :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-name-keep-alive base off len =
+    if ne-u32 len 10 then b-false
+    else
+      both
+        (both (eq-ci4 base off 107 101 101 112) (eq-ci4 base (wrapping-add-u32 off 4) 45 97 108 105))
+        (both (eq-ci1 base (wrapping-add-u32 off 8) 118) (eq-ci1 base (wrapping-add-u32 off 9) 101))
+
+  #[no-alloc]
+  is-name-proxy-connection :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-name-proxy-connection base off len =
+    if ne-u32 len 16 then b-false
+    else
+      both
+        (both (eq-ci4 base off 112 114 111 120) (eq-ci4 base (wrapping-add-u32 off 4) 121 45 99 111))
+        (both (eq-ci4 base (wrapping-add-u32 off 8) 110 110 101 99) (eq-ci4 base (wrapping-add-u32 off 12) 116 105 111 110))
+
+  #[no-alloc]
+  is-name-trailer :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-name-trailer base off len =
+    if ne-u32 len 7 then b-false
+    else
+      both
+        (eq-ci4 base off 116 114 97 105)
+        (both (eq-ci1 base (wrapping-add-u32 off 4) 108)
+          (both (eq-ci1 base (wrapping-add-u32 off 5) 101) (eq-ci1 base (wrapping-add-u32 off 6) 114)))
+
+  #[no-alloc]
+  is-name-x-forwarded-for :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-name-x-forwarded-for base off len =
+    if ne-u32 len 15 then b-false
+    else
+      both
+        (both (eq-ci4 base off 120 45 102 111) (eq-ci4 base (wrapping-add-u32 off 4) 114 119 97 114))
+        (both (eq-ci4 base (wrapping-add-u32 off 8) 100 101 100 45)
+          (both (eq-ci1 base (wrapping-add-u32 off 12) 102)
+            (both (eq-ci1 base (wrapping-add-u32 off 13) 111) (eq-ci1 base (wrapping-add-u32 off 14) 114))))
+
+  #[no-alloc]
+  is-name-x-forwarded-proto :: I64 -> U32 -> U32 ->{MVar} Bool
+  is-name-x-forwarded-proto base off len =
+    if ne-u32 len 17 then b-false
+    else
+      both
+        (both (eq-ci4 base off 120 45 102 111) (eq-ci4 base (wrapping-add-u32 off 4) 114 119 97 114))
+        (both (eq-ci4 base (wrapping-add-u32 off 8) 100 101 100 45)
+          (both (eq-ci4 base (wrapping-add-u32 off 12) 112 114 111 116)
+            (eq-ci1 base (wrapping-add-u32 off 16) 111)))
+
+  -- | Classify whether a header (`known-id`, DMA name `[rx-base+name-off, +name-len)`)
+  -- is an RFC 9110 §7.6.1 hop-by-hop header that MUST be stripped by a proxy.
+  -- Preserves `Upgrade` only when `allow-upgrade` is `True`.
+  #[no-alloc]
+  proxy-is-hop-by-hop-header :: U8 -> I64 -> U32 -> U32 -> Bool ->{MVar} Bool
+  proxy-is-hop-by-hop-header known rx-base name-off name-len allow-upgrade =
+    if eq-u8 known hdr-connection then b-true
+    else if eq-u8 known hdr-transfer-encoding then b-true
+    else if eq-u8 known hdr-te then b-true
+    else if eq-u8 known hdr-proxy-authenticate then b-true
+    else if eq-u8 known hdr-proxy-authorization then b-true
+    else if eq-u8 known hdr-upgrade then not-b allow-upgrade
+    else if is-name-keep-alive rx-base name-off name-len then b-true
+    else if is-name-proxy-connection rx-base name-off name-len then b-true
+    else if is-name-trailer rx-base name-off name-len then b-true
+    else b-false
+
+  #[no-alloc]
+  skip-ows-fwd :: I64 -> U32 -> U32 ->{MVar} U32
+  skip-ows-fwd base pos end =
+    if lt-u32 pos end then
+      if is-ows (load-u8-at base pos) then skip-ows-fwd base (wrapping-add-u32 pos 1) end
+      else pos
+    else end
+
+  #[no-alloc]
+  trim-ows-back :: I64 -> U32 -> U32 ->{MVar} U32
+  trim-ows-back base start pos =
+    if gt-u32 pos start then
+      let prev = wrapping-sub-u32 pos 1 in
+      if is-ows (load-u8-at base prev) then trim-ows-back base start prev
+      else pos
+    else start
+
+  -- Check if `target-name` appears as a comma-separated token inside a `Connection:` value.
+  #[no-alloc]
+  match-conn-tokens :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 ->{MVar} Bool
+  match-conn-tokens rx-base pos end name-base name-off name-len =
+    let t-start = skip-ows-fwd rx-base pos end in
+    if ge-u32 t-start end then b-false
+    else
+      let comma = dma-find-byte rx-base t-start end 44 in
+      let seg-end = if ge-i32 comma 0 then wrapping-i32-to-u32 comma else end in
+      let t-end = trim-ows-back rx-base t-start seg-end in
+      let t-len = wrapping-sub-u32 t-end t-start in
+      if both (eq-u32 t-len name-len) (dma-ascii-eq-nocase rx-base t-start name-base name-off name-len) then
+        b-true
+      else if ge-i32 comma 0 then
+        match-conn-tokens rx-base (wrapping-add-u32 seg-end 1) end name-base name-off name-len
+      else b-false
+
+  -- | Check whether header name `[rx-base+name-off, +name-len)` is nominated as
+  -- hop-by-hop inside any `Connection:` header present in `rv` (RFC 9110 §7.6.1).
+  #[no-alloc]
+  scan-conn-headers :: RequestView -> I64 -> U32 -> U32 -> U16 ->{MVar} Bool
+  scan-conn-headers rv rx-base name-off name-len i =
+    if ge-u16 i rv.rv-header-count then b-false
+    else
+      let hp = request-view-header-at rv i in
+      if eq-u8 hp.hp-known hdr-connection then
+        let v-end = wrapping-add-u32 hp.hp-val-off hp.hp-val-len in
+        if match-conn-tokens rx-base hp.hp-val-off v-end rx-base name-off name-len then b-true
+        else scan-conn-headers rv rx-base name-off name-len (wrapping-add-u16 i 1)
+      else scan-conn-headers rv rx-base name-off name-len (wrapping-add-u16 i 1)
+
+  #[no-alloc]
+  proxy-header-in-connection-list :: RequestView -> I64 -> U32 -> U32 ->{MVar} Bool
+  proxy-header-in-connection-list rv rx-base name-off name-len =
+    if not-b (request-view-has-header rv hdr-connection) then b-false
+    else scan-conn-headers rv rx-base name-off name-len 0
+
+  -- Write `"<name>: <val>\r\n"` from DMA source slices into `tx-base[pos..cap)`.
+  #[no-alloc]
+  append-header-slice :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  append-header-slice tx-base pos cap rx-base name-off name-len val-off val-len =
+    h1-write-header-raw-dma
+      tx-base pos cap
+      (wrapping-add-i64 rx-base (u32-to-i64 name-off)) name-len
+      (wrapping-add-i64 rx-base (u32-to-i64 val-off)) val-len
+
+  -- Scan incoming headers for existing `X-Forwarded-For` or `Via` value offset/len
+  -- (returns `0xFFFF` if not found).
+  #[no-alloc]
+  find-xff-index :: RequestView -> I64 -> U16 ->{MVar} U16
+  find-xff-index rv rx-base i =
+    if ge-u16 i rv.rv-header-count then 65535
+    else
+      let hp = request-view-header-at rv i in
+      if is-name-x-forwarded-for rx-base hp.hp-name-off hp.hp-name-len then i
+      else find-xff-index rv rx-base (wrapping-add-u16 i 1)
+
+  #[no-alloc]
+  find-via-index :: RequestView -> U16 ->{MVar} U16
+  find-via-index rv i =
+    if ge-u16 i rv.rv-header-count then 65535
+    else
+      let hp = request-view-header-at rv i in
+      if eq-u8 hp.hp-known hdr-via then i
+      else find-via-index rv (wrapping-add-u16 i 1)
+
+  -- Emit all non-hop-by-hop headers (skipping existing XFF, X-Forwarded-Proto, Via
+  -- which are emitted canonically below).
+  #[no-alloc]
+  copy-filtered-headers :: RequestView -> I64 -> I64 -> U32 -> U32 -> Bool -> U16 ->{MVar} U32
+  copy-filtered-headers rv rx-base tx-base pos cap allow-upgrade i =
+    if gt-u32 pos cap then wrapping-add-u32 cap 1
+    else if ge-u16 i rv.rv-header-count then pos
+    else
+      let hp = request-view-header-at rv i in
+      let is-hbh = proxy-is-hop-by-hop-header hp.hp-known rx-base hp.hp-name-off hp.hp-name-len allow-upgrade in
+      let in-conn = (
+        if both allow-upgrade (eq-u8 hp.hp-known hdr-upgrade) then b-false
+        else proxy-header-in-connection-list rv rx-base hp.hp-name-off hp.hp-name-len) in
+      let is-xff = is-name-x-forwarded-for rx-base hp.hp-name-off hp.hp-name-len in
+      let is-xfp = is-name-x-forwarded-proto rx-base hp.hp-name-off hp.hp-name-len in
+      let is-via = eq-u8 hp.hp-known hdr-via in
+      let skip = either (either is-hbh in-conn) (either is-xff (either is-xfp is-via)) in
+      let next-pos = (
+        if skip then pos
+        else append-header-slice tx-base pos cap rx-base hp.hp-name-off hp.hp-name-len hp.hp-val-off hp.hp-val-len) in
+      copy-filtered-headers rv rx-base tx-base next-pos cap allow-upgrade (wrapping-add-u16 i 1)
+
+  -- Write `"X-Forwarded-For: [<prev>, ]<client-ip>\r\n"`.
+  #[no-alloc]
+  write-xff-header :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  write-xff-header tx-base pos cap rx-base prev-off prev-len ip-addr ip-len =
+    let extra = if gt-u32 prev-len 0 then wrapping-add-u32 prev-len 2 else 0 in
+    let need = wrapping-add-u32 (wrapping-add-u32 19 extra) ip-len in -- "X-Forwarded-For: " (17) + extra + ip + "\r\n" (2)
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p0 = put8 tx-base pos 88 45 70 111 114 119 97 114 in -- "X-Forwar"
+      let p1 = put8 tx-base p0 100 101 100 45 70 111 114 58 in -- "ded-For:"
+      let p2 = put1 tx-base p1 32 in -- " "
+      let p3 = (
+        if gt-u32 prev-len 0 then
+          let _c = dma-copy-raw (wrapping-add-i64 tx-base (u32-to-i64 p2)) (wrapping-add-i64 rx-base (u32-to-i64 prev-off)) prev-len in
+          put2 tx-base (wrapping-add-u32 p2 prev-len) 44 32 -- ", "
+        else p2) in
+      let _c2 = dma-copy-raw (wrapping-add-i64 tx-base (u32-to-i64 p3)) ip-addr ip-len in
+      put2 tx-base (wrapping-add-u32 p3 ip-len) 13 10
+
+  -- Write `"X-Forwarded-Proto: http\r\n"` (25B) or `"X-Forwarded-Proto: https\r\n"` (26B).
+  #[no-alloc]
+  write-xfp-header :: I64 -> U32 -> U32 -> Bool ->{MVar} U32
+  write-xfp-header tx-base pos cap is-tls =
+    let need = if is-tls then (26 :: U32) else 25 in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p0 = put8 tx-base pos 88 45 70 111 114 119 97 114 in -- "X-Forwar"
+      let p1 = put8 tx-base p0 100 101 100 45 80 114 111 116 in -- "ded-Prot"
+      let p2 = put3 tx-base p1 111 58 32 in -- "o: "
+      let p3 = put4 tx-base p2 104 116 116 112 in -- "http"
+      if is-tls then put3 tx-base p3 115 13 10
+      else put2 tx-base p3 13 10
+
+  -- Write `"Via: [<prev>, ]1.1 cinch-proxy\r\n"`.
+  #[no-alloc]
+  write-via-header :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 ->{MVar} U32
+  write-via-header tx-base pos cap rx-base prev-off prev-len =
+    let extra = if gt-u32 prev-len 0 then wrapping-add-u32 prev-len 2 else 0 in
+    let need = wrapping-add-u32 22 extra in -- "Via: " (5) + extra + "1.1 cinch-proxy" (15) + "\r\n" (2)
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p0 = put4 tx-base pos 86 105 97 58 in -- "Via:"
+      let p1 = put1 tx-base p0 32 in -- " "
+      let p2 = (
+        if gt-u32 prev-len 0 then
+          let _c = dma-copy-raw (wrapping-add-i64 tx-base (u32-to-i64 p1)) (wrapping-add-i64 rx-base (u32-to-i64 prev-off)) prev-len in
+          put2 tx-base (wrapping-add-u32 p1 prev-len) 44 32
+        else p1) in
+      let p3 = put8 tx-base p2 49 46 49 32 99 105 110 99 in -- "1.1 cinc"
+      let p4 = put8 tx-base p3 104 45 112 114 111 120 121 13 in -- "h-proxy\r"
+      put1 tx-base p4 10
+
+  -- Write `"Connection: Upgrade\r\n"` (21 bytes).
+  #[no-alloc]
+  write-conn-upgrade-header :: I64 -> U32 -> U32 ->{MVar} U32
+  write-conn-upgrade-header tx-base pos cap =
+    if gt-u32 21 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p0 = put8 tx-base pos 67 111 110 110 101 99 116 105 in
+      let p1 = put8 tx-base p0 111 110 58 32 85 112 103 114 in
+      let p2 = put4 tx-base p1 97 100 101 13 in
+      put1 tx-base p2 10
+
+  -- | Zero-allocation (`#[no-alloc]`) L7 HTTP/1.1 upstream request head
+  -- rewriter: takes a parsed `RequestView` referencing `rx-base` and serializes
+  -- the forwarded HTTP/1.1 request head into `tx-base[tx-pos..tx-cap)`:
+  --   * Emits `<METHOD> <PATH>[?<QUERY>] HTTP/1.1\r\n`.
+  --   * Copies all end-to-end headers, stripping RFC 9110 §7.6.1 hop-by-hop
+  --     headers (`Connection`, `Keep-Alive`, `Proxy-Connection`,
+  --     `Transfer-Encoding`, `TE`, `Trailer`, `Upgrade` unless `allow-upgrade`,
+  --     plus any headers listed inside `Connection:`).
+  --   * Re-emits `Transfer-Encoding: chunked` when incoming request is chunked,
+  --     and `Connection: keep-alive` (or `Connection: Upgrade` when `allow-upgrade`).
+  --   * Appends `X-Forwarded-For`, `X-Forwarded-Proto`, and `Via: 1.1 cinch-proxy`,
+  --     followed by terminating `\r\n`.
+  -- Returns new `tx-pos`, or `tx-cap + 1` on buffer overflow.
+  #[no-alloc]
+  proxy-rewrite-request-dma
+    :: RequestView
+    -> I64
+    -> I64
+    -> U32
+    -> U32
+    -> I64
+    -> U32
+    -> Bool
+    -> Bool
+    ->{MVar} U32
+  proxy-rewrite-request-dma rv rx-base tx-base tx-pos tx-cap client-ip-addr client-ip-len is-tls allow-upgrade =
+    if ne-u8 rv.rv-status h1-ok then wrapping-add-u32 tx-cap 1
+    else
+      -- Request line: `<METHOD> <PATH>[?<QUERY>] HTTP/1.1\r\n`
+      let q-extra = if gt-u32 rv.rv-query-len 0 then wrapping-add-u32 rv.rv-query-len 1 else 0 in
+      let rline-len = wrapping-add-u32 (wrapping-add-u32 (wrapping-add-u32 rv.rv-method-len 1) (wrapping-add-u32 rv.rv-path-len q-extra)) 11 in
+      if gt-u32 rline-len (saturating-sub-u32 tx-cap tx-pos) then wrapping-add-u32 tx-cap 1
+      else
+        let _cm = dma-copy-raw (wrapping-add-i64 tx-base (u32-to-i64 tx-pos)) (wrapping-add-i64 rx-base (u32-to-i64 rv.rv-method-off)) rv.rv-method-len in
+        let p1 = put1 tx-base (wrapping-add-u32 tx-pos rv.rv-method-len) 32 in
+        let _cp = dma-copy-raw (wrapping-add-i64 tx-base (u32-to-i64 p1)) (wrapping-add-i64 rx-base (u32-to-i64 rv.rv-path-off)) rv.rv-path-len in
+        let p2 = wrapping-add-u32 p1 rv.rv-path-len in
+        let p3 = (
+          if gt-u32 rv.rv-query-len 0 then
+            let pq = put1 tx-base p2 63 in -- '?'
+            let _cq = dma-copy-raw (wrapping-add-i64 tx-base (u32-to-i64 pq)) (wrapping-add-i64 rx-base (u32-to-i64 rv.rv-query-off)) rv.rv-query-len in
+            wrapping-add-u32 pq rv.rv-query-len
+          else p2) in
+        let p4 = put8 tx-base p3 32 72 84 84 80 47 49 46 in -- " HTTP/1."
+        let p5 = put3 tx-base p4 49 13 10 in -- "1\r\n"
+        let p6 = copy-filtered-headers rv rx-base tx-base p5 tx-cap allow-upgrade 0 in
+        if gt-u32 p6 tx-cap then wrapping-add-u32 tx-cap 1
+        else
+          -- Re-emit Transfer-Encoding: chunked if request uses chunked framing
+          let p7 = (
+            if request-view-has-flag rv req-flag-chunked then
+              h1-write-chunked-header-dma tx-base p6 tx-cap
+            else p6) in
+          if gt-u32 p7 tx-cap then wrapping-add-u32 tx-cap 1
+          else
+            -- Upstream connection framing
+            let p8 = (
+              if both allow-upgrade (request-view-has-flag rv req-flag-upgrade) then
+                write-conn-upgrade-header tx-base p7 tx-cap
+              else
+                h1-write-connection-header-dma tx-base p7 tx-cap b-true) in
+            if gt-u32 p8 tx-cap then wrapping-add-u32 tx-cap 1
+            else
+              -- X-Forwarded-For
+              let xff-idx = find-xff-index rv rx-base 0 in
+              let p9 = (
+                if eq-u16 xff-idx 65535 then
+                  write-xff-header tx-base p8 tx-cap rx-base 0 0 client-ip-addr client-ip-len
+                else
+                  let xhp = request-view-header-at rv xff-idx in
+                  write-xff-header tx-base p8 tx-cap rx-base xhp.hp-val-off xhp.hp-val-len client-ip-addr client-ip-len) in
+              if gt-u32 p9 tx-cap then wrapping-add-u32 tx-cap 1
+              else
+                -- X-Forwarded-Proto
+                let p10 = write-xfp-header tx-base p9 tx-cap is-tls in
+                if gt-u32 p10 tx-cap then wrapping-add-u32 tx-cap 1
+                else
+                  -- Via: 1.1 cinch-proxy
+                  let via-idx = find-via-index rv 0 in
+                  let p11 = (
+                    if eq-u16 via-idx 65535 then
+                      write-via-header tx-base p10 tx-cap rx-base 0 0
+                    else
+                      let vhp = request-view-header-at rv via-idx in
+                      write-via-header tx-base p10 tx-cap rx-base vhp.hp-val-off vhp.hp-val-len) in
+                  if gt-u32 p11 tx-cap then wrapping-add-u32 tx-cap 1
+                  else h1-write-crlf-dma tx-base p11 tx-cap
+
+  -- Rewrite an upstream HTTP/1.1 response head `[rx-base+rx-off, rx-base+rx-end)`
+  -- into `tx-base[tx-pos..tx-cap)`, stripping hop-by-hop headers (preserving
+  -- `Transfer-Encoding: chunked` if chunked and `Upgrade` if `allow-upgrade`)
+  -- and appending `Via: 1.1 cinch-proxy` and `Connection: keep-alive|close`.
+  -- Returns new `tx-pos`, or `0` if input is incomplete, or `tx-cap + 1` on error/overflow.
+  #[no-alloc]
+  rewrite-resp-headers-loop :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> Bool -> Bool ->{MVar} U32
+  rewrite-resp-headers-loop rx-base pos end tx-base tx-pos tx-cap keep-alive allow-upgrade =
+    if gt-u32 tx-pos tx-cap then wrapping-add-u32 tx-cap 1
+    else if ge-u32 pos end then 0
+    else
+      let c0 = load-u8-at rx-base pos in
+      if eq-u8 c0 13 then
+        let lf = wrapping-add-u32 pos 1 in
+        if ge-u32 lf end then 0
+        else if ne-u8 (load-u8-at rx-base lf) 10 then wrapping-add-u32 tx-cap 1
+        else
+          -- End of upstream headers: emit Connection + Via + CRLF + copy any trailing body
+          let p1 = h1-write-connection-header-dma tx-base tx-pos tx-cap keep-alive in
+          if gt-u32 p1 tx-cap then wrapping-add-u32 tx-cap 1
+          else
+            let p2 = write-via-header tx-base p1 tx-cap rx-base 0 0 in
+            if gt-u32 p2 tx-cap then wrapping-add-u32 tx-cap 1
+            else
+              let p3 = h1-write-crlf-dma tx-base p2 tx-cap in
+              if gt-u32 p3 tx-cap then wrapping-add-u32 tx-cap 1
+              else
+                let body-start = wrapping-add-u32 pos 2 in
+                let body-rem = saturating-sub-u32 end body-start in
+                if eq-u32 body-rem 0 then p3
+                else h1-write-bytes-dma tx-base p3 tx-cap (wrapping-add-i64 rx-base (u32-to-i64 body-start)) body-rem
+      else
+        let crlf = dma-find-crlf rx-base pos end in
+        if lt-i32 crlf 0 then 0
+        else
+          let line-end = wrapping-i32-to-u32 crlf in
+          let colon = dma-find-byte rx-base pos line-end 58 in
+          if lt-i32 colon 0 then wrapping-add-u32 tx-cap 1
+          else
+            let cpos = wrapping-i32-to-u32 colon in
+            let nlen = wrapping-sub-u32 cpos pos in
+            let known = known-header-match-dma (wrapping-add-i64 rx-base (u32-to-i64 pos)) nlen in
+            let is-hbh = proxy-is-hop-by-hop-header known rx-base pos nlen allow-upgrade in
+            -- Keep Transfer-Encoding if upstream response is chunked; strip other hop-by-hop headers.
+            let keep-te = eq-u8 known hdr-transfer-encoding in
+            let next-tx = (
+              if both is-hbh (not-b keep-te) then tx-pos
+              else
+                let v-start = skip-ows-fwd rx-base (wrapping-add-u32 cpos 1) line-end in
+                let v-end = trim-ows-back rx-base v-start line-end in
+                let vlen = wrapping-sub-u32 v-end v-start in
+                append-header-slice tx-base tx-pos tx-cap rx-base pos nlen v-start vlen) in
+            rewrite-resp-headers-loop rx-base (wrapping-add-u32 line-end 2) end tx-base next-tx tx-cap keep-alive allow-upgrade
+
+  -- | Zero-allocation (`#[no-alloc]`) L7 HTTP/1.1 response rewriter.
+  -- Copies the upstream status line, strips hop-by-hop headers, appends
+  -- `Connection:` + `Via: 1.1 cinch-proxy`, and copies any already-buffered body bytes.
+  #[no-alloc]
+  proxy-rewrite-response-dma :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> Bool -> Bool ->{MVar} U32
+  proxy-rewrite-response-dma rx-base rx-off rx-end tx-base tx-pos tx-cap keep-alive allow-upgrade =
+    let sl-crlf = dma-find-crlf rx-base rx-off rx-end in
+    if lt-i32 sl-crlf 0 then 0
+    else
+      let sl-end = wrapping-add-u32 (wrapping-i32-to-u32 sl-crlf) 2 in
+      let sl-len = wrapping-sub-u32 sl-end rx-off in
+      let p1 = h1-write-bytes-dma tx-base tx-pos tx-cap (wrapping-add-i64 rx-base (u32-to-i64 rx-off)) sl-len in
+      if gt-u32 p1 tx-cap then wrapping-add-u32 tx-cap 1
+      else rewrite-resp-headers-loop rx-base sl-end rx-end tx-base p1 tx-cap keep-alive allow-upgrade
+
+  -- =========================================================================
+  -- 3. Bounded DMA Ring Buffer with High-Water / Low-Water Backpressure
+  -- =========================================================================
+  --
+  -- Ring metadata slot (32 bytes at `meta-addr`):
+  --   +0  : data-addr   :: I64 (backing DMA byte buffer)
+  --   +8  : cap         :: U32 (capacity in bytes)
+  --   +12 : head        :: U32 (read cursor in `0..cap-1`)
+  --   +16 : len         :: U32 (buffered bytes in `0..cap`)
+  --   +20 : high-water  :: U32 (pauses producer reads when `len >= high-water`)
+  --   +24 : low-water   :: U32 (resumes producer reads when `len <= low-water`)
+  --   +28 : read-paused :: U32 (0 = reading, 1 = backpressure active)
+
+  #[no-alloc]
+  proxy-ring-slot-stride :: U32
+  proxy-ring-slot-stride = 32
+
+  #[repr(C, value)]
+  record ProxyRingMeta where
+    pr-data-addr :: I64
+    pr-cap :: U32
+    pr-head :: U32
+    pr-len :: U32
+    pr-high-water :: U32
+    pr-low-water :: U32
+    pr-read-paused :: U32
+
+  #[no-alloc]
+  proxy-ring-init :: I64 -> I64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  proxy-ring-init meta-addr data-addr cap high-water low-water =
+    let hw = if gt-u32 high-water cap then cap else if eq-u32 high-water 0 then cap else high-water in
+    let lw = if gt-u32 low-water hw then hw else low-water in
+    let _0 = raw-store-i64 meta-addr data-addr in
+    let _1 = raw-store-u32 (wrapping-add-i64 meta-addr 8) cap in
+    let _2 = raw-store-u32 (wrapping-add-i64 meta-addr 12) 0 in
+    let _3 = raw-store-u32 (wrapping-add-i64 meta-addr 16) 0 in
+    let _4 = raw-store-u32 (wrapping-add-i64 meta-addr 20) hw in
+    let _5 = raw-store-u32 (wrapping-add-i64 meta-addr 24) lw in
+    raw-store-u32 (wrapping-add-i64 meta-addr 28) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-ring-load :: I64 ->{MVar} ProxyRingMeta
+  proxy-ring-load m =
+    ProxyRingMeta
+      (raw-load-i64 m)
+      (raw-load-u32 (wrapping-add-i64 m 8))
+      (raw-load-u32 (wrapping-add-i64 m 12))
+      (raw-load-u32 (wrapping-add-i64 m 16))
+      (raw-load-u32 (wrapping-add-i64 m 20))
+      (raw-load-u32 (wrapping-add-i64 m 24))
+      (raw-load-u32 (wrapping-add-i64 m 28))
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-ring-buffered :: I64 ->{MVar} U32
+  proxy-ring-buffered m = raw-load-u32 (wrapping-add-i64 m 16)
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-ring-free-space :: I64 ->{MVar} U32
+  proxy-ring-free-space m =
+    saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 m 8)) (raw-load-u32 (wrapping-add-i64 m 16))
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-ring-is-paused :: I64 ->{MVar} Bool
+  proxy-ring-is-paused m = ne-u32 (raw-load-u32 (wrapping-add-i64 m 28)) 0
+
+  -- | Write up to `len` bytes from `src-addr` into the bounded DMA ring at
+  -- `meta-addr` (clamped to free space — never overflows or allocates).
+  -- Automatically trips `read-paused = 1` when `buffered >= high-water`.
+  -- Returns the number of bytes actually accepted.
+  #[no-alloc]
+  proxy-ring-write-dma :: I64 -> I64 -> U32 ->{MVar} U32
+  proxy-ring-write-dma meta-addr src-addr len =
+    let rm = proxy-ring-load meta-addr in
+    let free = saturating-sub-u32 rm.pr-cap rm.pr-len in
+    let take = if lt-u32 len free then len else free in
+    if eq-u32 take 0 then 0
+    else
+      let tail0 = wrapping-add-u32 rm.pr-head rm.pr-len in
+      let tail = if ge-u32 tail0 rm.pr-cap then wrapping-sub-u32 tail0 rm.pr-cap else tail0 in
+      let first-contig = wrapping-sub-u32 rm.pr-cap tail in
+      let n1 = if lt-u32 take first-contig then take else first-contig in
+      let n2 = wrapping-sub-u32 take n1 in
+      let _0 = dma-copy-raw (wrapping-add-i64 rm.pr-data-addr (u32-to-i64 tail)) src-addr n1 in
+      let _1 = (
+        if gt-u32 n2 0 then
+          dma-copy-raw rm.pr-data-addr (wrapping-add-i64 src-addr (u32-to-i64 n1)) n2
+        else ()) in
+      let new-len = wrapping-add-u32 rm.pr-len take in
+      let _2 = raw-store-u32 (wrapping-add-i64 meta-addr 16) new-len in
+      let _3 = if ge-u32 new-len rm.pr-high-water then raw-store-u32 (wrapping-add-i64 meta-addr 28) 1 else () in
+      take
+
+  -- | Read up to `max-len` bytes from the bounded DMA ring at `meta-addr` into
+  -- `dst-addr`. Automatically clears `read-paused = 0` once `buffered <= low-water`
+  -- (hysteresis prevents thrashing around the high-water mark).
+  -- Returns the number of bytes drained.
+  #[no-alloc]
+  proxy-ring-read-dma :: I64 -> I64 -> U32 ->{MVar} U32
+  proxy-ring-read-dma meta-addr dst-addr max-len =
+    let rm = proxy-ring-load meta-addr in
+    let take = if lt-u32 max-len rm.pr-len then max-len else rm.pr-len in
+    if eq-u32 take 0 then 0
+    else
+      let first-contig = wrapping-sub-u32 rm.pr-cap rm.pr-head in
+      let n1 = if lt-u32 take first-contig then take else first-contig in
+      let n2 = wrapping-sub-u32 take n1 in
+      let _0 = dma-copy-raw dst-addr (wrapping-add-i64 rm.pr-data-addr (u32-to-i64 rm.pr-head)) n1 in
+      let _1 = (
+        if gt-u32 n2 0 then
+          dma-copy-raw (wrapping-add-i64 dst-addr (u32-to-i64 n1)) rm.pr-data-addr n2
+        else ()) in
+      let new-head0 = wrapping-add-u32 rm.pr-head take in
+      let new-head = if ge-u32 new-head0 rm.pr-cap then wrapping-sub-u32 new-head0 rm.pr-cap else new-head0 in
+      let new-len = wrapping-sub-u32 rm.pr-len take in
+      let _2 = raw-store-u32 (wrapping-add-i64 meta-addr 12) new-head in
+      let _3 = raw-store-u32 (wrapping-add-i64 meta-addr 16) new-len in
+      let _4 = if le-u32 new-len rm.pr-low-water then raw-store-u32 (wrapping-add-i64 meta-addr 28) 0 else () in
+      take
+
+  -- =========================================================================
+  -- 4. L4 Zero-Copy Passthrough: Linux io_uring `SPLICE` & Portable DMA Relay
+  -- =========================================================================
+
+  -- Linux `<fcntl.h>` splice flags & sentinel offset `-1` for sockets/pipes.
+  #[no-alloc]
+  splice-f-move :: U32
+  splice-f-move = 1
+
+  #[no-alloc]
+  splice-f-nonblock :: U32
+  splice-f-nonblock = 2
+
+  #[no-alloc]
+  splice-off-none :: U64
+  splice-off-none = 0xFFFFFFFFFFFFFFFF
+
+  -- Linux `IORING_OP_SPLICE` opcode (29) matching `Prim.Sys.Io.Linux.ioring-op-splice`.
+  #[no-alloc]
+  uring-op-splice-u8 :: U8
+  uring-op-splice-u8 = 29
+
+  #[no-alloc]
+  l4-splice-ok :: U8
+  l4-splice-ok = 0
+
+  #[no-alloc]
+  l4-splice-sq-full :: U8
+  l4-splice-sq-full = 1
+
+  #[no-alloc]
+  l4-splice-invalid :: U8
+  l4-splice-invalid = 2
+
+  -- | Pure POD descriptor pair representing one zero-copy pipe-pair L4 splice:
+  --   * `sp-sqe-in`:  `splice(src_fd, -1, pipe_wr_fd, -1, chunk_len, SPLICE_F_MOVE|SPLICE_F_NONBLOCK)` with `IOSQE_IO_LINK`
+  --   * `sp-sqe-out`: `splice(pipe_rd_fd, -1, dst_fd, -1, chunk_len, SPLICE_F_MOVE|SPLICE_F_NONBLOCK)`
+  #[repr(C, value)]
+  record SplicePairPlan where
+    sp-sqe-in :: IoSqe
+    sp-sqe-out :: IoSqe
+    sp-splice-flags :: U32
+    sp-chunk-len :: U32
+
+  -- | Build a portable, `#[no-alloc]` linked pipe-pair splice plan
+  -- (`src-fd -> pipe-wr-fd -> pipe-rd-fd -> dst-fd`).
+  #[no-alloc]
+  proxy-l4-splice-plan :: Fd -> Fd -> Fd -> Fd -> U32 -> IoToken -> IoToken -> SplicePairPlan
+  proxy-l4-splice-plan src-fd pipe-wr-fd pipe-rd-fd dst-fd chunk-len tok-in tok-out =
+    let sflags = bit-or-u32 splice-f-move splice-f-nonblock in
+    let sqe0 = IoSqe op-code-splice iosqe-io-link 0 pipe-wr-fd.fd-raw splice-off-none chunk-len (wrapping-i32-to-u32 src-fd.fd-raw) splice-off-none tok-in.io-token-raw in
+    let sqe1 = IoSqe op-code-splice 0 0 dst-fd.fd-raw splice-off-none chunk-len (wrapping-i32-to-u32 pipe-rd-fd.fd-raw) splice-off-none tok-out.io-token-raw in
+    SplicePairPlan sqe0 sqe1 sflags chunk-len
+
+  -- Write one 64-byte Linux `struct io_uring_sqe` for `IORING_OP_SPLICE` directly
+  -- into `sqe-addr` (100% `#[no-alloc]`, matching `Engine.Reactor.Linux.linux-write-sqe-slot`).
+  #[no-alloc]
+  write-uring-splice-sqe :: I64 -> U8 -> I32 -> I32 -> U32 -> U32 -> U64 ->{MVar} Unit
+  write-uring-splice-sqe sqe-addr sqe-flags fd-in fd-out len splice-flags user-data =
+    let w0 = bit-or-u32 (u8-to-u32 uring-op-splice-u8) (wrapping-shl-u32 (u8-to-u32 sqe-flags) 8) in
+    let _0 = raw-store-u32 sqe-addr w0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 sqe-addr 4) (wrapping-i32-to-u32 fd-out) in
+    let _2 = raw-store-u64 (wrapping-add-i64 sqe-addr 8) splice-off-none in
+    let _3 = raw-store-u64 (wrapping-add-i64 sqe-addr 16) splice-off-none in
+    let _4 = raw-store-u32 (wrapping-add-i64 sqe-addr 24) len in
+    let _5 = raw-store-u32 (wrapping-add-i64 sqe-addr 28) splice-flags in
+    let _6 = raw-store-u64 (wrapping-add-i64 sqe-addr 32) user-data in
+    let _7 = raw-store-u32 (wrapping-add-i64 sqe-addr 40) 0 in
+    let _8 = raw-store-u32 (wrapping-add-i64 sqe-addr 44) (wrapping-i32-to-u32 fd-in) in
+    let _9 = raw-store-u64 (wrapping-add-i64 sqe-addr 48) 0 in
+    raw-store-u64 (wrapping-add-i64 sqe-addr 56) 0
+
+  -- | Enqueue one atomic linked pair of Linux `io_uring` `IORING_OP_SPLICE` SQEs
+  -- (`src-fd -> pipe-wr-fd` with `IOSQE_IO_LINK`, followed by `pipe-rd-fd -> dst-fd`)
+  -- directly into `LinuxReactor`'s SQ ring with zero heap allocation.
+  -- Returns `l4-splice-ok`, `l4-splice-sq-full` (if fewer than 2 SQ slots free),
+  -- or `l4-splice-invalid`.
+  #[no-alloc]
+  proxy-l4-splice-step :: LinuxReactor -> Fd -> Fd -> Fd -> Fd -> U32 -> IoToken -> IoToken ->{MVar} U8
+  proxy-l4-splice-step rx src-fd pipe-wr-fd pipe-rd-fd dst-fd chunk-len tok-in tok-out =
+    if either (eq-i64 rx.sq-ring-ptr 0) (either (eq-i64 rx.sqes-ptr 0) (eq-i64 rx.state-ptr 0)) then
+      l4-splice-invalid
+    else if either (eq-u32 chunk-len 0) (either (not-b (fd-is-valid src-fd)) (not-b (fd-is-valid dst-fd))) then
+      l4-splice-invalid
+    else if either (not-b (fd-is-valid pipe-wr-fd)) (not-b (fd-is-valid pipe-rd-fd)) then
+      l4-splice-invalid
+    else
+      let head-addr = wrapping-add-i64 rx.sq-ring-ptr (u32-to-i64 rx.sq-head-off) in
+      let tail-addr = wrapping-add-i64 rx.sq-ring-ptr (u32-to-i64 rx.sq-tail-off) in
+      let head = raw-load-u32 head-addr in
+      let _fa = atomic-load-acquire-i64 (wrapping-add-i64 rx.state-ptr 8) in
+      let tail = raw-load-u32 tail-addr in
+      let inflight = wrapping-sub-u32 tail head in
+      let free-sq = saturating-sub-u32 rx.sq-entries inflight in
+      if lt-u32 free-sq 2 then l4-splice-sq-full
+      else
+        let sflags = bit-or-u32 splice-f-move splice-f-nonblock in
+        let idx0 = bit-and-u32 tail rx.sq-mask in
+        let idx1 = bit-and-u32 (wrapping-add-u32 tail 1) rx.sq-mask in
+        let sqe0 = wrapping-add-i64 rx.sqes-ptr (wrapping-shl-i64 (u32-to-i64 idx0) 6) in
+        let sqe1 = wrapping-add-i64 rx.sqes-ptr (wrapping-shl-i64 (u32-to-i64 idx1) 6) in
+        let _w0 = write-uring-splice-sqe sqe0 iosqe-io-link src-fd.fd-raw pipe-wr-fd.fd-raw chunk-len sflags tok-in.io-token-raw in
+        let _w1 = write-uring-splice-sqe sqe1 0 pipe-rd-fd.fd-raw dst-fd.fd-raw chunk-len sflags tok-out.io-token-raw in
+        let arr-base = wrapping-add-i64 rx.sq-ring-ptr (u32-to-i64 rx.sq-array-off) in
+        let _a0 = raw-store-u32 (wrapping-add-i64 arr-base (wrapping-shl-i64 (u32-to-i64 idx0) 2)) idx0 in
+        let _a1 = raw-store-u32 (wrapping-add-i64 arr-base (wrapping-shl-i64 (u32-to-i64 idx1) 2)) idx1 in
+        let next-tail = wrapping-add-u32 tail 2 in
+        let _ts = atomic-store-release-i64 (wrapping-add-i64 rx.state-ptr 8) (u32-to-i64 next-tail) in
+        let _t = raw-store-u32 tail-addr next-tail in
+        let pend = raw-load-u32 rx.state-ptr in
+        let _p = raw-store-u32 rx.state-ptr (wrapping-add-u32 pend 2) in
+        l4-splice-ok
+
+  -- -------------------------------------------------------------------------
+  -- Live macOS / Portable DMA Bidirectional L4 Relay with `SHUT_WR` Half-Close
+  -- -------------------------------------------------------------------------
+  --
+  -- State slab layout (128 bytes at `relay-addr`):
+  --   +0  .. +31 : c2u ProxyRingMeta (client -> upstream)
+  --   +32 .. +63 : u2c ProxyRingMeta (upstream -> client)
+  --   +64 : client-eof       :: U8
+  --   +65 : upstream-eof     :: U8
+  --   +66 : upstream-shut-wr :: U8
+  --   +67 : client-shut-wr   :: U8
+  --   +68 : last-err         :: U32
+  --   +72 : bytes-c2u        :: U64
+  --   +80 : bytes-u2c        :: U64
+  --   +88 : scratch-addr     :: I64 (contiguous scratch DMA buffer for send/recv chunks)
+  --   +96 : scratch-cap      :: U32
+
+  #[no-alloc]
+  l4-relay-state-stride :: U32
+  l4-relay-state-stride = 128
+
+  #[no-alloc]
+  l4-relay-active :: U8
+  l4-relay-active = 0
+
+  #[no-alloc]
+  l4-relay-done :: U8
+  l4-relay-done = 1
+
+  #[no-alloc]
+  l4-relay-error :: U8
+  l4-relay-error = 2
+
+  -- | Initialize a 128-byte L4 bidirectional DMA relay state at `relay-addr`,
+  -- using two DMA ring data buffers (`c2u-buf`, `u2c-buf`, each `ring-cap` bytes
+  -- with backpressure `high-water` / `low-water`) and a scratch chunk buffer
+  -- (`scratch-addr`, `scratch-cap` bytes).
+  #[no-alloc]
+  proxy-l4-relay-init
+    :: I64 -> I64 -> I64 -> U32 -> U32 -> U32 -> I64 -> U32 ->{MVar} Unit
+  proxy-l4-relay-init relay-addr c2u-buf u2c-buf ring-cap high-water low-water scratch-addr scratch-cap =
+    let _0 = proxy-ring-init relay-addr c2u-buf ring-cap high-water low-water in
+    let _1 = proxy-ring-init (wrapping-add-i64 relay-addr 32) u2c-buf ring-cap high-water low-water in
+    let _2 = raw-store-u32 (wrapping-add-i64 relay-addr 64) 0 in
+    let _3 = raw-store-u32 (wrapping-add-i64 relay-addr 68) 0 in
+    let _4 = raw-store-u64 (wrapping-add-i64 relay-addr 72) 0 in
+    let _5 = raw-store-u64 (wrapping-add-i64 relay-addr 80) 0 in
+    let _6 = raw-store-i64 (wrapping-add-i64 relay-addr 88) scratch-addr in
+    raw-store-u32 (wrapping-add-i64 relay-addr 96) scratch-cap
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-l4-relay-bytes-c2u :: I64 ->{MVar} U64
+  proxy-l4-relay-bytes-c2u relay-addr = raw-load-u64 (wrapping-add-i64 relay-addr 72)
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-l4-relay-bytes-u2c :: I64 ->{MVar} U64
+  proxy-l4-relay-bytes-u2c relay-addr = raw-load-u64 (wrapping-add-i64 relay-addr 80)
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-l4-relay-c2u-paused :: I64 ->{MVar} Bool
+  proxy-l4-relay-c2u-paused relay-addr = proxy-ring-is-paused relay-addr
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-l4-relay-u2c-paused :: I64 ->{MVar} Bool
+  proxy-l4-relay-u2c-paused relay-addr = proxy-ring-is-paused (wrapping-add-i64 relay-addr 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-l4-relay-upstream-shut-wr :: I64 ->{MVar} Bool
+  proxy-l4-relay-upstream-shut-wr relay-addr = ne-u8 (raw-load-u8 (wrapping-add-i64 relay-addr 66)) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  proxy-l4-relay-client-shut-wr :: I64 ->{MVar} Bool
+  proxy-l4-relay-client-shut-wr relay-addr = ne-u8 (raw-load-u8 (wrapping-add-i64 relay-addr 67)) 0
+
+  -- Pump one direction (`src-fd -> ring -> dst-fd`) with backpressure and `SHUT_WR` half-close.
+  -- Returns `0` on ok/progress, `1` on fatal socket error.
+  relay-pump-dir :: Fd -> Fd -> I64 -> I64 -> I64 -> I64 -> I64 -> U32 ->{IO, MVar} U8
+  relay-pump-dir src-fd dst-fd ring-meta eof-flag-addr shut-flag-addr bytes-ctr-addr scratch-addr scratch-cap =
+    -- 1. Read from `src-fd` if not EOF and not backpressure-paused.
+    let eof0 = raw-load-u8 eof-flag-addr in
+    let rd-err = (
+      if eq-u8 eof0 0 && not (proxy-ring-is-paused ring-meta) then
+        let free = proxy-ring-free-space ring-meta in
+        let want = if lt-u32 free scratch-cap then free else scratch-cap in
+        if gt-u32 want 0 then
+          let nr = darwin-recv-dma src-fd scratch-addr want in
+          if gt-i32 nr 0 then
+            let _w = proxy-ring-write-dma ring-meta scratch-addr (wrapping-i32-to-u32 nr) in
+            (0 :: U8)
+          else if eq-i32 nr 0 then
+            let _e = raw-store-u8 eof-flag-addr 1 in
+            0
+          else if eq-i32 nr -35 || eq-i32 nr -4 then 0 -- EAGAIN / EINTR
+          else 1
+        else 0
+      else 0) in
+    if ne-u8 rd-err 0 then 1
+    else
+      -- 2. Drain buffered ring bytes into `dst-fd` directly (peek contiguous head segment, zero extra copy).
+      let rm = proxy-ring-load ring-meta in
+      let wr-err = (
+        if gt-u32 rm.pr-len 0 then
+          let contig = wrapping-sub-u32 rm.pr-cap rm.pr-head in
+          let send-len = if lt-u32 rm.pr-len contig then rm.pr-len else contig in
+          let src-ptr = wrapping-add-i64 rm.pr-data-addr (u32-to-i64 rm.pr-head) in
+          let nw = darwin-send-dma dst-fd src-ptr send-len in
+          if gt-i32 nw 0 then
+            let sent = wrapping-i32-to-u32 nw in
+            let new-head0 = wrapping-add-u32 rm.pr-head sent in
+            let new-head = if ge-u32 new-head0 rm.pr-cap then wrapping-sub-u32 new-head0 rm.pr-cap else new-head0 in
+            let new-len = wrapping-sub-u32 rm.pr-len sent in
+            let _h = raw-store-u32 (wrapping-add-i64 ring-meta 12) new-head in
+            let _l = raw-store-u32 (wrapping-add-i64 ring-meta 16) new-len in
+            let _p = if le-u32 new-len rm.pr-low-water then raw-store-u32 (wrapping-add-i64 ring-meta 28) 0 else () in
+            let prev-b = raw-load-u64 bytes-ctr-addr in
+            let _c = raw-store-u64 bytes-ctr-addr (wrapping-add-u64 prev-b (u32-to-u64 sent)) in
+            (0 :: U8)
+          else if eq-i32 nw -35 || eq-i32 nw -4 then 0
+          else 1
+        else 0) in
+      if ne-u8 wr-err 0 then 1
+      else
+        -- 3. Propagate `SHUT_WR` half-close once source hit EOF and ring is completely drained.
+        let eof1 = raw-load-u8 eof-flag-addr in
+        let shut1 = raw-load-u8 shut-flag-addr in
+        if ne-u8 eof1 0 && eq-u8 shut1 0 && eq-u32 (proxy-ring-buffered ring-meta) 0 then
+          let _s = proxy-shutdown-wr dst-fd in
+          let _f = raw-store-u8 shut-flag-addr 1 in
+          0
+        else 0
+
+  -- | Drive one zero-allocation bidirectional L4 DMA relay step between
+  -- `client-fd` and `upstream-fd` using the relay state at `relay-addr`.
+  -- Enforces high/low-water backpressure independently in both directions and
+  -- propagates `SHUT_WR` half-closes cleanly once each direction drains.
+  -- Returns `l4-relay-active`, `l4-relay-done`, or `l4-relay-error`.
+  proxy-l4-relay-dma :: Fd -> Fd -> I64 ->{IO, MVar} U8
+  proxy-l4-relay-dma client-fd upstream-fd relay-addr =
+    let scratch-addr = raw-load-i64 (wrapping-add-i64 relay-addr 88) in
+    let scratch-cap = raw-load-u32 (wrapping-add-i64 relay-addr 96) in
+    let e1 = relay-pump-dir
+               client-fd upstream-fd
+               relay-addr
+               (wrapping-add-i64 relay-addr 64)
+               (wrapping-add-i64 relay-addr 66)
+               (wrapping-add-i64 relay-addr 72)
+               scratch-addr scratch-cap in
+    if ne-u8 e1 0 then l4-relay-error
+    else
+      let e2 = relay-pump-dir
+                 upstream-fd client-fd
+                 (wrapping-add-i64 relay-addr 32)
+                 (wrapping-add-i64 relay-addr 65)
+                 (wrapping-add-i64 relay-addr 67)
+                 (wrapping-add-i64 relay-addr 80)
+                 scratch-addr scratch-cap in
+      if ne-u8 e2 0 then l4-relay-error
+      else
+        let done-c2u = ne-u8 (raw-load-u8 (wrapping-add-i64 relay-addr 66)) 0 in
+        let done-u2c = ne-u8 (raw-load-u8 (wrapping-add-i64 relay-addr 67)) 0 in
+        if done-c2u && done-u2c then l4-relay-done
+        else l4-relay-active

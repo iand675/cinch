@@ -1,0 +1,795 @@
+-- | Zero-allocation (`#[no-alloc]`) Google Maglev Consistent Hashing engine
+-- with weighted backend support, bitmap health masking / deterministic
+-- skip-unhealthy fallback probing, and lock-free epoch-swapped double-buffered
+-- table publication (`MaglevEpochRouter`).
+--
+-- Exact Google Maglev algorithm (Eisenbud et al., NSDI 2016):
+--   * Prime lookup table size `M` (default `65537`, or configurable primes such
+--     as `4099` / `257` for fast deterministic simulations).
+--   * Flat DMA-backed `U16` lookup table (`M * 2` bytes) inside one contiguous
+--     4 KiB-aligned anonymous `mmap` slab (`engine-dma-alloc`).
+--   * Two independent 64-bit hashes per backend `i`:
+--       `offset[i] = h1(key[i]) % M`
+--       `skip[i]   = (h2(key[i]) % (M - 1)) + 1`
+--   * Round-robin greedy fill (with per-backend weights) populates all `M`
+--     slots using exact modular stepping `cur = (cur + skip) % M` with zero
+--     divisions in the inner loop.
+--   * O(1) `#[no-alloc]` `maglev-lookup` and `maglev-lookup-healthy`.
+--   * Zero-downtime backend reload via `MaglevEpochRouter`: control plane
+--     rebuilds the standby table in place and publishes its slab pointer with
+--     `Prim.Atomic.atomic-store-release-i64`; data-plane readers acquire via
+--     `Prim.Atomic.atomic-load-acquire-i64` with zero locks and zero heap
+--     allocations.
+module Net.Http.Proxy.Maglev where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Constants & hash primitives
+  export maglev-default-size, maglev-size4099, maglev-size257
+  export maglev-empty-slot, maglev-max-backends
+  export maglev-hash1, maglev-hash2, maglev-hash-key
+
+  -- Flat DMA-backed Maglev lookup table
+  export MaglevTable, maglev-table-empty, maglev-table-valid
+  export maglev-table-new, maglev-table-destroy
+  export maglev-table-size, maglev-table-max-backends, maglev-table-populated
+  export maglev-table-backend-count, maglev-table-epoch
+  export maglev-set-backend, maglev-remove-backend, maglev-clear-backends
+  export maglev-backend-set-health, maglev-backend-is-healthy, maglev-set-health-mask-u64
+  export maglev-rebuild
+  export maglev-lookup, maglev-lookup-healthy, maglev-lookup-with-mask
+
+  -- Lock-free double-buffered epoch-swapped router
+  export MaglevEpochRouter, maglev-router-empty, maglev-router-valid
+  export maglev-router-new, maglev-router-destroy
+  export maglev-router-active-table, maglev-router-standby-table
+  export maglev-router-swap, maglev-router-epoch
+  export maglev-router-lookup, maglev-router-lookup-healthy
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean, alignment, and DMA U16 helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  safe-rem-u64 :: U64 -> U64 -> U64
+  safe-rem-u64 a d = if d /= 0 then rem-u64 a d else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  align-up-u64 :: U64 -> U64 -> U64
+  align-up-u64 v align =
+    let mask = wrapping-sub-u64 align 1 in
+    bit-and-u64 (wrapping-add-u64 v mask) (bit-not-u64 mask)
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)]
+  #[no-alloc]
+  load-u16-le :: I64 ->{MVar} U16
+  load-u16-le p =
+    let lo = u8-to-u16 (raw-load-u8 p) in
+    let hi = u8-to-u16 (raw-load-u8 (wrapping-add-i64 p 1)) in
+    bit-or-u16 lo (wrapping-shl-u16 hi 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  store-u16-le :: I64 -> U16 ->{MVar} Unit
+  store-u16-le p v =
+    let lo = wrapping-u16-to-u8 v in
+    let hi = wrapping-u16-to-u8 (wrapping-shr-u16 v 8) in
+    let _0 = raw-store-u8 p lo in
+    raw-store-u8 (wrapping-add-i64 p 1) hi
+
+  -- =========================================================================
+  -- 1. Constants & Independent 64-bit Maglev Hash Functions (#[no-alloc])
+  -- =========================================================================
+
+  -- | Default Google Maglev prime table size `M = 65537`.
+  #[no-alloc]
+  maglev-default-size :: U32
+  maglev-default-size = 65537
+
+  -- | Medium prime table size `M = 4099`.
+  #[no-alloc]
+  maglev-size4099 :: U32
+  maglev-size4099 = 4099
+
+  -- | Compact prime table size `M = 257` (for fast unit/DST checks).
+  #[no-alloc]
+  maglev-size257 :: U32
+  maglev-size257 = 257
+
+  -- | Sentinel `U16` slot indicating an unpopulated or unavailable backend.
+  #[no-alloc]
+  maglev-empty-slot :: U16
+  maglev-empty-slot = 65535
+
+  -- | Upper limit on configured backends per Maglev table.
+  #[no-alloc]
+  maglev-max-backends :: U32
+  maglev-max-backends = 4096
+
+  -- | Independent 64-bit avalanche hash #1 (SplitMix64 finalizer).
+  #[inline(always)]
+  #[no-alloc]
+  maglev-hash1 :: U64 -> U64
+  maglev-hash1 k =
+    let z0 = wrapping-add-u64 k 0x9E3779B97F4A7C15 in
+    let z1 = wrapping-mul-u64 (bit-xor-u64 z0 (wrapping-shr-u64 z0 30)) 0xBF58476D1CE4E5B9 in
+    let z2 = wrapping-mul-u64 (bit-xor-u64 z1 (wrapping-shr-u64 z1 27)) 0x94D049BB133111EB in
+    bit-xor-u64 z2 (wrapping-shr-u64 z2 31)
+
+  -- | Independent 64-bit avalanche hash #2 (distinct MurmurHash3 / Moremur constants).
+  #[inline(always)]
+  #[no-alloc]
+  maglev-hash2 :: U64 -> U64
+  maglev-hash2 k =
+    let z0 = bit-xor-u64 (wrapping-add-u64 k 0x517CC1B727220A95) 0xD6E8FEB86659FD93 in
+    let z1 = wrapping-mul-u64 (bit-xor-u64 z0 (wrapping-shr-u64 z0 33)) 0xFF51AFD7ED558CCD in
+    let z2 = wrapping-mul-u64 (bit-xor-u64 z1 (wrapping-shr-u64 z1 33)) 0xC4CEB9FE1A85EC53 in
+    bit-xor-u64 z2 (wrapping-shr-u64 z2 33)
+
+  -- | Convenience 64-bit request key mixer for callers with sequential IDs.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-hash-key :: U64 -> U64
+  maglev-hash-key k = maglev-hash1 (bit-xor-u64 k 0xA0761D6478BD642F)
+
+  -- =========================================================================
+  -- 2. DMA Slab Layout & `MaglevTable` Handle
+  -- =========================================================================
+  --
+  -- Slab layout (4 KiB page-aligned):
+  --   Header (bytes 0..64):
+  --     +0  : active-count  :: U32  (number of currently active backends)
+  --     +4  : populated     :: U32  (filled slots in lookup table: 0 or M)
+  --     +8  : table-off     :: U64  (byte offset of [U16; M] lookup table)
+  --     +16 : backends-off  :: U64  (byte offset of [BackendDesc; max-backends])
+  --     +24 : health-off    :: U64  (byte offset of [U64; ceil(max-backends/64)])
+  --     +32 : epoch         :: U64  (monotonic rebuild count)
+  --     +40 : table-size    :: U32  (prime M)
+  --     +44 : max-backends  :: U32
+  --     +48 : slab-bytes    :: U64
+  --
+  --   Health bitmap at +health-off (64B aligned):
+  --     Bit `i` == 1 means backend `i` is healthy; 0 means unhealthy.
+  --
+  --   Backend descriptor array at +backends-off (32 bytes per backend):
+  --     +0  : key     :: U64  (stable backend identifier hash/IP:port)
+  --     +8  : weight  :: U32  (>= 1; default 1)
+  --     +12 : active  :: U32  (1 = active member of ring, 0 = absent)
+  --     +16 : cur     :: U32  (current permutation cursor `(offset + next*skip) % M`)
+  --     +20 : skip    :: U32  (permutation step in `1..M-1`)
+  --     +24 : pad0    :: U64
+  --
+  --   Lookup table at +table-off (64B aligned):
+  --     Flat `[U16; M]` (`M * 2` bytes), each entry holding backend ID `0..max-1`
+  --     or `maglev-empty-slot` (`65535`).
+
+  #[no-alloc]
+  hdr-off-active-count :: U64
+  hdr-off-active-count = 0
+
+  #[no-alloc]
+  hdr-off-populated :: U64
+  hdr-off-populated = 4
+
+  #[no-alloc]
+  hdr-off-table-off :: U64
+  hdr-off-table-off = 8
+
+  #[no-alloc]
+  hdr-off-backends-off :: U64
+  hdr-off-backends-off = 16
+
+  #[no-alloc]
+  hdr-off-health-off :: U64
+  hdr-off-health-off = 24
+
+  #[no-alloc]
+  hdr-off-epoch :: U64
+  hdr-off-epoch = 32
+
+  #[no-alloc]
+  hdr-off-table-size :: U64
+  hdr-off-table-size = 40
+
+  #[no-alloc]
+  hdr-off-max-backends :: U64
+  hdr-off-max-backends = 44
+
+  #[no-alloc]
+  hdr-off-slab-bytes :: U64
+  hdr-off-slab-bytes = 48
+
+  #[no-alloc]
+  backend-desc-stride :: U64
+  backend-desc-stride = 32
+
+  -- | 24-byte `#[repr(C, value)]` POD handle to a DMA-backed Maglev table.
+  #[repr(C, value)]
+  record MaglevTable where
+    mt-base :: U64
+    mt-slab-bytes :: U64
+    mt-table-size :: U32
+    mt-max-backends :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-empty :: Unit -> MaglevTable
+  maglev-table-empty _ = MaglevTable 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-valid :: MaglevTable -> Bool
+  maglev-table-valid t = both (ne-u64 t.mt-base 0) (ge-u32 t.mt-table-size 3)
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-size :: MaglevTable -> U32
+  maglev-table-size t = t.mt-table-size
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-max-backends :: MaglevTable -> U32
+  maglev-table-max-backends t = t.mt-max-backends
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-populated :: MaglevTable ->{MVar} U32
+  maglev-table-populated t =
+    if maglev-table-valid t then raw-load-u32 (addr-at t.mt-base hdr-off-populated)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-backend-count :: MaglevTable ->{MVar} U32
+  maglev-table-backend-count t =
+    if maglev-table-valid t then raw-load-u32 (addr-at t.mt-base hdr-off-active-count)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-table-epoch :: MaglevTable ->{MVar} U64
+  maglev-table-epoch t =
+    if maglev-table-valid t then raw-load-u64 (addr-at t.mt-base hdr-off-epoch)
+    else 0
+
+  #[no-alloc]
+  fill-empty-table-loop :: I64 -> U32 -> U32 ->{MVar} Unit
+  fill-empty-table-loop tbl-addr i m =
+    if ge-u32 i m then ()
+    else
+      let _0 = store-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 i) 1)) maglev-empty-slot in
+      fill-empty-table-loop tbl-addr (wrapping-add-u32 i 1) m
+
+  #[no-alloc]
+  init-health-words :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-health-words h-addr i words =
+    if ge-u32 i words then ()
+    else
+      let _0 = raw-store-u64 (wrapping-add-i64 h-addr (wrapping-shl-i64 (u32-to-i64 i) 3)) 0xFFFFFFFFFFFFFFFF in
+      init-health-words h-addr (wrapping-add-u32 i 1) words
+
+  -- | Allocate a new DMA-backed Maglev lookup table of prime size `table-size`
+  -- (pass `0` for default `65537`; must be `>= 3` and odd/prime) supporting up
+  -- to `max-backends` backends (`1..4096`).
+  maglev-table-new :: U32 -> U32 ->{IO, MVar} MaglevTable
+  maglev-table-new table-size max-backends =
+    let m = if eq-u32 table-size 0 then maglev-default-size else table-size in
+    let cap = if eq-u32 max-backends 0 then 64 else max-backends in
+    if lt-u32 m 3 || gt-u32 cap maglev-max-backends then maglev-table-empty ()
+    else
+      let h-words = div-u32 (wrapping-add-u32 cap 63) 64 in
+      let health-off = (64 :: U64) in
+      let health-bytes = align-up-u64 (wrapping-shl-u64 (u32-to-u64 h-words) 3) 64 in
+      let backends-off = wrapping-add-u64 health-off health-bytes in
+      let backends-bytes = align-up-u64 (wrapping-mul-u64 (u32-to-u64 cap) backend-desc-stride) 64 in
+      let table-off = wrapping-add-u64 backends-off backends-bytes in
+      let table-bytes = wrapping-shl-u64 (u32-to-u64 m) 1 in
+      let total-bytes = align-up-u64 (wrapping-add-u64 table-off table-bytes) 4096 in
+      let base = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 base 0 then maglev-table-empty ()
+      else
+        let _0 = raw-store-u32 (addr-at base hdr-off-active-count) 0 in
+        let _1 = raw-store-u32 (addr-at base hdr-off-populated) 0 in
+        let _2 = raw-store-u64 (addr-at base hdr-off-table-off) table-off in
+        let _3 = raw-store-u64 (addr-at base hdr-off-backends-off) backends-off in
+        let _4 = raw-store-u64 (addr-at base hdr-off-health-off) health-off in
+        let _5 = raw-store-u64 (addr-at base hdr-off-epoch) 0 in
+        let _6 = raw-store-u32 (addr-at base hdr-off-table-size) m in
+        let _7 = raw-store-u32 (addr-at base hdr-off-max-backends) cap in
+        let _8 = raw-store-u64 (addr-at base hdr-off-slab-bytes) total-bytes in
+        let _9 = init-health-words (addr-at base health-off) 0 h-words in
+        let _10 = fill-empty-table-loop (addr-at base table-off) 0 m in
+        MaglevTable base total-bytes m cap
+
+  -- | Unmap the DMA slab backing `tbl`.
+  maglev-table-destroy :: MaglevTable ->{IO} IoError
+  maglev-table-destroy tbl =
+    if eq-u64 tbl.mt-base 0 then IoOk
+    else engine-dma-free tbl.mt-base tbl.mt-slab-bytes
+
+  -- =========================================================================
+  -- 3. Backend Registration, Health Bitmap & Exact Maglev Rebuild (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  backend-desc-addr :: MaglevTable -> U32 ->{MVar} I64
+  backend-desc-addr t idx =
+    let boff = raw-load-u64 (addr-at t.mt-base hdr-off-backends-off) in
+    addr-at t.mt-base (wrapping-add-u64 boff (wrapping-mul-u64 (u32-to-u64 idx) backend-desc-stride))
+
+  -- | Configure backend slot `id` (`0..max-backends-1`) with stable 64-bit
+  -- identity `key`, relative `weight` (`0` treated as `1`), and `active` flag.
+  -- Call `maglev-rebuild` after batch edits to recompute the lookup table.
+  #[no-alloc]
+  maglev-set-backend :: MaglevTable -> U16 -> U64 -> U32 -> Bool ->{MVar} Bool
+  maglev-set-backend t id key weight active =
+    let idx = u16-to-u32 id in
+    if not-b (maglev-table-valid t) then b-false
+    else if ge-u32 idx t.mt-max-backends then b-false
+    else
+      let p = backend-desc-addr t idx in
+      let prev-act = raw-load-u32 (wrapping-add-i64 p 12) in
+      let next-act = if active then (1 :: U32) else 0 in
+      let w = if eq-u32 weight 0 then (1 :: U32) else weight in
+      let _0 = raw-store-u64 p key in
+      let _1 = raw-store-u32 (wrapping-add-i64 p 8) w in
+      let _2 = raw-store-u32 (wrapping-add-i64 p 12) next-act in
+      let cnt-addr = addr-at t.mt-base hdr-off-active-count in
+      let cnt = raw-load-u32 cnt-addr in
+      let _3 = (
+        if both (eq-u32 prev-act 0) (eq-u32 next-act 1) then
+          raw-store-u32 cnt-addr (wrapping-add-u32 cnt 1)
+        else if both (ne-u32 prev-act 0) (eq-u32 next-act 0) then
+          raw-store-u32 cnt-addr (saturating-sub-u32 cnt 1)
+        else ()) in
+      b-true
+
+  -- | Remove backend `id` from active participation (call `maglev-rebuild` to apply).
+  #[no-alloc]
+  maglev-remove-backend :: MaglevTable -> U16 ->{MVar} Bool
+  maglev-remove-backend t id =
+    let idx = u16-to-u32 id in
+    if not-b (maglev-table-valid t) then b-false
+    else if ge-u32 idx t.mt-max-backends then b-false
+    else
+      let p = backend-desc-addr t idx in
+      let prev-act = raw-load-u32 (wrapping-add-i64 p 12) in
+      let _0 = raw-store-u32 (wrapping-add-i64 p 12) 0 in
+      let _1 = (
+        if ne-u32 prev-act 0 then
+          let cnt-addr = addr-at t.mt-base hdr-off-active-count in
+          raw-store-u32 cnt-addr (saturating-sub-u32 (raw-load-u32 cnt-addr) 1)
+        else ()) in
+      b-true
+
+  #[no-alloc]
+  clear-backends-loop :: I64 -> U32 -> U32 ->{MVar} Unit
+  clear-backends-loop b-base i cap =
+    if ge-u32 i cap then ()
+    else
+      let p = wrapping-add-i64 b-base (wrapping-mul-i64 (u32-to-i64 i) 32) in
+      let _0 = raw-store-u32 (wrapping-add-i64 p 12) 0 in
+      clear-backends-loop b-base (wrapping-add-u32 i 1) cap
+
+  -- | Clear all configured backends from `t` (zero heap allocation).
+  #[no-alloc]
+  maglev-clear-backends :: MaglevTable ->{MVar} Unit
+  maglev-clear-backends t =
+    if not-b (maglev-table-valid t) then ()
+    else
+      let boff = raw-load-u64 (addr-at t.mt-base hdr-off-backends-off) in
+      let _0 = clear-backends-loop (addr-at t.mt-base boff) 0 t.mt-max-backends in
+      let _1 = raw-store-u32 (addr-at t.mt-base hdr-off-active-count) 0 in
+      let _2 = raw-store-u32 (addr-at t.mt-base hdr-off-populated) 0 in
+      ()
+
+  -- | Set backend `id`'s health bit (`True` = healthy, `False` = unhealthy).
+  #[no-alloc]
+  maglev-backend-set-health :: MaglevTable -> U16 -> Bool ->{MVar} Unit
+  maglev-backend-set-health t id healthy =
+    let idx = u16-to-u32 id in
+    if not-b (maglev-table-valid t) then ()
+    else if ge-u32 idx t.mt-max-backends then ()
+    else
+      let hoff = raw-load-u64 (addr-at t.mt-base hdr-off-health-off) in
+      let word-idx = wrapping-shr-u32 idx 6 in
+      let bit-idx = bit-and-u32 idx 63 in
+      let waddr = addr-at t.mt-base (wrapping-add-u64 hoff (wrapping-shl-u64 (u32-to-u64 word-idx) 3)) in
+      let bit = wrapping-shl-u64 1 bit-idx in
+      let cur = raw-load-u64 waddr in
+      let next = if healthy then bit-or-u64 cur bit else bit-and-u64 cur (bit-not-u64 bit) in
+      raw-store-u64 waddr next
+
+  -- | Query whether backend `id` is currently marked healthy in the bitmap.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-backend-is-healthy :: MaglevTable -> U16 ->{MVar} Bool
+  maglev-backend-is-healthy t id =
+    let idx = u16-to-u32 id in
+    if not-b (maglev-table-valid t) then b-false
+    else if ge-u32 idx t.mt-max-backends then b-false
+    else
+      let hoff = raw-load-u64 (addr-at t.mt-base hdr-off-health-off) in
+      let word-idx = wrapping-shr-u32 idx 6 in
+      let bit-idx = bit-and-u32 idx 63 in
+      let waddr = addr-at t.mt-base (wrapping-add-u64 hoff (wrapping-shl-u64 (u32-to-u64 word-idx) 3)) in
+      let w = raw-load-u64 waddr in
+      ne-u64 (bit-and-u64 w (wrapping-shl-u64 1 bit-idx)) 0
+
+  -- | Bulk-update the first 64 backends' health bits from a single `U64` mask.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-set-health-mask-u64 :: MaglevTable -> U64 ->{MVar} Unit
+  maglev-set-health-mask-u64 t mask =
+    if not-b (maglev-table-valid t) then ()
+    else
+      let hoff = raw-load-u64 (addr-at t.mt-base hdr-off-health-off) in
+      raw-store-u64 (addr-at t.mt-base hoff) mask
+
+  -- Initialize `(cur = offset, skip)` for every active backend before greedy fill.
+  #[no-alloc]
+  prep-permutations-loop :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  prep-permutations-loop b-base i cap m active-seen =
+    if ge-u32 i cap then active-seen
+    else
+      let p = wrapping-add-i64 b-base (wrapping-mul-i64 (u32-to-i64 i) 32) in
+      let act = raw-load-u32 (wrapping-add-i64 p 12) in
+      if eq-u32 act 0 then
+        prep-permutations-loop b-base (wrapping-add-u32 i 1) cap m active-seen
+      else
+        let key = raw-load-u64 p in
+        let m64 = u32-to-u64 m in
+        let m1-u64 = u32-to-u64 (wrapping-sub-u32 m 1) in
+        let off = wrapping-u64-to-u32 (safe-rem-u64 (maglev-hash1 key) m64) in
+        let sk = wrapping-add-u32 (wrapping-u64-to-u32 (safe-rem-u64 (maglev-hash2 key) m1-u64)) 1 in
+        let _0 = raw-store-u32 (wrapping-add-i64 p 16) off in
+        let _1 = raw-store-u32 (wrapping-add-i64 p 20) sk in
+        prep-permutations-loop b-base (wrapping-add-u32 i 1) cap m (wrapping-add-u32 active-seen 1)
+
+  -- Advance `cur` along backend `p`'s permutation until finding an empty slot.
+  -- Since `M` is prime and `1 <= skip <= M - 1`, `cur` visits every slot in `0..M-1`.
+  #[inline(always)]
+  #[no-alloc]
+  step-mod-m :: U32 -> U32 -> U32 -> U32
+  step-mod-m cur skip m =
+    let s = wrapping-add-u32 cur skip in
+    if ge-u32 s m then wrapping-sub-u32 s m else s
+
+  #[no-alloc]
+  find-empty-slot :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  find-empty-slot tbl-addr cur skip m =
+    let entry = load-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 cur) 1)) in
+    if eq-u16 entry maglev-empty-slot then cur
+    else find-empty-slot tbl-addr (step-mod-m cur skip m) skip m
+
+  -- Place `rem-weight` slots for backend `idx` (stops early if `filled == m`).
+  #[no-alloc]
+  place-weighted :: I64 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  place-weighted tbl-addr p idx m filled rem-weight =
+    if either (ge-u32 filled m) (eq-u32 rem-weight 0) then filled
+    else
+      let cur0 = raw-load-u32 (wrapping-add-i64 p 16) in
+      let skip = raw-load-u32 (wrapping-add-i64 p 20) in
+      let slot = find-empty-slot tbl-addr cur0 skip m in
+      let _0 = store-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 slot) 1)) (wrapping-u32-to-u16 idx) in
+      let _1 = raw-store-u32 (wrapping-add-i64 p 16) (step-mod-m slot skip m) in
+      place-weighted tbl-addr p idx m (wrapping-add-u32 filled 1) (wrapping-sub-u32 rem-weight 1)
+
+  -- One round over all backends `0..cap-1`.
+  #[no-alloc]
+  rebuild-round :: I64 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  rebuild-round tbl-addr b-base i cap m filled =
+    if either (ge-u32 filled m) (ge-u32 i cap) then filled
+    else
+      let p = wrapping-add-i64 b-base (wrapping-mul-i64 (u32-to-i64 i) 32) in
+      let act = raw-load-u32 (wrapping-add-i64 p 12) in
+      let next-filled = (
+        if eq-u32 act 0 then filled
+        else
+          let w = raw-load-u32 (wrapping-add-i64 p 8) in
+          place-weighted tbl-addr p i m filled w) in
+      rebuild-round tbl-addr b-base (wrapping-add-u32 i 1) cap m next-filled
+
+  #[no-alloc]
+  rebuild-until-full :: I64 -> I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  rebuild-until-full tbl-addr b-base cap m filled =
+    if ge-u32 filled m then filled
+    else
+      let next-filled = rebuild-round tbl-addr b-base 0 cap m filled in
+      if eq-u32 next-filled filled then filled
+      else rebuild-until-full tbl-addr b-base cap m next-filled
+
+  -- | Rebuild the Maglev lookup table in place using exact Google Maglev
+  -- permutation round-robin greedy fill. Zero heap allocations.
+  -- Returns the number of populated slots (`M` if at least 1 active backend, else `0`).
+  #[no-alloc]
+  maglev-rebuild :: MaglevTable ->{MVar} U32
+  maglev-rebuild t =
+    if not-b (maglev-table-valid t) then 0
+    else
+      let m = t.mt-table-size in
+      let cap = t.mt-max-backends in
+      let toff = raw-load-u64 (addr-at t.mt-base hdr-off-table-off) in
+      let boff = raw-load-u64 (addr-at t.mt-base hdr-off-backends-off) in
+      let tbl-addr = addr-at t.mt-base toff in
+      let b-base = addr-at t.mt-base boff in
+      let _0 = fill-empty-table-loop tbl-addr 0 m in
+      let active = prep-permutations-loop b-base 0 cap m 0 in
+      let _1 = raw-store-u32 (addr-at t.mt-base hdr-off-active-count) active in
+      let filled = (
+        if eq-u32 active 0 then 0
+        else rebuild-until-full tbl-addr b-base cap m 0) in
+      let _2 = raw-store-u32 (addr-at t.mt-base hdr-off-populated) filled in
+      let ep-addr = addr-at t.mt-base hdr-off-epoch in
+      let _3 = raw-store-u64 ep-addr (wrapping-add-u64 (raw-load-u64 ep-addr) 1) in
+      filled
+
+  -- =========================================================================
+  -- 4. O(1) Lookup & Skip-Unhealthy Fallback Probing (#[no-alloc])
+  -- =========================================================================
+
+  -- | O(1) `#[no-alloc]` Maglev consistent-hash lookup: maps 64-bit `key-hash`
+  -- to backend ID `0..max-backends-1` (or `maglev-empty-slot` if table empty).
+  #[inline(always)]
+  #[no-alloc]
+  maglev-lookup :: MaglevTable -> U64 ->{MVar} U16
+  maglev-lookup t key-hash =
+    if not-b (maglev-table-valid t) then maglev-empty-slot
+    else
+      let toff = raw-load-u64 (addr-at t.mt-base hdr-off-table-off) in
+      let slot = wrapping-u64-to-u32 (safe-rem-u64 key-hash (u32-to-u64 t.mt-table-size)) in
+      load-u16-le (addr-at t.mt-base (wrapping-add-u64 toff (wrapping-shl-u64 (u32-to-u64 slot) 1)))
+
+  -- Deterministic probe loop skipping unhealthy backends in the lookup table.
+  #[no-alloc]
+  probe-healthy-loop :: MaglevTable -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U16
+  probe-healthy-loop t tbl-addr cur step m rem-probes =
+    if eq-u32 rem-probes 0 then maglev-empty-slot
+    else
+      let cand = load-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 cur) 1)) in
+      if both (ne-u16 cand maglev-empty-slot) (maglev-backend-is-healthy t cand) then cand
+      else probe-healthy-loop t tbl-addr (step-mod-m cur step m) step m (wrapping-sub-u32 rem-probes 1)
+
+  -- Fallback linear scan over configured active+healthy backends if bounded probes miss.
+  #[no-alloc]
+  scan-healthy-backend :: MaglevTable -> I64 -> U32 -> U32 -> U32 ->{MVar} U16
+  scan-healthy-backend t b-base start i cap =
+    if ge-u32 i cap then maglev-empty-slot
+    else
+      let idx0 = wrapping-add-u32 start i in
+      let idx = if ge-u32 idx0 cap then wrapping-sub-u32 idx0 cap else idx0 in
+      let p = wrapping-add-i64 b-base (wrapping-mul-i64 (u32-to-i64 idx) 32) in
+      let act = raw-load-u32 (wrapping-add-i64 p 12) in
+      let id16 = wrapping-u32-to-u16 idx in
+      if both (ne-u32 act 0) (maglev-backend-is-healthy t id16) then id16
+      else scan-healthy-backend t b-base start (wrapping-add-u32 i 1) cap
+
+  -- | O(1) fast-path Maglev lookup with deterministic skip-unhealthy fallback
+  -- probing against the table's internal health bitmap. Zero heap allocations.
+  #[no-alloc]
+  maglev-lookup-healthy :: MaglevTable -> U64 ->{MVar} U16
+  maglev-lookup-healthy t key-hash =
+    if not-b (maglev-table-valid t) then maglev-empty-slot
+    else
+      let m = t.mt-table-size in
+      let toff = raw-load-u64 (addr-at t.mt-base hdr-off-table-off) in
+      let tbl-addr = addr-at t.mt-base toff in
+      let slot = wrapping-u64-to-u32 (safe-rem-u64 key-hash (u32-to-u64 m)) in
+      let primary = load-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 slot) 1)) in
+      if both (ne-u16 primary maglev-empty-slot) (maglev-backend-is-healthy t primary) then primary
+      else
+        let step = wrapping-add-u32 (wrapping-u64-to-u32 (safe-rem-u64 (maglev-hash2 key-hash) (u32-to-u64 (wrapping-sub-u32 m 1)))) 1 in
+        let probed = probe-healthy-loop t tbl-addr (step-mod-m slot step m) step m 64 in
+        if ne-u16 probed maglev-empty-slot then probed
+        else
+          let boff = raw-load-u64 (addr-at t.mt-base hdr-off-backends-off) in
+          let start = wrapping-u64-to-u32 (safe-rem-u64 key-hash (u32-to-u64 t.mt-max-backends)) in
+          scan-healthy-backend t (addr-at t.mt-base boff) start 0 t.mt-max-backends
+
+  #[inline(always)]
+  #[no-alloc]
+  mask64-healthy :: U64 -> U16 -> Bool
+  mask64-healthy mask id =
+    if ge-u16 id 64 then b-false
+    else ne-u64 (bit-and-u64 mask (wrapping-shl-u64 1 (u16-to-u32 id))) 0
+
+  #[no-alloc]
+  probe-mask-loop :: I64 -> U64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U16
+  probe-mask-loop tbl-addr mask cur step m rem-probes =
+    if eq-u32 rem-probes 0 then maglev-empty-slot
+    else
+      let cand = load-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 cur) 1)) in
+      if both (ne-u16 cand maglev-empty-slot) (mask64-healthy mask cand) then cand
+      else probe-mask-loop tbl-addr mask (step-mod-m cur step m) step m (wrapping-sub-u32 rem-probes 1)
+
+  -- | Maglev lookup using an explicit 64-bit `health-mask` (bit `i` = 1 means
+  -- backend `i` is healthy). Zero heap allocations.
+  #[no-alloc]
+  maglev-lookup-with-mask :: MaglevTable -> U64 -> U64 ->{MVar} U16
+  maglev-lookup-with-mask t key-hash health-mask =
+    if either (not-b (maglev-table-valid t)) (eq-u64 health-mask 0) then maglev-empty-slot
+    else
+      let m = t.mt-table-size in
+      let toff = raw-load-u64 (addr-at t.mt-base hdr-off-table-off) in
+      let tbl-addr = addr-at t.mt-base toff in
+      let slot = wrapping-u64-to-u32 (safe-rem-u64 key-hash (u32-to-u64 m)) in
+      let primary = load-u16-le (wrapping-add-i64 tbl-addr (wrapping-shl-i64 (u32-to-i64 slot) 1)) in
+      if both (ne-u16 primary maglev-empty-slot) (mask64-healthy health-mask primary) then primary
+      else
+        let step = wrapping-add-u32 (wrapping-u64-to-u32 (safe-rem-u64 (maglev-hash2 key-hash) (u32-to-u64 (wrapping-sub-u32 m 1)))) 1 in
+        let probed = probe-mask-loop tbl-addr health-mask (step-mod-m slot step m) step m 64 in
+        if ne-u16 probed maglev-empty-slot then probed
+        else wrapping-u32-to-u16 (trailing-zeros-u64 health-mask)
+
+  -- =========================================================================
+  -- 5. Lock-Free Epoch-Swapped Double-Buffered Router (`MaglevEpochRouter`)
+  -- =========================================================================
+  --
+  -- Control slab (4 KiB page-aligned, cache-line separated):
+  --   +0  : active-ptr  :: I64 (atomic acquire/release pointer to active MaglevTable base)
+  --   +64 : epoch       :: I64 (atomic acquire/release monotonically increasing reload epoch)
+  --   +128: active-idx  :: I64 (0 or 1; double-buffer selector)
+
+  #[no-alloc]
+  rtr-off-active-ptr :: U64
+  rtr-off-active-ptr = 0
+
+  #[no-alloc]
+  rtr-off-epoch :: U64
+  rtr-off-epoch = 64
+
+  #[no-alloc]
+  rtr-off-active-idx :: U64
+  rtr-off-active-idx = 128
+
+  -- | Double-buffered lock-free Maglev router (`#[repr(C, value)]` POD).
+  #[repr(C, value)]
+  record MaglevEpochRouter where
+    mr-ctrl-base :: U64
+    mr-t0-base :: U64
+    mr-t1-base :: U64
+    mr-slab-bytes :: U64
+    mr-table-size :: U32
+    mr-max-backends :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-empty :: Unit -> MaglevEpochRouter
+  maglev-router-empty _ = MaglevEpochRouter 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-valid :: MaglevEpochRouter -> Bool
+  maglev-router-valid r =
+    both (ne-u64 r.mr-ctrl-base 0) (both (ne-u64 r.mr-t0-base 0) (ne-u64 r.mr-t1-base 0))
+
+  -- | Allocate a double-buffered lock-free `MaglevEpochRouter` with two
+  -- identical DMA-backed `MaglevTable` buffers (`table-size`, `max-backends`).
+  maglev-router-new :: U32 -> U32 ->{IO, MVar} MaglevEpochRouter
+  maglev-router-new table-size max-backends =
+    let ctrl = engine-dma-alloc 4096 4096 in
+    if eq-u64 ctrl 0 then maglev-router-empty ()
+    else
+      let t0 = maglev-table-new table-size max-backends in
+      if not (maglev-table-valid t0) then
+        let _ = engine-dma-free ctrl 4096 in
+        maglev-router-empty ()
+      else
+        let t1 = maglev-table-new table-size max-backends in
+        if not (maglev-table-valid t1) then
+          let _0 = maglev-table-destroy t0 in
+          let _1 = engine-dma-free ctrl 4096 in
+          maglev-router-empty ()
+        else
+          let _0 = atomic-store-release-i64 (addr-at ctrl rtr-off-active-ptr) (wrapping-u64-to-i64 t0.mt-base) in
+          let _1 = atomic-store-release-i64 (addr-at ctrl rtr-off-epoch) 1 in
+          let _2 = atomic-store-release-i64 (addr-at ctrl rtr-off-active-idx) 0 in
+          MaglevEpochRouter ctrl t0.mt-base t1.mt-base t0.mt-slab-bytes t0.mt-table-size t0.mt-max-backends
+
+  -- | Unmap control slab and both double-buffered Maglev tables.
+  maglev-router-destroy :: MaglevEpochRouter ->{IO} Unit
+  maglev-router-destroy r =
+    if eq-u64 r.mr-ctrl-base 0 then ()
+    else
+      let _0 = if ne-u64 r.mr-t0-base 0 then engine-dma-free r.mr-t0-base r.mr-slab-bytes else IoOk in
+      let _1 = if ne-u64 r.mr-t1-base 0 then engine-dma-free r.mr-t1-base r.mr-slab-bytes else IoOk in
+      let _2 = engine-dma-free r.mr-ctrl-base 4096 in
+      ()
+
+  -- | Lock-free acquire-load of the currently active `MaglevTable`.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-active-table :: MaglevEpochRouter ->{MVar} MaglevTable
+  maglev-router-active-table r =
+    if not-b (maglev-router-valid r) then maglev-table-empty ()
+    else
+      let active-base = wrapping-i64-to-u64 (atomic-load-acquire-i64 (addr-at r.mr-ctrl-base rtr-off-active-ptr)) in
+      MaglevTable active-base r.mr-slab-bytes r.mr-table-size r.mr-max-backends
+
+  -- | Return the inactive standby `MaglevTable` so the control plane can
+  -- reconfigure backends and call `maglev-rebuild` with zero reader contention.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-standby-table :: MaglevEpochRouter ->{MVar} MaglevTable
+  maglev-router-standby-table r =
+    if not-b (maglev-router-valid r) then maglev-table-empty ()
+    else
+      let idx = atomic-load-acquire-i64 (addr-at r.mr-ctrl-base rtr-off-active-idx) in
+      let standby-base = if eq-i64 idx 0 then r.mr-t1-base else r.mr-t0-base in
+      MaglevTable standby-base r.mr-slab-bytes r.mr-table-size r.mr-max-backends
+
+  -- | Atomically publish the standby table as the new active table using
+  -- `release` ordering and increment the router epoch. Returns the new epoch.
+  #[no-alloc]
+  maglev-router-swap :: MaglevEpochRouter ->{MVar} U64
+  maglev-router-swap r =
+    if not-b (maglev-router-valid r) then 0
+    else
+      let cur-idx = atomic-load-acquire-i64 (addr-at r.mr-ctrl-base rtr-off-active-idx) in
+      let next-idx = if eq-i64 cur-idx 0 then (1 :: I64) else 0 in
+      let next-base = if eq-i64 next-idx 0 then r.mr-t0-base else r.mr-t1-base in
+      let _0 = atomic-store-release-i64 (addr-at r.mr-ctrl-base rtr-off-active-ptr) (wrapping-u64-to-i64 next-base) in
+      let _1 = atomic-store-release-i64 (addr-at r.mr-ctrl-base rtr-off-active-idx) next-idx in
+      let prev-ep = wrapping-i64-to-u64 (atomic-load-acquire-i64 (addr-at r.mr-ctrl-base rtr-off-epoch)) in
+      let next-ep = wrapping-add-u64 prev-ep 1 in
+      let _2 = atomic-store-release-i64 (addr-at r.mr-ctrl-base rtr-off-epoch) (wrapping-u64-to-i64 next-ep) in
+      next-ep
+
+  -- | Read the current router reload epoch with acquire ordering.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-epoch :: MaglevEpochRouter ->{MVar} U64
+  maglev-router-epoch r =
+    if not-b (maglev-router-valid r) then 0
+    else wrapping-i64-to-u64 (atomic-load-acquire-i64 (addr-at r.mr-ctrl-base rtr-off-epoch))
+
+  -- | Lock-free O(1) `#[no-alloc]` lookup against the atomically acquired active table.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-lookup :: MaglevEpochRouter -> U64 ->{MVar} U16
+  maglev-router-lookup r key-hash =
+    maglev-lookup (maglev-router-active-table r) key-hash
+
+  -- | Lock-free O(1) `#[no-alloc]` healthy lookup against the active table.
+  #[inline(always)]
+  #[no-alloc]
+  maglev-router-lookup-healthy :: MaglevEpochRouter -> U64 ->{MVar} U16
+  maglev-router-lookup-healthy r key-hash =
+    maglev-lookup-healthy (maglev-router-active-table r) key-hash

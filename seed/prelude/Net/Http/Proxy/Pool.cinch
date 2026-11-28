@@ -1,0 +1,957 @@
+-- | Zero-allocation (`#[no-alloc]`) per-core upstream connection pool,
+-- EWMA latency tracker, sliding-window circuit breaker (`Closed` / `Open` /
+-- `HalfOpen`), and Power-of-Two-Choices (P2C) + Maglev hybrid selector.
+--
+-- Features:
+--   * Flat DMA-backed per-backend connection slabs supporting both HTTP/1.1
+--     and HTTP/2 keep-alive connections with O(1) intrusive LIFO acquire and
+--     release, configurable max connections per backend, and idle TTL expiry.
+--   * Exact EWMA latency tracking: `ewma_ns = (7 * ewma_ns + sample_ns) / 8`.
+--   * 64-sample sliding-window error-rate circuit breaker with `Closed -> Open`
+--     tripping, cooldown expiration into `HalfOpen`, single-probe gating, and
+--     automatic `HalfOpen -> Closed` recovery on probe success (or immediate
+--     re-open on probe failure).
+--   * Hybrid `pool-select-backend` combining Google Maglev primary affinity
+--     with Power-of-Two-Choices (P2C) load/EWMA comparison and deterministic
+--     healthy failover.
+module Net.Http.Proxy.Pool where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Net.Http.Proxy.Maglev
+  import Prim.Atomic
+
+  -- Constants & auto-niched CircuitState enum
+  export cb-state-closed, cb-state-open, cb-state-half-open
+  export CircuitState, CbClosed, CbOpen, CbHalfOpen
+  export circuit-state-to-u8, circuit-state-from-u8, circuit-state-eq
+  export pool-proto-h1, pool-proto-h2
+  export pool-no-backend, pool-no-slot
+  export pool-acq-reused, pool-acq-need-connect, pool-acq-circuit-open
+  export pool-acq-full, pool-acq-invalid, pool-acq-expired
+
+  -- Configuration & POD handles
+  export PoolConfig, pool-config-default
+  export UpstreamPool, upstream-pool-empty, upstream-pool-valid
+  export PoolAcquireResult, pool-acquire-result-make
+  export BackendMetrics
+
+  -- Pool lifecycle & backend registration
+  export pool-new, pool-destroy
+  export pool-register-backend, pool-set-backend-enabled
+  export pool-backend-ip, pool-backend-port, pool-backend-enabled
+
+  -- Circuit breaker, EWMA latency, and health inspection (#[no-alloc])
+  export pool-backend-circuit-state, pool-backend-ewma-ns, pool-backend-error-rate-pct
+  export pool-backend-active-conns, pool-backend-idle-conns, pool-backend-metrics
+  export pool-backend-allow-request, pool-backend-score
+  export pool-record-success, pool-record-failure
+
+  -- O(1) keep-alive connection acquire / attach / release / close / TTL eviction (#[no-alloc])
+  export pool-acquire, pool-attach-fd, pool-release-idle, pool-release-close
+  export pool-evict-idle-expired
+
+  -- P2C + Maglev hybrid upstream selection (#[no-alloc])
+  export pool-select-backend, pool-select-p2c, pool-sync-maglev-health
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean, alignment, and address helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  safe-rem-u64 :: U64 -> U64 -> U64
+  safe-rem-u64 a d = if d /= 0 then rem-u64 a d else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  safe-div-u32 :: U32 -> U32 -> U32
+  safe-div-u32 a d = if d /= 0 then div-u32 a d else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  align-up-u64 :: U64 -> U64 -> U64
+  align-up-u64 v align =
+    let mask = wrapping-sub-u64 align 1 in
+    bit-and-u64 (wrapping-add-u64 v mask) (bit-not-u64 mask)
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  -- =========================================================================
+  -- 1. Constants & Auto-Niched CircuitState Vocabulary
+  -- =========================================================================
+
+  #[no-alloc]
+  cb-state-closed :: U8
+  cb-state-closed = 0
+
+  #[no-alloc]
+  cb-state-open :: U8
+  cb-state-open = 1
+
+  #[no-alloc]
+  cb-state-half-open :: U8
+  cb-state-half-open = 2
+
+  -- | Circuit-breaker health state (auto-niched single-word enum).
+  data CircuitState where
+    CbClosed :: CircuitState
+    CbOpen :: CircuitState
+    CbHalfOpen :: CircuitState
+
+  #[no-alloc]
+  circuit-state-to-u8 :: CircuitState -> U8
+  circuit-state-to-u8 st = case st of
+    CbClosed -> cb-state-closed
+    CbOpen -> cb-state-open
+    CbHalfOpen -> cb-state-half-open
+
+  circuit-state-from-u8 :: U8 -> CircuitState
+  circuit-state-from-u8 c =
+    if eq-u8 c 0 then CbClosed
+    else if eq-u8 c 1 then CbOpen
+    else CbHalfOpen
+
+  #[inline(always)]
+  #[no-alloc]
+  circuit-state-eq :: CircuitState -> CircuitState -> Bool
+  circuit-state-eq a b = eq-u8 (circuit-state-to-u8 a) (circuit-state-to-u8 b)
+
+  #[no-alloc]
+  pool-proto-h1 :: U8
+  pool-proto-h1 = 1
+
+  #[no-alloc]
+  pool-proto-h2 :: U8
+  pool-proto-h2 = 2
+
+  #[no-alloc]
+  pool-no-backend :: U16
+  pool-no-backend = 65535
+
+  #[no-alloc]
+  pool-no-slot :: U32
+  pool-no-slot = 4294967295
+
+  -- | `PoolAcquireResult.par-status` codes.
+  #[no-alloc]
+  pool-acq-reused :: U8
+  pool-acq-reused = 0
+
+  #[no-alloc]
+  pool-acq-need-connect :: U8
+  pool-acq-need-connect = 1
+
+  #[no-alloc]
+  pool-acq-circuit-open :: U8
+  pool-acq-circuit-open = 2
+
+  #[no-alloc]
+  pool-acq-full :: U8
+  pool-acq-full = 3
+
+  #[no-alloc]
+  pool-acq-invalid :: U8
+  pool-acq-invalid = 4
+
+  #[no-alloc]
+  pool-acq-expired :: U8
+  pool-acq-expired = 5
+
+  -- =========================================================================
+  -- 2. POD Config, Handle, Result, and Metrics Records
+  -- =========================================================================
+
+  -- | Pool and circuit-breaker configuration (`#[repr(C, value)]` POD).
+  #[repr(C, value)]
+  record PoolConfig where
+    pc-max-backends :: U32
+    pc-max-conns-per-backend :: U32
+    pc-idle-ttl-ns :: U64
+    pc-cb-window-size :: U32
+    pc-cb-error-threshold-pct :: U32
+    pc-cb-min-samples :: U32
+    pc-pad0 :: U32
+    pc-cb-cooldown-ns :: U64
+    pc-cb-latency-ceiling-ns :: U64
+
+  -- | Default production pool configuration:
+  -- 30s idle TTL, 16-request error window, 50% error threshold, 4 min samples,
+  -- 5s circuit-breaker cooldown, no hard latency trip ceiling.
+  #[inline(always)]
+  #[no-alloc]
+  pool-config-default :: U32 -> U32 -> PoolConfig
+  pool-config-default max-backends max-conns =
+    PoolConfig max-backends max-conns 30000000000 16 50 4 0 5000000000 0
+
+  -- | 24-byte POD handle to a DMA-backed per-core upstream connection pool.
+  #[repr(C, value)]
+  record UpstreamPool where
+    up-base :: U64
+    up-slab-bytes :: U64
+    up-max-backends :: U32
+    up-max-conns :: U32
+
+  -- | 16-byte register-fit POD returned by `pool-acquire`.
+  #[repr(C, value)]
+  record PoolAcquireResult where
+    par-status :: U8
+    par-proto :: U8
+    par-backend :: U16
+    par-is-probe :: U8
+    par-pad0 :: U8
+    par-pad1 :: U16
+    par-fd :: I32
+    par-slot :: U32
+
+  -- | Snapshot of a backend's live pool & circuit-breaker counters (POD).
+  #[repr(C, value)]
+  record BackendMetrics where
+    bm-cb-state :: U8
+    bm-enabled :: U8
+    bm-pad0 :: U16
+    bm-active-conns :: U32
+    bm-idle-conns :: U32
+    bm-win-errors :: U32
+    bm-win-count :: U32
+    bm-cb-trips :: U32
+    bm-ewma-ns :: U64
+    bm-total-reqs :: U64
+    bm-total-errs :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  upstream-pool-empty :: Unit -> UpstreamPool
+  upstream-pool-empty _ = UpstreamPool 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  upstream-pool-valid :: UpstreamPool -> Bool
+  upstream-pool-valid p = both (ne-u64 p.up-base 0) (gt-u32 p.up-max-backends 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-acquire-result-make :: U8 -> U8 -> U16 -> U8 -> I32 -> U32 -> PoolAcquireResult
+  pool-acquire-result-make st proto bid probe fd slot =
+    PoolAcquireResult st proto bid probe 0 0 fd slot
+
+  -- =========================================================================
+  -- 3. DMA Slab Layout
+  -- =========================================================================
+  --
+  -- Global header (bytes 0..64):
+  --   +0  : idle-ttl-ns       :: U64
+  --   +8  : cb-cooldown-ns    :: U64
+  --   +16 : cb-latency-ceil   :: U64
+  --   +24 : cb-window-size    :: U32 (1..64)
+  --   +28 : cb-err-thresh-pct :: U32 (1..100)
+  --   +32 : cb-min-samples    :: U32
+  --   +36 : max-conns         :: U32
+  --   +40 : backends-off      :: U64
+  --   +48 : slots-off         :: U64
+  --   +56 : max-backends      :: U32
+  --
+  -- Backend header array at +backends-off (128 bytes per backend = 2 cache lines):
+  --   +0  : ip-host         :: U32
+  --   +4  : port            :: U16 (stored in low 16 of U32 at +4; +6 enabled U8; +7 cb-state U8)
+  --   +8  : active-conns    :: U32
+  --   +12 : idle-count      :: U32
+  --   +16 : idle-head       :: U32 (intrusive LIFO head of idle keep-alive stack)
+  --   +20 : free-head       :: U32 (intrusive LIFO head of unused slot stack)
+  --   +24 : ewma-ns         :: U64
+  --   +32 : ewma-samples    :: U64
+  --   +40 : win-bits        :: U64 (sliding window bitmask; bit k = 1 iff error)
+  --   +48 : win-pos         :: U32
+  --   +52 : win-count       :: U32
+  --   +56 : win-errors      :: U32
+  --   +60 : probe-in-flight :: U32 (0 or 1 during HalfOpen)
+  --   +64 : opened-at-ns    :: U64
+  --   +72 : total-reqs      :: U64
+  --   +80 : total-errs      :: U64
+  --   +88 : cb-trips        :: U32
+  --   +92 : expired-evicts  :: U32
+  --   +96 : total-conns     :: U32 (active + idle <= max-conns)
+  --
+  -- Connection slot array at +slots-off (`max-backends * max-conns` slots, 24 bytes each):
+  --   +0  : fd             :: I32
+  --   +4  : proto-and-flag :: U32 (byte0: proto, byte1: state 0=free 1=active 2=idle)
+  --   +8  : last-used-ns   :: U64
+  --   +16 : next-idx       :: U32 (intrusive stack link, pool-no-slot = end)
+  --   +20 : streams-active :: U32
+
+  #[no-alloc]
+  gh-off-idle-ttl :: U64
+  gh-off-idle-ttl = 0
+
+  #[no-alloc]
+  gh-off-cooldown :: U64
+  gh-off-cooldown = 8
+
+  #[no-alloc]
+  gh-off-lat-ceil :: U64
+  gh-off-lat-ceil = 16
+
+  #[no-alloc]
+  gh-off-win-size :: U64
+  gh-off-win-size = 24
+
+  #[no-alloc]
+  gh-off-err-pct :: U64
+  gh-off-err-pct = 28
+
+  #[no-alloc]
+  gh-off-min-samples :: U64
+  gh-off-min-samples = 32
+
+  #[no-alloc]
+  gh-off-backends-off :: U64
+  gh-off-backends-off = 40
+
+  #[no-alloc]
+  gh-off-slots-off :: U64
+  gh-off-slots-off = 48
+
+  #[no-alloc]
+  backend-stride :: U64
+  backend-stride = 128
+
+  #[no-alloc]
+  conn-slot-stride :: U64
+  conn-slot-stride = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  backend-addr :: UpstreamPool -> U16 ->{MVar} I64
+  backend-addr p bid =
+    let boff = raw-load-u64 (addr-at p.up-base gh-off-backends-off) in
+    addr-at p.up-base (wrapping-add-u64 boff (wrapping-mul-u64 (u16-to-u64 bid) backend-stride))
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-slot-addr :: UpstreamPool -> U16 -> U32 ->{MVar} I64
+  conn-slot-addr p bid slot =
+    let soff = raw-load-u64 (addr-at p.up-base gh-off-slots-off) in
+    let flat = wrapping-add-u64 (wrapping-mul-u64 (u16-to-u64 bid) (u32-to-u64 p.up-max-conns)) (u32-to-u64 slot) in
+    addr-at p.up-base (wrapping-add-u64 soff (wrapping-mul-u64 flat conn-slot-stride))
+
+  #[no-alloc]
+  init-backend-slots :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-backend-slots sbase i max-c =
+    if ge-u32 i max-c then ()
+    else
+      let sp = wrapping-add-i64 sbase (wrapping-mul-i64 (u32-to-i64 i) 24) in
+      let next = wrapping-add-u32 i 1 in
+      let link = if ge-u32 next max-c then pool-no-slot else next in
+      let _0 = raw-store-u32 sp (wrapping-i32-to-u32 (-1)) in
+      let _1 = raw-store-u32 (wrapping-add-i64 sp 4) 0 in
+      let _2 = raw-store-u64 (wrapping-add-i64 sp 8) 0 in
+      let _3 = raw-store-u32 (wrapping-add-i64 sp 16) link in
+      let _4 = raw-store-u32 (wrapping-add-i64 sp 20) 0 in
+      init-backend-slots sbase next max-c
+
+  #[no-alloc]
+  init-backends-loop :: U64 -> U64 -> U64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  init-backends-loop base boff soff i max-b max-c =
+    if ge-u32 i max-b then ()
+    else
+      let bp = addr-at base (wrapping-add-u64 boff (wrapping-mul-u64 (u32-to-u64 i) backend-stride)) in
+      let _0 = raw-store-u32 (wrapping-add-i64 bp 16) pool-no-slot in
+      let _1 = raw-store-u32 (wrapping-add-i64 bp 20) (if gt-u32 max-c 0 then 0 else pool-no-slot) in
+      let sbase = addr-at base (wrapping-add-u64 soff (wrapping-mul-u64 (wrapping-mul-u64 (u32-to-u64 i) (u32-to-u64 max-c)) conn-slot-stride)) in
+      let _2 = init-backend-slots sbase 0 max-c in
+      init-backends-loop base boff soff (wrapping-add-u32 i 1) max-b max-c
+
+  -- | Allocate a new DMA-backed `UpstreamPool` according to `cfg`.
+  pool-new :: PoolConfig ->{IO, MVar} UpstreamPool
+  pool-new cfg =
+    let max-b = if eq-u32 cfg.pc-max-backends 0 then 16 else cfg.pc-max-backends in
+    let max-c = if eq-u32 cfg.pc-max-conns-per-backend 0 then 16 else cfg.pc-max-conns-per-backend in
+    if gt-u32 max-b 4096 || gt-u32 max-c 4096 then upstream-pool-empty ()
+    else
+      let win-sz0 = if eq-u32 cfg.pc-cb-window-size 0 then 16 else cfg.pc-cb-window-size in
+      let win-sz = if gt-u32 win-sz0 64 then 64 else win-sz0 in
+      let err-pct0 = if eq-u32 cfg.pc-cb-error-threshold-pct 0 then 50 else cfg.pc-cb-error-threshold-pct in
+      let err-pct = if gt-u32 err-pct0 100 then 100 else err-pct0 in
+      let min-s0 = if eq-u32 cfg.pc-cb-min-samples 0 then 1 else cfg.pc-cb-min-samples in
+      let min-s = if gt-u32 min-s0 win-sz then win-sz else min-s0 in
+      let backends-off = (64 :: U64) in
+      let backends-bytes = align-up-u64 (wrapping-mul-u64 (u32-to-u64 max-b) backend-stride) 64 in
+      let slots-off = wrapping-add-u64 backends-off backends-bytes in
+      let total-slots = wrapping-mul-u64 (u32-to-u64 max-b) (u32-to-u64 max-c) in
+      let slots-bytes = wrapping-mul-u64 total-slots conn-slot-stride in
+      let total-bytes = align-up-u64 (wrapping-add-u64 slots-off slots-bytes) 4096 in
+      let base = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 base 0 then upstream-pool-empty ()
+      else
+        let _0 = raw-store-u64 (addr-at base gh-off-idle-ttl) cfg.pc-idle-ttl-ns in
+        let _1 = raw-store-u64 (addr-at base gh-off-cooldown) cfg.pc-cb-cooldown-ns in
+        let _2 = raw-store-u64 (addr-at base gh-off-lat-ceil) cfg.pc-cb-latency-ceiling-ns in
+        let _3 = raw-store-u32 (addr-at base gh-off-win-size) win-sz in
+        let _4 = raw-store-u32 (addr-at base gh-off-err-pct) err-pct in
+        let _5 = raw-store-u32 (addr-at base gh-off-min-samples) min-s in
+        let _6 = raw-store-u32 (addr-at base 36) max-c in
+        let _7 = raw-store-u64 (addr-at base gh-off-backends-off) backends-off in
+        let _8 = raw-store-u64 (addr-at base gh-off-slots-off) slots-off in
+        let _9 = raw-store-u32 (addr-at base 56) max-b in
+        let _10 = init-backends-loop base backends-off slots-off 0 max-b max-c in
+        UpstreamPool base total-bytes max-b max-c
+
+  -- | Unmap the DMA slab backing `p`.
+  pool-destroy :: UpstreamPool ->{IO} IoError
+  pool-destroy p =
+    if eq-u64 p.up-base 0 then IoOk
+    else engine-dma-free p.up-base p.up-slab-bytes
+
+  -- =========================================================================
+  -- 4. Backend Registration & Accessors (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  pool-register-backend :: UpstreamPool -> U16 -> U32 -> U16 ->{MVar} Bool
+  pool-register-backend p bid ip-host port =
+    if not-b (upstream-pool-valid p) then b-false
+    else if ge-u32 (u16-to-u32 bid) p.up-max-backends then b-false
+    else
+      let bp = backend-addr p bid in
+      let _0 = raw-store-u32 bp ip-host in
+      let _1 = raw-store-u8 (wrapping-add-i64 bp 4) (wrapping-u16-to-u8 port) in
+      let _2 = raw-store-u8 (wrapping-add-i64 bp 5) (wrapping-u16-to-u8 (wrapping-shr-u16 port 8)) in
+      let _3 = raw-store-u8 (wrapping-add-i64 bp 6) 1 in
+      let _4 = raw-store-u8 (wrapping-add-i64 bp 7) cb-state-closed in
+      b-true
+
+  #[no-alloc]
+  pool-set-backend-enabled :: UpstreamPool -> U16 -> Bool ->{MVar} Unit
+  pool-set-backend-enabled p bid enabled =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then ()
+    else
+      let bp = backend-addr p bid in
+      raw-store-u8 (wrapping-add-i64 bp 6) (if enabled then 1 else 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-ip :: UpstreamPool -> U16 ->{MVar} U32
+  pool-backend-ip p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then 0
+    else raw-load-u32 (backend-addr p bid)
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-port :: UpstreamPool -> U16 ->{MVar} U16
+  pool-backend-port p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then 0
+    else
+      let bp = backend-addr p bid in
+      let lo = u8-to-u16 (raw-load-u8 (wrapping-add-i64 bp 4)) in
+      let hi = u8-to-u16 (raw-load-u8 (wrapping-add-i64 bp 5)) in
+      bit-or-u16 lo (wrapping-shl-u16 hi 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-enabled :: UpstreamPool -> U16 ->{MVar} Bool
+  pool-backend-enabled p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then b-false
+    else ne-u8 (raw-load-u8 (wrapping-add-i64 (backend-addr p bid) 6)) 0
+
+  -- =========================================================================
+  -- 5. Circuit Breaker State Machine & EWMA Latency Tracker (#[no-alloc])
+  -- =========================================================================
+
+  -- Advance `Open -> HalfOpen` if cooldown has elapsed at `now-ns`.
+  #[no-alloc]
+  refresh-circuit-state :: UpstreamPool -> I64 -> U64 ->{MVar} U8
+  refresh-circuit-state p bp now-ns =
+    let st = raw-load-u8 (wrapping-add-i64 bp 7) in
+    if ne-u8 st cb-state-open then st
+    else
+      let opened-at = raw-load-u64 (wrapping-add-i64 bp 64) in
+      let cooldown = raw-load-u64 (addr-at p.up-base gh-off-cooldown) in
+      if ge-u64 (saturating-sub-u64 now-ns opened-at) cooldown then
+        let _0 = raw-store-u8 (wrapping-add-i64 bp 7) cb-state-half-open in
+        let _1 = raw-store-u32 (wrapping-add-i64 bp 60) 0 in
+        cb-state-half-open
+      else cb-state-open
+
+  -- | Inspect backend `bid`'s current circuit-breaker state code (`cb-state-*`)
+  -- at monotonic timestamp `now-ns` (automatically transitions `Open -> HalfOpen`
+  -- once cooldown expires).
+  #[no-alloc]
+  pool-backend-circuit-state :: UpstreamPool -> U16 -> U64 ->{MVar} U8
+  pool-backend-circuit-state p bid now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then cb-state-open
+    else refresh-circuit-state p (backend-addr p bid) now-ns
+
+  -- | Current EWMA latency estimate in nanoseconds for backend `bid`.
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-ewma-ns :: UpstreamPool -> U16 ->{MVar} U64
+  pool-backend-ewma-ns p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then 0
+    else raw-load-u64 (wrapping-add-i64 (backend-addr p bid) 24)
+
+  -- | Current sliding-window error rate percentage (`0..100`) for backend `bid`.
+  #[no-alloc]
+  pool-backend-error-rate-pct :: UpstreamPool -> U16 ->{MVar} U32
+  pool-backend-error-rate-pct p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then 100
+    else
+      let bp = backend-addr p bid in
+      let cnt = raw-load-u32 (wrapping-add-i64 bp 52) in
+      if eq-u32 cnt 0 then 0
+      else
+        let errs = raw-load-u32 (wrapping-add-i64 bp 56) in
+        safe-div-u32 (wrapping-mul-u32 errs 100) cnt
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-active-conns :: UpstreamPool -> U16 ->{MVar} U32
+  pool-backend-active-conns p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then 0
+    else raw-load-u32 (wrapping-add-i64 (backend-addr p bid) 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-idle-conns :: UpstreamPool -> U16 ->{MVar} U32
+  pool-backend-idle-conns p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then 0
+    else raw-load-u32 (wrapping-add-i64 (backend-addr p bid) 12)
+
+  -- | Read a full POD `BackendMetrics` snapshot for backend `bid` at `now-ns`.
+  #[no-alloc]
+  pool-backend-metrics :: UpstreamPool -> U16 -> U64 ->{MVar} BackendMetrics
+  pool-backend-metrics p bid now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then
+      BackendMetrics cb-state-open 0 0 0 0 0 0 0 0 0 0
+    else
+      let bp = backend-addr p bid in
+      let st = refresh-circuit-state p bp now-ns in
+      let en = raw-load-u8 (wrapping-add-i64 bp 6) in
+      let act = raw-load-u32 (wrapping-add-i64 bp 8) in
+      let idle = raw-load-u32 (wrapping-add-i64 bp 12) in
+      let werr = raw-load-u32 (wrapping-add-i64 bp 56) in
+      let wcnt = raw-load-u32 (wrapping-add-i64 bp 52) in
+      let trips = raw-load-u32 (wrapping-add-i64 bp 88) in
+      let ewma = raw-load-u64 (wrapping-add-i64 bp 24) in
+      let reqs = raw-load-u64 (wrapping-add-i64 bp 72) in
+      let errs = raw-load-u64 (wrapping-add-i64 bp 80) in
+      BackendMetrics st en 0 act idle werr wcnt trips ewma reqs errs
+
+  -- | Check whether backend `bid` can accept a request at `now-ns`
+  -- (enabled, `Closed` or `HalfOpen` without an active probe, and below max conns).
+  #[no-alloc]
+  pool-backend-allow-request :: UpstreamPool -> U16 -> U64 ->{MVar} Bool
+  pool-backend-allow-request p bid now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then b-false
+    else
+      let bp = backend-addr p bid in
+      if eq-u8 (raw-load-u8 (wrapping-add-i64 bp 6)) 0 then b-false
+      else
+        let act = raw-load-u32 (wrapping-add-i64 bp 8) in
+        if ge-u32 act p.up-max-conns then b-false
+        else
+          let st = refresh-circuit-state p bp now-ns in
+          if eq-u8 st cb-state-closed then b-true
+          else if eq-u8 st cb-state-half-open then
+            eq-u32 (raw-load-u32 (wrapping-add-i64 bp 60)) 0
+          else b-false
+
+  -- | P2C load score combining active connections and EWMA latency:
+  -- `score = (active_conns + 1) * max(ewma_ns, 1000)`. Lower is better.
+  #[inline(always)]
+  #[no-alloc]
+  pool-backend-score :: UpstreamPool -> U16 ->{MVar} U64
+  pool-backend-score p bid =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then
+      0xFFFFFFFFFFFFFFFF
+    else
+      let bp = backend-addr p bid in
+      let act = u32-to-u64 (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 8)) 1) in
+      let ewma0 = raw-load-u64 (wrapping-add-i64 bp 24) in
+      let lat = if lt-u64 ewma0 1000 then (1000 :: U64) else ewma0 in
+      wrapping-mul-u64 act lat
+
+  -- Update EWMA latency: `ewma_ns = (7 * ewma_ns + sample_ns) / 8` (seeded on first sample).
+  #[no-alloc]
+  update-ewma :: I64 -> U64 ->{MVar} U64
+  update-ewma bp sample-ns =
+    let samples = raw-load-u64 (wrapping-add-i64 bp 32) in
+    let prev = raw-load-u64 (wrapping-add-i64 bp 24) in
+    let next = (
+      if eq-u64 samples 0 then sample-ns
+      else wrapping-shr-u64 (wrapping-add-u64 (wrapping-mul-u64 prev 7) sample-ns) 3) in
+    let _0 = raw-store-u64 (wrapping-add-i64 bp 24) next in
+    let _1 = raw-store-u64 (wrapping-add-i64 bp 32) (wrapping-add-u64 samples 1) in
+    next
+
+  -- Push 1 outcome (`is-err`: 0 = ok, 1 = error) into the 64-bit sliding window.
+  #[no-alloc]
+  push-window-sample :: UpstreamPool -> I64 -> U32 ->{MVar} Unit
+  push-window-sample p bp is-err =
+    let win-sz = raw-load-u32 (addr-at p.up-base gh-off-win-size) in
+    let bits = raw-load-u64 (wrapping-add-i64 bp 40) in
+    let pos = raw-load-u32 (wrapping-add-i64 bp 48) in
+    let cnt = raw-load-u32 (wrapping-add-i64 bp 52) in
+    let errs = raw-load-u32 (wrapping-add-i64 bp 56) in
+    let mask = wrapping-shl-u64 1 (bit-and-u32 pos 63) in
+    let old-bit = if ne-u64 (bit-and-u64 bits mask) 0 then (1 :: U32) else 0 in
+    let errs1 = if ge-u32 cnt win-sz then saturating-sub-u32 errs old-bit else errs in
+    let cnt1 = if lt-u32 cnt win-sz then wrapping-add-u32 cnt 1 else win-sz in
+    let bits1 = if ne-u32 is-err 0 then bit-or-u64 bits mask else bit-and-u64 bits (bit-not-u64 mask) in
+    let errs2 = wrapping-add-u32 errs1 (if ne-u32 is-err 0 then 1 else 0) in
+    let next-pos0 = wrapping-add-u32 pos 1 in
+    let next-pos = if ge-u32 next-pos0 win-sz then 0 else next-pos0 in
+    let _0 = raw-store-u64 (wrapping-add-i64 bp 40) bits1 in
+    let _1 = raw-store-u32 (wrapping-add-i64 bp 48) next-pos in
+    let _2 = raw-store-u32 (wrapping-add-i64 bp 52) cnt1 in
+    raw-store-u32 (wrapping-add-i64 bp 56) errs2
+
+  #[no-alloc]
+  trip-circuit-open :: I64 -> U64 ->{MVar} U8
+  trip-circuit-open bp now-ns =
+    let _0 = raw-store-u8 (wrapping-add-i64 bp 7) cb-state-open in
+    let _1 = raw-store-u32 (wrapping-add-i64 bp 60) 0 in
+    let _2 = raw-store-u64 (wrapping-add-i64 bp 64) now-ns in
+    let trips = raw-load-u32 (wrapping-add-i64 bp 88) in
+    let _3 = raw-store-u32 (wrapping-add-i64 bp 88) (wrapping-add-u32 trips 1) in
+    cb-state-open
+
+  -- | Record a successful upstream response with observed latency `latency-ns`
+  -- at `now-ns`. Updates EWMA latency, pushes a success into the sliding window,
+  -- and recovers `HalfOpen -> Closed` cleanly on probe success.
+  -- Returns the resulting circuit-breaker state (`cb-state-*`).
+  #[no-alloc]
+  pool-record-success :: UpstreamPool -> U16 -> U64 -> U64 ->{MVar} U8
+  pool-record-success p bid latency-ns now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then cb-state-open
+    else
+      let bp = backend-addr p bid in
+      let reqs = raw-load-u64 (wrapping-add-i64 bp 72) in
+      let _0 = raw-store-u64 (wrapping-add-i64 bp 72) (wrapping-add-u64 reqs 1) in
+      let ewma = update-ewma bp latency-ns in
+      let st = refresh-circuit-state p bp now-ns in
+      if eq-u8 st cb-state-half-open then
+        -- Probe succeeded: reset sliding error window and return cleanly to Closed!
+        let _1 = raw-store-u8 (wrapping-add-i64 bp 7) cb-state-closed in
+        let _2 = raw-store-u32 (wrapping-add-i64 bp 60) 0 in
+        let _3 = raw-store-u64 (wrapping-add-i64 bp 40) 0 in
+        let _4 = raw-store-u32 (wrapping-add-i64 bp 48) 0 in
+        let _5 = raw-store-u32 (wrapping-add-i64 bp 52) 1 in
+        let _6 = raw-store-u32 (wrapping-add-i64 bp 56) 0 in
+        cb-state-closed
+      else
+        let _1 = push-window-sample p bp 0 in
+        let ceil = raw-load-u64 (addr-at p.up-base gh-off-lat-ceil) in
+        if both (gt-u64 ceil 0) (gt-u64 ewma ceil) then
+          trip-circuit-open bp now-ns
+        else st
+
+  -- | Record an upstream failure (connect error, 5xx, reset, timeout) at `now-ns`.
+  -- Updates the sliding error window and trips `Closed -> Open` when the error
+  -- percentage meets or exceeds `pc-cb-error-threshold-pct` (or immediately
+  -- re-opens `HalfOpen -> Open` on probe failure).
+  -- Returns the resulting circuit-breaker state (`cb-state-*`).
+  #[no-alloc]
+  pool-record-failure :: UpstreamPool -> U16 -> U64 ->{MVar} U8
+  pool-record-failure p bid now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then cb-state-open
+    else
+      let bp = backend-addr p bid in
+      let reqs = raw-load-u64 (wrapping-add-i64 bp 72) in
+      let errs = raw-load-u64 (wrapping-add-i64 bp 80) in
+      let _0 = raw-store-u64 (wrapping-add-i64 bp 72) (wrapping-add-u64 reqs 1) in
+      let _1 = raw-store-u64 (wrapping-add-i64 bp 80) (wrapping-add-u64 errs 1) in
+      let st = refresh-circuit-state p bp now-ns in
+      if eq-u8 st cb-state-half-open then
+        trip-circuit-open bp now-ns
+      else
+        let _2 = push-window-sample p bp 1 in
+        if eq-u8 st cb-state-open then cb-state-open
+        else
+          let cnt = raw-load-u32 (wrapping-add-i64 bp 52) in
+          let werr = raw-load-u32 (wrapping-add-i64 bp 56) in
+          let min-s = raw-load-u32 (addr-at p.up-base gh-off-min-samples) in
+          let thresh = raw-load-u32 (addr-at p.up-base gh-off-err-pct) in
+          if both (ge-u32 cnt min-s) (ge-u32 (wrapping-mul-u32 werr 100) (wrapping-mul-u32 cnt thresh)) then
+            trip-circuit-open bp now-ns
+          else cb-state-closed
+
+  -- =========================================================================
+  -- 6. O(1) Keep-Alive Connection Pool Acquire / Release / TTL Eviction
+  -- =========================================================================
+
+  -- Pop one expired idle connection FD from backend `bid`'s idle stack (returns
+  -- `fd-invalid ()` if top of idle stack is still fresh or stack is empty).
+  #[no-alloc]
+  pool-evict-idle-expired :: UpstreamPool -> U16 -> U64 ->{MVar} Fd
+  pool-evict-idle-expired p bid now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then
+      fd-invalid ()
+    else
+      let bp = backend-addr p bid in
+      let head = raw-load-u32 (wrapping-add-i64 bp 16) in
+      if eq-u32 head pool-no-slot then fd-invalid ()
+      else
+        let ttl = raw-load-u64 (addr-at p.up-base gh-off-idle-ttl) in
+        let sp = conn-slot-addr p bid head in
+        let last-ns = raw-load-u64 (wrapping-add-i64 sp 8) in
+        if both (gt-u64 ttl 0) (gt-u64 (saturating-sub-u64 now-ns last-ns) ttl) then
+          let old-fd = wrapping-u32-to-i32 (raw-load-u32 sp) in
+          let next-idle = raw-load-u32 (wrapping-add-i64 sp 16) in
+          let old-free = raw-load-u32 (wrapping-add-i64 bp 20) in
+          let _0 = raw-store-u32 (wrapping-add-i64 bp 16) next-idle in
+          let _1 = raw-store-u32 (wrapping-add-i64 bp 12) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 12)) 1) in
+          let _2 = raw-store-u32 (wrapping-add-i64 bp 96) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 96)) 1) in
+          let _3 = raw-store-u32 (wrapping-add-i64 bp 92) (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 92)) 1) in
+          let _4 = raw-store-u32 sp (wrapping-i32-to-u32 (-1)) in
+          let _5 = raw-store-u32 (wrapping-add-i64 sp 4) 0 in
+          let _6 = raw-store-u32 (wrapping-add-i64 sp 16) old-free in
+          let _7 = raw-store-u32 (wrapping-add-i64 bp 20) head in
+          fd-of old-fd
+        else fd-invalid ()
+
+  -- | O(1) `#[no-alloc]` acquire from backend `bid` at `now-ns`.
+  --
+  -- Outcomes (`par-status`):
+  --   * `pool-acq-reused`: live idle keep-alive connection popped (caller uses `par-fd`).
+  --   * `pool-acq-need-connect`: fresh slot reserved; caller connects and calls `pool-attach-fd`.
+  --   * `pool-acq-expired`: top idle connection exceeded TTL; caller closes `par-fd` and retries `pool-acquire`.
+  --   * `pool-acq-circuit-open`: circuit is `Open` or `HalfOpen` probe busy -> fast-fail `503`.
+  --   * `pool-acq-full`: backend reached `pc-max-conns-per-backend`.
+  #[no-alloc]
+  pool-acquire :: UpstreamPool -> U16 -> U64 ->{MVar} PoolAcquireResult
+  pool-acquire p bid now-ns =
+    if either (not-b (upstream-pool-valid p)) (ge-u32 (u16-to-u32 bid) p.up-max-backends) then
+      pool-acquire-result-make pool-acq-invalid 0 bid 0 (-1) pool-no-slot
+    else
+      let bp = backend-addr p bid in
+      if eq-u8 (raw-load-u8 (wrapping-add-i64 bp 6)) 0 then
+        pool-acquire-result-make pool-acq-invalid 0 bid 0 (-1) pool-no-slot
+      else
+        let st = refresh-circuit-state p bp now-ns in
+        if eq-u8 st cb-state-open then
+          pool-acquire-result-make pool-acq-circuit-open 0 bid 0 (-1) pool-no-slot
+        else
+          let is-probe = if eq-u8 st cb-state-half-open then (1 :: U8) else 0 in
+          let probe-busy = ne-u32 (raw-load-u32 (wrapping-add-i64 bp 60)) 0 in
+          if both (eq-u8 is-probe 1) probe-busy then
+            pool-acquire-result-make pool-acq-circuit-open 0 bid 0 (-1) pool-no-slot
+          else
+            -- Check idle keep-alive stack first (O(1) LIFO pop).
+            let idle-head = raw-load-u32 (wrapping-add-i64 bp 16) in
+            if ne-u32 idle-head pool-no-slot then
+              let ttl = raw-load-u64 (addr-at p.up-base gh-off-idle-ttl) in
+              let sp = conn-slot-addr p bid idle-head in
+              let last-ns = raw-load-u64 (wrapping-add-i64 sp 8) in
+              let fd-raw = wrapping-u32-to-i32 (raw-load-u32 sp) in
+              let next-idle = raw-load-u32 (wrapping-add-i64 sp 16) in
+              let _0 = raw-store-u32 (wrapping-add-i64 bp 16) next-idle in
+              let _1 = raw-store-u32 (wrapping-add-i64 bp 12) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 12)) 1) in
+              if both (gt-u64 ttl 0) (gt-u64 (saturating-sub-u64 now-ns last-ns) ttl) then
+                -- Expired idle connection: return slot to freelist & hand fd back for OS close.
+                let old-free = raw-load-u32 (wrapping-add-i64 bp 20) in
+                let _2 = raw-store-u32 (wrapping-add-i64 bp 96) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 96)) 1) in
+                let _3 = raw-store-u32 (wrapping-add-i64 bp 92) (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 92)) 1) in
+                let _4 = raw-store-u32 sp (wrapping-i32-to-u32 (-1)) in
+                let _5 = raw-store-u32 (wrapping-add-i64 sp 4) 0 in
+                let _6 = raw-store-u32 (wrapping-add-i64 sp 16) old-free in
+                let _7 = raw-store-u32 (wrapping-add-i64 bp 20) idle-head in
+                pool-acquire-result-make pool-acq-expired 0 bid 0 fd-raw pool-no-slot
+              else
+                let pf = raw-load-u32 (wrapping-add-i64 sp 4) in
+                let proto = wrapping-u32-to-u8 pf in
+                let _2 = raw-store-u32 (wrapping-add-i64 sp 4) (bit-or-u32 (u8-to-u32 proto) 256) in
+                let _3 = raw-store-u32 (wrapping-add-i64 sp 16) pool-no-slot in
+                let _4 = raw-store-u32 (wrapping-add-i64 bp 8) (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 8)) 1) in
+                let _5 = if eq-u8 is-probe 1 then raw-store-u32 (wrapping-add-i64 bp 60) 1 else () in
+                pool-acquire-result-make pool-acq-reused proto bid is-probe fd-raw idle-head
+            else
+              -- No idle connection available: pop a free slot if under max-conns.
+              let free-head = raw-load-u32 (wrapping-add-i64 bp 20) in
+              if eq-u32 free-head pool-no-slot then
+                pool-acquire-result-make pool-acq-full 0 bid 0 (-1) pool-no-slot
+              else
+                let sp = conn-slot-addr p bid free-head in
+                let next-free = raw-load-u32 (wrapping-add-i64 sp 16) in
+                let _0 = raw-store-u32 (wrapping-add-i64 bp 20) next-free in
+                let _1 = raw-store-u32 (wrapping-add-i64 bp 8) (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 8)) 1) in
+                let _2 = raw-store-u32 (wrapping-add-i64 bp 96) (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 96)) 1) in
+                let _3 = raw-store-u32 (wrapping-add-i64 sp 4) (bit-or-u32 (u8-to-u32 pool-proto-h1) 256) in
+                let _4 = raw-store-u32 (wrapping-add-i64 sp 16) pool-no-slot in
+                let _5 = if eq-u8 is-probe 1 then raw-store-u32 (wrapping-add-i64 bp 60) 1 else () in
+                pool-acquire-result-make pool-acq-need-connect pool-proto-h1 bid is-probe (-1) free-head
+
+  -- | Bind a newly connected `fd` and protocol (`pool-proto-h1` / `pool-proto-h2`)
+  -- to a reserved slot returned by `pool-acquire` (`pool-acq-need-connect`).
+  #[no-alloc]
+  pool-attach-fd :: UpstreamPool -> U16 -> U32 -> Fd -> U8 ->{MVar} Bool
+  pool-attach-fd p bid slot fd proto =
+    if either (not-b (upstream-pool-valid p)) (either (ge-u32 (u16-to-u32 bid) p.up-max-backends) (ge-u32 slot p.up-max-conns)) then
+      b-false
+    else
+      let sp = conn-slot-addr p bid slot in
+      let _0 = raw-store-u32 sp (wrapping-i32-to-u32 fd.fd-raw) in
+      let _1 = raw-store-u32 (wrapping-add-i64 sp 4) (bit-or-u32 (u8-to-u32 proto) 256) in
+      b-true
+
+  -- | Return a healthy keep-alive connection slot back to backend `bid`'s idle
+  -- LIFO stack in O(1) time with `now-ns` timestamp for idle TTL tracking.
+  #[no-alloc]
+  pool-release-idle :: UpstreamPool -> U16 -> U32 -> U64 ->{MVar} Bool
+  pool-release-idle p bid slot now-ns =
+    if either (not-b (upstream-pool-valid p)) (either (ge-u32 (u16-to-u32 bid) p.up-max-backends) (ge-u32 slot p.up-max-conns)) then
+      b-false
+    else
+      let bp = backend-addr p bid in
+      let sp = conn-slot-addr p bid slot in
+      let pf = raw-load-u32 (wrapping-add-i64 sp 4) in
+      let st = wrapping-shr-u32 pf 8 in
+      if ne-u32 st 1 then b-false
+      else
+        let proto = bit-and-u32 pf 255 in
+        let old-idle = raw-load-u32 (wrapping-add-i64 bp 16) in
+        let _0 = raw-store-u32 (wrapping-add-i64 sp 4) (bit-or-u32 proto 512) in
+        let _1 = raw-store-u64 (wrapping-add-i64 sp 8) now-ns in
+        let _2 = raw-store-u32 (wrapping-add-i64 sp 16) old-idle in
+        let _3 = raw-store-u32 (wrapping-add-i64 bp 16) slot in
+        let _4 = raw-store-u32 (wrapping-add-i64 bp 8) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 8)) 1) in
+        let _5 = raw-store-u32 (wrapping-add-i64 bp 12) (wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 bp 12)) 1) in
+        b-true
+
+  -- | Release a closed or broken connection slot back to backend `bid`'s free
+  -- stack in O(1) time (caller closes the OS `Fd` separately if valid).
+  #[no-alloc]
+  pool-release-close :: UpstreamPool -> U16 -> U32 ->{MVar} Bool
+  pool-release-close p bid slot =
+    if either (not-b (upstream-pool-valid p)) (either (ge-u32 (u16-to-u32 bid) p.up-max-backends) (ge-u32 slot p.up-max-conns)) then
+      b-false
+    else
+      let bp = backend-addr p bid in
+      let sp = conn-slot-addr p bid slot in
+      let pf = raw-load-u32 (wrapping-add-i64 sp 4) in
+      let st = wrapping-shr-u32 pf 8 in
+      if ne-u32 st 1 then b-false
+      else
+        let old-free = raw-load-u32 (wrapping-add-i64 bp 20) in
+        let _0 = raw-store-u32 sp (wrapping-i32-to-u32 (-1)) in
+        let _1 = raw-store-u32 (wrapping-add-i64 sp 4) 0 in
+        let _2 = raw-store-u64 (wrapping-add-i64 sp 8) 0 in
+        let _3 = raw-store-u32 (wrapping-add-i64 sp 16) old-free in
+        let _4 = raw-store-u32 (wrapping-add-i64 bp 20) slot in
+        let _5 = raw-store-u32 (wrapping-add-i64 bp 8) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 8)) 1) in
+        let _6 = raw-store-u32 (wrapping-add-i64 bp 96) (saturating-sub-u32 (raw-load-u32 (wrapping-add-i64 bp 96)) 1) in
+        b-true
+
+  -- =========================================================================
+  -- 7. Power-of-Two-Choices (P2C) + Maglev Hybrid Selector (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  scan-allowable-backend :: UpstreamPool -> U32 -> U32 -> U64 ->{MVar} U16
+  scan-allowable-backend p start i now-ns =
+    if ge-u32 i p.up-max-backends then pool-no-backend
+    else
+      let idx0 = wrapping-add-u32 start i in
+      let idx = if ge-u32 idx0 p.up-max-backends then wrapping-sub-u32 idx0 p.up-max-backends else idx0 in
+      let bid = wrapping-u32-to-u16 idx in
+      if pool-backend-allow-request p bid now-ns then bid
+      else scan-allowable-backend p start (wrapping-add-u32 i 1) now-ns
+
+  -- | Hybrid **Maglev + Power-of-Two-Choices (P2C)** upstream selector (`#[no-alloc]`):
+  --   1. Primary candidate `c1` from Maglev consistent hash of `req-hash`.
+  --   2. Secondary candidate `c2` from Maglev lookup of `maglev-hash2 (req-hash ^ rng-seed)`.
+  --   3. If both `c1` and `c2` are allowable (enabled, circuit closed/ready,
+  --      under max-conns), picks the one with lower P2C load/EWMA score
+  --      (ties favor `c1` to preserve Maglev cache affinity).
+  --   4. If only one is allowable, fails over immediately to the healthy one.
+  --   5. If neither is allowable, scans deterministically for any healthy
+  --      failover backend, or returns `pool-no-backend` (`65535`) for `503`.
+  #[no-alloc]
+  pool-select-backend :: UpstreamPool -> MaglevTable -> U64 -> U64 -> U64 ->{MVar} U16
+  pool-select-backend p mt req-hash rng-seed now-ns =
+    if either (not-b (upstream-pool-valid p)) (not-b (maglev-table-valid mt)) then pool-no-backend
+    else
+      let c1 = maglev-lookup mt req-hash in
+      let h2 = maglev-hash2 (bit-xor-u64 req-hash rng-seed) in
+      let c2-raw = maglev-lookup mt h2 in
+      let c2 = (
+        if eq-u16 c2-raw c1 then maglev-lookup mt (maglev-hash1 (bit-xor-u64 h2 0x9E3779B97F4A7C15))
+        else c2-raw) in
+      let ok1 = both (ne-u16 c1 maglev-empty-slot) (pool-backend-allow-request p c1 now-ns) in
+      let ok2 = both (ne-u16 c2 maglev-empty-slot) (pool-backend-allow-request p c2 now-ns) in
+      if both ok1 ok2 then
+        let s1 = pool-backend-score p c1 in
+        let s2 = pool-backend-score p c2 in
+        if le-u64 s1 s2 then c1 else c2
+      else if ok1 then c1
+      else if ok2 then c2
+      else
+        let start = wrapping-u64-to-u32 (safe-rem-u64 req-hash (u32-to-u64 p.up-max-backends)) in
+        scan-allowable-backend p start 0 now-ns
+
+  -- | Pure Power-of-Two-Choices selector without Maglev (picks two random
+  -- enabled backends from `rng-seed` and selects the lower-load/lower-EWMA one).
+  #[no-alloc]
+  pool-select-p2c :: UpstreamPool -> U64 -> U64 ->{MVar} U16
+  pool-select-p2c p rng-seed now-ns =
+    if not-b (upstream-pool-valid p) then pool-no-backend
+    else
+      let n64 = u32-to-u64 p.up-max-backends in
+      let c1 = wrapping-u64-to-u16 (safe-rem-u64 (maglev-hash1 rng-seed) n64) in
+      let c2 = wrapping-u64-to-u16 (safe-rem-u64 (maglev-hash2 rng-seed) n64) in
+      let ok1 = pool-backend-allow-request p c1 now-ns in
+      let ok2 = pool-backend-allow-request p c2 now-ns in
+      if both ok1 ok2 then
+        if le-u64 (pool-backend-score p c1) (pool-backend-score p c2) then c1 else c2
+      else if ok1 then c1
+      else if ok2 then c2
+      else
+        let start = wrapping-u64-to-u32 (safe-rem-u64 (maglev-hash1 rng-seed) n64) in
+        scan-allowable-backend p start 0 now-ns
+
+  #[no-alloc]
+  sync-health-loop :: UpstreamPool -> MaglevTable -> U32 -> U64 ->{MVar} Unit
+  sync-health-loop p mt i now-ns =
+    if ge-u32 i p.up-max-backends then ()
+    else
+      let bid = wrapping-u32-to-u16 i in
+      let healthy = pool-backend-allow-request p bid now-ns in
+      let _0 = maglev-backend-set-health mt bid healthy in
+      sync-health-loop p mt (wrapping-add-u32 i 1) now-ns
+
+  -- | Synchronize every backend's circuit-breaker health state into `mt`'s
+  -- health bitmap in a single zero-allocation pass.
+  #[no-alloc]
+  pool-sync-maglev-health :: UpstreamPool -> MaglevTable -> U64 ->{MVar} Unit
+  pool-sync-maglev-health p mt now-ns =
+    if either (not-b (upstream-pool-valid p)) (not-b (maglev-table-valid mt)) then ()
+    else sync-health-loop p mt 0 now-ns

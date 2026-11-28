@@ -1579,6 +1579,18 @@
     {
       "name": "Store.Kv.Resp",
       "path": "Store/Kv/Resp.cinch"
+    },
+    {
+      "name": "Net.Http.Proxy.Maglev",
+      "path": "Net/Http/Proxy/Maglev.cinch"
+    },
+    {
+      "name": "Net.Http.Proxy.Pool",
+      "path": "Net/Http/Proxy/Pool.cinch"
+    },
+    {
+      "name": "Net.Http.Proxy.Forward",
+      "path": "Net/Http/Proxy/Forward.cinch"
     }
   ],
   "order": [
@@ -1975,6 +1987,9 @@
     "Store.Wal.Format",
     "Store.Wal.Engine",
     "Store.Wal.Spec",
-    "Store.Kv.Resp"
+    "Store.Kv.Resp",
+    "Net.Http.Proxy.Maglev",
+    "Net.Http.Proxy.Pool",
+    "Net.Http.Proxy.Forward"
   ]
 }
