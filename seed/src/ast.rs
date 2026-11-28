@@ -1549,8 +1549,9 @@ pub enum ContractClause {
     /// `assume = "text"`: a stated environmental assumption (scheduler,
     /// dependency, crash, network, fairness).
     AssumeNamed { text: String, span: Span },
-    /// `fair = [a, b]` / `strong_fair = [a]`: per-action weak or strong fairness assumptions.
-    AssumeFair { strong: bool, actions: Vec<Name>, span: Span },
+    /// `fair = [a, b]` / `strong_fair = [a]` / `fair_each = [a]` / `strong_fair_each = [a]`:
+    /// action-level or per-instance weak/strong fairness assumptions.
+    AssumeFair { strong: bool, per_instance: bool, actions: Vec<Name>, span: Span },
 }
 
 /// `machine Name where { state = StateTy; init = initExpr; actions = [a1, ...]; ... }`:
@@ -1565,6 +1566,8 @@ pub struct MachineDecl {
     pub actions: Vec<Name>,
     pub fair: Vec<Name>,
     pub strong_fair: Vec<Name>,
+    pub fair_each: Vec<Name>,
+    pub strong_fair_each: Vec<Name>,
     pub symmetry: Vec<ConPath>,
     pub max_states: Option<usize>,
     pub observe: Option<Term>,
@@ -1976,6 +1979,22 @@ pub fn collect_decl_refs(d: &Decl, out: &mut Vec<RefSite>) {
                 });
             }
             for a in &m.strong_fair {
+                out.push(RefSite {
+                    kind: RefKind::Value,
+                    quals: Vec::new(),
+                    name: a.text.clone(),
+                    span: a.span,
+                });
+            }
+            for a in &m.fair_each {
+                out.push(RefSite {
+                    kind: RefKind::Value,
+                    quals: Vec::new(),
+                    name: a.text.clone(),
+                    span: a.span,
+                });
+            }
+            for a in &m.strong_fair_each {
                 out.push(RefSite {
                     kind: RefKind::Value,
                     quals: Vec::new(),

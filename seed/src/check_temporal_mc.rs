@@ -233,6 +233,8 @@ pub struct MachineActionReport {
     pub param_domains: Vec<Vec<String>>,
     pub fair: bool,
     pub strong_fair: bool,
+    pub fair_each: bool,
+    pub strong_fair_each: bool,
 }
 
 /// Summary of one temporal contract evaluated on an explored state machine.
@@ -278,6 +280,8 @@ pub struct MachineReport {
     pub actions: Vec<MachineActionReport>,
     pub fair: Vec<String>,
     pub strong_fair: Vec<String>,
+    pub fair_each: Vec<String>,
+    pub strong_fair_each: Vec<String>,
     pub symmetry_types: Vec<String>,
     pub symmetry_merged: usize,
     pub por_independent_pairs: Vec<(String, String)>,
@@ -383,12 +387,21 @@ impl MachineReport {
         out.push(format!("  init: {}", self.states.first().cloned().unwrap_or_default()));
         out.push("  actions:".to_string());
         for a in &self.actions {
-            let fair_tag = if a.strong_fair {
-                " [strong_fair]"
+            let mut tags = Vec::new();
+            if a.strong_fair {
+                tags.push("strong_fair");
             } else if a.fair {
-                " [fair]"
+                tags.push("fair");
+            }
+            if a.strong_fair_each {
+                tags.push("strong_fair_each");
+            } else if a.fair_each {
+                tags.push("fair_each");
+            }
+            let fair_tag = if tags.is_empty() {
+                String::new()
             } else {
-                ""
+                format!(" [{}]", tags.join(", "))
             };
             if a.param_domains.is_empty() {
                 out.push(format!("    - {} ({}){fair_tag}", a.name, a.result_kind));
@@ -535,6 +548,8 @@ impl MachineReport {
                     ),
                     ("fair", Json::Bool(a.fair)),
                     ("strong_fair", Json::Bool(a.strong_fair)),
+                    ("fair_each", Json::Bool(a.fair_each)),
+                    ("strong_fair_each", Json::Bool(a.strong_fair_each)),
                 ])
             })
             .collect();
@@ -592,6 +607,22 @@ impl MachineReport {
                 Json::Arr(self.symmetry_types.iter().map(|s| Json::Str(s.clone())).collect()),
             ),
             ("por_independent_pairs", Json::Arr(por)),
+            (
+                "fair",
+                Json::Arr(self.fair.iter().map(|s| Json::Str(s.clone())).collect()),
+            ),
+            (
+                "strong_fair",
+                Json::Arr(self.strong_fair.iter().map(|s| Json::Str(s.clone())).collect()),
+            ),
+            (
+                "fair_each",
+                Json::Arr(self.fair_each.iter().map(|s| Json::Str(s.clone())).collect()),
+            ),
+            (
+                "strong_fair_each",
+                Json::Arr(self.strong_fair_each.iter().map(|s| Json::Str(s.clone())).collect()),
+            ),
             ("actions", Json::Arr(actions)),
             ("contracts", Json::Arr(contracts)),
             ("refinements", Json::Arr(refinements)),
@@ -653,6 +684,8 @@ struct ExploredMachine {
     actions: Vec<CompiledAction>,
     fair: HashSet<usize>,
     strong_fair: HashSet<usize>,
+    fair_each: HashSet<usize>,
+    strong_fair_each: HashSet<usize>,
     sym_types: Vec<String>,
     sym_ctors: HashMap<String, Vec<String>>,
     /// Concrete representative `Value` for each explored state index (0 = init).
@@ -710,8 +743,14 @@ impl ExploredMachine {
         lines
     }
 
-    fn enabled_actions(&self, s: usize) -> HashSet<usize> {
-        self.edges[s].iter().map(|(a, _, _)| *a).collect()
+    fn action_enabled_at(&self, s: usize, act: usize) -> bool {
+        self.edges[s].iter().any(|(a, _, _)| *a == act)
+    }
+
+    fn instance_enabled_at(&self, s: usize, act: usize, label: &str) -> bool {
+        self.edges[s]
+            .iter()
+            .any(|(a, lbl, _)| *a == act && lbl == label)
     }
 
     fn to_report(&self) -> MachineReport {
@@ -736,15 +775,14 @@ impl ExploredMachine {
             edges_out.push(row);
             edge_diffs.push(drow);
         }
+        // BFS allocates parents before children (`prev < s`), so diameter is O(N).
+        let mut depths = vec![0usize; self.states.len()];
         let mut diameter = 0usize;
         for s in 0..self.states.len() {
-            let mut depth = 0usize;
-            let mut cur = s;
-            while let Some((prev, _)) = &self.parent[cur] {
-                depth += 1;
-                cur = *prev;
+            if let Some((prev, _)) = &self.parent[s] {
+                depths[s] = depths[*prev] + 1;
+                diameter = diameter.max(depths[s]);
             }
-            diameter = diameter.max(depth);
         }
         let actions: Vec<MachineActionReport> = self
             .actions
@@ -764,6 +802,8 @@ impl ExploredMachine {
                     .collect(),
                 fair: self.fair.contains(&idx),
                 strong_fair: self.strong_fair.contains(&idx),
+                fair_each: self.fair_each.contains(&idx),
+                strong_fair_each: self.strong_fair_each.contains(&idx),
             })
             .collect();
         let mut fair: Vec<String> = self.fair.iter().map(|&i| self.actions[i].name.clone()).collect();
@@ -771,6 +811,12 @@ impl ExploredMachine {
         let mut strong_fair: Vec<String> =
             self.strong_fair.iter().map(|&i| self.actions[i].name.clone()).collect();
         strong_fair.sort();
+        let mut fair_each: Vec<String> =
+            self.fair_each.iter().map(|&i| self.actions[i].name.clone()).collect();
+        fair_each.sort();
+        let mut strong_fair_each: Vec<String> =
+            self.strong_fair_each.iter().map(|&i| self.actions[i].name.clone()).collect();
+        strong_fair_each.sort();
         MachineReport {
             module: self.module.clone(),
             name: self.name.clone(),
@@ -787,6 +833,8 @@ impl ExploredMachine {
             actions,
             fair,
             strong_fair,
+            fair_each,
+            strong_fair_each,
             symmetry_types: self.sym_types.clone(),
             symmetry_merged: self.symmetry_merged,
             por_independent_pairs: self.por_independent_pairs.clone(),
@@ -892,75 +940,122 @@ fn analyze_core_footprint(
     }
 }
 
-/// Tarjan's Strongly Connected Components over an induced subgraph `allowed`.
+/// Reusable iterative Tarjan SCC workspace (generation-stamped, zero recursion)
+/// so large state spaces (up to 262,144+ states) never stack overflow or incur
+/// O(N) re-initialization overhead per Emerson-Lei refinement step.
+struct TarjanScratch {
+    allowed_gen: Vec<u32>,
+    index_gen: Vec<u32>,
+    indices: Vec<usize>,
+    lowlink: Vec<usize>,
+    on_stack: Vec<bool>,
+    tarjan_stack: Vec<usize>,
+    dfs_stack: Vec<(usize, usize)>,
+    gen: u32,
+}
+
+impl TarjanScratch {
+    fn new(n: usize) -> Self {
+        Self {
+            allowed_gen: vec![0; n],
+            index_gen: vec![0; n],
+            indices: vec![0; n],
+            lowlink: vec![0; n],
+            on_stack: vec![false; n],
+            tarjan_stack: Vec::new(),
+            dfs_stack: Vec::new(),
+            gen: 0,
+        }
+    }
+
+    fn sccs_over(
+        &mut self,
+        nodes: &[usize],
+        edges: &[Vec<(usize, String, usize)>],
+    ) -> Vec<Vec<usize>> {
+        self.gen = self.gen.wrapping_add(1);
+        if self.gen == 0 {
+            self.allowed_gen.fill(0);
+            self.index_gen.fill(0);
+            self.gen = 1;
+        }
+        let g = self.gen;
+        for &u in nodes {
+            self.allowed_gen[u] = g;
+        }
+        let mut next_index = 0usize;
+        let mut sccs = Vec::new();
+        self.tarjan_stack.clear();
+        self.dfs_stack.clear();
+
+        for &start in nodes {
+            if self.index_gen[start] == g {
+                continue;
+            }
+            self.index_gen[start] = g;
+            self.indices[start] = next_index;
+            self.lowlink[start] = next_index;
+            next_index += 1;
+            self.tarjan_stack.push(start);
+            self.on_stack[start] = true;
+            self.dfs_stack.push((start, 0));
+
+            while let Some((v_ref, ei)) = self.dfs_stack.last_mut() {
+                let v = *v_ref;
+                let es = &edges[v];
+                if *ei < es.len() {
+                    let w = es[*ei].2;
+                    *ei += 1;
+                    if self.allowed_gen[w] != g {
+                        continue;
+                    }
+                    if self.index_gen[w] != g {
+                        self.index_gen[w] = g;
+                        self.indices[w] = next_index;
+                        self.lowlink[w] = next_index;
+                        next_index += 1;
+                        self.tarjan_stack.push(w);
+                        self.on_stack[w] = true;
+                        self.dfs_stack.push((w, 0));
+                    } else if self.on_stack[w] {
+                        self.lowlink[v] = self.lowlink[v].min(self.indices[w]);
+                    }
+                } else {
+                    self.dfs_stack.pop();
+                    if self.lowlink[v] == self.indices[v] {
+                        let mut comp = Vec::new();
+                        while let Some(w) = self.tarjan_stack.pop() {
+                            self.on_stack[w] = false;
+                            comp.push(w);
+                            if w == v {
+                                break;
+                            }
+                        }
+                        sccs.push(comp);
+                    }
+                    if let Some(&(parent, _)) = self.dfs_stack.last() {
+                        self.lowlink[parent] = self.lowlink[parent].min(self.lowlink[v]);
+                    }
+                }
+            }
+        }
+        sccs
+    }
+}
+
+/// Iterative Tarjan's Strongly Connected Components over an induced subgraph `allowed`.
 fn tarjan_sccs(
     n: usize,
     edges: &[Vec<(usize, String, usize)>],
     allowed: &[bool],
 ) -> Vec<Vec<usize>> {
-    struct State<'a> {
-        edges: &'a [Vec<(usize, String, usize)>],
-        allowed: &'a [bool],
-        index: usize,
-        indices: Vec<Option<usize>>,
-        lowlink: Vec<usize>,
-        on_stack: Vec<bool>,
-        stack: Vec<usize>,
-        sccs: Vec<Vec<usize>>,
-    }
-
-    fn strongconnect(v: usize, st: &mut State<'_>) {
-        st.indices[v] = Some(st.index);
-        st.lowlink[v] = st.index;
-        st.index += 1;
-        st.stack.push(v);
-        st.on_stack[v] = true;
-
-        for &(_, _, w) in &st.edges[v] {
-            if !st.allowed[w] {
-                continue;
-            }
-            if st.indices[w].is_none() {
-                strongconnect(w, st);
-                st.lowlink[v] = st.lowlink[v].min(st.lowlink[w]);
-            } else if st.on_stack[w] {
-                st.lowlink[v] = st.lowlink[v].min(st.indices[w].unwrap());
-            }
-        }
-
-        if st.lowlink[v] == st.indices[v].unwrap() {
-            let mut comp = Vec::new();
-            while let Some(w) = st.stack.pop() {
-                st.on_stack[w] = false;
-                comp.push(w);
-                if w == v {
-                    break;
-                }
-            }
-            st.sccs.push(comp);
-        }
-    }
-
-    let mut st = State {
-        edges,
-        allowed,
-        index: 0,
-        indices: vec![None; n],
-        lowlink: vec![0; n],
-        on_stack: vec![false; n],
-        stack: Vec::new(),
-        sccs: Vec::new(),
-    };
-    for v in 0..n {
-        if allowed[v] && st.indices[v].is_none() {
-            strongconnect(v, &mut st);
-        }
-    }
-    st.sccs
+    let nodes: Vec<usize> = (0..n).filter(|&u| allowed[u]).collect();
+    TarjanScratch::new(n).sccs_over(&nodes, edges)
 }
 
 /// Find a fair violating cycle (or fair deadlocked state) inside `allowed` reachable from `starts`.
-/// Uses Emerson-Lei iterative fair-SCC filtering for TLA+ Weak Fairness (`WF`) and Strong Fairness (`SF`).
+/// Uses Emerson-Lei iterative fair-SCC filtering for action-level (`WF`/`SF`) and per-instance
+/// (`fair_each` / `strong_fair_each`) fairness obligations.
 /// Returns `Some((entry_state, cycle_edges))` where `cycle_edges` is empty for a fair deadlock
 /// or a non-empty closed cycle `[(label, next_state), ...]` starting and ending at `entry_state`.
 fn find_fair_violating_lasso(
@@ -969,14 +1064,18 @@ fn find_fair_violating_lasso(
     allowed_init: &[bool],
     weak_fair: &HashSet<usize>,
     strong_fair: &HashSet<usize>,
+    weak_fair_each: &HashSet<usize>,
+    strong_fair_each: &HashSet<usize>,
 ) -> Option<(usize, Vec<(String, usize)>)> {
     let n = machine.states.len();
     // Compute states reachable from `starts` staying strictly inside `allowed_init`.
     let mut reachable = vec![false; n];
+    let mut reach_nodes = Vec::new();
     let mut queue = std::collections::VecDeque::new();
     for &s in starts {
         if allowed_init[s] && !reachable[s] {
             reachable[s] = true;
+            reach_nodes.push(s);
             queue.push_back(s);
         }
     }
@@ -984,89 +1083,151 @@ fn find_fair_violating_lasso(
         for &(_, _, v) in &machine.edges[u] {
             if allowed_init[v] && !reachable[v] {
                 reachable[v] = true;
+                reach_nodes.push(v);
                 queue.push_back(v);
             }
         }
     }
 
     // 1. Check deadlocked states inside `reachable`: a deadlocked state has no enabled
-    // actions, so WF and SF are vacuously satisfied — making it a valid stuttering end state.
-    for s in 0..n {
-        if reachable[s] && machine.edges[s].is_empty() {
+    // actions, so WF, SF, fair_each, and strong_fair_each are vacuously satisfied.
+    for &s in &reach_nodes {
+        if machine.edges[s].is_empty() {
             return Some((s, Vec::new()));
         }
     }
 
     // 2. Iteratively filter SCCs in `reachable` until we find a non-trivial SCC that
-    // satisfies every WF and SF obligation (Emerson-Lei algorithm).
-    let mut worklist: Vec<Vec<usize>> = tarjan_sccs(n, &machine.edges, &reachable);
+    // satisfies every action-level and per-instance WF/SF obligation (Emerson-Lei).
+    let mut tarjan = TarjanScratch::new(n);
+    let mut worklist: Vec<Vec<usize>> = tarjan.sccs_over(&reach_nodes, &machine.edges);
+    let mut in_scc_gen = vec![0u32; n];
+    let mut scc_gen = 0u32;
+    let check_action_fair = !weak_fair.is_empty() || !strong_fair.is_empty();
+    let check_inst_fair = !weak_fair_each.is_empty() || !strong_fair_each.is_empty();
+
     while let Some(scc) = worklist.pop() {
-        let in_scc: HashSet<usize> = scc.iter().copied().collect();
+        scc_gen = scc_gen.wrapping_add(1);
+        if scc_gen == 0 {
+            in_scc_gen.fill(0);
+            scc_gen = 1;
+        }
+        for &u in &scc {
+            in_scc_gen[u] = scc_gen;
+        }
         // A single state without a self-loop is not a cycle.
         let has_internal_edge = scc.iter().any(|&u| {
-            machine.edges[u].iter().any(|&(_, _, v)| in_scc.contains(&v))
+            machine.edges[u].iter().any(|&(_, _, v)| in_scc_gen[v] == scc_gen)
         });
         if !has_internal_edge {
             continue;
         }
-        // Actions taken on at least one edge inside this SCC.
+
+        // Collect actions (and concrete `(action_idx, label)` instances) fired inside `scc`.
         let mut taken_in_scc: HashSet<usize> = HashSet::new();
-        for &u in &scc {
-            for &(act, _, v) in &machine.edges[u] {
-                if in_scc.contains(&v) {
-                    taken_in_scc.insert(act);
+        let mut taken_inst_in_scc: HashSet<(usize, &str)> = HashSet::new();
+        if check_action_fair || check_inst_fair {
+            for &u in &scc {
+                for (act, lbl, v) in &machine.edges[u] {
+                    if in_scc_gen[*v] == scc_gen {
+                        if check_action_fair {
+                            taken_in_scc.insert(*act);
+                        }
+                        if check_inst_fair {
+                            taken_inst_in_scc.insert((*act, lbl.as_str()));
+                        }
+                    }
                 }
             }
         }
 
-        // Check Weak Fairness: if `a` is enabled in EVERY state of `scc`, it must be taken in `scc`.
+        // Check Action-Level Weak Fairness: if `a` is enabled in EVERY state of `scc`, it must be taken in `scc`.
         let mut violated_wf = false;
         for &a in weak_fair {
-            if !taken_in_scc.contains(&a) {
-                let enabled_everywhere = scc.iter().all(|&u| machine.enabled_actions(u).contains(&a));
-                if enabled_everywhere {
+            if !taken_in_scc.contains(&a)
+                && scc.iter().all(|&u| machine.action_enabled_at(u, a))
+            {
+                violated_wf = true;
+                break;
+            }
+        }
+        // Check Per-Instance Weak Fairness (`fair_each`):
+        // Reject `scc` if there exists ANY `(act, param_tuple)` enabled at EVERY state in `scc`
+        // without any edge inside `scc` firing `(act, param_tuple)`.
+        if !violated_wf && !weak_fair_each.is_empty() {
+            let first = scc[0];
+            let mut checked_insts: HashSet<(usize, &str)> = HashSet::new();
+            for (act, lbl, _) in &machine.edges[first] {
+                let key = (*act, lbl.as_str());
+                if weak_fair_each.contains(act)
+                    && !taken_inst_in_scc.contains(&key)
+                    && checked_insts.insert(key)
+                    && scc[1..].iter().all(|&u| machine.instance_enabled_at(u, *act, lbl))
+                {
                     violated_wf = true;
                     break;
                 }
             }
         }
         if violated_wf {
-            // No sub-SCC of `scc` can avoid `a` being enabled everywhere either, so discard `scc`.
+            // No sub-SCC of `scc` can avoid a continuously-enabled un-taken obligation either.
             continue;
         }
 
-        // Check Strong Fairness: if `a` is enabled in ANY state of `scc`, it must be taken in `scc`.
-        // If not, remove all states of `scc` where `a` is enabled and re-decompose sub-SCCs!
+        // Check Action-Level Strong Fairness: if `a` is enabled in ANY state of `scc`, it must be taken in `scc`.
         let mut bad_sf_action: Option<usize> = None;
         for &a in strong_fair {
             if !taken_in_scc.contains(&a)
-                && scc.iter().any(|&u| machine.enabled_actions(u).contains(&a))
+                && scc.iter().any(|&u| machine.action_enabled_at(u, a))
             {
                 bad_sf_action = Some(a);
                 break;
             }
         }
         if let Some(a) = bad_sf_action {
-            let mut sub_allowed = vec![false; n];
-            for &u in &scc {
-                if !machine.enabled_actions(u).contains(&a) {
-                    sub_allowed[u] = true;
-                }
+            let remaining: Vec<usize> = scc
+                .into_iter()
+                .filter(|&u| !machine.action_enabled_at(u, a))
+                .collect();
+            if !remaining.is_empty() {
+                worklist.extend(tarjan.sccs_over(&remaining, &machine.edges));
             }
-            let subs = tarjan_sccs(n, &machine.edges, &sub_allowed);
-            worklist.extend(subs);
             continue;
         }
 
-        // This SCC satisfies EVERY WF and SF constraint! Extract a concrete closed cycle
-        // inside `scc` visiting every required fair action that was taken in `scc`.
+        // Check Per-Instance Strong Fairness (`strong_fair_each`):
+        // Prune all states of `scc` where `(act, param_tuple)` is enabled whenever no internal edge
+        // of `scc` fires `(act, param_tuple)`, then re-decompose the remaining subgraph.
+        if !strong_fair_each.is_empty() {
+            let mut bad_sf_inst: Option<(usize, String)> = None;
+            'sf_each: for &u in &scc {
+                for (act, lbl, _) in &machine.edges[u] {
+                    if strong_fair_each.contains(act)
+                        && !taken_inst_in_scc.contains(&(*act, lbl.as_str()))
+                    {
+                        bad_sf_inst = Some((*act, lbl.clone()));
+                        break 'sf_each;
+                    }
+                }
+            }
+            if let Some((act, lbl)) = bad_sf_inst {
+                let remaining: Vec<usize> = scc
+                    .into_iter()
+                    .filter(|&u| !machine.instance_enabled_at(u, act, &lbl))
+                    .collect();
+                if !remaining.is_empty() {
+                    worklist.extend(tarjan.sccs_over(&remaining, &machine.edges));
+                }
+                continue;
+            }
+        }
+
+        // This SCC satisfies EVERY WF, WF-each, SF, and SF-each constraint! Extract a concrete closed cycle.
         let entry = scc[0];
         let mut cycle = Vec::new();
-        // Walk a BFS shortest path inside `scc` that takes an internal edge back to `entry`.
-        // First pick any edge out of `entry` inside `scc`, then BFS back to `entry`.
         if let Some((_, first_label, first_next)) = machine.edges[entry]
             .iter()
-            .find(|(_, _, v)| in_scc.contains(v))
+            .find(|(_, _, v)| in_scc_gen[*v] == scc_gen)
             .cloned()
         {
             cycle.push((first_label, first_next));
@@ -1080,7 +1241,7 @@ fn find_fair_violating_lasso(
                         break;
                     }
                     for (_, lbl, v) in &machine.edges[u] {
-                        if in_scc.contains(v) && seen.insert(*v) {
+                        if in_scc_gen[*v] == scc_gen && seen.insert(*v) {
                             parent.insert(*v, (u, lbl.clone()));
                             q.push_back(*v);
                         }
@@ -1229,6 +1390,20 @@ impl Checker {
 
         for key in &order {
             if let Some(m) = explored.get(key) {
+                if fail_fast && m.capped && crate::driver::env_model_fail_on_capped() {
+                    self.current_module = saved_module;
+                    self.visible = saved_visible;
+                    return Err(Error::at(
+                        m.span,
+                        format!(
+                            "machine `{}.{}` hit state exploration cap (`max_states = {}`, explored {} states); raise `max_states` or unset `CINCH_MODEL_FAIL_ON_CAPPED`",
+                            m.module,
+                            m.name,
+                            m.max_states,
+                            m.states.len()
+                        ),
+                    ));
+                }
                 self.machine_reports.push(m.to_report());
             }
         }
@@ -1929,7 +2104,7 @@ impl Checker {
             });
         }
 
-        // Validate `fair` and `strong_fair` action lists.
+        // Validate `fair`, `strong_fair`, `fair_each`, and `strong_fair_each` action lists.
         let mut fair = HashSet::new();
         for f in &decl.fair {
             let Some(idx) = compiled_actions.iter().position(|a| a.name == f.text) else {
@@ -1955,6 +2130,32 @@ impl Checker {
                 ));
             };
             strong_fair.insert(idx);
+        }
+        let mut fair_each = HashSet::new();
+        for f in &decl.fair_each {
+            let Some(idx) = compiled_actions.iter().position(|a| a.name == f.text) else {
+                return Err(Error::at(
+                    f.span,
+                    format!(
+                        "machine `{}`: `fair_each` names unknown action `{}` (not in `actions`)",
+                        decl.name.text, f.text
+                    ),
+                ));
+            };
+            fair_each.insert(idx);
+        }
+        let mut strong_fair_each = HashSet::new();
+        for f in &decl.strong_fair_each {
+            let Some(idx) = compiled_actions.iter().position(|a| a.name == f.text) else {
+                return Err(Error::at(
+                    f.span,
+                    format!(
+                        "machine `{}`: `strong_fair_each` names unknown action `{}` (not in `actions`)",
+                        decl.name.text, f.text
+                    ),
+                ));
+            };
+            strong_fair_each.insert(idx);
         }
 
         // Count independent action pairs discovered by static field-footprint analysis (POR).
@@ -2062,6 +2263,8 @@ impl Checker {
             actions: compiled_actions,
             fair,
             strong_fair,
+            fair_each,
+            strong_fair_each,
             sym_types,
             sym_ctors,
             states,
@@ -2107,6 +2310,7 @@ impl Checker {
             let b = self.apply_value(&mut cx, pred_val.clone(), vec![s.clone()])?;
             match b {
                 Value::Bool(flag) => results.push(flag),
+                Value::Word(w) => results.push(w != 0),
                 other => {
                     return Err(Error::at(
                         term.span(),
@@ -2130,6 +2334,8 @@ impl Checker {
     ) -> Result<()> {
         let mut weak_fair = machine.fair.clone();
         let mut strong_fair = machine.strong_fair.clone();
+        let mut weak_fair_each = machine.fair_each.clone();
+        let mut strong_fair_each = machine.strong_fair_each.clone();
         let mut assumption_rows: Vec<String> = Vec::new();
         let mut assume_preds: Vec<&ast::Term> = Vec::new();
         for &a in &machine.fair {
@@ -2137,6 +2343,12 @@ impl Checker {
         }
         for &a in &machine.strong_fair {
             assumption_rows.push(format!("strong_fair {}", machine.actions[a].name));
+        }
+        for &a in &machine.fair_each {
+            assumption_rows.push(format!("fair_each {}", machine.actions[a].name));
+        }
+        for &a in &machine.strong_fair_each {
+            assumption_rows.push(format!("strong_fair_each {}", machine.actions[a].name));
         }
         let mut main_clause: Option<&ast::ContractClause> = None;
         for cl in &contract.clauses {
@@ -2153,7 +2365,7 @@ impl Checker {
                     assumption_rows.push(format!("assume ({})", render_formula_term(body)));
                     assume_preds.push(body);
                 }
-                ast::ContractClause::AssumeFair { strong, actions, .. } => {
+                ast::ContractClause::AssumeFair { strong, per_instance, actions, .. } => {
                     for a in actions {
                         let Some(idx) = machine.actions.iter().position(|act| act.name == a.text) else {
                             return Err(Error::at(
@@ -2164,12 +2376,23 @@ impl Checker {
                                 ),
                             ));
                         };
-                        if *strong {
-                            strong_fair.insert(idx);
-                            assumption_rows.push(format!("strong_fair {}", a.text));
-                        } else {
-                            weak_fair.insert(idx);
-                            assumption_rows.push(format!("weak_fair {}", a.text));
+                        match (*strong, *per_instance) {
+                            (false, false) => {
+                                weak_fair.insert(idx);
+                                assumption_rows.push(format!("weak_fair {}", a.text));
+                            }
+                            (true, false) => {
+                                strong_fair.insert(idx);
+                                assumption_rows.push(format!("strong_fair {}", a.text));
+                            }
+                            (false, true) => {
+                                weak_fair_each.insert(idx);
+                                assumption_rows.push(format!("fair_each {}", a.text));
+                            }
+                            (true, true) => {
+                                strong_fair_each.insert(idx);
+                                assumption_rows.push(format!("strong_fair_each {}", a.text));
+                            }
                         }
                     }
                 }
@@ -2279,9 +2502,15 @@ impl Checker {
                             .map(|s| env_reachable[s] && !preds[s])
                             .collect();
                         let starts: Vec<usize> = if !allowed.is_empty() && allowed[0] { vec![0] } else { Vec::new() };
-                        if let Some((entry, cycle)) =
-                            find_fair_violating_lasso(machine, &starts, &allowed, &weak_fair, &strong_fair)
-                        {
+                        if let Some((entry, cycle)) = find_fair_violating_lasso(
+                            machine,
+                            &starts,
+                            &allowed,
+                            &weak_fair,
+                            &strong_fair,
+                            &weak_fair_each,
+                            &strong_fair_each,
+                        ) {
                             let trace = self.format_lasso_trace(machine, entry, &cycle);
                             let msg = format!(
                                 "temporal liveness violation in `{display}` (contract `{}`): `{rendered}` fails along a fair execution:\n{trace}",
@@ -2296,9 +2525,15 @@ impl Checker {
                             .map(|s| env_reachable[s] && !preds[s])
                             .collect();
                         let starts: Vec<usize> = (0..machine.states.len()).filter(|&s| allowed[s]).collect();
-                        if let Some((entry, cycle)) =
-                            find_fair_violating_lasso(machine, &starts, &allowed, &weak_fair, &strong_fair)
-                        {
+                        if let Some((entry, cycle)) = find_fair_violating_lasso(
+                            machine,
+                            &starts,
+                            &allowed,
+                            &weak_fair,
+                            &strong_fair,
+                            &weak_fair_each,
+                            &strong_fair_each,
+                        ) {
                             let trace = self.format_lasso_trace(machine, entry, &cycle);
                             let msg = format!(
                                 "temporal recurrence violation in `{display}` (contract `{}`): `{rendered}` fails along a fair cycle that never re-establishes P:\n{trace}",
@@ -2325,6 +2560,8 @@ impl Checker {
                                 &sub,
                                 &weak_fair,
                                 &strong_fair,
+                                &weak_fair_each,
+                                &strong_fair_each,
                             ) {
                                 let trace = self.format_lasso_trace(machine, entry, &cycle);
                                 let msg = format!(
@@ -2352,9 +2589,15 @@ impl Checker {
                 let starts: Vec<usize> = (0..machine.states.len())
                     .filter(|&s| env_reachable[s] && p_vals[s] && !q_vals[s])
                     .collect();
-                if let Some((entry, cycle)) =
-                    find_fair_violating_lasso(machine, &starts, &allowed, &weak_fair, &strong_fair)
-                {
+                if let Some((entry, cycle)) = find_fair_violating_lasso(
+                    machine,
+                    &starts,
+                    &allowed,
+                    &weak_fair,
+                    &strong_fair,
+                    &weak_fair_each,
+                    &strong_fair_each,
+                ) {
                     let trace = self.format_lasso_trace(machine, entry, &cycle);
                     let msg = format!(
                         "temporal liveness violation in `{display}` (contract `{}`): `{rendered}` fails along a fair execution where P holds without ever reaching Q:\n{trace}",
@@ -2623,22 +2866,44 @@ impl Checker {
                 }
                 // Check if this stuttering cycle is fair under concrete's fairness constraints!
                 let mut taken_in_scc: HashSet<usize> = HashSet::new();
+                let mut taken_inst_in_scc: HashSet<(usize, &str)> = HashSet::new();
                 for &u in &scc {
-                    for &(act, _, v) in &stutter_edges[u] {
-                        if in_scc.contains(&v) {
-                            taken_in_scc.insert(act);
+                    for (act, lbl, v) in &stutter_edges[u] {
+                        if in_scc.contains(v) {
+                            taken_in_scc.insert(*act);
+                            taken_inst_in_scc.insert((*act, lbl.as_str()));
                         }
                     }
                 }
                 let wf_ok = concrete.fair.iter().all(|&a| {
                     taken_in_scc.contains(&a)
-                        || !scc.iter().all(|&u| concrete.enabled_actions(u).contains(&a))
+                        || !scc.iter().all(|&u| concrete.action_enabled_at(u, a))
                 });
                 let sf_ok = concrete.strong_fair.iter().all(|&a| {
                     taken_in_scc.contains(&a)
-                        || !scc.iter().any(|&u| concrete.enabled_actions(u).contains(&a))
+                        || !scc.iter().any(|&u| concrete.action_enabled_at(u, a))
                 });
-                if wf_ok && sf_ok {
+                let wf_each_ok = if concrete.fair_each.is_empty() {
+                    true
+                } else {
+                    let first = scc[0];
+                    !concrete.edges[first].iter().any(|(act, lbl, _)| {
+                        concrete.fair_each.contains(act)
+                            && !taken_inst_in_scc.contains(&(*act, lbl.as_str()))
+                            && scc[1..].iter().all(|&u| concrete.instance_enabled_at(u, *act, lbl))
+                    })
+                };
+                let sf_each_ok = if concrete.strong_fair_each.is_empty() {
+                    true
+                } else {
+                    !scc.iter().any(|&u| {
+                        concrete.edges[u].iter().any(|(act, lbl, _)| {
+                            concrete.strong_fair_each.contains(act)
+                                && !taken_inst_in_scc.contains(&(*act, lbl.as_str()))
+                        })
+                    })
+                };
+                if wf_ok && sf_ok && wf_each_ok && sf_each_ok {
                     let trace = concrete.trace_to(scc[0]).join("\n");
                     return Err(Error::at(
                         decl.span,

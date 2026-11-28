@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 
 const MODEL_USAGE: &str = "\
 usage:
-  cinch model inspect <file.cinch> [MachineName] [--json]
+  cinch model inspect <file.cinch> [MachineName] [--json] [--model-fail-on-capped]
       explore machines and print state/edge counts, action domains, symmetry/POR stats, and contract verdicts
   cinch model trace <file.cinch> <MachineName> [--state <N> | --deadlock | --where <pred>]
       print the shortest BFS trace from init to state N, a deadlock, or a state matching <pred>
@@ -130,9 +130,11 @@ fn cli_inspect(args: &[String]) -> i32 {
     let mut file: Option<&str> = None;
     let mut filter: Option<&str> = None;
     let mut as_json = false;
+    let mut fail_on_capped_flag = false;
     for arg in args {
         match arg.as_str() {
             "--json" => as_json = true,
+            "--model-fail-on-capped" => fail_on_capped_flag = true,
             "-h" | "--help" => {
                 print!("{MODEL_USAGE}");
                 return 0;
@@ -205,10 +207,23 @@ fn cli_inspect(args: &[String]) -> i32 {
             println!("{}", r.format_summary());
         }
     }
+    let fail_on_capped = fail_on_capped_flag || driver::env_model_fail_on_capped();
+    let capped_machines: Vec<&MachineReport> = selected.iter().copied().filter(|r| r.capped).collect();
+    if fail_on_capped && !capped_machines.is_empty() {
+        for m in &capped_machines {
+            eprintln!(
+                "cinch model inspect: machine `{}.{}` hit state exploration cap (`max_states = {}`, explored {} states)",
+                m.module,
+                m.name,
+                m.max_states,
+                m.states.len()
+            );
+        }
+    }
     let any_failed = selected
         .iter()
         .any(|r| r.contracts.iter().any(|c| !c.passed) || r.refinements.iter().any(|rf| !rf.passed));
-    if any_failed { 1 } else { 0 }
+    if any_failed || (fail_on_capped && !capped_machines.is_empty()) { 1 } else { 0 }
 }
 
 fn cli_trace(args: &[String]) -> i32 {

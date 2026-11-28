@@ -17031,7 +17031,7 @@ impl Checker {
                     return Err(Error::at(
                         *span,
                         format!(
-                            "`fair`/`strong_fair` action clauses apply to `machine` contracts, not function `{}`",
+                            "`fair`/`strong_fair`/`fair_each`/`strong_fair_each` action clauses apply to `machine` contracts, not function `{}`",
                             pending.name
                         ),
                     ));

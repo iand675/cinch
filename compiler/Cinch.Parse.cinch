@@ -2564,7 +2564,91 @@ module Cinch.Parse where
 
   contract-finish :: Span -> String -> String -> String -> List ContractClause -> List LToken -> Ps Decl
   contract-finish sp kind name subject clauses toks =
-    if at-boundary toks then POk (DContract sp kind name subject clauses) toks else PBad
+    if at-boundary toks then POk (DContract sp kind name subject (normalize-contract-fair-clauses sp clauses)) toks else PBad
+
+  -- Deduplicate and encode action-level vs per-instance (`fair_each`/`strong_fair_each`)
+  -- fairness lists using multiplicity (1 = action-level, 2 = per-instance, 3 = both) so
+  -- resolver, contracts, and typechecker preserve all fairness targets unchanged.
+  str-in-list :: String -> List String -> Bool
+  str-in-list needle xs = case xs of
+    Nil -> False
+    Cons first rest -> if string-compare needle first == 0 then True else str-in-list needle rest
+
+  dedup-strs :: List String -> List String -> List String
+  dedup-strs xs acc = case xs of
+    Nil -> reverse acc
+    Cons first rest ->
+      if str-in-list first acc then dedup-strs rest acc
+      else dedup-strs rest (Cons first acc)
+
+  dup2-strs :: List String -> List String
+  dup2-strs xs = case xs of
+    Nil -> Nil
+    Cons first rest -> Cons first (Cons first (dup2-strs rest))
+
+  count-str-occ :: String -> List String -> Nat -> Nat
+  count-str-occ needle xs acc = case xs of
+    Nil -> acc
+    Cons first rest -> count-str-occ needle rest (if string-compare needle first == 0 then acc + 1 else acc)
+
+  encode-fair-lists :: List String -> List String -> List String
+  encode-fair-lists plain each =
+    let pu = dedup-strs plain Nil in
+    let eu = dedup-strs each Nil in
+    encode-fair-plain pu eu <> encode-fair-each-only eu pu
+
+  encode-fair-plain :: List String -> List String -> List String
+  encode-fair-plain pu eu = case pu of
+    Nil -> Nil
+    Cons x rest ->
+      if str-in-list x eu then Cons x (Cons x (Cons x (encode-fair-plain rest eu)))
+      else Cons x (encode-fair-plain rest eu)
+
+  encode-fair-each-only :: List String -> List String -> List String
+  encode-fair-each-only eu pu = case eu of
+    Nil -> Nil
+    Cons x rest ->
+      if str-in-list x pu then encode-fair-each-only rest pu
+      else Cons x (Cons x (encode-fair-each-only rest pu))
+
+  split-encoded-fair :: List String -> List String -> List String -> List String -> List String -> (List String, List String)
+  split-encoded-fair all cur seen plain each = case cur of
+    Nil -> (reverse plain, reverse each)
+    Cons x rest ->
+      if str-in-list x seen then split-encoded-fair all rest seen plain each
+      else
+        let n = count-str-occ x all 0 in
+        let seen2 = Cons x seen in
+        if n == 1 then split-encoded-fair all rest seen2 (Cons x plain) each
+        else if n == 2 then split-encoded-fair all rest seen2 plain (Cons x each)
+        else split-encoded-fair all rest seen2 (Cons x plain) (Cons x each)
+
+  normalize-contract-fair-clauses :: Span -> List ContractClause -> List ContractClause
+  normalize-contract-fair-clauses fallback-sp clauses =
+    case collect-contract-fair-parts clauses Nil Nil Nil Nil Nil None None of
+      (others, wf, wfe, sf, sfe, wf-sp, sf-sp) ->
+        let wf-enc = encode-fair-lists wf wfe in
+        let sf-enc = encode-fair-lists sf sfe in
+        let wf-cl = (case wf-enc of Nil -> Nil; other -> [ContractAssumeFair (case wf-sp of Some s -> s; None -> fallback-sp) False wf-enc]) in
+        let sf-cl = (case sf-enc of Nil -> Nil; other -> [ContractAssumeFair (case sf-sp of Some s -> s; None -> fallback-sp) True sf-enc]) in
+        others <> wf-cl <> sf-cl
+
+  collect-contract-fair-parts :: List ContractClause -> List ContractClause -> List String -> List String -> List String -> List String -> Option Span -> Option Span
+    -> (List ContractClause, List String, List String, List String, List String, Option Span, Option Span)
+  collect-contract-fair-parts clauses others wf wfe sf sfe wf-sp sf-sp = case clauses of
+    Nil -> (reverse others, wf, wfe, sf, sfe, wf-sp, sf-sp)
+    Cons first rest -> case first of
+      ContractAssumeFair sp True acts ->
+        case split-encoded-fair acts acts Nil Nil Nil of
+          (p, e) ->
+            let sp2 = (case sf-sp of Some s -> Some s; None -> Some sp) in
+            collect-contract-fair-parts rest others wf wfe (sf <> p) (sfe <> e) wf-sp sp2
+      ContractAssumeFair sp False acts ->
+        case split-encoded-fair acts acts Nil Nil Nil of
+          (p, e) ->
+            let sp2 = (case wf-sp of Some s -> Some s; None -> Some sp) in
+            collect-contract-fair-parts rest others (wf <> p) (wfe <> e) sf sfe sp2 sf-sp
+      other -> collect-contract-fair-parts rest (Cons other others) wf wfe sf sfe wf-sp sf-sp
 
   is-var-t :: Token -> String -> Bool
   is-var-t t s = case t of
@@ -2589,16 +2673,21 @@ module Cinch.Parse where
     PBad -> PBad
 
   -- `<clause> = (P)`, `leads_to = (P) ~> (Q)`, `deadlock_free = (True)`,
-  -- `fair = [a, b]`, `strong_fair = [a]`, or `assume = "text"`.
+  -- `fair = [a, b]`, `strong_fair = [a]`, `fair_each = [a]`, `strong_fair_each = [a]`, or `assume = "text"`.
   parse-contract-clause :: List LToken -> Bytes -> List (String, Fix) -> Ps ContractClause
   parse-contract-clause toks src fix = case toks of
     name-token : rest -> case lt-token name-token of
       TVar name -> case expect-punct-t rest "=" of
         PBad -> PBad
         POk _ after-equals ->
-          if name == "fair" || name == "strong_fair" then
+          if name == "fair" || name == "strong_fair" || name == "fair_each" || name == "strong_fair_each" then
             case parse-name-bracket-list after-equals of
-              POk names done -> POk (ContractAssumeFair (sp-of name-token) (name == "strong_fair") names) done
+              POk names done ->
+                let strong = name == "strong_fair" || name == "strong_fair_each" in
+                let per-inst = name == "fair_each" || name == "strong_fair_each" in
+                let unique = dedup-strs names Nil in
+                let encoded = if per-inst then dup2-strs unique else unique in
+                POk (ContractAssumeFair (sp-of name-token) strong encoded) done
               PBad -> PBad
           else case after-equals of
             value-token : after-value -> case lt-token value-token of
@@ -2673,10 +2762,10 @@ module Cinch.Parse where
 
   -- `machine Name where { state = S; init = e; actions = [...]; ... }`
   data MachineDraft where
-    MkMachineDraft :: Option TypeExpr -> Option Expr -> Option (List String) -> List String -> List String -> List String -> Option Nat -> Option Expr -> MachineDraft
+    MkMachineDraft :: Option TypeExpr -> Option Expr -> Option (List String) -> List String -> List String -> List String -> List String -> List String -> Option Nat -> Option Expr -> MachineDraft
 
   empty-machine-draft :: MachineDraft
-  empty-machine-draft = MkMachineDraft None None None Nil Nil Nil None None
+  empty-machine-draft = MkMachineDraft None None None Nil Nil Nil Nil Nil None None
 
   parse-machine :: List LToken -> Bytes -> List (String, Fix) -> Ps Decl
   parse-machine toks src fix = case toks of
@@ -2695,8 +2784,10 @@ module Cinch.Parse where
   finish-machine sp name draft toks =
     if not (at-boundary toks) then PBad
     else case draft of
-      MkMachineDraft (Some state-ty) (Some init-expr) (Some actions) fair sf sym max-st obs ->
-        POk (DMachine sp name (MkMachineSyntax state-ty init-expr actions fair sf sym max-st obs)) toks
+      MkMachineDraft (Some state-ty) (Some init-expr) (Some actions) fair sf fair-each sf-each sym max-st obs ->
+        let fair-enc = encode-fair-lists fair fair-each in
+        let sf-enc = encode-fair-lists sf sf-each in
+        POk (DMachine sp name (MkMachineSyntax state-ty init-expr actions fair-enc sf-enc sym max-st obs)) toks
       other -> PBad
 
   parse-machine-clauses :: List LToken -> Bytes -> List (String, Fix) -> MachineDraft -> Ps MachineDraft
@@ -2715,39 +2806,47 @@ module Cinch.Parse where
 
   parse-machine-field :: String -> List LToken -> Bytes -> List (String, Fix) -> MachineDraft -> Ps MachineDraft
   parse-machine-field field rhs src fix draft = case draft of
-    MkMachineDraft state-ty init-expr actions fair sf sym max-st obs ->
+    MkMachineDraft state-ty init-expr actions fair sf fair-each sf-each sym max-st obs ->
       if string-compare field "state" == 0 then
         case parse-type rhs src of
-          POk ty tail -> parse-machine-clauses tail src fix (MkMachineDraft (Some ty) init-expr actions fair sf sym max-st obs)
+          POk ty tail -> parse-machine-clauses tail src fix (MkMachineDraft (Some ty) init-expr actions fair sf fair-each sf-each sym max-st obs)
           PBad -> PBad
       else if string-compare field "init" == 0 then
         case parse-expr rhs src fix of
-          POk expr tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty (Some expr) actions fair sf sym max-st obs)
+          POk expr tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty (Some expr) actions fair sf fair-each sf-each sym max-st obs)
           PBad -> PBad
       else if string-compare field "observe" == 0 then
         case parse-expr rhs src fix of
-          POk expr tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf sym max-st (Some expr))
+          POk expr tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf fair-each sf-each sym max-st (Some expr))
           PBad -> PBad
       else if string-compare field "actions" == 0 then
         case parse-name-bracket-list rhs of
-          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr (Some names) fair sf sym max-st obs)
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr (Some names) fair sf fair-each sf-each sym max-st obs)
           PBad -> PBad
       else if string-compare field "fair" == 0 then
         case parse-name-bracket-list rhs of
-          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions (fair <> names) sf sym max-st obs)
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions (fair <> names) sf fair-each sf-each sym max-st obs)
           PBad -> PBad
       else if string-compare field "strong_fair" == 0 then
         case parse-name-bracket-list rhs of
-          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair (sf <> names) sym max-st obs)
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair (sf <> names) fair-each sf-each sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "fair_each" == 0 then
+        case parse-name-bracket-list rhs of
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf (fair-each <> names) sf-each sym max-st obs)
+          PBad -> PBad
+      else if string-compare field "strong_fair_each" == 0 then
+        case parse-name-bracket-list rhs of
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf fair-each (sf-each <> names) sym max-st obs)
           PBad -> PBad
       else if string-compare field "symmetry" == 0 then
         case parse-name-bracket-list rhs of
-          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf (sym <> names) max-st obs)
+          POk names tail -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf fair-each sf-each (sym <> names) max-st obs)
           PBad -> PBad
       else if string-compare field "max_states" == 0 then
         case rhs of
           Cons tok tail -> case lt-token tok of
-            TInt digits -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf sym (Some (str-nat digits)) obs)
+            TInt digits -> parse-machine-clauses tail src fix (MkMachineDraft state-ty init-expr actions fair sf fair-each sf-each sym (Some (str-nat digits)) obs)
             other -> PBad
           Nil -> PBad
       else PBad
