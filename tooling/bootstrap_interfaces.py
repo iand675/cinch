@@ -85,7 +85,7 @@ def _resolved(row):
         names.add(identity)
         _parameters(nominal)
         kind = nominal["kind"]
-        if kind not in ("data", "opaque", "signature", "refinement"):
+        if kind not in ("data", "opaque", "signature", "refinement", "effect"):
             raise ValueError("unknown defining nominal category")
         if kind == "data":
             for constructor in _list(nominal["constructors"]):
@@ -199,7 +199,7 @@ def validate_contract(doc: dict, runtime_abi: int) -> None:
             raise ValueError("unowned exported type")
         _parameters(declaration)
         labels = _list(declaration["fields"])
-        if declaration["kind"] not in ("data", "opaque", "signature", "record", "codata", "refinement"):
+        if declaration["kind"] not in ("data", "opaque", "signature", "record", "codata", "refinement", "effect"):
             raise ValueError("unknown exported type category")
         if "refinement" not in declaration:
             raise ValueError("missing refinement boundary")

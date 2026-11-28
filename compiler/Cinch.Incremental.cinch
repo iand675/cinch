@@ -154,6 +154,8 @@ module Cinch.Incremental where
       JArr (JStr "DModuleProfile") (JArr (JStr profile) JArrEnd)
     DWrapperLayout sp name kind fields ->
       JArr (JStr "DWrapperLayout") (JArr (JStr name) (JArr (JStr kind) (JArr (str-list-json fields) JArrEnd)))
+    DCapability sp name ->
+      JArr (JStr "DCapability") (JArr (JStr name) JArrEnd)
     DUnpackFields sp name fields ->
       JArr (JStr "DUnpackFields") (JArr (JStr name) (JArr (bool-pair-list-json fields) JArrEnd))
     DInlineHint sp name hint ->

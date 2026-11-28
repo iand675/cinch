@@ -147,6 +147,9 @@ DESCRIPTIONS = {
 'Category.Foldable':'Generic folds, conversion to lists, size/emptiness, and related operations over container instances.',
 'Category.Traversable':'Generic effect/container-aware traversal and sequencing while retaining the input shape.',
 'Effect.Sequencing':'The direct, Result, and Option do providers. One lexical provider/container is selected per definition.',
+'Effect.Reader':'Zero-overhead lexical reader capabilities (Read and TaggedRead), with ask, asks, local, and type-changing with-reader scoping that preserve purity.',
+'Effect.Arena':'Region-delimited bump arenas with O(1) fast escape (with-arena, arena-abort) and typed byte-budget boundaries (with-arena-budget, BudgetError).',
+'Effect.Throw':'Typed short-circuiting algebraic error effect (Throw e) with cross-call cooperative bubbling, throw, catch, and try-throw.',
 'Effect.Concurrent':'Shipped task/worker vocabulary supplementing the compiler-installed structured scope and join operations.',
 'Effect.Concurrent.MVar':'Native single-place shared variables with FIFO handoff, blocking take/put/read/swap, nonblocking operations, and cancellable waits through the task scheduler.',
 'Effect.Stm':'Software transactional memory: TVar cells, composable STM transactions run by atomically, retry and or-else for blocking and choice, and the STM do provider. The transaction algorithm is Cinch source over inline target IR.',
@@ -383,6 +386,7 @@ BUILTIN_TYPE_LINKS = {
     'STM': f'{STDLIB_BASE}/Effect.Stm/',
     'TVar': f'{STDLIB_BASE}/Effect.Stm/',
     'MVar': f'{STDLIB_BASE}/Effect.Concurrent.MVar/',
+    'Throw': f'{STDLIB_BASE}/Effect.Throw/',
 }
 
 
@@ -402,7 +406,14 @@ def summarize(markdown):
 
 
 def sources():
-    return {'.'.join(p.relative_to(PRELUDE).with_suffix('').parts): p for p in sorted(PRELUDE.rglob('*.cinch'))}
+    stdlib_manifest = json.loads((PRELUDE / '.cinchpkg').read_text())
+    manifest_names = {m['name'] for m in stdlib_manifest['modules']}
+    return {
+        name: p
+        for p in sorted(PRELUDE.rglob('*.cinch'))
+        for name in ('.'.join(p.relative_to(PRELUDE).with_suffix('').parts),)
+        if name in manifest_names
+    }
 
 
 def digest(path):

@@ -47,6 +47,7 @@ module Cinch.Dictionary where
   record InstanceInventory where
     candidates :: List (String, Scheme)
     conditional :: List (String, UType)
+    capabilities :: List String
 
   record Resolution where
     classes :: List (String, Kind)
@@ -58,22 +59,22 @@ module Cinch.Dictionary where
   descend-resolution :: Resolution -> Resolution
   descend-resolution context = case context of Resolution kinds instances deferred fuel -> Resolution kinds instances deferred (if fuel > 0 then fuel - 1 else 0)
   resolve-dictionary-term :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory [] []) False 64) scope term st
+  resolve-dictionary-term kinds scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory [] [] []) False 64) scope term st
   resolve-dictionary-term-with :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-dictionary-term-with kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances []) False 64) scope term st
+  resolve-dictionary-term-with kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances [] []) False 64) scope term st
   resolve-ready-term :: List (String, Kind) -> List (String, Scheme) -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
-  resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances []) True 64) scope term st
+  resolve-ready-term kinds instances scope term st = resolve-dictionary-term-in (Resolution kinds (InstanceInventory instances [] []) True 64) scope term st
   resolve-inventory-term :: Bool -> List (String, Kind) -> InstanceInventory -> List CoreGiven -> CoreTerm -> Store -> (CoreTerm, Store)
   resolve-inventory-term deferred kinds inventory scope term st = resolve-dictionary-term-in (Resolution kinds inventory deferred 64) scope term st
   -- Generic laws may assume a dictionary determined by their binders.
   -- No evidence from this pass is used by the sampler or emitted as Core.
   check-law-term-evidence :: List (String, Kind) -> List CoreGiven -> CoreTerm -> Store -> Store
-  check-law-term-evidence kinds scope term st = case resolve-dictionary-term-in (Resolution kinds (InstanceInventory [] []) False 64) scope term st of
+  check-law-term-evidence kinds scope term st = case resolve-dictionary-term-in (Resolution kinds (InstanceInventory [] [] []) False 64) scope term st of
     (checked, done) -> done
   resolve-dictionary-definition :: List (String, Kind) -> CoreDefinition -> Store -> (CoreDefinition, Store)
   resolve-dictionary-definition kinds definition st = resolve-dictionary-definition-with kinds [] definition st
   resolve-dictionary-definition-with :: List (String, Kind) -> List (String, Scheme) -> CoreDefinition -> Store -> (CoreDefinition, Store)
-  resolve-dictionary-definition-with kinds instances definition st = resolve-inventory-definition kinds (InstanceInventory instances []) definition st
+  resolve-dictionary-definition-with kinds instances definition st = resolve-inventory-definition kinds (InstanceInventory instances [] []) definition st
   resolve-inventory-definition :: List (String, Kind) -> InstanceInventory -> CoreDefinition -> Store -> (CoreDefinition, Store)
   resolve-inventory-definition kinds inventory definition st =
     let level = st.level in
@@ -90,8 +91,12 @@ module Cinch.Dictionary where
       (case free-metas st wanted of
         [] -> (CENeeded sp (normalize st wanted) allowed, st)
         other -> fail-evidence sp wanted "a law's dictionary arguments must be determined by its binders" st)
-      else if capability-type (normalize st wanted) then fail-evidence sp wanted (string-concat-all ["no ", diagnostic-dictionary (normalize st wanted), " capability in scope; supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"]) st
-      else (case normalize st wanted of
+      else let norm = normalize st wanted in
+        if capability-type ((context.instances).capabilities) norm then
+          let hint = if is-io-capability norm then "supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"
+                     else "supply one lexically with `with (cap = ...) in` or `f @{cap = ...}`, or take it in a `using` clause" in
+          fail-evidence sp wanted (string-concat-all ["no ", diagnostic-dictionary norm, " capability in scope; ", hint]) st
+      else (case norm of
         UApp (UCon name (KFun KType KType)) carrier | (name == "Copy") ->
           (case carrier of
             UMeta id KType -> let defaulted = default-numbers-for carrier st in
@@ -224,6 +229,10 @@ module Cinch.Dictionary where
     CTuple sp ty fields -> case resolve-term context scope fields st of (out, checked) -> (CTuple sp ty out, checked)
     CPolyIntro sp ty ids body -> case resolve-term context scope body st of (out, checked) -> (CPolyIntro sp ty ids out, checked)
     CPolyElim sp ty value args -> case resolve-term context scope value st of (out, checked) -> (CPolyElim sp ty out args, checked)
+    CQualIntro sp ty givens body -> case resolve-term context (prepend-givens givens scope) body st of (out, checked) -> (CQualIntro sp ty givens out, checked)
+    CQualElim sp ty value evidence -> case resolve-term context scope value st of
+      (out, checked) -> case resolve-evidences context scope evidence checked of
+        (resolved, done) -> (CQualElim sp ty out resolved, done)
     CPrimitive sp ty name args -> case resolve-term context scope args st of (out, checked) -> (CPrimitive sp ty name out, checked)
     CProved sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CProved sp ty evidence out, checked)
     CRefine sp ty evidence body -> case resolve-term context scope body st of (out, checked) -> (CRefine sp ty evidence out, checked)
@@ -242,8 +251,12 @@ module Cinch.Dictionary where
       (out, checked) -> case resolve-term context scope rest checked of (more, done) -> (CAlternative sp pattern out more, done)
     other -> (term, st)
 
-  capability-type :: UType -> Bool
-  capability-type ty = case ty of UApp (UCon name kind) region -> name == "b.Io" && kind-equal (type-kind region) KRegion; other -> False
+  prepend-givens :: List CoreGiven -> List CoreGiven -> List CoreGiven
+  prepend-givens gs scope = case gs of [] -> scope; g : rest -> g : (prepend-givens rest scope)
+  is-io-capability :: UType -> Bool
+  is-io-capability ty = case ty of UApp (UCon name kind) region -> name == "b.Io" && kind-equal (type-kind region) KRegion; other -> False
+  capability-type :: List String -> UType -> Bool
+  capability-type caps ty = is-io-capability ty || (case class-root ty of Some (name, kind) -> symbol-seen name caps; None -> False)
 
   check-givens :: Resolution -> List Requirement -> List CoreGiven -> List String -> Store -> Store
   check-givens context requirements givens seen st = case (requirements, givens) of
@@ -280,7 +293,7 @@ module Cinch.Dictionary where
         (more, done) -> (CEArgument sp first more, done)
   law-context-resolves :: List (String, Kind) -> List (String, Scheme) -> Span -> List Requirement -> Store -> Bool
   law-context-resolves kinds instances sp requirements st =
-    case instance-arguments (Resolution kinds (InstanceInventory instances []) False 64) [] sp requirements st of
+    case instance-arguments (Resolution kinds (InstanceInventory instances [] []) False 64) [] sp requirements st of
       (evidence, checked) -> clean checked
   -- A factory may retain a type variable already present in the wanted
   -- head. It cannot introduce an unaccounted existential type argument.
@@ -368,7 +381,7 @@ module Cinch.Dictionary where
     [first] -> case instance-matches context allowed sp wanted heads st of
       [(evidence, done)] -> (evidence, done)
       other -> fail-evidence sp wanted (string-concat "dictionary instance resolution failed: no applicable instance for " (diagnostic-dictionary (normalize st wanted))) st
-    [] -> (case context of Resolution kinds (InstanceInventory factories guarded) deferred fuel -> fail-evidence sp wanted (missing-instance (normalize st wanted) guarded) st)
+    [] -> (case context of Resolution kinds (InstanceInventory factories guarded caps) deferred fuel -> fail-evidence sp wanted (missing-instance (normalize st wanted) guarded) st)
     other -> fail-evidence sp wanted "ambiguous implicit dictionary instances" st
   choose-instance :: Resolution -> List CoreGiven -> Span -> UType -> Store -> (CoreEvidence, Store)
   choose-instance context allowed sp wanted st =

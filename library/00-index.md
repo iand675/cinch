@@ -1,6 +1,6 @@
 # Standard library (`cinch/stdlib`)
 
-Standard library API reference extracted from checked `.cinchif` compiler interfaces across **324 modules** and **10,928 indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).
+Standard library API reference extracted from checked `.cinchif` compiler interfaces across **329 modules** and **11,020 indexed declarations**. Published under [`/packages/stdlib/`](/packages/stdlib/) alongside the [package catalogue](/packages/).
 
 <form class="doc-hoogle-box" action="/packages/search/" method="get" role="search">
 <label for="lib-index-search">Search by symbol name or type signature</label>
@@ -29,7 +29,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 
 | Module | Exports | Purpose |
 | --- | --- | --- |
-| [Prelude](Prelude.md) | 1150 | The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library. |
+| [Prelude](Prelude.md) | 1151 | The implicit, curated base surface available in every program. This facade re-exports selected defining modules; it is not the whole library. |
 
 ## Algebra
 
@@ -122,6 +122,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.Date](Data.Date.md) | 18 | Civil date values, validation, parsing/formatting, and calendar calculations. |
 | [Data.Elf](Data.Elf.md) | 131 | Bounds-checked ELF32 and ELF64 (little/big-endian) parser for headers, segments, sections, symbols, relocations, dynamic tables and zlib-compressed sections. |
 | [Data.Enum](Data.Enum.md) | 6 | Finite enumeration and the class behind inclusive range literals, including an explicit next element for a step. |
+| [Data.Finite](Data.Finite.md) | 7 | Exact finite domain enumeration for algebraic data, records, and compile-time state-machine action parameters. |
 | [Data.Float](Data.Float.md) | 79 | Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target. |
 | [Data.FromList](Data.FromList.md) | 1 | The opt-in collection-literal vocabulary used to interpret [elements] at the expected container type. |
 | [Data.FromMap](Data.FromMap.md) | 1 | The opt-in map-literal vocabulary used to interpret {key => value} at the expected container type. |
@@ -131,7 +132,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Data.Int](Data.Int.md) | 11 | Mathematical signed integers, arithmetic, division/remainder, formatting support, and explicit conversions. |
 | [Data.IpAddr](Data.IpAddr.md) | 16 | Validated IP addresses, parsing/rendering, and address-family vocabulary. |
 | [Data.Json](Data.Json.md) | 1 | The JSON value representation shared by parsers, renderers, codecs, and structured observability. |
-| [Data.List](Data.List.md) | 42 | Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances. |
+| [Data.List](Data.List.md) | 43 | Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances. |
 | [Data.MachO](Data.MachO.md) | 116 | Bounds-checked Mach-O 32/64 (little/big-endian) and Universal/Fat binary parser for load commands, segments, sections, symbols and dylibs. |
 | [Data.Machine](Data.Machine.md) | 851 | Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit. |
 | [Data.Map](Data.Map.md) | 16 | Ordered maps with comparison constraints, lookup, insertion, removal, traversal, and collection-literal support. |
@@ -245,7 +246,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Text.Json.Legacy](Text.Json.Legacy.md) | 3 | Explicit legacy codec policy and descriptor bridges over owned dynamic values. |
 | [Text.Json.Value](Text.Json.Value.md) | 137 | Owned JSON documents and navigation tapes, raw number spellings, exact numeric values and input-bearing errors, resumable lexical state and byte-preserving formatting. |
 | [Text.Json](Text.Json.md) | 31 | JSON parsing and rendering over Data.Json, with explicit errors and builder-based output. |
-| [Text.Lex](Text.Lex.md) | 24 | Lexer toolkit: tokens, spans, and lexical errors for grammar and parser clients. |
+| [Text.Lex](Text.Lex.md) | 26 | Lexer toolkit: tokens, spans, and lexical errors for grammar and parser clients. |
 | [Text.Lzw](Text.Lzw.md) | 7 | Variable-width-code LZW compression and decompression in either bit order, as used by GIF, TIFF and PDF. |
 | [Text.Mail](Text.Mail.md) | 19 | Parse and format RFC 5322 mail addresses, read message header blocks and parse header dates, with SIMD atom scanning. |
 | [Text.Md5](Text.Md5.md) | 16 | MD5 for legacy interoperability, with persistent states, little-endian digests and checked binary checkpoints. |
@@ -305,6 +306,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | Module | Exports | Purpose |
 | --- | --- | --- |
 | [Effect.Adler32](Effect.Adler32.md) | 3 | Inspectable scalar checksum sinks, generic byte writers and bounded reader-to-Adler-32 copying with advanced source continuations. |
+| [Effect.Arena](Effect.Arena.md) | 5 | Region-delimited bump arenas with O(1) fast escape (with-arena, arena-abort) and typed byte-budget boundaries (with-arena-budget, BudgetError). |
 | [Effect.Ascii85](Effect.Ascii85.md) | 6 | ASCII85 encoding writers and decoding byte readers with explicit finalization, bounded read-ahead and sticky stream errors. |
 | [Effect.Base32](Effect.Base32.md) | 6 | Explicitly finalized Base32 encoding writers and bounded decoding readers with precise errors, retained cursors and sticky failures. |
 | [Effect.Base64](Effect.Base64.md) | 6 | Explicitly finalized Base64 writers and bounded decoding readers with sticky errors and isolated output chunks. |
@@ -349,6 +351,7 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Effect.QuotedPrintable](Effect.QuotedPrintable.md) | 13 | Incremental quoted-printable readers and writers with explicit binary policy, partial progress and sticky errors. |
 | [Effect.Rand](Effect.Rand.md) | 2 | Pseudorandom sources seeded from operating-system entropy. |
 | [Effect.Random](Effect.Random.md) | 7 | Runtime entropy/random utilities with explicit effectful access. |
+| [Effect.Reader](Effect.Reader.md) | 12 | Zero-overhead lexical reader capabilities (Read and TaggedRead), with ask, asks, local, and type-changing with-reader scoping that preserve purity. |
 | [Effect.Resolv](Effect.Resolv.md) | 6 | Hostname/address resolution through the runtime, with named failure results. |
 | [Effect.Rpc](Effect.Rpc.md) | 33 | Effectful JSON-RPC and gob-RPC TCP listener servers, clients, and HTTP POST JSON-RPC handler over Effect.Net and Effect.Http.Server. |
 | [Effect.Scanner.Split](Effect.Scanner.Split.md) | 11 | Byte-preserving token splitters with explicit absent, empty and final token states. |
@@ -371,9 +374,11 @@ Standard library API reference extracted from checked `.cinchif` compiler interf
 | [Effect.Stream](Effect.Stream.md) | 27 | Composable byte readers and writers with explicit continuation state, memory and descriptor adapters, limits, mirrors, and exact or bulk transfers. |
 | [Effect.Syslog](Effect.Syslog.md) | 36 | RFC 3164 and RFC 5424 syslog message formatting, facility/severity priorities, Effect.Log sink bridge, and UDP/TCP network writers. |
 | [Effect.Test.Fs](Effect.Test.Fs.md) | 33 | Immutable in-memory MapFs with synthesized directories, path validation, globbing, subtrees and filesystem conformance checks. |
+| [Effect.Test.Hegel](Effect.Test.Hegel.md) | 47 | Choice-stream property testing and native-speed state-machine simulation with automatic integrated shrinking (Hegel / Hypothesis / Hedgehog style). |
 | [Effect.Test.Io](Effect.Test.Io.md) | 13 | Stream fault-injection, logging and conformance-testing adapters over Effect.Stream. |
 | [Effect.Test.Quick](Effect.Test.Quick.md) | 23 | Deterministic property-based testing engine with Arbitrary instances over Data.Rand. |
 | [Effect.Test](Effect.Test.md) | 24 | A subprocess-based test runner and named test-result/report vocabulary. |
+| [Effect.Throw](Effect.Throw.md) | 4 | Typed short-circuiting algebraic error effect (Throw e) with cross-call cooperative bubbling, throw, catch, and try-throw. |
 | [Effect.Time.Zone](Effect.Time.Zone.md) | 15 | The system time zone database and the current system zone. |
 | [Effect.Time](Effect.Time.md) | 15 | Typed readers for the system and monotonic clocks. |
 | [Effect.Tls](Effect.Tls.md) | 12 | Effectful TLS 1.3 client and server connections over Effect.Net sockets with OS entropy and clock-checked certificate verification. |

@@ -331,6 +331,8 @@ module Main where
     poke u resume k -> k 1 + k 2)
 ```
 
+Similarly, a `%1` binding cannot remain live across an aborting algebraic effect (such as `Effect.Throw.throw`), nor be captured by a region-delimited arena callback (`Effect.Arena.with-arena` / `with-arena-budget`), because unwinding or an `O(1)` prompt jump would skip consuming the linear value.
+
 # `Copy` and `copyOut`
 
 `Copy` is a compiler-known structural property satisfied by machine scalars and immutable aggregates whose fields are all `Copy`. User code cannot declare or override `Copy`:
@@ -536,4 +538,4 @@ See [allocators and heap customization](25-allocators.md#environment-variables) 
 
 # Planned extensions
 
-<span class="support-tag support-tag--planned">Coming soon</span> Replaceable allocators, scoped arenas, functional-in-place (`#[fip]`) reuse guarantees, and statically proven allocation bounds are planned (see [allocators](25-allocators.md)). For currently available layout attributes and safety assertions, see [type layout](24-type-layout.md) and [safety assertions](22-safety-assertions-and-llvm.md).
+<span class="support-tag support-tag--partial">Partial</span> Region-delimited bump arenas with `O(1)` escape and typed byte budgets are available in [Effect.Arena](../library/Effect.Arena.md) (see [allocators](25-allocators.md#region-delimited-arenas-and-budgets-effectarena)). Replaceable global allocators, general `Heap r` capabilities, functional-in-place (`#[fip]`) reuse guarantees, and statically proven allocation bounds remain planned (see [allocators](25-allocators.md)). For currently available layout attributes and safety assertions, see [type layout](24-type-layout.md) and [safety assertions](22-safety-assertions-and-llvm.md).

@@ -370,28 +370,97 @@ impl fmt::Display for Mult {
     }
 }
 
-/// One effect label, e.g. `IO` or `Eval r` (a label with one region argument).
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// One effect label, e.g. `IO`, `Eval r` (region arg), or `Throw ParseErr` (type arg).
+#[derive(Clone, Debug, PartialEq)]
 pub struct EffLabel {
     pub head: Interned,
     pub arg: Option<Interned>,
+    pub ty_arg: Option<Box<Ty>>,
 }
 
 impl EffLabel {
     pub fn plain(head: impl Into<Interned>) -> EffLabel {
-        EffLabel { head: head.into(), arg: None }
+        EffLabel { head: head.into(), arg: None, ty_arg: None }
     }
 
     pub fn with_arg(head: impl Into<Interned>, arg: impl Into<Interned>) -> EffLabel {
-        EffLabel { head: head.into(), arg: Some(arg.into()) }
+        EffLabel { head: head.into(), arg: Some(arg.into()), ty_arg: None }
     }
+
+    pub fn with_ty(head: impl Into<Interned>, ty: Ty) -> EffLabel {
+        EffLabel { head: head.into(), arg: None, ty_arg: Some(Box::new(ty)) }
+    }
+
+    pub fn free_metas(&self, out: &mut Vec<EitherMeta>) {
+        if let Some(t) = &self.ty_arg {
+            t.free_metas(out);
+        }
+    }
+}
+
+/// Deterministic FNV-1a 64-bit runtime tag for an effect label (non-zero).
+/// Region arguments are erased at runtime and intentionally omitted; type
+/// arguments are monomorphized and canonicalized so e.g. `Throw ParseErr` and
+/// `Throw IoErr` receive distinct dynamic handler tags.
+pub fn effect_label_hash(head: &str, ty_arg: Option<&Ty>) -> i64 {
+    fn fnv1a_bytes(mut h: u64, bytes: &[u8]) -> u64 {
+        for &b in bytes {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
+    }
+    fn canon_ty(ty: &Ty, out: &mut String) {
+        match ty {
+            Ty::Int => out.push_str("Int"),
+            Ty::Nat => out.push_str("Nat"),
+            Ty::Bool => out.push_str("Bool"),
+            Ty::Unit => out.push_str("Unit"),
+            Ty::Bytes => out.push_str("Bytes"),
+            Ty::Sym => out.push_str("Sym"),
+            Ty::Prim(s) => out.push_str(s.name()),
+            Ty::Param(p) => { out.push('\''); out.push_str(p.as_str()); }
+            Ty::Adt(name, args) => {
+                out.push_str(name.as_str());
+                for a in args {
+                    out.push('(');
+                    canon_ty(a, out);
+                    out.push(')');
+                }
+            }
+            Ty::Tuple(items) => {
+                out.push_str("Tuple(");
+                for (i, it) in items.iter().enumerate() {
+                    if i > 0 { out.push(','); }
+                    canon_ty(it, out);
+                }
+                out.push(')');
+            }
+            other => {
+                use std::fmt::Write;
+                let _ = write!(out, "{other}");
+            }
+        }
+    }
+    let mut h: u64 = 0xcbf29ce484222325;
+    h = fnv1a_bytes(h, head.as_bytes());
+    if let Some(t) = ty_arg {
+        let mut buf = String::new();
+        canon_ty(t, &mut buf);
+        h = fnv1a_bytes(h, b" ");
+        h = fnv1a_bytes(h, buf.as_bytes());
+    }
+    if h == 0 { 1 } else { h as i64 }
 }
 
 impl fmt::Display for EffLabel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.arg {
-            Some(a) => write!(f, "{} {}", self.head, a),
-            None => write!(f, "{}", self.head),
+        if let Some(a) = &self.arg {
+            write!(f, "{} {}", self.head, a)
+        } else if let Some(t) = &self.ty_arg {
+            write!(f, "{} {}", self.head, t)
+        } else {
+            write!(f, "{}", self.head)
         }
     }
 }
@@ -410,7 +479,7 @@ pub enum RowTail {
 }
 
 /// An effect row: a set of labels plus a tail.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
+#[derive(Clone, Debug, PartialEq, Default)]
 pub struct EffRow {
     pub labels: Vec<EffLabel>,
     pub tail: RowTail,
@@ -442,6 +511,7 @@ impl EffRow {
                 .map(|l| EffLabel {
                     head: l.head.clone(),
                     arg: l.arg.as_ref().map(|a| map.get(a.as_str()).cloned().unwrap_or_else(|| a.to_string()).into()),
+                    ty_arg: l.ty_arg.clone(),
                 })
                 .collect(),
             tail: match &self.tail {
@@ -3252,6 +3322,11 @@ pub enum Ty {
     /// substitution is shadow-aware. At run time the value is a dictionary
     /// block of the polytype's family (class `Obj`).
     Forall(Box<Scheme>),
+    /// A higher-rank qualified / context-function type
+    /// `using (x1 :: C1, ...) => T`. At run time a value of this type is
+    /// an ordinary closure taking the supplied dictionary/capability
+    /// arguments and returning `T` (class `Obj`).
+    Qual(Vec<(String, ClassApp)>, Box<Ty>),
 }
 
 /// A bare type constructor former spellable in prefix position.
@@ -3288,6 +3363,7 @@ impl Ty {
             Self::Ptr { pointee: inner, .. } | Self::Thunk { inner, .. } | Self::Lazy { inner, .. }
             | Self::Later { inner, .. } | Self::Ref(_, inner) | Self::Mut(_, inner) => inner.has_declaration_pending(),
             Self::Handler { input, output, .. } => input.has_declaration_pending() || output.has_declaration_pending(),
+            Self::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(Self::has_declaration_pending)) || body.has_declaration_pending(),
             _ => false,
         }
     }
@@ -3316,6 +3392,12 @@ impl Ty {
             Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later { inner, .. }
                 | Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_index_vars(out),
             Ty::Forall(scheme) => scheme.ty.free_index_vars(out),
+            Ty::Qual(ctx, body) => {
+                for (_, c) in ctx {
+                    for arg in &c.args { arg.free_index_vars(out); }
+                }
+                body.free_index_vars(out);
+            }
             Ty::Ptr { pointee, .. } => pointee.free_index_vars(out),
             Ty::Handler { input, output, .. } => { input.free_index_vars(out); output.free_index_vars(out); }
             _ => {}
@@ -3555,6 +3637,10 @@ impl Ty {
                 Ty::Sigma { var: var.into(), dom: Box::new(dom.substitute_index(substitution)), cod: Box::new(cod) }
             }
             Ty::Forall(scheme) => scheme.map_forall_body(|body| body.substitute_index(substitution)),
+            Ty::Qual(ctx, body) => Ty::Qual(
+                ctx.iter().map(|(n, c)| (n.clone(), ClassApp { class: c.class.clone(), args: c.args.iter().map(|a| a.substitute_index(substitution)).collect() })).collect(),
+                Box::new(body.substitute_index(substitution)),
+            ),
             Ty::Thunk { eff, inner } => Ty::Thunk {
                 eff: eff.clone(),
                 inner: Box::new(inner.substitute_index(substitution)),
@@ -3608,6 +3694,10 @@ impl Ty {
                 cod.free_idx_metas(out);
             }
             Ty::Forall(scheme) => scheme.ty.free_idx_metas(out),
+            Ty::Qual(ctx, body) => {
+                for (_, c) in ctx { for a in &c.args { a.free_idx_metas(out); } }
+                body.free_idx_metas(out);
+            }
             Ty::Thunk { inner, .. } | Ty::Later { inner, .. } => inner.free_idx_metas(out),
             Ty::Lazy { inner, .. } => inner.free_idx_metas(out),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_idx_metas(out),
@@ -3652,6 +3742,10 @@ impl Ty {
                 cod.free_metas(out);
             }
             Ty::Forall(scheme) => scheme.ty.free_metas(out),
+            Ty::Qual(ctx, body) => {
+                for (_, c) in ctx { for a in &c.args { a.free_metas(out); } }
+                body.free_metas(out);
+            }
             Ty::Thunk { eff, inner } => {
                 eff.free_metas(out);
                 inner.free_metas(out);
@@ -3665,7 +3759,8 @@ impl Ty {
             }
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => inner.free_metas(out),
             Ty::Ptr { pointee, .. } => pointee.free_metas(out),
-            Ty::Handler { input, output, eff, .. } => {
+            Ty::Handler { label, input, output, eff, .. } => {
+                label.free_metas(out);
                 input.free_metas(out);
                 eff.free_metas(out);
                 output.free_metas(out);
@@ -3716,6 +3811,7 @@ pub fn mentions_task(ty: &Ty) -> bool {
         }
         Ty::Sigma { dom, cod, .. } => mentions_task(dom) || mentions_task(cod),
         Ty::Forall(scheme) => mentions_task(&scheme.ty),
+        Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(mentions_task)) || mentions_task(body),
         Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => {
             mentions_task(inner)
         }
@@ -3741,6 +3837,7 @@ pub fn mentions_memo(ty: &Ty) -> bool {
         }
         Ty::Sigma { dom, cod, .. } => mentions_memo(dom) || mentions_memo(cod),
         Ty::Forall(scheme) => mentions_memo(&scheme.ty),
+        Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(mentions_memo)) || mentions_memo(body),
         Ty::Thunk { inner, .. } | Ty::Later { inner, .. } => mentions_memo(inner),
         Ty::Ref(_, i) | Ty::Mut(_, i) => mentions_memo(i),
         Ty::Ptr { pointee, .. } => mentions_memo(pointee),
@@ -3761,6 +3858,9 @@ pub enum EitherMeta {
 
 impl EffRow {
     pub fn free_metas(&self, out: &mut Vec<EitherMeta>) {
+        for l in &self.labels {
+            l.free_metas(out);
+        }
         if let RowTail::Meta(m) = self.tail {
             out.push(EitherMeta::Row(m));
         }
@@ -3997,6 +4097,14 @@ impl Spell for Ty {
                 for name in &scheme.region_params { write_binder(f, name, 2)?; }
                 write!(f, ". {})", s.of(&scheme.ty.rename_vars(&renaming)))
             }
+            Ty::Qual(ctx, body) => {
+                write!(f, "(using (")?;
+                for (i, (name, class)) in ctx.iter().enumerate() {
+                    if i > 0 { write!(f, ", ")?; }
+                    write!(f, "{name} :: {}", s.of(class))?;
+                }
+                write!(f, ") => {})", s.of(body))
+            }
         }
     }
 }
@@ -4033,7 +4141,11 @@ impl VarRenaming {
 
     fn row(&self, row: &EffRow) -> EffRow {
         EffRow {
-            labels: row.labels.iter().map(|l| EffLabel { head: l.head.clone(), arg: l.arg.as_ref().map(|a| self.region(a)) }).collect(),
+            labels: row.labels.iter().map(|l| EffLabel {
+                head: l.head.clone(),
+                arg: l.arg.as_ref().map(|a| self.region(a)),
+                ty_arg: l.ty_arg.as_ref().map(|t| Box::new(t.rename_vars(self))),
+            }).collect(),
             tail: match &row.tail {
                 RowTail::Rigid(t) => RowTail::Rigid(self.rows.get(t.as_str()).cloned().unwrap_or_else(|| t.clone())),
                 other => other.clone(),
@@ -4047,7 +4159,7 @@ impl Ty {
     /// predicativity check of design/rank-n-polymorphism.md section 3).
     pub fn contains_forall(&self) -> bool {
         let mut found = false;
-        self.visit_shallow(&mut |t| found |= matches!(t, Ty::Forall(_)) || t.contains_forall());
+        self.visit_shallow(&mut |t| found |= matches!(t, Ty::Forall(_) | Ty::Qual(_, _)) || t.contains_forall());
         found
     }
 
@@ -4067,15 +4179,31 @@ impl Ty {
     /// Visit the immediate component types (not index or proposition
     /// terms, which carry no polytypes and no rigid type parameters that
     /// a polytype could bind).
-    fn visit_shallow(&self, f: &mut impl FnMut(&Ty)) {
+    pub(crate) fn visit_shallow(&self, f: &mut impl FnMut(&Ty)) {
+        let visit_row = |row: &EffRow, f: &mut dyn FnMut(&Ty)| {
+            for l in &row.labels {
+                if let Some(t) = &l.ty_arg { f(t); }
+            }
+        };
         match self {
             Ty::Adt(_, args) | Ty::Tuple(args) => args.iter().for_each(|a| f(a)),
             Ty::App(h, args) => { f(h); args.iter().for_each(|a| f(a)); }
-            Ty::Fun(a, _, _, b) | Ty::Pi { dom: a, cod: b, .. } | Ty::Sigma { dom: a, cod: b, .. } => { f(a); f(b); }
-            Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => f(inner),
+            Ty::Fun(a, _, eff, b) | Ty::Pi { dom: a, eff, cod: b, .. } => { f(a); visit_row(eff, f); f(b); }
+            Ty::Sigma { dom: a, cod: b, .. } => { f(a); f(b); }
+            Ty::Thunk { eff, inner } | Ty::Lazy { eff, inner, .. } => { visit_row(eff, f); f(inner); }
+            Ty::Later { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => f(inner),
             Ty::Ptr { pointee, .. } => f(pointee),
-            Ty::Handler { input, output, .. } => { f(input); f(output); }
+            Ty::Handler { label, input, output, eff, .. } => {
+                if let Some(t) = &label.ty_arg { f(t); }
+                visit_row(eff, f);
+                f(input);
+                f(output);
+            }
             Ty::Forall(scheme) => f(&scheme.ty),
+            Ty::Qual(ctx, body) => {
+                for (_, c) in ctx { c.args.iter().for_each(|a| f(a)); }
+                f(body);
+            }
             _ => {}
         }
     }
@@ -4104,7 +4232,11 @@ impl Ty {
             Ty::Mut(x, inner) => Ty::Mut(r.region(x), Box::new(go(inner))),
             Ty::Ptr { role, pointee } => Ty::Ptr { role: role.clone(), pointee: Box::new(go(pointee)) },
             Ty::Handler { label, input, output, eff, resumption } => Ty::Handler {
-                label: EffLabel { head: label.head.clone(), arg: label.arg.as_ref().map(|a| r.region(a)) },
+                label: EffLabel {
+                    head: label.head.clone(),
+                    arg: label.arg.as_ref().map(|a| r.region(a)),
+                    ty_arg: label.ty_arg.as_ref().map(|t| Box::new(go(t))),
+                },
                 input: Box::new(go(input)), output: Box::new(go(output)), eff: r.row(eff), resumption: *resumption,
             },
             Ty::Idx(term) => Ty::Idx(Box::new(term.map_types(&mut |t| t.rename_vars(r)))),
@@ -4113,6 +4245,10 @@ impl Ty {
                 let inner = r.under(scheme);
                 scheme.map_forall_body(|body| body.rename_vars(&inner))
             }
+            Ty::Qual(ctx, body) => Ty::Qual(
+                ctx.iter().map(|(n, c)| (n.clone(), ClassApp { class: c.class.clone(), args: c.args.iter().map(go).collect() })).collect(),
+                Box::new(go(body)),
+            ),
             _ => self.clone(),
         }
     }
@@ -4346,6 +4482,10 @@ pub fn regionize(t: &Ty, regions: &[String]) -> Ty {
             cod: Box::new(regionize(cod, regions)),
         },
         Ty::Forall(scheme) => scheme.map_forall_body(|body| regionize(body, regions)),
+        Ty::Qual(ctx, body) => Ty::Qual(
+            ctx.iter().map(|(n, c)| (n.clone(), regionize_class(c, regions))).collect(),
+            Box::new(regionize(body, regions)),
+        ),
         other => other.clone(),
     }
 }
@@ -4451,6 +4591,12 @@ pub fn collect_row_names(t: &Ty, rows: &mut Vec<String>, regions: &mut Vec<Strin
             for region in inner_regions {
                 if !scheme.region_params.contains(&region) && !regions.contains(&region) { regions.push(region); }
             }
+        }
+        Ty::Qual(ctx, body) => {
+            for (_, c) in ctx {
+                for a in &c.args { collect_row_names(a, rows, regions); }
+            }
+            collect_row_names(body, rows, regions);
         }
         _ => {}
     }
@@ -5490,6 +5636,7 @@ impl Unifier {
             Ty::App(head, args) => self.prop_occurs_type(id, &head) || args.iter().any(|ty| self.prop_occurs_type(id, ty)),
             Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. } | Ty::Sigma { dom, cod, .. } => self.prop_occurs_type(id, &dom) || self.prop_occurs_type(id, &cod),
             Ty::Forall(scheme) => self.prop_occurs_type(id, &scheme.ty),
+            Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(|a| self.prop_occurs_type(id, a))) || self.prop_occurs_type(id, body),
             Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.prop_occurs_type(id, &inner),
             Ty::Ptr { pointee, .. } => self.prop_occurs_type(id, &pointee),
             Ty::Handler { input, output, .. } => self.prop_occurs_type(id, &input) || self.prop_occurs_type(id, &output),
@@ -5685,6 +5832,7 @@ impl Unifier {
         let canon = |l: &EffLabel| EffLabel {
             head: l.head.clone(),
             arg: l.arg.as_ref().map(|a| self.resolve_region(a)),
+            ty_arg: l.ty_arg.as_ref().map(|t| Box::new(self.zonk(t))),
         };
         let mut labels = Vec::new();
         for l in &row.labels {
@@ -5742,6 +5890,7 @@ impl Unifier {
             Ty::App(head, args) => self.owns_value_metas_in_type(head) && args.iter().all(|ty| self.owns_value_metas_in_type(ty)),
             Ty::Fun(dom, _, _, cod) | Ty::Pi { dom, cod, .. } | Ty::Sigma { dom, cod, .. } => self.owns_value_metas_in_type(dom) && self.owns_value_metas_in_type(cod),
             Ty::Forall(scheme) => self.owns_value_metas_in_type(&scheme.ty),
+            Ty::Qual(ctx, body) => ctx.iter().all(|(_, c)| c.args.iter().all(|a| self.owns_value_metas_in_type(a))) && self.owns_value_metas_in_type(body),
             Ty::Thunk { inner, .. } | Ty::Lazy { inner, .. } | Ty::Later { inner, .. } | Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.owns_value_metas_in_type(inner),
             Ty::Ptr { pointee, .. } => self.owns_value_metas_in_type(pointee),
             Ty::Handler { input, output, .. } => self.owns_value_metas_in_type(input) && self.owns_value_metas_in_type(output),
@@ -5855,6 +6004,10 @@ impl Unifier {
                 cod: Box::new(z(&cod)),
             },
             Ty::Forall(scheme) => scheme.map_forall_body(|body| z(body)),
+            Ty::Qual(ctx, body) => Ty::Qual(
+                ctx.iter().map(|(n, c)| (n.clone(), ClassApp { class: c.class.clone(), args: c.args.iter().map(&z).collect() })).collect(),
+                Box::new(z(body)),
+            ),
             Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx_types(&t, &mut |ty| self.zonk_in(ty, map, fuel)))),
             Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop_types(&p, &mut |ty| self.zonk_in(ty, map, fuel)))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
@@ -5878,6 +6031,7 @@ impl Unifier {
                 label: EffLabel {
                     head: label.head.clone(),
                     arg: label.arg.as_ref().map(|a| self.resolve_region(a)),
+                    ty_arg: label.ty_arg.as_ref().map(|t| Box::new(z(t))),
                 },
                 input: Box::new(z(&input)),
                 output: Box::new(z(&output)),
@@ -5986,6 +6140,10 @@ impl Unifier {
                 cod: Box::new(self.gen_ty(&cod, names)),
             },
             Ty::Forall(scheme) => scheme.map_forall_body(|body| self.gen_ty(body, names)),
+            Ty::Qual(ctx, body) => Ty::Qual(
+                ctx.iter().map(|(n, c)| (n.clone(), ClassApp { class: c.class.clone(), args: c.args.iter().map(|a| self.gen_ty(a, names)).collect() })).collect(),
+                Box::new(self.gen_ty(&body, names)),
+            ),
             Ty::Idx(t) => Ty::Idx(Box::new(self.resolve_idx_types(&t, &mut |ty| self.gen_ty(ty, names)))),
             Ty::Prp(p) => Ty::Prp(Box::new(self.resolve_prop_types(&p, &mut |ty| self.gen_ty(ty, names)))),
             Ty::Thunk { eff, inner } => Ty::Thunk {
@@ -6054,6 +6212,7 @@ impl Unifier {
             Ty::Pi { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Sigma { dom, cod, .. } => self.occurs(id, &dom) || self.occurs(id, &cod),
             Ty::Forall(scheme) => self.occurs(id, &scheme.ty),
+            Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(|a| self.occurs(id, a))) || self.occurs(id, body),
             Ty::Thunk { inner, .. } | Ty::Later { inner, .. } => self.occurs(id, &inner),
             Ty::Lazy { inner, .. } => self.occurs(id, &inner),
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.occurs(id, &inner),
@@ -6140,11 +6299,28 @@ impl Unifier {
         if a.head != b.head {
             return false;
         }
-        match (&a.arg, &b.arg) {
+        let arg_ok = match (&a.arg, &b.arg) {
             (None, None) => true,
             // A failed region unification changes nothing, so no trial
             // scope is needed.
             (Some(x), Some(y)) => self.unify_regions(x, y).is_ok(),
+            _ => false,
+        };
+        if !arg_ok {
+            return false;
+        }
+        match (&a.ty_arg, &b.ty_arg) {
+            (None, None) => true,
+            (Some(x), Some(y)) => {
+                let snap = self.snapshot();
+                if self.unify(x, y).is_ok() {
+                    self.commit(snap);
+                    true
+                } else {
+                    self.rollback_to(snap);
+                    false
+                }
+            }
             _ => false,
         }
     }
@@ -6386,7 +6562,7 @@ impl Unifier {
         // No metavariable is ever bound to a type containing a polytype
         // (this check is what keeps it so), so the unzonked type answers
         // the predicativity question without a traversal of the bindings.
-        if t.contains_forall() || matches!(t, Ty::Forall(_)) {
+        if t.contains_forall() || matches!(t, Ty::Forall(_) | Ty::Qual(_, _)) {
             return Err(crate::diagnostic!(
                 "a type variable cannot stand for a polymorphic type ({}); annotate the binding with its polymorphic type",
                 self.zonk(t)
@@ -6515,6 +6691,21 @@ impl Unifier {
                 Ok(())
             }
             (Ty::Forall(s1), Ty::Forall(s2)) => self.unify_foralls(s1, s2, &a, &b),
+            (Ty::Qual(c1, b1), Ty::Qual(c2, b2)) if c1.len() == c2.len() => {
+                for ((_, ca), (_, cb)) in c1.iter().zip(c2) {
+                    if ca.class != cb.class || ca.args.len() != cb.args.len() {
+                        return Err(crate::diagnostic!(
+                            "type mismatch: {} vs {}",
+                            self.zonk(&a),
+                            self.zonk(&b)
+                        ));
+                    }
+                    for (x, y) in ca.args.iter().zip(&cb.args) {
+                        self.unify(x, y)?;
+                    }
+                }
+                self.unify(b1, b2)
+            }
             (Ty::Tuple(a1), Ty::Tuple(a2)) if a1.len() == a2.len() => {
                 for (x, y) in a1.iter().zip(a2) {
                     self.unify(x, y)?;
@@ -6607,6 +6798,17 @@ impl Unifier {
                 }
                 match (&l1.arg, &l2.arg) {
                     (Some(x), Some(y)) => self.unify_regions(x, y)?,
+                    (None, None) => {}
+                    _ => {
+                        return Err(crate::diagnostic!(
+                            "type mismatch: expected {}, got {}",
+                            self.zonk(&a),
+                            self.zonk(&b)
+                        ))
+                    }
+                }
+                match (&l1.ty_arg, &l2.ty_arg) {
+                    (Some(x), Some(y)) => self.unify(x, y)?,
                     (None, None) => {}
                     _ => {
                         return Err(crate::diagnostic!(
@@ -6858,6 +7060,15 @@ pub fn ty_eq(a: &Ty, b: &Ty) -> bool {
                 r2.regions.insert(y.clone(), format!("$conv{n}.region{i}").into());
             }
             ty_eq(&s1.ty.rename_vars(&r1), &s2.ty.rename_vars(&r2))
+        }
+        (Ty::Qual(c1, b1), Ty::Qual(c2, b2)) => {
+            c1.len() == c2.len()
+                && c1.iter().zip(c2).all(|((_, ca), (_, cb))| {
+                    ca.class == cb.class
+                        && ca.args.len() == cb.args.len()
+                        && ca.args.iter().zip(&cb.args).all(|(x, y)| ty_eq(x, y))
+                })
+                && ty_eq(b1, b2)
         }
         (Ty::Sigma { var: v1, dom: d1, cod: c1 }, Ty::Sigma { var: v2, dom: d2, cod: c2 }) => {
             if !ty_eq(d1, d2) {

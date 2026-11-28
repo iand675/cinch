@@ -2468,22 +2468,26 @@ impl<'a> Parser<'a> {
         let span = self.expect(&Tok::Effect, "`effect`")?.span;
         let name = self.parse_ctor_name("an effect name")?;
         let mut params = Vec::new();
+        let mut param_kinds = Vec::new();
         while !self.at(&Tok::Where) {
             if self.at(&Tok::LParen) {
                 self.bump();
                 let p = self.parse_value_name()?;
+                let mut kind_opt = None;
                 if self.at(&Tok::ColonColon) {
                     self.bump();
                     let kind = self.parse_ctor_name("a kind name")?;
-                    if kind.text != "Region" {
+                    if kind.text != "Region" && kind.text != "Type" {
                         return Err(Error::at(
                             kind.span,
-                            "effect parameters are region identities (`(r :: Region)`); other kinds are not supported in the bootstrap slice",
+                            "effect parameters must have kind `Region` or `Type` (`(r :: Region)` or `(e :: Type)`)",
                         ));
                     }
+                    kind_opt = Some(kind.text);
                 }
                 self.expect(&Tok::RParen, "`)`")?;
                 params.push(p);
+                param_kinds.push(kind_opt);
             } else if let Tok::VarId(s) = self.peek_tok().clone() {
                 if s == "_" {
                     return Err(self.err("an effect parameter needs a name"));
@@ -2491,6 +2495,7 @@ impl<'a> Parser<'a> {
                 let sp = self.peek().span;
                 self.bump();
                 params.push(Name::new(s, sp));
+                param_kinds.push(None);
             } else {
                 return Err(self.err(format!(
                     "expected an effect parameter or `where`, found {}",
@@ -2500,7 +2505,7 @@ impl<'a> Parser<'a> {
             if params.len() > 1 {
                 return Err(Error::at(
                     span,
-                    "an effect takes at most one region parameter in the bootstrap slice",
+                    "an effect takes at most one parameter in the bootstrap slice",
                 ));
             }
         }
@@ -2509,7 +2514,7 @@ impl<'a> Parser<'a> {
         if ops.is_empty() {
             return Err(Error::at(span, "an effect needs at least one operation"));
         }
-        Ok(EffectDecl { name, params, ops, span })
+        Ok(EffectDecl { name, params, param_kinds, ops, span })
     }
 
     fn parse_instance(&mut self) -> Result<InstDecl> {
@@ -3818,17 +3823,22 @@ impl<'a> Parser<'a> {
         Ok(Term::With { name, value: Box::new(value), body: Box::new(body), span })
     }
 
-    /// `handler L [r] where { return p -> e; op pats [resume k] -> e }`.
+    /// `handler L [r | T] where { return p -> e; op pats [resume k] -> e }`.
     fn parse_handler_expr(&mut self) -> Result<Term> {
         let span = self.bump().span;
         let effect = self.parse_con_path()?;
-        let region = match self.peek_tok().clone() {
+        let (region, type_arg) = match self.peek_tok().clone() {
             Tok::VarId(s) if s != "_" => {
                 let sp = self.peek().span;
                 self.bump();
-                Some(Name::new(s, sp))
+                let n = Name::new(s, sp);
+                (Some(n.clone()), Some(Type::Var(n, sp)))
             }
-            _ => None,
+            Tok::ConId(_) | Tok::LParen => {
+                let ty = self.parse_type_atom()?;
+                (None, Some(ty))
+            }
+            _ => (None, None),
         };
         self.expect(&Tok::Where, "`where` after the handled label")?;
         enum HClause {
@@ -3883,6 +3893,7 @@ impl<'a> Parser<'a> {
         Ok(Term::Handler(Box::new(HandlerExpr {
             effect,
             region,
+            type_arg,
             ret_pat,
             ret_body,
             clauses,
@@ -4296,6 +4307,7 @@ impl<'a> Parser<'a> {
         }
         let span = self.bump().span;
         let mut labels = Vec::new();
+        let mut label_tys = Vec::new();
         let mut tail = None;
         if matches!(self.peek_tok(), Tok::VarId(_)) {
             // A lone identifier is the row tail: `{e}` (labels start with a
@@ -4310,22 +4322,29 @@ impl<'a> Parser<'a> {
                 loop {
                     let path = self.parse_con_path()?;
                     // Effect label arguments are region names (at most one),
-                    // or the boundary name of a `Foreign <boundary>` label
-                    // (foreign function interface specification section 2).
+                    // the boundary name of a `Foreign <boundary>` label, or a
+                    // type argument for a type-parameterized effect (`Throw E`).
                     let mut args = Vec::new();
-                    while let Tok::VarId(s) = self.peek_tok().clone() {
-                        let span = self.peek().span;
-                        self.bump();
-                        args.push(Name::new(s, span));
-                    }
-                    if args.is_empty() {
-                        if let Tok::ConId(s) = self.peek_tok().clone() {
+                    let mut ty_arg = None;
+                    if self.at(&Tok::LParen) {
+                        ty_arg = Some(self.parse_type_atom()?);
+                    } else {
+                        while let Tok::VarId(s) = self.peek_tok().clone() {
                             let span = self.peek().span;
                             self.bump();
                             args.push(Name::new(s, span));
                         }
+                        if args.is_empty() && matches!(self.peek_tok(), Tok::ConId(_)) {
+                            let cpath = self.parse_con_path()?;
+                            let cspan = cpath.span();
+                            if cpath.segments.len() == 1 {
+                                args.push(cpath.segments[0].clone());
+                            }
+                            ty_arg = Some(Type::Con(cpath, cspan));
+                        }
                     }
                     labels.push((path, args));
+                    label_tys.push(ty_arg);
                     if self.at(&Tok::Comma) {
                         self.bump();
                     } else {
@@ -4351,7 +4370,7 @@ impl<'a> Parser<'a> {
             }
         }
         self.expect(&Tok::RBrace, "`}` closing the effect row")?;
-        Ok(Some(EffectRow { labels, tail, span }))
+        Ok(Some(EffectRow { labels, label_tys, tail, span }))
     }
 
     fn is_typed_binder_head(&self) -> bool {
@@ -5682,8 +5701,8 @@ mod tests {
 
     #[test]
     fn not_supported_declarations_are_named() {
-        let e = err("module T where\n  effect E (r :: Type) where\n    op :: Int\n");
-        assert!(e.contains("effect parameters are region identities"), "{e}");
+        let e = err("module T where\n  effect E (r :: Row) where\n    op :: Int\n");
+        assert!(e.contains("effect parameters must have kind `Region` or `Type`"), "{e}");
         let e = err("module T where\n  type T = Int\n");
         assert!(e.contains("a `type` declaration is a refinement"), "{e}");
         let e = err("module T where\n  upgrade A to B where\n    x = 1\n");

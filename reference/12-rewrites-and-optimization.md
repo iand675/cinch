@@ -346,6 +346,13 @@ module Main where
 
 In the manifest, `specialization.fused` reports the fused stages (`fused 2 map stage(s) into the fold loop state machine`). Fusion strictly preserves pull boundaries (`prod-take 2` pulls at most two elements) and per-element callback order.
 
+## Constructed product and sum results
+
+Alongside `Data.Producer` fusion, code generation eliminates short-lived constructor allocations on return boundaries:
+
+- **Constructed Product Results (CPR):** functions whose tail leaves construct the same 1–3 word single-constructor product return fields directly in registers when the caller immediately `case`-destructures the result.
+- **Constructed Sum Results (CSR):** functions returning an eligible two-variant sum with 0–2 uniform-word payloads (`Option`, `Result`, and user two-constructor `data` types) emit an unboxed `{ i8, i64 }` or `{ i8, i64, i64 }` (`{ tag, payload... }`) register-aggregate worker (`#cc` in the Rust seed, `#csr` in Stage 3) called directly at `case`-scrutinized and recursive sites with exact Perceus reference counting, while keeping a standard boxed wrapper for escaping or higher-order uses (see [type layout](24-type-layout.md#constructed-sum-results-csr)).
+
 Inlining hints (`#[inline]`, `#[inline(always)]`, `#[inline(never)]` / `#[noinline]`) emit the corresponding LLVM attributes (`inlinehint`, `alwaysinline`, `noinline`) and never alter program semantics. `#[inline(never)]` and `#[noinline]` also prevent both the specialization driver from unfolding the callee and the Core simplifier from inlining it.
 
 ## Target-gated rewrites

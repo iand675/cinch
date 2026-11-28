@@ -13,11 +13,12 @@ Attributes attach structured metadata to declarations, fields, and parameters wi
 - **Lexical form:** `#[name]` or `#[name args...]` where `name` immediately follows `#[` on the same line and balanced parentheses/strings are captured verbatim.
 - **Categories:**
   - **Representation & layout:** `#[repr(C)]`, `#[repr(packed)]`, `#[repr(align(N))]`, `#[repr(transparent)]`, `#[repr(unboxed)]`, `#[repr(u8|u16|u32|u64)]`, `#[unpack]`, `#[nounpack]`.
+  - **Lexical capabilities:** `#[capability]` (on `data` and `record` declarations, combinable with `#[repr(transparent)]`).
   - **Calling convention / FFI:** `#[byval]`, `#[sret]`.
   - **Branch weights & optimization hints:** `#[likely]`, `#[unlikely]`, `#[inline]`, `#[noinline]`, `#[cold]`.
   - **Safety assertions & profiles:** `#[no-alloc]`, `#[alloc "once"]`, `#[recursion "none"|"tail"|"bounded(n)"]`, `#[stack "constant"|"bounded(n)"]`, `#[max-complexity n]`, `#[max-lines n]`, `#[assert-min n]`, `#[checked-params]`, `#[no-macros]`, `#[no-raw-ptr]`, `#[deny-warnings]`, `#[profile "jpl"]`.
   - **User / macro attributes:** registered via `macro name attributes (...)` so library macros can inspect and transform annotated declarations hygienically.
-- **Contract visibility:** semantically relevant attributes (`repr`, safety assertions) are stored in `.cinchif` and hashed into `iface_hash`; unknown attributes are compile errors rather than silently ignored.
+- **Contract visibility:** semantically relevant attributes (`repr`, `capability`, safety assertions) are stored in `.cinchif` and hashed into `iface_hash`; unknown attributes are compile errors rather than silently ignored.
 
 ---
 

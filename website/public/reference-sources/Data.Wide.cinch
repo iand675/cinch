@@ -116,16 +116,18 @@ module Data.Wide where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim raw-sdiv-i128 :: I128 -> I128 -> I128 where
+  -- Signed 128-bit division/remainder: precondition rules out LLVM immediate UB
+  -- (`%1 == 0` or `%0 == MIN && %1 == -1`), so no `unsafe` trust boundary is needed.
+  prim raw-sdiv-i128 :: (a :: I128) -> refined (r /= 0 && Not (a == -170141183460469231731687303715884105728 && r == -1)) I128 -> I128 where
     llvm {
       %r = sdiv i128 %0, %1
       ret i128 %r
-    }
-  prim raw-srem-i128 :: I128 -> I128 -> I128 where
+    } justify verify
+  prim raw-srem-i128 :: (a :: I128) -> refined (r /= 0 && Not (a == -170141183460469231731687303715884105728 && r == -1)) I128 -> I128 where
     llvm {
       %r = srem i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
   prim bit-and-i128 :: I128 -> I128 -> I128 where
     llvm {
       %r = and i128 %0, %1
@@ -172,19 +174,19 @@ module Data.Wide where
       %r = call i128 @llvm.fshr.i128(i128 %0, i128 %0, i128 %s)
       ret i128 %r
     }
-  prim count-ones-i128 :: I128 -> U32 where
+  prim count-ones-i128 :: I128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctpop.i128(i128 %0)
       %r = trunc i128 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-i128 :: I128 -> U32 where
+  prim leading-zeros-i128 :: I128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctlz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-i128 :: I128 -> U32 where
+  prim trailing-zeros-i128 :: I128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.cttz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
@@ -247,9 +249,13 @@ module Data.Wide where
   saturating-neg-i128 :: I128 -> I128
   saturating-neg-i128 x = if eq-i128 x min-bound-i128 then max-bound-i128 else wrapping-neg-i128 x
   checked-div-i128 :: I128 -> I128 -> Option I128
-  checked-div-i128 x y = if eq-i128 y 0 || (eq-i128 x min-bound-i128 && eq-i128 y (-1)) then None else Some (raw-sdiv-i128 x y)
+  checked-div-i128 x y = case decide (y /= 0 && Not (x == -170141183460469231731687303715884105728 && y == -1)) of
+    Yes _ -> Some (raw-sdiv-i128 x y)
+    No _ -> None
   checked-rem-i128 :: I128 -> I128 -> Option I128
-  checked-rem-i128 x y = if eq-i128 y 0 || (eq-i128 x min-bound-i128 && eq-i128 y (-1)) then None else Some (raw-srem-i128 x y)
+  checked-rem-i128 x y = case decide (y /= 0 && Not (x == -170141183460469231731687303715884105728 && y == -1)) of
+    Yes _ -> Some (raw-srem-i128 x y)
+    No _ -> None
   checked-shl-i128 :: I128 -> U32 -> Option I128
   checked-shl-i128 x n = if lt-u32 n 128 then Some (wrapping-shl-i128 x n) else None
   checked-shr-i128 :: I128 -> U32 -> Option I128
@@ -319,16 +325,24 @@ module Data.Wide where
       %r = zext i1 %ov to i8
       ret i8 %r
     }
-  prim div-u128 :: U128 -> U128 -> U128 where
+  -- Unsigned 128-bit division/remainder: `udiv`/`urem` have immediate LLVM UB
+  -- when `%1 == 0`, so the underlying prims require a `refined (r /= 0) U128`
+  -- divisor (verifiable without `unsafe`) and `div-u128`/`rem-u128` expose
+  -- the same `using (b /= 0)` interface as `Data.Machine.div-u64`.
+  prim raw-div-u128 :: U128 -> refined (r /= 0) U128 -> U128 where
     llvm {
       %r = udiv i128 %0, %1
       ret i128 %r
-    }
-  prim rem-u128 :: U128 -> U128 -> U128 where
+    } justify verify
+  prim raw-rem-u128 :: U128 -> refined (r /= 0) U128 -> U128 where
     llvm {
       %r = urem i128 %0, %1
       ret i128 %r
-    }
+    } justify verify
+  div-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128
+  div-u128 a b = raw-div-u128 a b
+  rem-u128 :: using (b /= 0) => U128 -> (b :: U128) -> U128
+  rem-u128 a b = raw-rem-u128 a b
   prim bit-or-u128 :: U128 -> U128 -> U128 where
     llvm {
       %r = or i128 %0, %1
@@ -370,19 +384,19 @@ module Data.Wide where
       %r = call i128 @llvm.fshr.i128(i128 %0, i128 %0, i128 %s)
       ret i128 %r
     }
-  prim count-ones-u128 :: U128 -> U32 where
+  prim count-ones-u128 :: U128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctpop.i128(i128 %0)
       %r = trunc i128 %c to i32
       ret i32 %r
     }
-  prim leading-zeros-u128 :: U128 -> U32 where
+  prim leading-zeros-u128 :: U128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.ctlz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
       ret i32 %r
     }
-  prim trailing-zeros-u128 :: U128 -> U32 where
+  prim trailing-zeros-u128 :: U128 -> refined (0 <= r && r <= 128) U32 where
     llvm {
       %c = call i128 @llvm.cttz.i128(i128 %0, i1 false)
       %r = trunc i128 %c to i32
@@ -445,9 +459,13 @@ module Data.Wide where
   saturating-neg-u128 :: U128 -> U128
   saturating-neg-u128 x = 0
   checked-div-u128 :: U128 -> U128 -> Option U128
-  checked-div-u128 x y = if eq-u128 y 0 then None else Some (div-u128 x y)
+  checked-div-u128 x y = case decide (y /= 0) of
+    Yes _ -> Some (div-u128 x y)
+    No _ -> None
   checked-rem-u128 :: U128 -> U128 -> Option U128
-  checked-rem-u128 x y = if eq-u128 y 0 then None else Some (rem-u128 x y)
+  checked-rem-u128 x y = case decide (y /= 0) of
+    Yes _ -> Some (rem-u128 x y)
+    No _ -> None
   checked-shl-u128 :: U128 -> U32 -> Option U128
   checked-shl-u128 x n = if lt-u32 n 128 then Some (wrapping-shl-u128 x n) else None
   checked-shr-u128 :: U128 -> U32 -> Option U128
@@ -486,11 +504,11 @@ module Data.Wide where
   checked-u128-to-i128 x = if gt-u128 x 170141183460469231731687303715884105727 then None else Some (wrapping-u128-to-i128 x)
   saturating-u128-to-i128 :: U128 -> I128
   saturating-u128-to-i128 x = if gt-u128 x 170141183460469231731687303715884105727 then max-bound-i128 else wrapping-u128-to-i128 x
-  prim i8-to-i128 :: I8 -> I128 where
+  prim i8-to-i128 :: (x :: I8) -> refined (InRange (-128) 127 r && r == x) I128 where
     llvm {
       %r = sext i8 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i8-to-i128 :: I8 -> Option I128
   checked-i8-to-i128 x = Some (i8-to-i128 x)
   saturating-i8-to-i128 :: I8 -> I128
@@ -503,11 +521,11 @@ module Data.Wide where
   checked-i8-to-u128 x = checked-i128-to-u128 (i8-to-i128 x)
   saturating-i8-to-u128 :: I8 -> U128
   saturating-i8-to-u128 x = saturating-i128-to-u128 (i8-to-i128 x)
-  prim i16-to-i128 :: I16 -> I128 where
+  prim i16-to-i128 :: (x :: I16) -> refined (InRange (-32768) 32767 r && r == x) I128 where
     llvm {
       %r = sext i16 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i16-to-i128 :: I16 -> Option I128
   checked-i16-to-i128 x = Some (i16-to-i128 x)
   saturating-i16-to-i128 :: I16 -> I128
@@ -520,11 +538,11 @@ module Data.Wide where
   checked-i16-to-u128 x = checked-i128-to-u128 (i16-to-i128 x)
   saturating-i16-to-u128 :: I16 -> U128
   saturating-i16-to-u128 x = saturating-i128-to-u128 (i16-to-i128 x)
-  prim i32-to-i128 :: I32 -> I128 where
+  prim i32-to-i128 :: (x :: I32) -> refined (InRange (-2147483648) 2147483647 r && r == x) I128 where
     llvm {
       %r = sext i32 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i32-to-i128 :: I32 -> Option I128
   checked-i32-to-i128 x = Some (i32-to-i128 x)
   saturating-i32-to-i128 :: I32 -> I128
@@ -537,11 +555,11 @@ module Data.Wide where
   checked-i32-to-u128 x = checked-i128-to-u128 (i32-to-i128 x)
   saturating-i32-to-u128 :: I32 -> U128
   saturating-i32-to-u128 x = saturating-i128-to-u128 (i32-to-i128 x)
-  prim i64-to-i128 :: I64 -> I128 where
+  prim i64-to-i128 :: (x :: I64) -> refined (InRange (-9223372036854775808) 9223372036854775807 r && r == x) I128 where
     llvm {
       %r = sext i64 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   checked-i64-to-i128 :: I64 -> Option I128
   checked-i64-to-i128 x = Some (i64-to-i128 x)
   saturating-i64-to-i128 :: I64 -> I128
@@ -554,11 +572,11 @@ module Data.Wide where
   checked-i64-to-u128 x = checked-i128-to-u128 (i64-to-i128 x)
   saturating-i64-to-u128 :: I64 -> U128
   saturating-i64-to-u128 x = saturating-i128-to-u128 (i64-to-i128 x)
-  prim u8-to-u128 :: U8 -> U128 where
+  prim u8-to-u128 :: (x :: U8) -> refined (0 <= r && r <= 255 && r == x) U128 where
     llvm {
       %r = zext i8 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u8-to-i128 :: U8 -> I128
   u8-to-i128 x = wrapping-u128-to-i128 (u8-to-u128 x)
   checked-u8-to-i128 :: U8 -> Option I128
@@ -573,11 +591,11 @@ module Data.Wide where
   saturating-u8-to-u128 x = u8-to-u128 x
   wrapping-u8-to-u128 :: U8 -> U128
   wrapping-u8-to-u128 x = u8-to-u128 x
-  prim u16-to-u128 :: U16 -> U128 where
+  prim u16-to-u128 :: (x :: U16) -> refined (0 <= r && r <= 65535 && r == x) U128 where
     llvm {
       %r = zext i16 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u16-to-i128 :: U16 -> I128
   u16-to-i128 x = wrapping-u128-to-i128 (u16-to-u128 x)
   checked-u16-to-i128 :: U16 -> Option I128
@@ -592,11 +610,11 @@ module Data.Wide where
   saturating-u16-to-u128 x = u16-to-u128 x
   wrapping-u16-to-u128 :: U16 -> U128
   wrapping-u16-to-u128 x = u16-to-u128 x
-  prim u32-to-u128 :: U32 -> U128 where
+  prim u32-to-u128 :: (x :: U32) -> refined (0 <= r && r <= 4294967295 && r == x) U128 where
     llvm {
       %r = zext i32 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u32-to-i128 :: U32 -> I128
   u32-to-i128 x = wrapping-u128-to-i128 (u32-to-u128 x)
   checked-u32-to-i128 :: U32 -> Option I128
@@ -611,11 +629,11 @@ module Data.Wide where
   saturating-u32-to-u128 x = u32-to-u128 x
   wrapping-u32-to-u128 :: U32 -> U128
   wrapping-u32-to-u128 x = u32-to-u128 x
-  prim u64-to-u128 :: U64 -> U128 where
+  prim u64-to-u128 :: (x :: U64) -> refined (0 <= r && r <= 18446744073709551615 && r == x) U128 where
     llvm {
       %r = zext i64 %0 to i128
       ret i128 %r
-    }
+    } justify verify
   u64-to-i128 :: U64 -> I128
   u64-to-i128 x = wrapping-u128-to-i128 (u64-to-u128 x)
   checked-u64-to-i128 :: U64 -> Option I128

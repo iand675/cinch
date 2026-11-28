@@ -379,7 +379,7 @@ module Cinch.Nominal where
         Some (constructors, count) -> not usage ||
           (count > 0 && usage-contract-keys row [] && usage-rows-valid (field "usage" row) constructors hash-map-empty count))
     else not usage && (if kind == "refinement" then null-field "constructors" row && valid-refinement-row row
-      else null-field "refinement" row && (kind == "opaque" || kind == "signature") && null-field "constructors" row)
+      else null-field "refinement" row && (kind == "opaque" || kind == "signature" || kind == "effect") && null-field "constructors" row)
   valid-nominal-entry :: String -> Json -> Bool
   valid-nominal-entry identity row = string-length identity > 0
     && valid-parameters (field "parameters" row) (field "params" row) []
@@ -484,7 +484,7 @@ module Cinch.Nominal where
   signature-reference name refs = name == "Io" || name == "Copy" || name == "Kernel" || name == "Boxed" || signature-in-rows name refs
   signature-in-rows :: String -> Json -> Bool
   signature-in-rows name refs = case refs of
-    JArr row rest -> (name == text (field "identity" row) && text (field "kind" row) == "signature") || signature-in-rows name rest
+    JArr row rest -> (name == text (field "identity" row) && (text (field "kind" row) == "signature" || text (field "kind" row) == "data")) || signature-in-rows name rest
     other -> False
   constraint-head :: TypeExpr -> String
   constraint-head ty = case ty of TName s name -> name; TApp s head args -> constraint-head head; other -> ""
@@ -515,11 +515,11 @@ module Cinch.Nominal where
     TNegate s body -> case qualify refs locals body of (value, errors) -> (TNegate s value, errors)
     TFun s (TBound bound name carrier (TBoundsEnd end)) result -> case (qualify refs locals carrier, qualify refs (name : locals) result) of
       ((domain, errors), (out, others)) -> (TFun s (TBound bound name domain (TBoundsEnd end)) out, errors <> others)
-    TFunEff s (TBound bound name carrier (TBoundsEnd end)) row result -> case (qualify refs locals carrier, qualify-row (name : locals) row, qualify refs (name : locals) result) of
+    TFunEff s (TBound bound name carrier (TBoundsEnd end)) row result -> case (qualify refs locals carrier, qualify-row refs (name : locals) row, qualify refs (name : locals) result) of
       ((domain, errors), (effects, more), (out, others)) -> (TFunEff s (TBound bound name domain (TBoundsEnd end)) effects out, errors <> more <> others)
     TFun s a b -> case (qualify refs locals a, qualify refs locals b) of
       ((x, ex), (y, ey)) -> (TFun s x y, ex <> ey)
-    TFunEff s a row b -> case (qualify refs locals a, qualify-row locals row, qualify refs locals b) of
+    TFunEff s a row b -> case (qualify refs locals a, qualify-row refs locals row, qualify refs locals b) of
       ((x, ex), (effects, ee), (y, ey)) -> (TFunEff s x effects y, ex <> ee <> ey)
     TUsageArrow s usage arrow -> case qualify refs locals arrow of
       (renamed, errors) -> (TUsageArrow s usage renamed, errors)
@@ -551,26 +551,33 @@ module Cinch.Nominal where
     TApp s head args -> anonymous-predicate-names locals args seen
     TArg s first rest -> anonymous-predicate-names locals rest (anonymous-predicate-names locals first seen)
     other -> seen
-  qualify-row :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
-  qualify-row locals row = case row of
-    TRow s labels None -> case qualify-effects locals labels of (out, errors) -> (TRow s out None, errors)
+  qualify-row :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-row refs locals row = case row of
+    TRow s labels None -> case qualify-effects refs locals labels of (out, errors) -> (TRow s out None, errors)
     TRow s labels (Some name) -> if has name locals then
-      (case qualify-effects locals labels of (out, errors) -> (TRow s out (Some name), errors))
+      (case qualify-effects refs locals labels of (out, errors) -> (TRow s out (Some name), errors))
       else fail s "unbound resolved effect row tail"
     other -> fail (type-expr-span row) "resolved effect row needs open-row elaboration"
-  qualify-effects :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
-  qualify-effects locals labels = case labels of
+  qualify-effects :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-effects refs locals labels = case labels of
     TArgsEnd s -> (labels, [])
-    TArg s label rest -> case (qualify-effect locals label, qualify-effects locals rest) of
+    TArg s label rest -> case (qualify-effect refs locals label, qualify-effects refs locals rest) of
       ((out, errors), (more, others)) -> (TArg s out more, errors <> others)
     other -> fail (type-expr-span labels) "invalid resolved effect label spine"
-  qualify-effect :: List String -> TypeExpr -> (TypeExpr, List Diagnostic)
-  qualify-effect locals label = case label of
+  qualify-effect :: Json -> List String -> TypeExpr -> (TypeExpr, List Diagnostic)
+  qualify-effect refs locals label = case label of
     TName s name -> if cell-effect-name name then (TName s (string-concat "#kernel." name), [])
       else if has name ["Diverge", "Blocking", "Global", "Fail", "Reentrant", "ThreadAffine"] then (label, [])
+      else if contains-identity name refs then (TName s (interface-global name), [])
       else fail s "resolved effect label needs a kernel contract"
-    TApp s (TName h name) (TArg a (TName r region) (TArgsEnd end)) ->
-      if has name ["IO", "Async", "Cancel", "Eval", "Mut"] && has region locals then (label, [])
+    TApp s (TName h name) args ->
+      if has name ["IO", "Async", "Cancel", "Eval", "Mut"] then
+        (case args of
+          TArg a (TName r region) (TArgsEnd end) | has region locals -> (label, [])
+          other -> fail s "resolved effect label has an unknown identity or region")
+      else if contains-identity name refs then
+        (case qualify refs locals args of
+          (qargs, errors) -> (TApp s (TName h (interface-global name)) qargs, errors))
       else fail s "resolved effect label has an unknown identity or region"
     other -> fail (type-expr-span label) "resolved effect label needs region elaboration"
   qualify-resolved :: Json -> TypeExpr -> (TypeExpr, List Diagnostic)

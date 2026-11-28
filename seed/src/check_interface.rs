@@ -238,8 +238,7 @@ impl Checker {
         scheme: &Scheme, inherited: &[ast::TypeBinder], class: Option<&SigInfo>, class_target: bool,
     ) {
         if !scheme.evidence_params.is_empty() || !scheme.idx_params.is_empty()
-            || scheme.val_params.iter().any(|(_, ty)| !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes))
-            || (class.is_none() && !scheme.row_params.is_empty()) { return }
+            || scheme.val_params.iter().any(|(_, ty)| !matches!(ty, Ty::Nat | Ty::Int | Ty::Bytes)) { return }
         let mut references = std::collections::BTreeSet::new();
         let mut vars = Vec::new();
         let Some(mut prefix) = self.resolved_binders(inherited, scheme, &mut vars) else { return };
@@ -469,6 +468,15 @@ impl Checker {
             ast::Type::List(items, _) => format!("[{}]", items.iter()
                 .map(|t| self.resolved_source_type(t, scheme, vars, references, display))
                 .collect::<Option<Vec<_>>>()?.join(", ")),
+            ast::Type::Using(bounds, body, _) => {
+                let mut ctx = Vec::new();
+                for bound in bounds {
+                    let ast::Oblig::Class(c) = bound else { return None };
+                    ctx.push(self.resolved_source_constraint(c, scheme, vars, references)?);
+                }
+                let inner = self.resolved_source_type(body, scheme, vars, references, display)?;
+                format!("(using ({}) => {inner})", ctx.join(", "))
+            }
             // Preserve the display contract, with an explicit refusal in
             // the consumer, rather than erasing an unsupported obligation.
             _ => return None,
@@ -493,6 +501,8 @@ impl Checker {
             Ty::Sigma { dom, cod, .. } => Self::interface_type_mentions_cell_effect(dom)
                 || Self::interface_type_mentions_cell_effect(cod),
             Ty::Forall(scheme) => Self::interface_type_mentions_cell_effect(&scheme.ty),
+            Ty::Qual(ctx, body) => ctx.iter().any(|(_, c)| c.args.iter().any(Self::interface_type_mentions_cell_effect))
+                || Self::interface_type_mentions_cell_effect(body),
             Ty::Handler { label, input, output, eff, .. } => matches!(label.head.as_str(), "MVar" | "STM")
                 || row(eff) || Self::interface_type_mentions_cell_effect(input)
                 || Self::interface_type_mentions_cell_effect(output),
@@ -567,6 +577,101 @@ impl Checker {
         Some(format!("{{{}}}", labels.join(", ")))
     }
 
+    fn resolved_checked_effect_row(
+        &self, source: &ast::EffectRow, checked: &EffRow, scheme: &Scheme, vars: &[String],
+        references: &mut std::collections::BTreeSet<(String, String)>, display: bool,
+    ) -> Option<String> {
+        if let Some(kernel) = self.resolved_checked_kernel_effect_row(source, checked, scheme, vars) {
+            return Some(kernel);
+        }
+        let tail_str = match (&source.tail, &checked.tail) {
+            (None, crate::types::RowTail::Closed) => None,
+            (Some(tail), crate::types::RowTail::Rigid(actual))
+                if actual.as_str() == tail.text && vars.contains(&tail.text) && scheme.row_params.contains(&tail.text) => {
+                Some(actual.to_string())
+            }
+            _ => return None,
+        };
+        let mut labels = Vec::new();
+        let mut declared_heads = Vec::new();
+        let mut has_user_effect = false;
+        for (i, (path, arguments)) in source.labels.iter().enumerate() {
+            let head = self.effect_head(path, false).ok()?;
+            if let Some(eff) = self.effects.get(&head) {
+                has_user_effect = true;
+                references.insert((eff.module.clone(), eff.name.clone()));
+                let qualified = format!("{}.{}", eff.module, eff.name);
+                if eff.type_param.is_some() {
+                    let arg_text = if let Some(Some(ty_arg)) = source.label_tys.get(i) {
+                        self.resolved_source_type(ty_arg, scheme, vars, references, display)?
+                    } else if let [arg] = arguments.as_slice() {
+                        if vars.contains(&arg.text) {
+                            arg.text.clone()
+                        } else {
+                            let info = self.lookup_type(&[arg.text.as_str()]).ok()?;
+                            if info.module == "<builtin>" {
+                                info.name.clone()
+                            } else {
+                                references.insert((info.module.clone(), info.name.clone()));
+                                format!("{}.{}", info.module, info.name)
+                            }
+                        }
+                    } else {
+                        return None;
+                    };
+                    declared_heads.push(head);
+                    labels.push(format!("{qualified} {arg_text}"));
+                } else if eff.region_param.is_some() {
+                    let [region] = arguments.as_slice() else { return None };
+                    if !vars.contains(&region.text) || !scheme.region_params.contains(&region.text) {
+                        return None;
+                    }
+                    declared_heads.push(head);
+                    labels.push(format!("{qualified} {}", region.text));
+                } else if arguments.is_empty() {
+                    declared_heads.push(head);
+                    labels.push(qualified);
+                } else {
+                    return None;
+                }
+            } else {
+                let parts = path.parts();
+                let [name] = parts.as_slice() else { return None };
+                if head != *name { return None }
+                match (*name, arguments.as_slice()) {
+                    ("IO" | "Mut" | "Async" | "Cancel" | "Eval", [region])
+                        if vars.contains(&region.text) && scheme.region_params.contains(&region.text) => {
+                        declared_heads.push(head);
+                        labels.push(format!("{name} {}", region.text));
+                    }
+                    ("Diverge" | "Blocking" | "MVar" | "STM", []) => {
+                        declared_heads.push(head);
+                        labels.push((*name).to_string());
+                    }
+                    _ => return None,
+                }
+            }
+        }
+        if !has_user_effect {
+            return None;
+        }
+        declared_heads.sort();
+        declared_heads.dedup();
+        let mut actual_heads: Vec<String> = checked.labels.iter().map(|l| l.head.to_string()).collect();
+        actual_heads.sort();
+        actual_heads.dedup();
+        if declared_heads != actual_heads {
+            return None;
+        }
+        labels.sort();
+        labels.dedup();
+        match tail_str {
+            None => Some(format!("{{{}}}", labels.join(", "))),
+            Some(tail) if labels.is_empty() => Some(format!("{{|{tail}}}")),
+            Some(tail) => Some(format!("{{{} | {tail}}}", labels.join(", "))),
+        }
+    }
+
     // Keep the original syntax's defining identities, but read anonymous
     // predicates from the checked type. Conversion must never run again
     // during interface emission: it can mutate inference and kind state.
@@ -575,19 +680,19 @@ impl Checker {
         references: &mut std::collections::BTreeSet<(String, String)>,
         arguments: &[(Option<String>, Ty)], display: bool,
     ) -> Option<String> {
-        fn carries_predicates(ty: &Ty) -> bool {
+        fn needs_checked_walk(ty: &Ty) -> bool {
             match ty {
-                Ty::Prp(_) => true,
-                Ty::Fun(domain, _, _, result) | Ty::Pi { dom: domain, cod: result, .. } =>
-                    carries_predicates(domain) || carries_predicates(result),
+                Ty::Prp(_) | Ty::Forall(_) | Ty::Qual(..) => true,
+                Ty::Fun(domain, _, eff, result) | Ty::Pi { dom: domain, eff, cod: result, .. } =>
+                    !eff.is_pure() || needs_checked_walk(domain) || needs_checked_walk(result),
                 Ty::Adt(_, arguments) | Ty::App(_, arguments) | Ty::Tuple(arguments) =>
-                    arguments.iter().any(carries_predicates),
+                    arguments.iter().any(needs_checked_walk),
                 _ => false,
             }
         }
         // Keep existing canonical application parentheses for contracts
-        // without predicates or kernel MVar effects. Those structures need checked printing.
-        if scheme.row_params.is_empty() && !carries_predicates(checked) && !Self::interface_type_mentions_cell_effect(checked) {
+        // without predicates, higher-rank binders, or non-pure effect rows.
+        if scheme.row_params.is_empty() && !needs_checked_walk(checked) && !Self::interface_type_mentions_cell_effect(checked) {
             return self.resolved_source_type(source, scheme, vars, references, display);
         }
         // Print propositions from their checked structure. Operator source
@@ -650,7 +755,7 @@ impl Checker {
                 let effects = match eff {
                     None if actual_row.is_pure() => String::new(),
                     None => return None,
-                    Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, vars)?,
+                    Some(row) => self.resolved_checked_effect_row(row, actual_row, scheme, vars, references, display)?,
                 };
                 let mut next = arguments.to_vec();
                 next.push((None, (**domain).clone()));
@@ -668,10 +773,50 @@ impl Checker {
                 let effects = match row {
                     None if actual_row.is_pure() => String::new(),
                     None => return None,
-                    Some(row) => self.resolved_checked_kernel_effect_row(row, actual_row, scheme, &bound)?,
+                    Some(row) => self.resolved_checked_effect_row(row, actual_row, scheme, &bound, references, display)?,
                 };
                 let result = self.resolved_checked_source_type(result, cod, scheme, &bound, references, &next, display)?;
                 Some(format!("(({} :: {domain_text}) {} {result})", name.text, interface_arrow(mult.as_ref(), Some(*usage), &effects)?))
+            }
+            (ast::Type::Forall(binders, body, _), Ty::Forall(inner_scheme)) => {
+                let mut inner_vars = vars.to_vec();
+                let mut merged = scheme.clone();
+                let mut prefix = Vec::new();
+                fn base_of(s: &str) -> &str { s.split("#f").next().unwrap_or(s) }
+                for binder in binders {
+                    let name = &binder.name.text;
+                    if inner_vars.contains(name) { return None }
+                    let kind = if inner_scheme.region_params.iter().any(|p| base_of(p) == name) {
+                        merged.region_params.push(name.clone());
+                        "Region".to_string()
+                    } else if inner_scheme.row_params.iter().any(|p| base_of(p) == name) {
+                        merged.row_params.push(name.clone());
+                        "Row".to_string()
+                    } else if inner_scheme.params.iter().any(|p| base_of(p) == name) {
+                        let arity = inner_scheme.con_params.iter()
+                            .find(|(p, _)| base_of(p) == name)
+                            .map(|(_, n)| *n)
+                            .unwrap_or(0);
+                        merged.params.push(name.clone());
+                        if arity > 0 { merged.con_params.push((name.clone(), arity)); }
+                        vec!["Type"; arity + 1].join(" -> ")
+                    } else {
+                        return None;
+                    };
+                    prefix.push(if binder.implicit { format!("{{{name} :: {kind}}}") } else { format!("({name} :: {kind})") });
+                    inner_vars.push(name.clone());
+                }
+                let inner_text = self.resolved_checked_source_type(body, &inner_scheme.ty, &merged, &inner_vars, references, arguments, display)?;
+                Some(format!("(forall {}. {inner_text})", prefix.join(" ")))
+            }
+            (ast::Type::Using(bounds, body, _), Ty::Qual(_, inner)) => {
+                let mut ctx = Vec::new();
+                for bound in bounds {
+                    let ast::Oblig::Class(c) = bound else { return None };
+                    ctx.push(self.resolved_source_constraint(c, scheme, vars, references)?);
+                }
+                let inner_text = self.resolved_checked_source_type(body, inner, scheme, vars, references, arguments, display)?;
+                Some(format!("(using ({}) => {inner_text})", ctx.join(", ")))
             }
             (ast::Type::Tuple(items, _), Ty::Tuple(types)) if items.len() == types.len() => {
                 let items = items.iter().zip(types).map(|(s, t)| self.resolved_checked_source_type(s, t, scheme, vars, references, arguments, display)).collect::<Option<Vec<_>>>()?;
@@ -893,7 +1038,32 @@ impl Checker {
         }
         let mut nominals = Vec::new();
         for (module, name) in &references {
-            let info = self.types.get(name)?.iter().find(|t| &t.module == module)?;
+            let Some(info) = self.types.get(name).and_then(|ts| ts.iter().find(|t| &t.module == module)) else {
+                let eff = self.effects.values().find(|e| &e.module == module && &e.name == name)?;
+                let mut parameters = Vec::new();
+                if let Some(p) = &eff.type_param {
+                    parameters.push(crate::interface::ParameterExport {
+                        name: p.clone(),
+                        kind: "Type".to_string(),
+                        implicit: false,
+                    });
+                } else if let Some(r) = &eff.region_param {
+                    parameters.push(crate::interface::ParameterExport {
+                        name: r.clone(),
+                        kind: "Region".to_string(),
+                        implicit: false,
+                    });
+                }
+                nominals.push(crate::interface::NominalContract {
+                    refinement: None,
+                    usage: None,
+                    identity: format!("{module}.{name}"),
+                    kind: "effect".to_string(),
+                    parameters,
+                    constructors: None,
+                });
+                continue;
+            };
             // The nominal entry proves the carrier's identity. Source
             // access to record fields or codata observations comes from
             // the defining public type row.
@@ -904,7 +1074,8 @@ impl Checker {
                 _ => true,
             }) { return None }
             let refinement = if refined { Some(self.resolved_refinement_template(info)?) } else { None };
-            let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()));
+            let signature = self.qualified_sigs.contains_key(&(module.clone(), name.clone()))
+                && !self.is_user_capability(&self.signature_key(module, name));
             let params = info.refine.as_ref().map(|r| r.params.as_slice()).unwrap_or(&[]);
             let parameters = self.interface_parameters(module, name, params, &info.param_kinds);
             let usage = self.interface_usage_nominal(info, &parameters).and_then(|proof| proof.usage);
@@ -932,6 +1103,7 @@ mod mvar_effect_contract_tests {
                 ast::ConPath { segments: head.split('.').map(|part| ast::Name::new(part, span)).collect() },
                 args.iter().map(|arg| ast::Name::new(*arg, span)).collect(),
             )).collect(),
+            label_tys: Vec::new(),
             tail: None,
             span,
         }

@@ -344,6 +344,10 @@ module Cinch.Global where
     (r : rest, first : more) -> equal-type-in fams proms (r.ty) (evidence-type first)
       && evidence-valid fams proms globals givens first && evidence-list fams proms globals givens rest more
     other -> False
+  qual-evidences-valid :: List TypeFamilyRuleSet -> List PromotedFn -> HashMap String CoreGlobal -> List CoreGiven -> List CoreEvidence -> Bool
+  qual-evidences-valid fams proms globals givens evs = case evs of
+    [] -> True
+    first : more -> evidence-valid fams proms globals givens first && qual-evidences-valid fams proms globals givens more
   value-reference :: List TypeFamilyRuleSet -> List PromotedFn -> HashMap String CoreGlobal -> List CoreGiven -> UType -> String -> String -> List UType -> List CoreEvidence -> Bool
   value-reference fams proms globals givens ty name role actuals evidence =
     if role == "dictionary" then (case (actuals, evidence, lookup-given name givens) of ([], [], Some expected) -> equal-type-in fams proms ty expected; other -> False)
@@ -474,6 +478,8 @@ module Cinch.Global where
     CTuple sp ty fields -> term-references fams proms globals locals givens fields
     CPolyIntro sp ty poly-ids fields -> term-references fams proms globals locals givens fields
     CPolyElim sp ty fields poly-args -> term-references fams proms globals locals givens fields
+    CQualIntro sp ty gs body -> term-references fams proms globals locals (gs <> givens) body
+    CQualElim sp ty val evs -> term-references fams proms globals locals givens val && qual-evidences-valid fams proms globals givens evs
     CPrimitive sp ty name args -> term-references fams proms globals locals givens args
     CProved sp ty certificate body -> term-references fams proms globals locals givens body
     CRefine sp ty certificate body -> term-references fams proms globals locals givens body

@@ -222,18 +222,20 @@ module Main where
   main = 0
 ```
 
-Binding a `Yes` witness to `_` discards the evidence instead of bringing it into scope:
+Even when a `Yes` witness is bound to `_`, the decided proposition remains in scope as a branch fact to discharge obligations inside that branch:
 
-<!-- cinch:reject contains="no evidence for `NonZero d` is in scope here" -->
+<!-- cinch:run exit=0 -->
 ```cinch
 module Main where
-  bad :: Nat -> (d :: Nat) -> Option Nat
-  bad n d = case decide (NonZero d) of
+  safe-div :: Nat -> (d :: Nat) -> Option Nat
+  safe-div n d = case decide (NonZero d) of
     Yes _ -> Some (n / d)
     No _ -> None
 
   main :: Int
-  main = 0
+  main = case safe-div 8 2 of
+    Some q -> if q == 4 then 0 else 1
+    None -> 2
 ```
 
 # Control-flow facts
@@ -275,6 +277,7 @@ Specifically, the checker extracts facts from:
 - **List patterns:** `Cons` branches add `NotNull x`; `Nil` branches add `not (NotNull x)`.
 - **Guards:** the guarded body assumes the guard holds; subsequent rows with matching bindings assume the guard failed.
 - **Short-circuit connectives:** `p && q` checks `q` assuming `p` and asserts both when true; `p || q` checks `q` assuming `not p` and refutes both when false. Opaque `Bool` expressions contribute no facts.
+- **Aborting guards:** in `let _ = if cond then abort else () in rest`, when one branch is uninhabited (for example, calling `Effect.Throw.throw` or `Effect.Arena.arena-abort`), the surviving branch's condition fact (`not cond` or `cond`) flows into `rest` and is verified identically in the independent proof-certificate kernel.
 
 In-scope facts combine via difference logic, so `i < n` automatically entails `i + 1 <= n`:
 
@@ -289,6 +292,28 @@ module Main where
 
   main :: Int
   main = if advance 5 3 == 1 && advance 5 5 == 0 then 0 else 1
+```
+
+An aborting guard discharges the same obligation for everything that follows it without nesting:
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  import Data.Result
+  import Effect.Throw
+
+  only-pos :: using (0 < x) => (x :: Int) -> Int
+  only-pos x = x + 1
+
+  checked-pos :: Int ->{Throw Int} Int
+  checked-pos n =
+    let _ = if n <= 0 then throw 99 else () in
+    only-pos n
+
+  main :: Int
+  main = case catch (\() -> checked-pos 41) of
+    Ok v -> v
+    Err e -> e
 ```
 
 # Proof obligations at call sites

@@ -134,11 +134,9 @@ module Main where
 "#,
         "effect rows do not match",
     );
-    // A handler that reaches the label through a call is rejected: the
-    // bootstrap dispatches operations only from the handled computation's
-    // own expression (decision D23).
-    expect_err(
-        "handled-through-call",
+    // Tail-resumptive handlers dispatch across calls via evidence passing.
+    expect_ok(
+        "handled-through-call-tail",
         r#"
 module Main where
   effect Poke where
@@ -151,6 +149,26 @@ module Main where
   main = handle fired () with (handler Poke where
     return x -> x
     poke u resume k -> k 1)
+"#,
+        1,
+    );
+    // A non-tail-resumptive handler reaching the label through a call is
+    // rejected: non-tail handlers dispatch only from the handled computation's
+    // own expression.
+    expect_err(
+        "handled-through-call-nontail",
+        r#"
+module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+
+  fired :: Unit ->{Poke} Int
+  fired u = poke ()
+
+  main :: Int
+  main = handle fired () with (handler Poke where
+    return x -> x
+    poke u resume k -> k 1 + 1)
 "#,
         "performed through a called computation",
     );
@@ -589,8 +607,29 @@ module Main where
 "#,
         "must be pure",
     );
-    // Under a handled computation only simple value bindings sequence
-    // (decision D24): a local function in the group rejects.
+    // Under a tail-resumptive evidence-passing handler, local functions in `do`
+    // run directly; under a non-tail CPS handler only simple value bindings
+    // sequence (decision D24).
+    expect_ok(
+        "do-let-group-handled-tail",
+        r#"
+module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+
+  handled :: Int -> Int
+  handled n = handle (do
+      let f x = x + 1
+      y <- poke ()
+      pure (f (n + y))) with (handler Poke where
+    return x -> x
+    poke u resume k -> k 4)
+
+  main :: Int
+  main = handled 1
+"#,
+        6,
+    );
     expect_err(
         "do-let-group-handled",
         r#"
@@ -604,7 +643,7 @@ module Main where
       y <- poke ()
       pure (f (n + y))) with (handler Poke where
     return x -> x
-    poke u resume k -> k 4)
+    poke u resume k -> k 4 + 1)
 
   main :: Int
   main = handled 1
@@ -849,9 +888,9 @@ fn operation_values_are_pure_and_preserve_handler_boundaries() {
     return x -> x
     poke unit resume k -> k 44)
 "#, 44);
-    // Preserve the existing D23 rule. Operation values do not grant dynamic
-    // dispatch across a called computation in the bootstrap handler calculus.
-    expect_err("first class call retains D23 dispatch boundary", r#"module Main where
+    // Tail-resumptive handlers dispatch operation values across calls via
+    // evidence passing; non-tail handlers still enforce the local boundary.
+    expect_ok("first class call dispatches under tail-resumptive evidence handler", r#"module Main where
   effect Poke where
     poke :: Unit ->{Poke} Int
   apply :: forall e. (Unit ->{|e} Int) ->{|e} Int
@@ -860,14 +899,24 @@ fn operation_values_are_pure_and_preserve_handler_boundaries() {
   main = handle apply poke with (handler Poke where
     return x -> x
     poke unit resume k -> k 43)
-"#, "performed through a called computation");
-    expect_err("operation alias call retains D23 dispatch boundary", r#"module Main where
+"#, 43);
+    expect_ok("operation alias call dispatches under tail-resumptive evidence handler", r#"module Main where
   effect Poke where
     poke :: Unit ->{Poke} Int
   main :: Int
   main = let operation = poke in handle operation () with (handler Poke where
     return x -> x
     poke unit resume k -> k 44)
+"#, 44);
+    expect_err("first class call under non-tail handler retains local dispatch boundary", r#"module Main where
+  effect Poke where
+    poke :: Unit ->{Poke} Int
+  apply :: forall e. (Unit ->{|e} Int) ->{|e} Int
+  apply f = f ()
+  main :: Int
+  main = handle apply poke with (handler Poke where
+    return x -> x
+    poke unit resume k -> k 43 + 1)
 "#, "performed through a called computation");
     expect_err("operation value cannot erase effect", r#"module Main where
   effect Poke where

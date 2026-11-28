@@ -110,6 +110,7 @@ module Cinch.ExportNominal where
     UBound id name kind -> kind-references kind
     URigid id name level kind -> kind-references kind
     UForall qs body -> combine (quant-references (quants-list qs)) (type-references body)
+    UQual qs body -> combine (uquals-references qs) (type-references body)
     UApp f x -> combine (type-references f) (type-references x)
     UFun a b -> combine (type-references a) (type-references b)
     UFunEff a row b -> combine (type-references a) (combine (type-references row) (type-references b))
@@ -152,6 +153,10 @@ module Cinch.ExportNominal where
     UEnd -> Ok []
     UPropLit value -> Ok []
     other -> Err "nominal export contains unsupported checked syntax"
+  uquals-references :: UQuals -> Result String (List String)
+  uquals-references qs = case qs of
+    UQEnd -> Ok []
+    UQCons name ty rest -> combine (type-references ty) (uquals-references rest)
   insert :: String -> List String -> List String
   insert name names = case names of
     [] -> [name]

@@ -188,6 +188,7 @@ module Main where
 | --- | --- |
 | `(forall a. a -> a) -> Int` | Rank-2 argument usable at multiple types inside the body. |
 | `((forall a. a -> a) -> Int) -> Int` | Rank-3 argument taking a rank-2 function. |
+| `(using (r :: Read a) => Unit ->{\|e} b) ->{\|e} b` | Higher-rank capability-constrained callback (introduced by `with` inside the callee). |
 | `Church :: (forall a. (a -> a) -> a -> a) -> Church` | Constructor field holding a polymorphic function. |
 | `Bool -> (forall a. a -> a -> a)` | Polymorphic result instantiated where applied. |
 | `(forall f. f I64 -> f I64) -> ...` | Higher-kinded, row, or region nested quantifier. |
@@ -197,7 +198,7 @@ Higher-rank checking is predicative:
 - Checking a term against a `forall` type introduces fresh rigid type variables (skolems), which cannot unify with concrete types or escape into outer scopes.
 - Constructing a polymorphic value performs no effects.
 - Type variables cannot be instantiated with polymorphic types (impredicative instantiation such as passing `both` to `id` is rejected).
-- Nested `forall` types cannot carry `using` constraints.
+- Higher-rank `using (...) =>` constraints are supported in argument positions for lexical capabilities (such as `Effect.Reader`'s `local` and `with-reader`); nested `forall` blocks themselves do not carry class-dictionary `using` constraints.
 - Two polymorphic types are equal up to alpha-renaming of their bound variables.
 
 Passing a monomorphic function where a polymorphic argument is expected is rejected:

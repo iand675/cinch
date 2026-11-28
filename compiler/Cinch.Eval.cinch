@@ -692,6 +692,7 @@ module Cinch.Eval where
     -- A contract declares no value the interpreter binds, so it needs no
     -- evaluation. It is checked where its definition is elaborated.
     DWrapperLayout s name repr label -> []
+    DCapability s name -> []
     DUnpackFields s name fields -> []
     DInlineHint s name hint -> []
     DUnrollHint s name hint -> []

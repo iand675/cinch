@@ -161,6 +161,34 @@ A capability is an ordinary value, so you can bind it and hand it over explicitl
 
 With `shout :: forall r. using (io :: Io r) => String ->{IO r} Unit` in scope, this prints `explicit` and a newline. Nested `with` clauses nest capability scopes, and the innermost binding of the same name is the one the body sees.
 
+# Lexical environments without effects (`Effect.Reader`)
+
+Capabilities are not limited to `Io r`. Any `data` or `record` type annotated with `#[capability]` can be passed lexically with `with` and `using`, without adding anything to an effect row. The standard library module [Effect.Reader](../library/Effect.Reader.md) uses this to provide read-only environments (`Read a` and `TaggedRead tag a`) that keep functions completely pure:
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  import Effect.Reader
+
+  record Settings where
+    scale :: Int
+    offset :: Int
+
+  adjust :: using (cfg :: Read Settings) => Int -> Int
+  adjust x =
+    let s = asks (\c -> c.scale) in
+    let b = asks (\c -> c.offset) in
+    x * s + b
+
+  main :: Int
+  main = run-reader (Settings { scale = 3, offset = 6 }) (\() ->
+    let outer = adjust 4 in
+    let inner = local (\c -> Settings { scale = c.scale, offset = c.offset + 10 }) (\() -> adjust 2) in
+    outer + inner + 2)
+```
+
+`adjust` has a plain pure arrow (`Int -> Int`), not an effectful arrow, because reading an immutable lexical capability has no side effects. `local` overrides the environment for its callback only and restores the outer binding afterward; `with-reader` projects the environment into a different type for a nested subtree, and `TaggedRead` lets one function carry multiple readers of the same payload type.
+
 # What the compiler enforces
 
 | Rule | Result |

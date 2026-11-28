@@ -384,8 +384,8 @@ impl Checker {
         let mut applied_args = Vec::with_capacity(arg_cores.len());
         for (ac, a_core) in arg_carriers.iter().zip(arg_cores.into_iter()) {
             fn_ty = self.uni.zonk_arrow_head(fn_ty);
-            if matches!(fn_ty, Ty::Forall(_)) {
-                let (c, t) = self.poly_elim_all(fn_core, fn_ty);
+            if matches!(fn_ty, Ty::Forall(_) | Ty::Qual(_, _)) {
+                let (c, t) = self.poly_elim_all(env, fn_core, fn_ty, span);
                 fn_core = c;
                 fn_ty = t;
             }

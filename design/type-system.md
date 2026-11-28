@@ -65,7 +65,7 @@ type InRange (lo :: Int) (hi :: Int) a = refine (x :: a) with lo <= x && x <= hi
 - **Refined results:** function signatures may refine results in terms of earlier parameters (e.g. `nat-rem :: Nat -> (d :: NonZero Nat) -> refined (r < d) Nat`, `bytes-new :: (n :: Nat) -> refined (bytes-len out == n) Bytes`), substituting admissible caller fact terms at direct call sites.
 
 ### Branch facts and linear arithmetic discharge
-Every branch of `if`, `case`, and pattern guards binds hidden `Prop` facts for admissible pure scrutinees (locals, numerals, exact `Nat`/`Int` arithmetic, `bytes-len`, `length`, `char-code`, pure global calls without mutable buffers or borrows). Facts are flow-sensitively invalidated when mutable state in their footprint changes.
+Every branch of `if`, `case`, and pattern guards binds hidden `Prop` facts for admissible pure scrutinees (locals, numerals, exact `Nat`/`Int` arithmetic, `bytes-len`, `length`, `char-code`, pure global calls without mutable buffers or borrows). In addition, aborting guards (`let _ = if cond then abort else () in rest`, where one branch is uninhabited via `Effect.Throw.throw` or `Effect.Arena.arena-abort`) propagate the surviving branch's fact into `rest` in both type inference and the independent certificate checker. Facts are flow-sensitively invalidated when mutable state in their footprint changes.
 
 Obligation discharge runs in three deterministic, bounded tiers (no undecidable SMT inference):
 
@@ -88,7 +88,7 @@ Obligation discharge runs in three deterministic, bounded tiers (no undecidable 
 
 ## 5. Rank-N polymorphism
 
-Cinch supports predicative Rank-N polymorphism (implemented in both `seed/` and `compiler/`): `forall` quantifiers may appear anywhere in a type (function arguments, constructor fields, records), binding types, higher-kinded constructors, effect rows, and regions. Nested `forall` blocks currently reject `using` constraints and value/proposition binders (those stay prenex).
+Cinch supports predicative Rank-N polymorphism (implemented in both `seed/` and `compiler/`): `forall` quantifiers may appear anywhere in a type (function arguments, constructor fields, records), binding types, higher-kinded constructors, effect rows, and regions, and higher-rank `using (...) =>` capability constraints may appear in callback argument positions (supporting scoping combinators such as `Effect.Reader.local` and `with-reader`). Nested `forall` blocks themselves continue to reject class-dictionary `using` constraints and value/proposition binders (those stay prenex).
 
 ### Checking rules
 Checking follows GHC's simplified subsumption restricted to predicativity:

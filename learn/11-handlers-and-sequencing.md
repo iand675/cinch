@@ -202,32 +202,59 @@ cinch: 5:15: two active sequencing providers in one selection scope are ambiguou
 
 Omitting the provider clause does not leave the choice open; it selects the direct provider. A `Result`-shaped block under the direct provider binds the `Result` itself rather than its payload, so arithmetic on the bound name fails with `integer literal cannot have type Result Int Int`. If two operations use different containers, convert explicitly in a helper and keep one provider per definition. Container-polymorphic library code uses the `Category.*` classes instead of `do`; the two mechanisms do not interact.
 
+# Cross-call handlers and `Effect.Throw`
+
+Handlers whose clauses either resume in tail position (`op args resume k -> k expr`) or abort without resuming (`op args -> expr`) dispatch across arbitrary helper calls, recursion, and higher-order functions such as `map` and `fold`. Pure functions (`->`) pay zero cost for this machinery, and aborting through nested calls releases every live heap value on each unwound frame automatically.
+
+The standard library module [Effect.Throw](../library/Effect.Throw.md) packages typed short-circuiting errors on top of a type-parameterized effect `effect Throw (e :: Type)`:
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  import Data.Result
+  import Effect.Throw
+
+  check-positive :: Int ->{Throw Int} Int
+  check-positive n =
+    if n <= 0 then throw 42 else n * 2
+
+  pipeline :: Int ->{Throw Int} Int
+  pipeline n =
+    let a = check-positive n in
+    a + 1
+
+  main :: Int
+  main = case catch (\() -> pipeline 0) of
+    Ok v -> v
+    Err code -> code
+```
+
+Calling `throw 42` inside `check-positive` bypasses the rest of `pipeline` and returns `Err 42` directly from `catch`. You can also lift an existing `Result e a` into `Throw e` with `try-throw`, or nest multiple `catch` blocks for distinct error types (`Throw ParseErr` and `Throw IoErr`). For pure sub-computations that need `O(1)` prompt escape or a bounded byte budget, [Effect.Arena](../library/Effect.Arena.md) provides `with-arena`, `with-arena-budget`, and `arena-abort` (see [allocators and arenas](../reference/25-allocators.md#region-delimited-arenas-and-budgets-effectarena)).
+
 # The current handler boundary
 
-<span class="support-tag support-tag--planned">Coming soon</span> **Operations dispatched through a called computation.** The bootstrap handler calculus dispatches operations from the handled expression itself. If the handled expression calls an ordinary function that performs the operation, the program is refused:
+<span class="support-tag support-tag--planned">Coming soon</span> **Non-tail-resumptive operations dispatched through a called computation.** Tail-resumptive (`k expr`) and abortive clauses work across function calls. A clause that performs extra work after resuming (`k 10 + 1`) works directly inside the `handle` expression, but is refused if the operation is performed through a separate helper call:
 
 <!-- cinch:reject contains="is performed through a called computation" -->
 ```cinch
 module Main where
-  effect Ask where
-    ask :: Unit ->{Ask} Int
+  effect Shift where
+    shift :: Unit ->{Shift} Int
 
-  answer :: Unit ->{Ask} Int
-  answer u = ask ()
+  helper :: Unit ->{Shift} Int
+  helper u = shift ()
 
   main :: Int
   main =
-    let value = handle answer () with (handler Ask where
+    let value = handle helper () with (handler Shift where
           return v -> v
-          ask unit resume k -> k 20)
+          shift unit resume k -> k 20 + 1)
     in value
 ```
 
 ```text
-cinch: 10:40: the handled effect {Ask} is performed through a called computation; the bootstrap handler calculus dispatches operations only from the handled computation's own expression (in Main.cinch)
+cinch: 10:40: the handled effect {Shift} is performed through a called computation; ... (in Main.cinch)
 ```
-
-What works today is an operation in the handled expression's own syntax, including inside `case` alternatives and operator applications in that expression. What does not work is reaching the operation through a helper call, however many steps away it is. Keep the operation in the handled expression, or inline the helper's body, until the extension lands. This is a compiler restriction rather than a law of algebraic effects.
 
 Handling an effect does not erase unrelated effects. A handled expression may still perform `IO r` or `Diverge`, and those stay in the result's row unless another enclosing handler accounts for them.
 
@@ -240,7 +267,7 @@ Handling an effect does not erase unrelated effects. A handled expression may st
 | each clause takes its arguments, then `resume`, then the continuation | a renamed `resume` position is an ill-formed clause |
 | `k` is used at most once | `multiplicity %aff: k must be used at most once` |
 | one sequencing provider per definition | `two active sequencing providers in one selection scope are ambiguous` |
-| operations dispatch from the handled expression itself | `is performed through a called computation` |
+| non-tail-resumptive clauses stay direct inside `handle` | `is performed through a called computation` |
 
 # Diagnostics you will meet
 
@@ -249,7 +276,7 @@ Handling an effect does not erase unrelated effects. A handled expression may st
 | an operation without its label | `cinch: 3:5: effect operation ask must perform its effect's label {Ask} (in Main.cinch)` |
 | a handler without `return` | ``cinch: Main.cinch: 7:37: a handler needs a `return p -> e` clause`` |
 | two resumptions | `cinch: 9:27: multiplicity %aff: k must be used at most once, but is used 2 time(s) (in Main.cinch)` |
-| an operation behind a call | `cinch: 10:40: the handled effect {Ask} is performed through a called computation; ... (in Main.cinch)` |
+| a non-tail-resumptive operation behind a call | `cinch: 10:40: the handled effect {Shift} is performed through a called computation; ... (in Main.cinch)` |
 | two providers in one definition | `cinch: 5:15: two active sequencing providers in one selection scope are ambiguous (ResultSequencing Int, OptionSequencing); bind one explicitly (in Main.cinch)` |
 
 An effect that reaches a definition with no arrow has nowhere to go:

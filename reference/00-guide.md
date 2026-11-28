@@ -25,7 +25,7 @@ This manual documents the Cinch language, compiler CLI, type and effect systems,
 ## Safety, effects, and memory
 - [06 · Refinements, narrowing, and obligations](06-refinements.md) — `refine`, `decide`, branch facts, narrowing, and mutation invalidation
 - [08 · Dependent types, proofs, and erasure](08-dependent-types-and-proofs.md) — Indexed families, `Sigma`, `Prop`, `%0` erasure, `refl`/`congr`, and totality
-- [09 · Effects, handlers, capabilities, and sequencing](09-effects-and-capabilities.md) — Effect rows, `Io r`, `using`/`with`, handlers, and `do` providers
+- [09 · Effects, handlers, capabilities, and sequencing](09-effects-and-capabilities.md) — Effect rows, `Io r`, `#[capability]` (`Effect.Reader`), cross-call handlers (`Effect.Throw`), and `do` providers
 - [10 · Ownership, regions, and reclamation](10-ownership-and-memory.md) — Multiplicities (`%0`, `%1`, `%aff`, `%many`), `Copy`, borrows, and reference counting
 - [11 · Laziness, memoization, and codata](11-laziness-and-codata.md) — Thunks, `~` memo bindings, `Eval r`, `codata`, `Later`, clocked `Later k`, and `corec`
 - [13 · Structured concurrency and runtime](13-concurrency-and-runtime.md) — Scopes, `spawn`, cancellation, STM, fair `MVar`, and runtime diagnostics
@@ -34,12 +34,12 @@ This manual documents the Cinch language, compiler CLI, type and effect systems,
 - [22 · Safety assertions, must-use, and LLVM contracts](22-safety-assertions-and-llvm.md) — Checked bounds, JPL profile, and LLVM attribute lowering
 
 ## Systems programming and optimization
-- [12 · Rewrites, laws, and optimization](12-rewrites-and-optimization.md) — `rewrite` rules, law justification, fusion, and specialization reports
+- [12 · Rewrites, laws, and optimization](12-rewrites-and-optimization.md) — `rewrite` rules, law justification, fusion, CPR/CSR register returns, and specialization reports
 - [14 · Staging, quotation, and macros](14-staging-and-macros.md) — Compile-time `stage`, `[|...|]`, macros, and `data` imports
 - [15 · FFI, representation, and inline primitives](15-ffi-layout-and-attributes.md) — `foreign import`/`export`, `#[byval]`/`#[sret]`, and `prim` bodies
 - [23 · Attributes and pragmas](23-attributes-and-pragmas.md) — Complete index of compiler-owned `#[...]` attributes
-- [24 · Type layout and runtime representation](24-type-layout.md) — C layout, alignment, packing, transparent wrappers, and FFI boundaries
-- [25 · Allocators and heap tuning](25-allocators.md) — Runtime memory variables, leak checking, heap caps, and planned allocators
+- [24 · Type layout and runtime representation](24-type-layout.md) — C layout, alignment, packing, unpacking, transparent wrappers, CSR, and FFI boundaries
+- [25 · Allocators and heap tuning](25-allocators.md) — Runtime memory variables, leak checking, heap caps, `Effect.Arena` budgets, and planned allocators
 - [31 · How memory layout works](31-memory-layout.md) — Representation classes, automatic niche fusion, bit-packing, pointer tagging, `#[repr(value)]`, auto-unpacking, CPR/CSR/WW, and ABI 10 block headers
 
 ## Status

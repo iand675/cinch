@@ -1040,6 +1040,7 @@ module Cinch.Check where
     DDecl s x rest -> (check-decl signatures env x) <> (check-decl signatures env rest)
     DDeclsEnd s -> []
     DWrapperLayout s name repr label -> []
+    DCapability s name -> []
     DUnpackFields s name fields -> []
     DInlineHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)
     DUnrollHint s name hint -> (case hint of Ok value -> []; Err message -> fail s message)

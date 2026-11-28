@@ -850,6 +850,9 @@ impl<'a> Printer<'a> {
                 .mark(format!("@class({})", class_text(*class)))
                 .child(self.expr(value)),
             Core::Fault => Node::list("fault"),
+            Core::EvAllocEntry => Node::list("ev-alloc-entry"),
+            Core::Bubble => Node::list("bubble"),
+            Core::Zero(class) => Node::list("zero").mark(format!("@class({})", class_text(*class))),
             Core::Dup(id, class, body) => Node::list("dup")
                 .child(Node::atom(self.local(*id)))
                 .mark(format!("@class({})", class_text(*class)))
@@ -1425,6 +1428,9 @@ fn walk_units(body: &Core, f: &mut impl FnMut(&str)) {
         | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::Fault
+        | Core::EvAllocEntry
+        | Core::Bubble
+        | Core::Zero(_)
         | Core::SyntaxLit(..)
         | Core::StrLit(_) => {}
         Core::DictProj(dict, _, _, _) | Core::Proj(dict, _) | Core::Demand(dict, _) | Core::BoxGet(dict, _) | Core::BoxClear(dict, _) => {

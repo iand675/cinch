@@ -45,7 +45,7 @@ module Data.List where
   import Category.Foldable
   import Category.Traversable
 
-  export List, Nil, Cons, map, foldr, length, sum-list
+  export List, Nil, Cons, (:), map, foldr, length, sum-list
   export reverse, take, drop, nth, replicate, list-length, is-empty
   export head, tail, last, init
   export zip, zip-with, unzip, split-at, span, break, partition
@@ -59,6 +59,11 @@ module Data.List where
   -- here (that module's header says why: `Data.List` and `Data.Option`
   -- name each other in signatures, so neither can be checked first).
   -- This home carries the type's instance family and its operations.
+
+  infixr 5 :
+
+  (:) :: forall a. a -> List a -> List a
+  (:) x xs = Cons x xs
 
   map :: forall a b. (a -> b) -> List a -> List b
   map f xs = case xs of

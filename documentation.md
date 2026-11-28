@@ -49,7 +49,9 @@ Every standard library module is published under [`/packages/stdlib/`](/packages
 | --- | --- | --- |
 | Build and run a program | [Using the compiler](reference/01-using-the-compiler.md#commands) | [First program](learn/01-first-program.md) |
 | Print output | [Effects and I/O](learn/10-effects-and-io.md) | [Compiler vocabulary](reference/20-compiler-vocabulary.md) |
-| Model typed failures | [Options, results, and validation](learn/06-options-results-and-validation.md) | [Data.Result](library/Data.Result.md) |
+| Share read-only config without effects | [Effects and I/O](learn/10-effects-and-io.md#lexical-environments-without-effects-effectreader) | [Effect.Reader](library/Effect.Reader.md), [Effects and capabilities](reference/09-effects-and-capabilities.md#user-defined-lexical-capabilities-and-effectreader) |
+| Model typed failures and short-circuiting | [Options, results, and validation](learn/06-options-results-and-validation.md), [Handlers and sequencing](learn/11-handlers-and-sequencing.md#cross-call-handlers-and-effectthrow) | [Data.Result](library/Data.Result.md), [Effect.Throw](library/Effect.Throw.md) |
+| Bound heap usage or escape an arena in `O(1)` | [Region-delimited arenas](reference/25-allocators.md#region-delimited-arenas-and-budgets-effectarena) | [Effect.Arena](library/Effect.Arena.md), [Allocators](reference/25-allocators.md) |
 | Refine a runtime value | [Refinements](learn/13-refinements-and-safe-operations.md) | [Refinements reference](reference/06-refinements.md) |
 | Model-check a protocol or state machine | [State machines and model checking](learn/23-state-machines-and-model-checking.md), [Composing and debugging models](learn/24-composing-state-machines.md) | [Upgrades and temporal contracts](reference/17-upgrades-and-temporal-contracts.md), [TLA+ guide & value domains](reference/30-tla-plus-guide-and-value-domains.md) |
 | Split a project into modules | [Modules](learn/08-modules.md) | [Modules and packages](reference/07-modules-and-packages.md) |

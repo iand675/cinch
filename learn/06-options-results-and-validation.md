@@ -102,6 +102,8 @@ Each step of a dependent sequence needs the previous step's value, so each step 
 
 The provider short-circuits, and that is the difference from validation. It reports the first failure and stops, so it suits a pipeline where step two needs step one's output. Independent fields need every failure, which means evaluating the checks separately and combining the results yourself, for example by matching a pair of results and collecting both error values. A fail-fast sequence is not an accumulating validation.
 
+Direct functions returning `Option` or `Result` are returned unboxed in registers (`{ tag, payload }`) rather than heap-allocated when their caller immediately matches on them. When deep recursive pipelines need to unwind across many calls without threading `Result` through every signature, [Effect.Throw](../library/Effect.Throw.md) ([chapter 11](11-handlers-and-sequencing.md#cross-call-handlers-and-effectthrow)) provides typed short-circuiting effects, and [Effect.Arena](../library/Effect.Arena.md) provides `O(1)` prompt escape and byte budgets for pure sub-computations.
+
 # Validate at the boundary and refine the result
 
 Some properties are worth carrying in the type, so that a later function does not recheck them. `NonZero a` and `NonEmpty a` are refinements of an existing type rather than new data types, and the total constructors that produce them return `Option`, because the property may fail:

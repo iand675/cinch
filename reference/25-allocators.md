@@ -163,6 +163,74 @@ Every allocated value block carries an 8-byte runtime header at offset `-8` with
 
 Because the 40-bit count can represent more references than the heap cap can hold live pointer words, reference counts cannot saturate or overflow in valid programs and require no overflow branch on retain. Changing the count width would change the runtime ABI and heap-cap invariant together; swapping the backing allocator policy does not.
 
+# Region-delimited arenas and budgets (`Effect.Arena`)
+
+The standard library module [Effect.Arena](../library/Effect.Arena.md) provides a region-delimited bump arena with `O(1)` prompt escape and an optional per-scope byte budget:
+
+```cinch
+with-arena        :: forall e a. (forall (r :: Region). ArenaToken r e -> a) -> Result e a
+with-arena-budget :: forall a. I64 -> (forall (r :: Region). ArenaToken r BudgetError -> a) -> Result BudgetError a
+arena-abort       :: forall (r :: Region) e a. ArenaToken r e -> e -> a
+```
+
+Inside `with-arena` or `with-arena-budget`, allocations inside the pure callback run in a dedicated bump arena scoped to the fresh region `r`. Calling `arena-abort tok err`—or exceeding `budget-bytes` in `with-arena-budget`—jumps straight back to the prompt in `O(1)`, reclaiming every arena chunk and tracked allocation without leaking (`Err err` or `Err Exhausted`) instead of terminating the process with exit code `73`:
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  import Data.Result
+  import Effect.Arena
+
+  data Chain where
+    End :: Chain
+    Link :: Int -> Chain -> Chain
+
+  alloc-many :: Int -> Chain -> Int
+  alloc-many n acc =
+    if n <= 0 then
+      case acc of
+        End -> 0
+        Link h _ -> h
+    else alloc-many (n - 1) (Link n acc)
+
+  deep-abort :: forall (r :: Region). ArenaToken r Int -> Int -> Int
+  deep-abort tok depth =
+    if depth <= 0 then arena-abort tok 40
+    else deep-abort tok (depth - 1) + 1
+
+  main :: Int
+  main =
+    let ok-small = with-arena-budget 65536 (\tok -> alloc-many 20 End) in
+    let hit-cap = with-arena-budget 4096 (\tok -> alloc-many 50000 End) in
+    let escaped = with-arena (\tok -> deep-abort tok 50) in
+    let a = case ok-small of { Ok v -> v; Err Exhausted -> 0 } in
+    let b = case hit-cap of { Ok _ -> 0; Err Exhausted -> 1 } in
+    let c = case escaped of { Ok _ -> 0; Err code -> code } in
+    a + b + c
+```
+
+Four static invariants make `O(1)` escape sound without frame-by-frame unwinding:
+
+1. **Rank-2 region isolation.** The region `r` on `ArenaToken r e` is universally quantified inside the callback argument, so a token cannot escape its arena scope or be forged from outside.
+2. **Escape-safe result and error types.** Both the normal return type `a` and the abort error type `e` must be arena-escape-safe (machine scalars, `Bool`, `Unit`, `Int`, `Nat`, or nullary enums) so no pointer into the reclaimed arena can outlive the scope:
+
+<!-- cinch:reject contains="cannot escape" -->
+```cinch
+module Main where
+  import Data.List (List, Nil, Cons)
+  import Data.Result
+  import Effect.Arena
+
+  bad :: Result Int (List Int)
+  bad = with-arena (\tok -> Cons 1 Nil)
+
+  main :: Int
+  main = 0
+```
+
+3. **No linear (`%1`) captures.** Capturing a `%1` binder inside the callback closure is rejected statically so an `O(1)` jump can never skip consuming a linear resource.
+4. **Pure callback row.** The callback arrow is closed pure (`->{}`), forbidding `IO`, `Async`, `Spawn`, or user effects inside the `O(1)` jump extent. For effectful or heap-returning short-circuiting, use [Effect.Throw](../library/Effect.Throw.md).
+
 # Planned: replaceable program allocators
 
 <span class="support-tag support-tag--planned">Coming soon</span> A replaceable global allocator architecture is planned. None of the following is shipped yet:
@@ -179,16 +247,14 @@ Accounting and `CINCH_HEAP_LIMIT` will wrap whichever allocator is installed so 
 
 # Planned: scoped heaps, arenas, pools, and budgets
 
-<span class="support-tag support-tag--planned">Coming soon</span> Four higher-level memory abstractions are designed on top of replaceable allocators, none yet accepted by the compiler:
+<span class="support-tag support-tag--partial">Partial</span> Region-delimited bump arenas with `O(1)` escape and typed byte budgets are shipped in [Effect.Arena](../library/Effect.Arena.md) (see above). General-purpose custom allocator capabilities, counted pools, and heap-value evacuation remain planned:
 
-| Planned facility | Intended behaviour | Current status |
+| Facility | Intended behaviour | Current status |
 | --- | --- | --- |
-| `Heap r` capability | Explicit allocation context (`using (heap :: Heap r) =>`, `with (heap = arena) in e`) | `Heap` is not a known signature |
-| Scoped bump arenas | Fast bump allocation released wholesale at scope exit | Not implemented |
-| Arena escape checking | Region check ensuring no arena pointer outlives its scope without explicit copy-out | Region checking currently covers borrows, cells, and `Eval` labels |
-| Counted pools | Fixed-size block pools returning blocks individually on last release | Not implemented |
-| Typed budget boundaries | Turn sub-computation exhaustion into a typed outcome instead of process exit 73 | Only process-wide exit 73 exists |
-| `evacuate`-style copy-out | Deep-copy a value from an inner arena to an outer heap | Provisional design |
+| Region-delimited bump arenas & typed budgets (`Effect.Arena`) | Pure scoped bump arena with `O(1)` `arena-abort`, `with-arena-budget`, and static escape/linearity/purity checks | **Implemented** (`Effect.Arena`) |
+| `Heap r` capability | Explicit allocation context (`using (heap :: Heap r) =>`, `with (heap = arena) in e`) | Planned (`Heap` is not yet a known capability) |
+| Counted pools | Fixed-size block pools returning blocks individually on last release | Planned |
+| `evacuate`-style copy-out | Deep-copy a heap aggregate from an inner arena to an outer heap | Planned (`Effect.Arena` currently restricts escapes to scalar/Copy types) |
 
 # Planned: proven allocation bounds
 

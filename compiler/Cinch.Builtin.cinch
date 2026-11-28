@@ -254,6 +254,8 @@ module Cinch.Builtin where
     else if symbol == "cinch.runtime.arenaLeave" then Some ("I64 -> I64", "cinch_arena_leave", [0], 0)
     else if symbol == "cinch.runtime.arenaEnterPhase" then Some ("I64 -> I64", "cinch_arena_enter_phase", [0], 0)
     else if symbol == "cinch.runtime.arenaExitPhase" then Some ("I64 -> I64", "cinch_arena_exit_phase", [0], 0)
+    else if symbol == "cinch.runtime.arenaEscapeRun" then Some ("forall e a r. I64 -> (I64 -> a) -> (a -> r) -> (e -> r) -> (Unit -> r) -> r", "cinch_arena_escape_run", [0, 1, 1, 1, 1], 0)
+    else if symbol == "cinch.runtime.arenaEscapeAbort" then Some ("forall e a. I64 -> e -> a", "cinch_arena_escape_abort", [0, 0], 0)
     else if symbol == "cinch.runtime.netTcpConnect" then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_connect", [1, 0], 2)
     else if symbol == "cinch.runtime.netTcpListen" then Some ("Bytes -> I64 -> Result I64 I64", "cinch_net_tcp_listen", [1, 0], 2)
     else if symbol == "cinch.runtime.netTcpAccept" then Some ("I64 -> Result I64 I64", "cinch_net_tcp_accept", [0], 2)

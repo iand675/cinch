@@ -193,6 +193,8 @@ module Cinch.Ownership where
     CDecision sp ty pred cond -> term-uses-id needle cond
     CPolyIntro sp ty ids body -> term-uses-id needle body
     CPolyElim sp ty val args -> term-uses-id needle val
+    CQualIntro sp ty givens body -> term-uses-id needle body
+    CQualElim sp ty val evs -> term-uses-id needle val
     CGuard sp ty cond body -> term-uses-id needle cond || term-uses-id needle body
     CProved sp ty ev body -> term-uses-id needle body
     CRefine sp ty ev body -> term-uses-id needle body

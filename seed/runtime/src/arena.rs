@@ -134,6 +134,15 @@ pub struct Arena {
     /// Prefix of `served` whose heap children have already been marked
     /// atomic (`cinch_mark_mt`) before a parallel publication.
     marked_up_to: usize,
+    /// Optional byte budget cap (`0` = unlimited). When nonzero, exceeding
+    /// `budget` jumps to `escape` with `STATUS_EXHAUSTED` (or exits `Exhausted`).
+    budget: usize,
+    /// Optional escape prompt for $O(1)$ abort and budget exhaustion.
+    escape: *mut crate::escape::EscapeFrame,
+    /// Non-arena heap blocks (`Bytes`, `Nat`, `Int`, etc.) allocated while
+    /// this escape-capable arena was active and not yet freed; cleaned up on
+    /// an $O(1)$ escape jump so skipped stack frames leak nothing.
+    escape_owned: Vec<usize>,
 }
 
 const _: () = assert!(CHUNK_HEADER % 8 == 0, "the data area keeps the allocation's alignment");
@@ -333,6 +342,69 @@ unsafe fn grow(arena: &mut Arena, need: usize) {
 /// The caller writes the grant's first bytes before any read of them and
 /// never writes past `total`; `total` is the block's whole allocation, and
 /// it initialises every payload word it later reads.
+/// Number of escape-capable arenas currently active across the process, so
+/// non-arena heap allocations and frees skip the thread-local read when none
+/// are entered.
+static ESCAPE_ACTIVE: AtomicUsize = AtomicUsize::new(0);
+
+/// Enforce an active escape arena's byte budget before allocating a non-arena
+/// heap block (`Bytes`, `Nat`, `Int`, etc.).
+#[inline]
+pub(crate) unsafe fn check_escape_heap_budget(bytes: usize) {
+    if ESCAPE_ACTIVE.load(Relaxed) == 0 {
+        return;
+    }
+    let ptr = current();
+    if ptr.is_null() {
+        return;
+    }
+    let arena = unsafe { &mut *ptr };
+    if arena.budget != 0 && arena.bytes.saturating_add(bytes as u64) > arena.budget as u64 {
+        let esc = arena.escape;
+        if !esc.is_null() {
+            unsafe { crate::escape::jump_budget_exhausted(esc) };
+        }
+        crate::abi::exhausted(crate::abi::Resource::Heap(arena.bytes.saturating_add(bytes as u64)));
+    }
+}
+
+/// Record a non-arena mortal heap block allocated inside an active escape arena.
+#[inline]
+pub(crate) unsafe fn note_escape_heap_alloc(p: *mut u8, bytes: usize) {
+    if ESCAPE_ACTIVE.load(Relaxed) == 0 {
+        return;
+    }
+    let ptr = current();
+    if ptr.is_null() {
+        return;
+    }
+    let arena = unsafe { &mut *ptr };
+    if !arena.escape.is_null() {
+        arena.bytes = arena.bytes.saturating_add(bytes as u64);
+        arena.escape_owned.push(p as usize);
+    }
+}
+
+/// Remove a freed heap block from any active escape arena on this thread.
+#[inline]
+pub(crate) fn note_escape_heap_free(p: *mut u8) {
+    if ESCAPE_ACTIVE.load(Relaxed) == 0 {
+        return;
+    }
+    let mut ptr = current();
+    let addr = p as usize;
+    while !ptr.is_null() {
+        let arena = unsafe { &mut *ptr };
+        if !arena.escape.is_null() {
+            if let Some(idx) = arena.escape_owned.iter().rposition(|&x| x == addr) {
+                arena.escape_owned.swap_remove(idx);
+                return;
+            }
+        }
+        ptr = arena.prev;
+    }
+}
+
 #[inline]
 pub(crate) unsafe fn serve(total: usize, prefix: usize) -> Option<*mut u8> {
     let arena = current();
@@ -341,6 +413,13 @@ pub(crate) unsafe fn serve(total: usize, prefix: usize) -> Option<*mut u8> {
     }
     let arena = unsafe { &mut *arena };
     let total = total.max(8).next_multiple_of(8);
+    if arena.budget != 0 && arena.bytes.saturating_add(total as u64) > arena.budget as u64 {
+        let esc = arena.escape;
+        if !esc.is_null() {
+            unsafe { crate::escape::jump_budget_exhausted(esc) };
+        }
+        crate::abi::exhausted(crate::abi::Resource::Heap(arena.bytes.saturating_add(total as u64)));
+    }
     if arena.current.is_null() || arena.used + total > unsafe { (*arena.current).bytes } {
         unsafe { grow(arena, total) };
     }
@@ -361,6 +440,25 @@ pub(crate) unsafe fn serve(total: usize, prefix: usize) -> Option<*mut u8> {
 /// The caller leaves it on the same thread and frees no word served from
 /// it after that (this module's doc comment).
 pub unsafe fn new(bytes: usize) -> *mut Arena {
+    unsafe { new_with(bytes, 0, std::ptr::null_mut()) }
+}
+
+/// Create an escape-capable arena with an optional byte cap `budget` (`0` =
+/// unlimited) bound to prompt `escape`.
+pub(crate) unsafe fn new_escape(
+    bytes: usize,
+    budget: usize,
+    escape: *mut crate::escape::EscapeFrame,
+) -> *mut Arena {
+    ESCAPE_ACTIVE.fetch_add(1, Relaxed);
+    unsafe { new_with(bytes, budget, escape) }
+}
+
+unsafe fn new_with(
+    bytes: usize,
+    budget: usize,
+    escape: *mut crate::escape::EscapeFrame,
+) -> *mut Arena {
     let arena = unsafe { crate::heap::alloc_block(Layout::new::<Arena>(), false, true) }.cast::<Arena>();
     LIVE_CHUNKS.fetch_add(1, Relaxed);
     LIVE_CHUNK_BYTES.fetch_add(Layout::new::<Arena>().size() as u64, Relaxed);
@@ -376,6 +474,9 @@ pub unsafe fn new(bytes: usize) -> *mut Arena {
             bytes: 0,
             served: Vec::new(),
             marked_up_to: 0,
+            budget,
+            escape,
+            escape_owned: Vec::new(),
         });
         grow(&mut *arena, target);
     }
@@ -391,19 +492,55 @@ pub unsafe fn new(bytes: usize) -> *mut Arena {
 /// `arena` is the calling thread's current arena, from [`new`], and no
 /// word it served is reachable afterwards.
 pub unsafe fn leave(arena: *mut Arena) {
+    unsafe { leave_inner(arena, false) }
+}
+
+/// Unwind any nested arenas down to and including `target`. When `aborted` is
+/// true (an $O(1)$ escape jump skipped intermediate frames), any still-live
+/// non-arena heap blocks recorded in `escape_owned` are also dropped cleanly.
+pub(crate) unsafe fn leave_escape_to(target: *mut Arena, aborted: bool) {
+    loop {
+        let cur = current();
+        if cur.is_null() {
+            crate::abi::panic_exit(b"compiler bug: escape arena missing from active chain");
+        }
+        let done = cur == target;
+        unsafe { leave_inner(cur, aborted) };
+        if done {
+            break;
+        }
+    }
+}
+
+unsafe fn leave_inner(arena: *mut Arena, aborted: bool) {
     let local = small::local();
-    let record = unsafe { &*arena };
-    // Every word an arena block owns first: a served cell's fields are
-    // ordinary words, and the heap blocks among them (a rendered `Bytes`,
-    // a boxed `Nat`) were counted when they were built. Only an owner's
-    // drop frees one, and the arena is the owner, so teardown returns them
-    // before the memory they point into is gone. A child that is itself an
-    // arena block answers nothing.
+    let is_escape = unsafe { !(*arena).escape.is_null() };
+    // Every word an arena block owns first: move `served` out so no `&Arena`
+    // reference is held while `release_children` triggers `note_escape_heap_free`.
     let debug = crate::heap::rc_debug();
-    for &served in &record.served {
+    let served_list = unsafe { std::mem::take(&mut (*arena).served) };
+    for served in served_list {
         let h = unsafe { crate::block::read_header(served) };
         unsafe { crate::rc::release_children(served, h, debug) };
     }
+    // On an $O(1)$ escape jump, release any remaining heap blocks (`Bytes`,
+    // `Nat`, `Int`, etc.) whose owning stack frames were jumped over.
+    if aborted && is_escape {
+        while let Some(addr) = unsafe { (*arena).escape_owned.pop() } {
+            let p = addr as *mut u8;
+            let h = unsafe { crate::block::read_header(p) };
+            let k = crate::block::header_kind(h);
+            if k != crate::block::KIND_FREED && crate::block::rc(h) != RC_IMMORTAL {
+                // Force RC to 1 (no reference outside the jumped arena can
+                // alias this block since return/error types are scalar/Copy)
+                // and invoke standard drop so children & Rust buffers free.
+                let forced = crate::block::header(1, k, crate::block::header_layout(h));
+                unsafe { crate::block::write_header(p, forced) };
+                unsafe { crate::rc::cinch_drop(addr as i64) };
+            }
+        }
+    }
+    let record = unsafe { &*arena };
     let mut chunk = record.head;
     while !chunk.is_null() {
         let next = unsafe { (*chunk).next };
@@ -422,6 +559,9 @@ pub unsafe fn leave(arena: *mut Arena) {
     LIVE_CHUNKS.fetch_sub(1, Relaxed);
     LIVE_CHUNK_BYTES.fetch_sub(Layout::new::<Arena>().size() as u64, Relaxed);
     enter(prev);
+    if is_escape {
+        ESCAPE_ACTIVE.fetch_sub(1, Relaxed);
+    }
 }
 
 /// Enter a fresh arena whose first chunk is at least `bytes` bytes and

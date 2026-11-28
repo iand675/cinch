@@ -64,15 +64,17 @@ impl DictionaryResolver<'_> {
         let wanted_z = self.uni.zonk_class(wanted);
         // The same lexical matcher serves term calls and law telescopes.
         if let Some(dictionary) = self.lexical(&wanted_z, scope) { return Ok(Solved(dictionary)); }
-        // Runtime capabilities are lexical evidence only: there are no
-        // `Io` instances, and nothing global is searched (decision D21).
-        if is_capability_class(&wanted_z.class) {
+        // Runtime and user lexical capabilities are lexical evidence only:
+        // there are no global instances (decision D21).
+        if self.checker.is_capability(&wanted_z.class) {
+            let hint = if wanted_z.class == "Io" {
+                "supply one lexically with `with (io = ...) in` or `f @{io = ...}`, or take it in a `using` clause"
+            } else {
+                "supply one lexically with `with (cap = ...) in` or `f @{cap = ...}`, or take it in a `using` clause"
+            };
             return Err(Error::at(
                 span,
-                crate::diagnostic!(
-                    "no {} capability in scope; supply one lexically with `with (io = ...) in` or `f @{{io = ...}}`, or take it in a `using` clause",
-                    wanted_z
-                ),
+                crate::diagnostic!("no {} capability in scope; {}", wanted_z, hint),
             ));
         }
         let class = wanted_z.class.clone();

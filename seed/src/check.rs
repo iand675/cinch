@@ -177,6 +177,29 @@ enum ECore {
     SyntaxLit(Vec<crate::lexer::Token>, crate::syntax::SyntaxScope),
     /// A compile-time string constant (`String` values).
     StrLit(String),
+    /// Koka-style evidence-passing algebraic effect handler (cross-call).
+    HandleEvidence {
+        label: EffLabel,
+        abort_mask: u64,
+        /// Per-slot `(slot, arg_tys, tuple_ctor_if_multi)` for aborting slots.
+        abort_slots: Vec<(usize, Vec<Ty>, Option<GlobalId>)>,
+        handler: Box<ECore>,
+        body: Box<ECore>,
+        body_ty: Ty,
+        out_ty: Ty,
+    },
+    /// Cross-call algebraic effect operation perform site.
+    Perform {
+        label: EffLabel,
+        slot: usize,
+        args: Vec<ECore>,
+        arg_tys: Vec<Ty>,
+        tuple_ctor: Option<GlobalId>,
+        ret_ty: Ty,
+    },
+    /// Potentially-yielding effectful call expression (lowered with cooperative
+    /// `cinch_ev_is_yielding()` bubble check).
+    EffCheck(Box<ECore>, Ty),
 }
 
 #[derive(Clone, Debug)]
@@ -383,6 +406,16 @@ fn free_locals(e: &ECore, bound: &mut Vec<LocalId>, out: &mut Vec<LocalId>) {
             free_locals(&t.body, bound, out);
             free_locals(&f.body, bound, out);
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            free_locals(handler, bound, out);
+            free_locals(body, bound, out);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                free_locals(a, bound, out);
+            }
+        }
+        ECore::EffCheck(inner, _) => free_locals(inner, bound, out),
         ECore::Demand(d, _) => free_locals(d, bound, out),
         ECore::LazyAlloc => {}
         ECore::LazyInit(l, t) => {
@@ -445,6 +478,7 @@ pub(crate) fn poly_instance_id(method: &GlobalId) -> GlobalId {
 }
 
 /// A lambda hoisted to a top level function; finalized by [`finalize_fn`].
+#[derive(Clone)]
 struct HoistedFn {
     id: GlobalId,
     /// `env ++ lambda parameters`, in ABI order.
@@ -522,6 +556,16 @@ fn hoist_lambdas_in(e: &mut ECore, hint: &str, counter: &mut usize, fns: &mut Ve
             hoist_lambdas_in(&mut t.body, hint, counter, fns, tparams, scope);
             hoist_lambdas_in(&mut f.body, hint, counter, fns, tparams, scope);
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            hoist_lambdas_in(handler, hint, counter, fns, tparams, scope);
+            hoist_lambdas_in(body, hint, counter, fns, tparams, scope);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                hoist_lambdas_in(a, hint, counter, fns, tparams, scope);
+            }
+        }
+        ECore::EffCheck(inner, _) => hoist_lambdas_in(inner, hint, counter, fns, tparams, scope),
         ECore::Demand(d, _) => hoist_lambdas_in(d, hint, counter, fns, tparams, scope),
         ECore::LazyAlloc => {}
         ECore::LazyInit(_, t) => hoist_lambdas_in(t, hint, counter, fns, tparams, scope),
@@ -668,6 +712,16 @@ fn assign_locals(e: &ECore, map: &mut HashMap<LocalId, LocalId>, next: &mut usiz
             assign_locals(&t.body, map, next);
             assign_locals(&f.body, map, next);
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            assign_locals(handler, map, next);
+            assign_locals(body, map, next);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                assign_locals(a, map, next);
+            }
+        }
+        ECore::EffCheck(inner, _) => assign_locals(inner, map, next),
         ECore::Demand(d, _) => assign_locals(d, map, next),
         ECore::LazyAlloc => {}
         ECore::LazyInit(l, t) => {
@@ -832,6 +886,35 @@ fn remap_ecore(e: &ECore, r: &Remap) -> ECore {
         ECore::QuoteHole(h) => ECore::QuoteHole(*h),
         ECore::IdxPending(i) => ECore::IdxPending(r.deferred.and_then(|copy| copy.indices.get(i)).copied().unwrap_or(*i)),
         ECore::Fault => ECore::Fault,
+        ECore::HandleEvidence { label, abort_mask, abort_slots, handler, body, body_ty, out_ty } => ECore::HandleEvidence {
+            label: EffLabel {
+                head: label.head.clone(),
+                arg: label.arg.clone(),
+                ty_arg: label.ty_arg.as_ref().map(|t| Box::new(r.ty(t))),
+            },
+            abort_mask: *abort_mask,
+            abort_slots: abort_slots
+                .iter()
+                .map(|(s, tys, tc)| (*s, r.tys(tys), tc.clone()))
+                .collect(),
+            handler: Box::new(remap_ecore(handler, r)),
+            body: Box::new(remap_ecore(body, r)),
+            body_ty: r.ty(body_ty),
+            out_ty: r.ty(out_ty),
+        },
+        ECore::Perform { label, slot, args, arg_tys, tuple_ctor, ret_ty } => ECore::Perform {
+            label: EffLabel {
+                head: label.head.clone(),
+                arg: label.arg.clone(),
+                ty_arg: label.ty_arg.as_ref().map(|t| Box::new(r.ty(t))),
+            },
+            slot: *slot,
+            args: args.iter().map(|a| remap_ecore(a, r)).collect(),
+            arg_tys: r.tys(arg_tys),
+            tuple_ctor: tuple_ctor.clone(),
+            ret_ty: r.ty(ret_ty),
+        },
+        ECore::EffCheck(inner, ty) => ECore::EffCheck(Box::new(remap_ecore(inner, r)), r.ty(ty)),
         ECore::SyntaxLit(toks, scope) => ECore::SyntaxLit(toks.clone(), scope.clone()),
         ECore::StrLit(s) => ECore::StrLit(s.clone()),
         ECore::Quote { template, holes, body } => ECore::Quote {
@@ -1006,6 +1089,16 @@ fn def_parts(e: &ECore, parts: &mut CopyParts) {
             def_parts(&t.body, parts);
             def_parts(&f.body, parts);
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            def_parts(handler, parts);
+            def_parts(body, parts);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                def_parts(a, parts);
+            }
+        }
+        ECore::EffCheck(inner, _) => def_parts(inner, parts),
         ECore::Case { scrut, alts } => {
             def_parts(scrut, parts);
             for a in alts {
@@ -1064,6 +1157,16 @@ fn resolve_lit_words(e: &mut ECore, lits: &[ECore]) {
             resolve_lit_words(&mut t.body, lits);
             resolve_lit_words(&mut f.body, lits);
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            resolve_lit_words(handler, lits);
+            resolve_lit_words(body, lits);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                resolve_lit_words(a, lits);
+            }
+        }
+        ECore::EffCheck(inner, _) => resolve_lit_words(inner, lits),
         ECore::LazyInit(_, t) => resolve_lit_words(t, lits),
         ECore::BoxInit(_, v, _) => resolve_lit_words(v, lits),
         ECore::RefSet(_, v, _) => resolve_lit_words(v, lits),
@@ -1134,6 +1237,16 @@ fn resolve_idx_words(e: &mut ECore, vals: &[ECore]) {
             resolve_idx_words(&mut t.body, vals);
             resolve_idx_words(&mut f.body, vals);
         }
+        ECore::HandleEvidence { handler, body, .. } => {
+            resolve_idx_words(handler, vals);
+            resolve_idx_words(body, vals);
+        }
+        ECore::Perform { args, .. } => {
+            for a in args {
+                resolve_idx_words(a, vals);
+            }
+        }
+        ECore::EffCheck(inner, _) => resolve_idx_words(inner, vals),
         ECore::LazyInit(_, t) => resolve_idx_words(t, vals),
         ECore::BoxInit(_, v, _) => resolve_idx_words(v, vals),
         ECore::RefSet(_, v, _) => resolve_idx_words(v, vals),
@@ -1223,7 +1336,10 @@ fn fold_blocked(e: &ECore) -> bool {
         | ECore::RefSet(_, _, _)
         | ECore::BoxGet(..) | ECore::BoxClear(..)
         | ECore::Quote { .. }
-        | ECore::DeclsQuote { .. } => true,
+        | ECore::DeclsQuote { .. }
+        | ECore::HandleEvidence { .. }
+        | ECore::Perform { .. }
+        | ECore::EffCheck(..) => true,
         ECore::LitFold { body, .. } => fold_blocked(body),
         ECore::DictProj(d, ..) | ECore::Proj(d, ..) => fold_blocked(d),
         ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
@@ -1505,6 +1621,9 @@ impl<'a> LowerCx<'a> {
                 }
                 _ => None,
             },
+            ECore::HandleEvidence { out_ty, .. }
+            | ECore::Perform { ret_ty: out_ty, .. }
+            | ECore::EffCheck(_, out_ty) => Some(self.class(out_ty)),
             ECore::Ctor(id, tys) => {
                 if let Some((carrier, _)) = self.ck.niche_ctors.get(id) {
                     Some(*carrier)
@@ -1522,6 +1641,306 @@ impl<'a> LowerCx<'a> {
             ECore::Case { alts, .. } => alts.iter().find_map(|a| self.expr_class(&a.body)),
             _ => None,
         }
+    }
+}
+
+/// Whether an effect row can perform a user algebraic effect (which may abort
+/// and cooperatively bubble up the call stack). Pure rows (`->{}`) and rows
+/// containing only non-handler builtin effects (`IO`, `Mut`, `Async`, `Cancel`,
+/// `Eval`, `Diverge`, `Blocking`, `STM`, `MVar`, `Foreign`) never yield and pay
+/// zero cooperative-bubbling overhead.
+pub(crate) fn row_can_yield(row: &EffRow) -> bool {
+    if !matches!(row.tail, RowTail::Closed) {
+        return true;
+    }
+    row.labels.iter().any(|l| {
+        !matches!(
+            l.head.as_str(),
+            "IO" | "Mut" | "Async" | "Cancel" | "Eval" | "Diverge" | "Blocking" | "STM" | "MVar" | "Foreign"
+        )
+    })
+}
+
+/// Whether `e` contains any evidence-passing effect node (`HandleEvidence`,
+/// `Perform`, `EffCheck`) within the current function frame (not crossing into
+/// a nested lambda/closure/quote).
+fn ecore_has_ev(e: &ECore) -> bool {
+    match e {
+        ECore::HandleEvidence { .. } | ECore::Perform { .. } | ECore::EffCheck(..) => true,
+        ECore::LitFold { body, .. } => ecore_has_ev(body),
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _)
+        | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => ecore_has_ev(d),
+        ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v, _) => ecore_has_ev(v),
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => args.iter().any(ecore_has_ev),
+        ECore::App(f, args) => ecore_has_ev(f) || args.iter().any(ecore_has_ev),
+        ECore::Let(_, v, body) => ecore_has_ev(v) || ecore_has_ev(body),
+        ECore::If(c, t, f) => ecore_has_ev(c) || ecore_has_ev(&t.body) || ecore_has_ev(&f.body),
+        ECore::Case { scrut, alts } => ecore_has_ev(scrut) || alts.iter().any(|a| ecore_has_ev(&a.body)),
+        ECore::Quote { holes, .. } | ECore::DeclsQuote { holes, .. } => holes.iter().any(ecore_has_ev),
+        _ => false,
+    }
+}
+
+/// Whether `e` (or a transitive call to `poly_defs`) contains a type-parameterized
+/// effect label mentioning one of `tparams`.
+fn ecore_uses_poly_ev(e: &ECore, tparams: &[String], poly_defs: &HashMap<GlobalId, EvPolyDef>) -> bool {
+    let label_poly = |l: &EffLabel| {
+        l.ty_arg.as_ref().is_some_and(|t| tparams.iter().any(|p| t.mentions_param(p)))
+    };
+    match e {
+        ECore::HandleEvidence { label, handler, body, .. } => {
+            label_poly(label)
+                || ecore_uses_poly_ev(handler, tparams, poly_defs)
+                || ecore_uses_poly_ev(body, tparams, poly_defs)
+        }
+        ECore::Perform { label, args, .. } => {
+            label_poly(label) || args.iter().any(|a| ecore_uses_poly_ev(a, tparams, poly_defs))
+        }
+        ECore::Global(g, tys) => {
+            poly_defs.contains_key(g)
+                && tys.iter().any(|t| tparams.iter().any(|p| t.mentions_param(p)))
+        }
+        ECore::EffCheck(inner, _) | ECore::LitFold { body: inner, .. } => {
+            ecore_uses_poly_ev(inner, tparams, poly_defs)
+        }
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _)
+        | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) => ecore_uses_poly_ev(d, tparams, poly_defs),
+        ECore::LazyInit(_, v) | ECore::BoxInit(_, v, _) | ECore::RefSet(_, v, _) => {
+            ecore_uses_poly_ev(v, tparams, poly_defs)
+        }
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } => {
+            args.iter().any(|a| ecore_uses_poly_ev(a, tparams, poly_defs))
+        }
+        ECore::App(f, args) => {
+            ecore_uses_poly_ev(f, tparams, poly_defs)
+                || args.iter().any(|a| ecore_uses_poly_ev(a, tparams, poly_defs))
+        }
+        ECore::Let(_, v, body) => {
+            ecore_uses_poly_ev(v, tparams, poly_defs) || ecore_uses_poly_ev(body, tparams, poly_defs)
+        }
+        ECore::If(c, t, f) => {
+            ecore_uses_poly_ev(c, tparams, poly_defs)
+                || ecore_uses_poly_ev(&t.body, tparams, poly_defs)
+                || ecore_uses_poly_ev(&f.body, tparams, poly_defs)
+        }
+        ECore::Case { scrut, alts } => {
+            ecore_uses_poly_ev(scrut, tparams, poly_defs)
+                || alts.iter().any(|a| ecore_uses_poly_ev(&a.body, tparams, poly_defs))
+        }
+        ECore::Lam { body, .. } | ECore::PolyIntro { body, .. } => {
+            ecore_uses_poly_ev(body, tparams, poly_defs)
+        }
+        _ => false,
+    }
+}
+
+/// Determine whether an `effect L p where ...` declaration's parameter `p` has
+/// kind `Type` (true) or `Region` (false). Explicit `(p :: Type)` / `(p :: Region)`
+/// annotations take precedence; an unannotated parameter `p` is `Type` if any
+/// operation signature mentions `p` in a value/type position (e.g. `effect Throw e
+/// where throw :: forall a. e ->{Throw e} a`), and `Region` otherwise (e.g.
+/// `effect Sample r where sample :: Unit ->{Sample r} Int`).
+fn effect_decl_is_type_param(eff: &ast::EffectDecl) -> bool {
+    let Some(param) = eff.params.first() else { return false; };
+    if let Some(Some(kind)) = eff.param_kinds.first() {
+        return kind == "Type";
+    }
+    fn mentions_var_as_type(ty: &ast::Type, name: &str) -> bool {
+        match ty {
+            ast::Type::Var(n, _) => n.text == name,
+            ast::Type::App(f, a, _) | ast::Type::IndexAnnotated(f, a, _) => {
+                mentions_var_as_type(f, name) || mentions_var_as_type(a, name)
+            }
+            ast::Type::AppRow(f, _, _) => mentions_var_as_type(f, name),
+            ast::Type::Fun { arg, res, .. } => {
+                mentions_var_as_type(arg, name) || mentions_var_as_type(res, name)
+            }
+            ast::Type::DepFun(_, arg, _, _, res, _) | ast::Type::Sigma(_, arg, res, _) => {
+                mentions_var_as_type(arg, name) || mentions_var_as_type(res, name)
+            }
+            ast::Type::Tuple(items, _) => items.iter().any(|t| mentions_var_as_type(t, name)),
+            ast::Type::Forall(binders, body, _) => {
+                if binders.iter().any(|b| b.name.text == name) {
+                    false
+                } else {
+                    mentions_var_as_type(body, name)
+                }
+            }
+            ast::Type::Using(obligs, body, _) => {
+                obligs.iter().any(|o| match o {
+                    ast::Oblig::Class(c) => c.args.iter().any(|a| mentions_var_as_type(a, name)),
+                    _ => false,
+                }) || mentions_var_as_type(body, name)
+            }
+            ast::Type::List(items, _) => items.iter().any(|t| mentions_var_as_type(t, name)),
+            _ => false,
+        }
+    }
+    eff.ops.iter().any(|(_, ty)| mentions_var_as_type(ty, &param.text))
+}
+
+fn subst_ev_ecore(
+    e: &ECore,
+    map: &HashMap<String, Ty>,
+    rename_units: &HashMap<GlobalId, GlobalId>,
+) -> ECore {
+    let st = |t: &Ty| Checker::subst_ty(t, map);
+    let go = |x: &ECore| subst_ev_ecore(x, map, rename_units);
+    match e {
+        ECore::Global(g, tys) => ECore::Global(
+            rename_units.get(g).cloned().unwrap_or_else(|| g.clone()),
+            tys.iter().map(st).collect(),
+        ),
+        ECore::Ctor(g, tys) => ECore::Ctor(g.clone(), tys.iter().map(st).collect()),
+        ECore::MkClos { fn_id, env } => ECore::MkClos {
+            fn_id: rename_units.get(fn_id).cloned().unwrap_or_else(|| fn_id.clone()),
+            env: env.iter().map(go).collect(),
+        },
+        ECore::HandleEvidence { label, abort_mask, abort_slots, handler, body, body_ty, out_ty } => {
+            ECore::HandleEvidence {
+                label: EffLabel {
+                    head: label.head.clone(),
+                    arg: label.arg.clone(),
+                    ty_arg: label.ty_arg.as_ref().map(|t| Box::new(st(t))),
+                },
+                abort_mask: *abort_mask,
+                abort_slots: abort_slots
+                    .iter()
+                    .map(|(s, tys, tc)| (*s, tys.iter().map(st).collect(), tc.clone()))
+                    .collect(),
+                handler: Box::new(go(handler)),
+                body: Box::new(go(body)),
+                body_ty: st(body_ty),
+                out_ty: st(out_ty),
+            }
+        }
+        ECore::Perform { label, slot, args, arg_tys, tuple_ctor, ret_ty } => ECore::Perform {
+            label: EffLabel {
+                head: label.head.clone(),
+                arg: label.arg.clone(),
+                ty_arg: label.ty_arg.as_ref().map(|t| Box::new(st(t))),
+            },
+            slot: *slot,
+            args: args.iter().map(go).collect(),
+            arg_tys: arg_tys.iter().map(st).collect(),
+            tuple_ctor: tuple_ctor.clone(),
+            ret_ty: st(ret_ty),
+        },
+        ECore::EffCheck(inner, ty) => ECore::EffCheck(Box::new(go(inner)), st(ty)),
+        ECore::LitFold { idx, body } => ECore::LitFold { idx: *idx, body: Box::new(go(body)) },
+        ECore::DictProj(d, i, site, ty) => ECore::DictProj(
+            Box::new(go(d)),
+            *i,
+            site.as_ref().map(|(c, own)| (c.clone(), own.iter().map(st).collect())),
+            st(ty),
+        ),
+        ECore::Proj(d, f, ty, before) => ECore::Proj(
+            Box::new(go(d)),
+            f.clone(),
+            st(ty),
+            before.iter().map(st).collect(),
+        ),
+        ECore::InstDict(g, args, tys, ex) => ECore::InstDict(
+            g.clone(),
+            args.iter().map(go).collect(),
+            tys.iter().map(st).collect(),
+            *ex,
+        ),
+        ECore::App(f, args) => ECore::App(Box::new(go(f)), args.iter().map(go).collect()),
+        ECore::Lam { params, body } => ECore::Lam { params: params.clone(), body: Box::new(go(body)) },
+        ECore::PolyIntro { skolems, body, ty } => ECore::PolyIntro {
+            skolems: skolems.clone(),
+            body: Box::new(go(body)),
+            ty: st(ty),
+        },
+        ECore::Let(l, v, b) => ECore::Let(*l, Box::new(go(v)), Box::new(go(b))),
+        ECore::If(c, t, f) => ECore::If(
+            Box::new(go(c)),
+            CBranch { weight: t.weight, body: Box::new(go(&t.body)) },
+            CBranch { weight: f.weight, body: Box::new(go(&f.body)) },
+        ),
+        ECore::Case { scrut, alts } => ECore::Case {
+            scrut: Box::new(go(scrut)),
+            alts: alts
+                .iter()
+                .map(|a| CAlt { pat: a.pat.clone(), weight: a.weight, body: Box::new(go(&a.body)) })
+                .collect(),
+        },
+        ECore::Demand(d, ty) => ECore::Demand(Box::new(go(d)), st(ty)),
+        ECore::LazyInit(l, t) => ECore::LazyInit(*l, Box::new(go(t))),
+        ECore::BoxInit(l, v, ty) => ECore::BoxInit(*l, Box::new(go(v)), st(ty)),
+        ECore::RefSet(l, v, ty) => ECore::RefSet(*l, Box::new(go(v)), st(ty)),
+        ECore::BoxGet(v, ty) => ECore::BoxGet(Box::new(go(v)), st(ty)),
+        ECore::BoxClear(v, ty) => ECore::BoxClear(Box::new(go(v)), st(ty)),
+        ECore::Quote { template, holes, body } => ECore::Quote {
+            template: template.clone(),
+            holes: holes.iter().map(go).collect(),
+            body: Box::new(go(body)),
+        },
+        ECore::DeclsQuote { template, holes, name_holes } => ECore::DeclsQuote {
+            template: template.clone(),
+            holes: holes.iter().map(go).collect(),
+            name_holes: name_holes.clone(),
+        },
+        other => other.clone(),
+    }
+}
+
+fn max_local_in_ecore(e: &ECore, acc: &mut usize) {
+    fn note(l: LocalId, acc: &mut usize) {
+        if l.0 >= *acc {
+            *acc = l.0 + 1;
+        }
+    }
+    match e {
+        ECore::Var(l) => note(*l, acc),
+        ECore::Let(l, v, b) => {
+            note(*l, acc);
+            max_local_in_ecore(v, acc);
+            max_local_in_ecore(b, acc);
+        }
+        ECore::LazyInit(l, v) | ECore::BoxInit(l, v, _) | ECore::RefSet(l, v, _) => {
+            note(*l, acc);
+            max_local_in_ecore(v, acc);
+        }
+        ECore::DictProj(d, ..) | ECore::Proj(d, ..) | ECore::Demand(d, _)
+        | ECore::BoxGet(d, _) | ECore::BoxClear(d, _) | ECore::EffCheck(d, _)
+        | ECore::LitFold { body: d, .. } => max_local_in_ecore(d, acc),
+        ECore::InstDict(_, args, _, _) | ECore::MkClos { env: args, .. } | ECore::Perform { args, .. } => {
+            for a in args { max_local_in_ecore(a, acc); }
+        }
+        ECore::App(f, args) => {
+            max_local_in_ecore(f, acc);
+            for a in args { max_local_in_ecore(a, acc); }
+        }
+        ECore::HandleEvidence { handler, body, .. } => {
+            max_local_in_ecore(handler, acc);
+            max_local_in_ecore(body, acc);
+        }
+        ECore::If(c, t, f) => {
+            max_local_in_ecore(c, acc);
+            max_local_in_ecore(&t.body, acc);
+            max_local_in_ecore(&f.body, acc);
+        }
+        ECore::Case { scrut, alts } => {
+            max_local_in_ecore(scrut, acc);
+            for a in alts {
+                match &a.pat {
+                    CPat::Var(l, _) => note(*l, acc),
+                    CPat::Con { fields, .. } => { for f in fields { note(*f, acc); } }
+                    CPat::Wild => {}
+                }
+                max_local_in_ecore(&a.body, acc);
+            }
+        }
+        ECore::Quote { holes, body, .. } => {
+            for h in holes { max_local_in_ecore(h, acc); }
+            max_local_in_ecore(body, acc);
+        }
+        ECore::DeclsQuote { holes, .. } => {
+            for h in holes { max_local_in_ecore(h, acc); }
+        }
+        _ => {}
     }
 }
 
@@ -1844,10 +2263,15 @@ fn finalize_fn(
     cx.inferred.borrow_mut().clear();
     cx.unit = Some(id.clone());
     let param_classes = params.iter().map(|l| cx.local(*l)).collect();
+    let has_ev = ecore_has_ev(&body);
     let (body, map) = renumber_fn(&body, &params);
     cx.orig = map.iter().map(|(o, n)| (*n, *o)).collect();
     let body = lower(&body, cx);
     cx.finish()?;
+    let mut hints = hints;
+    if has_ev {
+        hints.inline = Some(crate::core::InlineHint::Never);
+    }
     Ok(FnDef {
         id,
         params: params.iter().map(|l| format!("v{}", l.0)).collect(),
@@ -1868,8 +2292,448 @@ fn finalize_fn(
 /// Lower an elaborated body to [`Core`], attaching the class of every
 /// binder and the class vector of every instantiation.
 fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
+    if ecore_has_ev(e) {
+        let mut next_id = cx.orig.keys().map(|l| l.0 + 1).max().unwrap_or(0);
+        max_local_in_ecore(e, &mut next_id);
+        return lower_ev(e, cx, &mut next_id, &crate::core::Core::Bubble);
+    }
+    lower_plain(e, cx)
+}
+
+fn ev_prim_call(op: crate::core::EvOp, class: crate::repr::Class, args: Vec<crate::core::Core>) -> crate::core::Core {
+    crate::core::Core::App(Box::new(crate::core::Core::Prim(PrimOp::Ev { op, class })), args)
+}
+
+fn ev_yield_guard(
+    bubble: &crate::core::Core,
+    rest: crate::core::Core,
+) -> crate::core::Core {
+    crate::core::Core::If(
+        Box::new(ev_prim_call(crate::core::EvOp::IsYielding, crate::repr::Class::Raw, vec![crate::core::Core::Int(0)])),
+        CBranch::new(bubble.clone()),
+        CBranch::new(rest),
+    )
+}
+
+/// Lower an ECore expression containing evidence-passing effect handlers,
+/// cross-call performs, or potentially-yielding calls.
+fn lower_ev(
+    e: &ECore,
+    cx: &LowerCx,
+    next_id: &mut usize,
+    bubble: &crate::core::Core,
+) -> crate::core::Core {
+    use crate::core::{Core as C, EvOp};
+    use crate::repr::Class;
+    let fresh = |n: &mut usize| -> LocalId {
+        let id = LocalId(*n);
+        *n += 1;
+        id
+    };
+    if !ecore_has_ev(e) {
+        return lower_plain(e, cx);
+    }
+    let inside_handle = !matches!(bubble, C::Bubble);
+    match e {
+        ECore::EffCheck(inner, ret_ty) => {
+            let call_core = lower_ev(inner, cx, next_id, bubble);
+            let res_l = fresh(next_id);
+            let ret_c = cx.class(ret_ty);
+            C::Let(
+                res_l,
+                ret_c,
+                Box::new(call_core),
+                Box::new(ev_yield_guard(bubble, C::Var(res_l))),
+            )
+        }
+        ECore::HandleEvidence { label, abort_mask, abort_slots, handler, body, body_ty, out_ty } => {
+            let h_local = fresh(next_id);
+            let h_val = lower_ev(handler, cx, next_id, bubble);
+            let ev_local = fresh(next_id);
+            let marker_local = fresh(next_id);
+            let res_local = fresh(next_id);
+            let pop_local = fresh(next_id);
+            let body_class = cx.class(body_ty);
+            let out_class = cx.class(out_ty);
+            let inner_bubble = C::Zero(body_class);
+            let body_core = lower_ev(body, cx, next_id, &inner_bubble);
+            let zonked_ty = label.ty_arg.as_deref().map(|t| cx.ck.uni.zonk(t));
+            let label_hash = crate::types::effect_label_hash(
+                label.head.as_str(),
+                zonked_ty.as_ref(),
+            );
+            // Normal return branch: invoke slot 0 (return clause) on res_local.
+            let ret_clo = C::Proj(
+                Box::new(C::Var(h_local)),
+                crate::core::ProjField::slot(0, Class::Obj),
+            );
+            let ret_out = fresh(next_id);
+            let normal_branch = C::Let(
+                ret_out,
+                out_class,
+                Box::new(C::App(Box::new(ret_clo), vec![C::Var(res_local)])),
+                Box::new(ev_yield_guard(bubble, C::Var(ret_out))),
+            );
+            // Yielding branch: either caught by this handler or bubble outward.
+            let yield_branch = if *abort_mask == 0 || abort_slots.is_empty() {
+                bubble.clone()
+            } else {
+                let slot_local = fresh(next_id);
+                let mut dispatch = bubble.clone();
+                for (slot, arg_tys, _tuple_ctor) in abort_slots.iter().rev() {
+                    let n_args = arg_tys.len();
+                    let arg_class = if n_args == 1 {
+                        cx.class(&arg_tys[0])
+                    } else if n_args > 1 {
+                        Class::Obj
+                    } else {
+                        Class::Raw
+                    };
+                    let arg_local = fresh(next_id);
+                    let clo_local = fresh(next_id);
+                    let id_local = fresh(next_id);
+                    let ab_out = fresh(next_id);
+                    let take_arg = ev_prim_call(EvOp::TakeYieldArg, arg_class, vec![C::Int(0)]);
+                    let op_clo = C::Proj(
+                        Box::new(C::Var(h_local)),
+                        crate::core::ProjField {
+                            slot: *slot,
+                            access: None,
+                            class: Class::Obj,
+                            before: vec![Class::Obj; *slot],
+                            mutable: false,
+                        },
+                    );
+                    let id_clo = ev_prim_call(EvOp::IdClosure, Class::Obj, vec![C::Int(0)]);
+                    let invoke = if n_args == 0 {
+                        C::App(Box::new(C::Var(clo_local)), vec![C::Var(id_local)])
+                    } else if n_args == 1 {
+                        C::App(Box::new(C::Var(clo_local)), vec![C::Var(arg_local), C::Var(id_local)])
+                    } else {
+                        let mut field_locals = Vec::with_capacity(n_args);
+                        for _ in 0..n_args {
+                            field_locals.push(fresh(next_id));
+                        }
+                        let mut call_args: Vec<C> = field_locals.iter().map(|fl| C::Var(*fl)).collect();
+                        call_args.push(C::Var(id_local));
+                        let mut inner_body = C::App(Box::new(C::Var(clo_local)), call_args);
+                        for (i, fl) in field_locals.iter().enumerate().rev() {
+                            let fc = cx.class(&arg_tys[i]);
+                            let before: Vec<Class> = arg_tys[..i].iter().map(|t| cx.class(t)).collect();
+                            let proj = C::Proj(
+                                Box::new(C::Var(arg_local)),
+                                crate::core::ProjField { slot: i, access: None, class: fc, before, mutable: false },
+                            );
+                            inner_body = C::Let(*fl, fc, Box::new(proj), Box::new(inner_body));
+                        }
+                        inner_body
+                    };
+                    let arm_body = C::Let(
+                        arg_local,
+                        arg_class,
+                        Box::new(take_arg),
+                        Box::new(C::Let(
+                            clo_local,
+                            Class::Obj,
+                            Box::new(op_clo),
+                            Box::new(C::Let(
+                                id_local,
+                                Class::Obj,
+                                Box::new(id_clo),
+                                Box::new(C::Let(
+                                    ab_out,
+                                    out_class,
+                                    Box::new(invoke),
+                                    Box::new(ev_yield_guard(bubble, C::Var(ab_out))),
+                                )),
+                            )),
+                        )),
+                    );
+                    if abort_slots.len() == 1 {
+                        dispatch = arm_body;
+                    } else {
+                        let eq = C::App(
+                            Box::new(C::Prim(PrimOp::Cmp { ty: Scalar::I64, op: crate::core::CmpOp::Eq })),
+                            vec![C::Var(slot_local), C::Int(*slot as i64)],
+                        );
+                        dispatch = C::If(Box::new(eq), CBranch::new(arm_body), CBranch::new(dispatch));
+                    }
+                }
+                let caught_branch = if abort_slots.len() == 1 {
+                    dispatch
+                } else {
+                    C::Let(
+                        slot_local,
+                        Class::Raw,
+                        Box::new(ev_prim_call(EvOp::YieldSlot, Class::Raw, vec![C::Int(0)])),
+                        Box::new(dispatch),
+                    )
+                };
+                let is_caught = ev_prim_call(EvOp::IsCaught, Class::Raw, vec![C::Var(marker_local)]);
+                C::If(Box::new(is_caught), CBranch::new(caught_branch), CBranch::new(bubble.clone()))
+            };
+            let after_pop = C::If(
+                Box::new(ev_prim_call(EvOp::IsYielding, Class::Raw, vec![C::Int(0)])),
+                CBranch::new(yield_branch),
+                CBranch::new(normal_branch),
+            );
+            let body_with_pop = C::Let(
+                res_local,
+                body_class,
+                Box::new(body_core),
+                Box::new(C::Let(
+                    pop_local,
+                    Class::Raw,
+                    Box::new(ev_prim_call(EvOp::Pop, Class::Raw, vec![C::Var(ev_local)])),
+                    Box::new(after_pop),
+                )),
+            );
+            let push_and_run = C::Let(
+                ev_local,
+                Class::Raw,
+                Box::new(C::EvAllocEntry),
+                Box::new(C::Let(
+                    marker_local,
+                    Class::Raw,
+                    Box::new(ev_prim_call(
+                        EvOp::Push,
+                        Class::Raw,
+                        vec![
+                            C::Var(ev_local),
+                            C::Int(label_hash),
+                            C::Var(h_local),
+                            C::Int(*abort_mask as i64),
+                        ],
+                    )),
+                    Box::new(body_with_pop),
+                )),
+            );
+            let h_cont = if ecore_has_ev(handler) && inside_handle {
+                ev_yield_guard(bubble, push_and_run)
+            } else {
+                push_and_run
+            };
+            C::Let(h_local, Class::Obj, Box::new(h_val), Box::new(h_cont))
+        }
+        ECore::Perform { label, slot, args, arg_tys, tuple_ctor, ret_ty } => {
+            let mut arg_locals = Vec::with_capacity(args.len());
+            let mut arg_vals = Vec::with_capacity(args.len());
+            for a in args {
+                arg_locals.push(fresh(next_id));
+                arg_vals.push(lower_ev(a, cx, next_id, bubble));
+            }
+            let zonked_ty = label.ty_arg.as_deref().map(|t| cx.ck.uni.zonk(t));
+            let label_hash = crate::types::effect_label_hash(
+                label.head.as_str(),
+                zonked_ty.as_ref(),
+            );
+            let ev_local = fresh(next_id);
+            let marker_local = fresh(next_id);
+            let ab_ret = fresh(next_id);
+            let (pack_bind, abort_word, abort_class) = if args.is_empty() {
+                (None, C::Int(0), Class::Raw)
+            } else if args.len() == 1 {
+                let c = cx.class(&arg_tys[0]);
+                (None, C::Var(arg_locals[0]), c)
+            } else {
+                let tup_local = fresh(next_id);
+                let tup_ctor = tuple_ctor.clone().expect("multi-arg perform requires tuple ctor");
+                let tup_classes: Vec<Class> = arg_tys.iter().map(|t| cx.class(t)).collect();
+                let tup_app = C::App(
+                    Box::new(C::Ctor(tup_ctor, tup_classes)),
+                    arg_locals.iter().map(|l| C::Var(*l)).collect(),
+                );
+                (Some((tup_local, tup_app)), C::Var(tup_local), Class::Obj)
+            };
+            let mut abort_body = C::Let(
+                ab_ret,
+                Class::Raw,
+                Box::new(ev_prim_call(
+                    EvOp::Abort,
+                    abort_class,
+                    vec![C::Var(marker_local), C::Int(*slot as i64), abort_word],
+                )),
+                Box::new(bubble.clone()),
+            );
+            if let Some((tl, tapp)) = pack_bind {
+                abort_body = C::Let(tl, Class::Obj, Box::new(tapp), Box::new(abort_body));
+            }
+            let abort_branch = C::Let(
+                marker_local,
+                Class::Raw,
+                Box::new(ev_prim_call(EvOp::EntryMarker, Class::Raw, vec![C::Var(ev_local)])),
+                Box::new(abort_body),
+            );
+            // Tail-resumptive branch: call vtable[slot](args..., id_closure) directly.
+            let clo_local = fresh(next_id);
+            let id_local = fresh(next_id);
+            let res_local = fresh(next_id);
+            let ret_class = cx.class(ret_ty);
+            let mut call_args: Vec<C> = arg_locals.iter().map(|l| C::Var(*l)).collect();
+            call_args.push(C::Var(id_local));
+            let tail_branch = C::Let(
+                clo_local,
+                Class::Obj,
+                Box::new(ev_prim_call(
+                    EvOp::VtableSlot,
+                    Class::Raw,
+                    vec![C::Var(ev_local), C::Int(*slot as i64)],
+                )),
+                Box::new(C::Let(
+                    id_local,
+                    Class::Obj,
+                    Box::new(ev_prim_call(EvOp::IdClosure, Class::Obj, vec![C::Int(0)])),
+                    Box::new(C::Let(
+                        res_local,
+                        ret_class,
+                        Box::new(C::App(Box::new(C::Var(clo_local)), call_args)),
+                        Box::new(ev_yield_guard(bubble, C::Var(res_local))),
+                    )),
+                )),
+            );
+            let aborts_check = C::If(
+                Box::new(ev_prim_call(
+                    EvOp::EntrySlotAborts,
+                    Class::Raw,
+                    vec![C::Var(ev_local), C::Int(*slot as i64)],
+                )),
+                CBranch::new(abort_branch),
+                CBranch::new(tail_branch),
+            );
+            let null_check = C::If(
+                Box::new(C::Var(ev_local)),
+                CBranch::new(aborts_check),
+                CBranch::new(C::Fault),
+            );
+            let mut core = C::Let(
+                ev_local,
+                Class::Raw,
+                Box::new(ev_prim_call(EvOp::Lookup, Class::Raw, vec![C::Int(label_hash)])),
+                Box::new(null_check),
+            );
+            for (i, (al, av)) in arg_locals.into_iter().zip(arg_vals).enumerate().rev() {
+                let ac = cx.class(&arg_tys[i]);
+                let cont = if ecore_has_ev(&args[i]) && inside_handle {
+                    ev_yield_guard(bubble, core)
+                } else {
+                    core
+                };
+                core = C::Let(al, ac, Box::new(av), Box::new(cont));
+            }
+            core
+        }
+        ECore::Let(l, v, body) => {
+            let c = cx.let_class(*l, v);
+            cx.inferred.borrow_mut().insert(*l, c);
+            let lv = lower_ev(v, cx, next_id, bubble);
+            let lb = lower_ev(body, cx, next_id, bubble);
+            let cont = if ecore_has_ev(v) && inside_handle {
+                ev_yield_guard(bubble, lb)
+            } else {
+                lb
+            };
+            C::Let(*l, c, Box::new(lv), Box::new(cont))
+        }
+        ECore::If(c, t, f) => {
+            let cv = lower_ev(c, cx, next_id, bubble);
+            let tb = lower_ev(&t.body, cx, next_id, bubble);
+            let fb = lower_ev(&f.body, cx, next_id, bubble);
+            if ecore_has_ev(c) && inside_handle {
+                let cl = fresh(next_id);
+                let br = C::If(
+                    Box::new(C::Var(cl)),
+                    CBranch { weight: t.weight, body: Box::new(tb) },
+                    CBranch { weight: f.weight, body: Box::new(fb) },
+                );
+                C::Let(cl, Class::Raw, Box::new(cv), Box::new(ev_yield_guard(bubble, br)))
+            } else {
+                C::If(
+                    Box::new(cv),
+                    CBranch { weight: t.weight, body: Box::new(tb) },
+                    CBranch { weight: f.weight, body: Box::new(fb) },
+                )
+            }
+        }
+        ECore::Case { scrut, alts } => {
+            let sv = lower_ev(scrut, cx, next_id, bubble);
+            let lowered_alts: Vec<CAlt<C>> = alts
+                .iter()
+                .map(|a| CAlt {
+                    pat: match &a.pat {
+                        CPat::Var(l, _) => {
+                            let c = cx.let_class(*l, scrut);
+                            cx.inferred.borrow_mut().insert(*l, c);
+                            CPat::Var(*l, c)
+                        }
+                        CPat::Con { tag, fields, .. } => CPat::Con {
+                            tag: *tag,
+                            fields: fields.clone(),
+                            classes: fields.iter().map(|f| cx.local(*f)).collect(),
+                        },
+                        CPat::Wild => CPat::Wild,
+                    },
+                    weight: a.weight,
+                    body: Box::new(lower_ev(&a.body, cx, next_id, bubble)),
+                })
+                .collect();
+            if ecore_has_ev(scrut) && inside_handle {
+                let sl = fresh(next_id);
+                let sc = cx.expr_class(scrut).unwrap_or(Class::Obj);
+                let case_node = C::Case { scrut: Box::new(C::Var(sl)), alts: lowered_alts };
+                C::Let(sl, sc, Box::new(sv), Box::new(ev_yield_guard(bubble, case_node)))
+            } else {
+                C::Case { scrut: Box::new(sv), alts: lowered_alts }
+            }
+        }
+        ECore::App(f, args) => C::App(
+            Box::new(lower_ev(f, cx, next_id, bubble)),
+            args.iter().map(|a| lower_ev(a, cx, next_id, bubble)).collect(),
+        ),
+        ECore::LitFold { body, .. } => lower_ev(body, cx, next_id, bubble),
+        ECore::DictProj(d, i, site, ty) => C::DictProj(
+            Box::new(lower_ev(d, cx, next_id, bubble)),
+            *i,
+            site.as_ref().map(|(class, own)| {
+                Box::new(crate::core::MethodSite { class: class.clone(), own: cx.classes(own) })
+            }),
+            cx.class(ty),
+        ),
+        ECore::Proj(d, f, ty, before) => C::Proj(
+            Box::new(lower_ev(d, cx, next_id, bubble)),
+            crate::core::ProjField {
+                class: cx.class(ty),
+                before: before.iter().map(|t| cx.class(t)).collect(),
+                ..f.clone()
+            },
+        ),
+        ECore::Demand(d, ty) => C::Demand(Box::new(lower_ev(d, cx, next_id, bubble)), cx.class(ty)),
+        ECore::LazyInit(l, t) => C::LazyInit(*l, Box::new(lower_ev(t, cx, next_id, bubble))),
+        ECore::BoxInit(l, v, ty) => C::BoxInit(*l, Box::new(lower_ev(v, cx, next_id, bubble)), cx.class(ty)),
+        ECore::RefSet(l, v, ty) => C::RefSet(*l, Box::new(lower_ev(v, cx, next_id, bubble)), cx.class(ty)),
+        ECore::BoxGet(v, ty) => C::BoxGet(Box::new(lower_ev(v, cx, next_id, bubble)), cx.class(ty)),
+        ECore::BoxClear(v, ty) => C::BoxClear(Box::new(lower_ev(v, cx, next_id, bubble)), cx.class(ty)),
+        ECore::MkClos { fn_id, env } => C::Lam {
+            fn_id: fn_id.clone(),
+            env: env.iter().map(|a| lower_ev(a, cx, next_id, bubble)).collect(),
+            classes: crate::repr::identity(cx.tparams.len()),
+        },
+        ECore::InstDict(g, args, tys, explicit) => {
+            let own = cx.ck.self_instance.and_then(|index| cx.ck.instance_list.get(index));
+            let is_self = cx.runtime && !*explicit && own.is_some_and(|instance| {
+                instance.base_id == *g && tys.len() == instance.params.len()
+                    && tys.iter().enumerate().all(|(i, ty)| matches!(cx.ck.uni.zonk(ty), Ty::Param(ref n) if cx.tparams.get(i).is_some_and(|t| t.as_str() == n.as_str())))
+                    && args.iter().enumerate().all(|(i, arg)| matches!(arg, ECore::Var(LocalId(j)) if *j == i) || matches!(arg, ECore::Unit))
+            });
+            let symbol = if is_self { GlobalId(format!("{}#self", g.0)) } else { g.clone() };
+            C::InstDict(symbol, args.iter().map(|a| lower_ev(a, cx, next_id, bubble)).collect(), cx.classes(tys))
+        }
+        other => lower_plain(other, cx),
+    }
+}
+
+fn lower_plain(e: &ECore, cx: &LowerCx) -> crate::core::Core {
     use crate::core::Core as C;
-    let low = |x: &ECore| lower(x, cx);
+    let low = |x: &ECore| lower_plain(x, cx);
     match e {
         ECore::Int(v) => C::Int(*v),
         ECore::Wide(v) => C::Wide(*v),
@@ -1974,6 +2838,9 @@ fn lower(e: &ECore, cx: &LowerCx) -> crate::core::Core {
         }
         ECore::Lam { .. } | ECore::PolyIntro { .. } | ECore::Hole(_) | ECore::IdxPending(_) => {
             unreachable!("lambda hoisting and dictionary solving run before lowering")
+        }
+        ECore::HandleEvidence { .. } | ECore::Perform { .. } | ECore::EffCheck(..) => {
+            unreachable!("evidence-passing nodes are lowered by lower_ev")
         }
         ECore::QuoteHole(idx) => C::SpliceVal(*idx),
         ECore::Quote { template, holes, body } => C::Quote {
@@ -2771,11 +3638,27 @@ struct MemoGroup {
 struct EffectInfo {
     module: String,
     name: String,
-    /// The effect's region parameter name, when the label is `L r`.
+    /// The effect's region parameter name, when the label is `L (r :: Region)`.
     region_param: Option<String>,
+    /// The effect's type parameter name, when the label is `L (e :: Type)`.
+    type_param: Option<String>,
     /// Operation name and scheme, in declaration order; the vtable slot is
     /// the index plus one (slot 0 is the return clause).
     ops: Vec<(String, Scheme)>,
+}
+
+/// Saved ECore definition for a function whose body performs or handles a
+/// type-parameterized effect on one of its own `forall` type parameters
+/// (e.g. `Effect.Throw.catch`, `ensure :: forall e. ... ->{Throw e} ...`).
+#[derive(Clone)]
+struct EvPolyDef {
+    tparams: Vec<String>,
+    param_ids: Vec<LocalId>,
+    body: ECore,
+    hoisted: Vec<HoistedFn>,
+    hints: crate::core::FnHints,
+    meta: crate::core::FnMeta,
+    local_tys: HashMap<LocalId, Ty>,
 }
 
 /// How often a continuation closure's body runs. A continuation runs at
@@ -2939,6 +3822,10 @@ fn stored_code_metas(ty: &Ty, out: &mut Vec<EitherMeta>) {
             stored_code_metas(cod, out);
         }
         Ty::Forall(scheme) => stored_code_metas(&scheme.ty, out),
+        Ty::Qual(ctx, body) => {
+            for (_, c) in ctx { for arg in &c.args { stored_code_metas(arg, out); } }
+            stored_code_metas(body, out);
+        }
         Ty::Ptr { pointee: inner, .. } | Ty::Thunk { inner, .. }
         | Ty::Lazy { inner, .. } | Ty::Later { inner, .. } | Ty::Ref(_, inner)
         | Ty::Mut(_, inner) => stored_code_metas(inner, out),
@@ -3425,6 +4312,10 @@ fn all_regions(ty: &Ty, out: &mut Vec<String>) {
             all_regions(cod, out);
         }
         Ty::Forall(scheme) => all_regions(&scheme.ty, out),
+        Ty::Qual(ctx, body) => {
+            for (_, c) in ctx { for a in &c.args { all_regions(a, out); } }
+            all_regions(body, out);
+        }
         Ty::Thunk { eff, inner } => {
             for l in &eff.labels {
                 if let Some(a) = &l.arg {
@@ -3892,6 +4783,9 @@ struct Checker {
     /// Binders whose class is fixed without a type: dictionaries,
     /// capability evidence and markers.
     local_cls: HashMap<LocalId, crate::repr::Class>,
+    /// Canonical keys of lexical capability types (`#[capability]` data/record
+    /// declarations, in addition to the builtin `Io` capability).
+    capability_types: HashSet<String>,
     /// Where the elaboration created each binder (debug builds only), so
     /// a binder lowering finds untyped names its source.
     local_origin: HashMap<LocalId, &'static std::panic::Location<'static>>,
@@ -3922,6 +4816,14 @@ struct Checker {
     gen_defs: HashMap<LocalId, ECore>,
     /// Use counts accumulated for the definition being checked.
     uses: HashMap<LocalId, UseNode>,
+    /// Enclosing branch `uses` frames saved by `isolate` so abort linearity
+    /// checks see already-consumed linear binders along the current path.
+    uses_stack: Vec<HashMap<LocalId, UseNode>>,
+    /// Effect labels handled by an enclosing aborting `HandleEvidence`.
+    active_abort_labels: Vec<EffLabel>,
+    /// Expected return type for an `App` currently being checked (consumed by
+    /// calls whose arrow arguments carry type-parameterized effects like `catch`).
+    app_expected: Option<Ty>,
     /// Usage obligations of the definition's binders.
     obligations: HashMap<LocalId, Obligation>,
     /// Lazy-position nesting: lambda and thunk bodies.
@@ -3944,6 +4846,8 @@ struct Checker {
     /// Parallel-callback capture sites of the definition being checked,
     /// validated at its end (`design/parallel-evaluation.md` section 2.3).
     par_captures: Vec<ParCapture>,
+    /// Deferred return/error-type escape checks for `Effect.Arena.with-arena*`.
+    arena_checks: Vec<(ast::Span, Ty, Ty)>,
     /// The definition's type-parameter names in class-vector order, set
     /// before its body is elaborated: a parallel call records its result
     /// blocks' representation classes, and a type parameter's class is its
@@ -3959,6 +4863,12 @@ struct Checker {
     place_path: Vec<String>,
     /// User-declared effects by name (`effect L where ...`).
     effects: HashMap<String, EffectInfo>,
+    /// Effect heads declared with a `Type`-kinded parameter (`effect Throw e`).
+    type_param_effects: HashSet<String>,
+    /// Saved polymorphic ECore definitions performing/handling a type-parameterized effect.
+    ev_poly_defs: HashMap<GlobalId, EvPolyDef>,
+    /// Specialized `$ev_<hash>` units already emitted for `ev_poly_defs`.
+    ev_poly_emitted: HashSet<GlobalId>,
     /// Definition sites, independent of their public spelling and row label.
     effect_bindings: HashMap<(String, String), String>,
     /// Codata types by `(module, type name)` (codata and guardedness
@@ -4485,11 +5395,21 @@ fn index_heads(p: &PTerm, out: &mut Vec<(String, usize)>) {
     }
 }
 
-/// Substitute row variables (by tail) and region names inside an effect row.
+/// Substitute row variables (by tail), region names, and type arguments inside an effect row.
 fn subst_row(
     r: &EffRow,
     rows: &HashMap<String, RowTail>,
     regions: &HashMap<String, String>,
+) -> EffRow {
+    subst_row_full(r, &HashMap::new(), rows, regions, &HashMap::new())
+}
+
+fn subst_row_full(
+    r: &EffRow,
+    types: &HashMap<String, Ty>,
+    rows: &HashMap<String, RowTail>,
+    regions: &HashMap<String, String>,
+    evidence: &HashMap<IndexEvidence, ITerm>,
 ) -> EffRow {
     EffRow {
         labels: r
@@ -4498,6 +5418,7 @@ fn subst_row(
             .map(|l| EffLabel {
                 head: l.head.clone(),
                 arg: l.arg.as_ref().map(|a| regions.get(a.as_str()).cloned().unwrap_or_else(|| a.to_string()).into()),
+                ty_arg: l.ty_arg.as_ref().map(|t| Box::new(Checker::subst_namespaces(t, types, rows, regions, evidence))),
             })
             .collect(),
         tail: match &r.tail {
@@ -4633,6 +5554,7 @@ impl Checker {
             proof_pattern_values: HashSet::new(),
             quantified_value_locals: HashSet::new(),
             local_cls: HashMap::new(),
+            capability_types: HashSet::new(),
             local_origin: HashMap::new(),
             cur_tparams: Vec::new(),
             caller_regions: Vec::new(),
@@ -4640,6 +5562,9 @@ impl Checker {
             gen_locals: HashMap::new(),
             gen_defs: HashMap::new(),
             uses: HashMap::new(),
+            uses_stack: Vec::new(),
+            active_abort_labels: Vec::new(),
+            app_expected: None,
             obligations: HashMap::new(),
             lam_depth: 0,
             memo_depth: 0,
@@ -4649,12 +5574,16 @@ impl Checker {
             scope_frames: Vec::new(),
             task_captures: Vec::new(),
             par_captures: Vec::new(),
+            arena_checks: Vec::new(),
             body_tparams: Vec::new(),
             local_closure_captures: HashMap::new(),
             task_forwarders: HashSet::new(),
             checking_task_forwarder: false,
             place_path: Vec::new(),
             effects: HashMap::new(),
+            type_param_effects: HashSet::new(),
+            ev_poly_defs: HashMap::new(),
+            ev_poly_emitted: HashSet::new(),
             effect_bindings: HashMap::new(),
             codata_types: HashSet::new(),
             effect_ops: HashMap::new(),
@@ -4836,6 +5765,9 @@ impl Checker {
     /// Reset the per-definition usage state.
     fn reset_usage(&mut self) {
         self.uses.clear();
+        self.uses_stack.clear();
+        self.active_abort_labels.clear();
+        self.app_expected = None;
         self.obligations.clear();
         self.ev_writes.clear();
         self.ev_derivs.clear();
@@ -4852,6 +5784,7 @@ impl Checker {
         self.scope_frames.clear();
         self.task_captures.clear();
         self.par_captures.clear();
+        self.arena_checks.clear();
         self.local_closure_captures.clear();
         self.place_path.clear();
         self.conts.clear();
@@ -5550,6 +6483,17 @@ impl Checker {
         }
     }
 
+    /// Whether `class` is a lexical capability: either the builtin `Io`
+    /// runtime capability or a user-declared `#[capability]` data/record type.
+    pub(crate) fn is_capability(&self, class: &str) -> bool {
+        is_capability_class(class) || self.capability_types.contains(class)
+    }
+
+    /// Whether `class` is a user-declared `#[capability]` data/record type.
+    pub(crate) fn is_user_capability(&self, class: &str) -> bool {
+        self.capability_types.contains(class)
+    }
+
     /// Record one use of a local at a record-projection place. Uses under
     /// a lambda body are unbounded (the closure may be called any number
     /// of times); uses under a memo cell body happen at most once (the
@@ -5782,9 +6726,10 @@ impl Checker {
         f: impl FnOnce(&mut Self) -> Result<T>,
     ) -> Result<(T, HashMap<LocalId, UseNode>)> {
         let saved = std::mem::take(&mut self.uses);
+        self.uses_stack.push(saved);
         let out = f(self);
         let inner = std::mem::take(&mut self.uses);
-        self.uses = saved;
+        self.uses = self.uses_stack.pop().unwrap_or_default();
         out.map(|t| (t, inner))
     }
 
@@ -6053,7 +6998,58 @@ impl Checker {
                 ),
             ));
         }
+        for (span, err_ty, ret_ty) in std::mem::take(&mut self.arena_checks) {
+            let ez = self.uni.zonk(&err_ty);
+            let rz = self.uni.zonk(&ret_ty);
+            if !self.is_arena_escape_safe(&ez) {
+                return Err(Error::at(
+                    span,
+                    crate::diagnostic!(
+                        "arena escape error type {} must be scalar/Copy (arena-allocated values cannot escape `with-arena`)",
+                        ez
+                    ),
+                ));
+            }
+            if !self.is_arena_escape_safe(&rz) {
+                return Err(Error::at(
+                    span,
+                    crate::diagnostic!(
+                        "arena escape return type {} must be scalar/Copy (arena-allocated values cannot escape `with-arena`)",
+                        rz
+                    ),
+                ));
+            }
+        }
         Ok(())
+    }
+
+    /// Whether a type can safely cross an `Effect.Arena.with-arena*` boundary
+    /// without carrying any pointer into the arena's freed bump chunks:
+    /// machine scalars, `Bool`, `Unit`, `Int`, `Nat`, and nullary-only enums
+    /// (`BudgetError`, `Ordering`, etc.).
+    fn is_arena_escape_safe(&self, ty: &Ty) -> bool {
+        match ty {
+            Ty::Prim(_) | Ty::Bool | Ty::Unit | Ty::Int | Ty::Nat | Ty::Sym | Ty::Meta(_) => true,
+            Ty::Adt(name, args) => {
+                let info = self.known_type(name.as_str()).cloned();
+                let Some(info) = info else { return false };
+                if let Some(r) = &info.refine {
+                    return self.is_arena_escape_safe(&r.base);
+                }
+                info.data_family
+                    && !info.opaque
+                    && info.fields.is_none()
+                    && !info.ctors.is_empty()
+                    && info.ctors.iter().all(|(cname, _)| {
+                        self.ctor_of_type(&info, cname)
+                            .ok()
+                            .and_then(|v| self.ctor_parts(&v, args).ok())
+                            .map(|parts| parts.fields.is_empty())
+                            .unwrap_or(false)
+                    })
+            }
+            _ => false,
+        }
     }
 
     /// The `Share`-like evidence for a task capture (concurrency
@@ -6116,8 +7112,8 @@ impl Checker {
             Ty::Fun(..) | Ty::Pi { .. } | Ty::Handler { .. }
             | Ty::Thunk { .. } | Ty::Later { .. } | Ty::Lazy { .. }
             | Ty::Meta(_) | Ty::Param(_) | Ty::App(..) | Ty::Former(_) => true,
-            // A polymorphic value is a block of closures.
-            Ty::Forall(_) => true,
+            // A polymorphic or qualified value is a closure/dictionary block.
+            Ty::Forall(_) | Ty::Qual(_, _) => true,
             Ty::Ref(_, inner) | Ty::Mut(_, inner) => self.value_may_hide_scope(inner, seen, fuel - 1),
             Ty::Tuple(items) => items.iter().any(|item| self.value_may_hide_scope(item, seen, fuel - 1)),
             Ty::Sigma { dom, cod, .. } => self.value_may_hide_scope(dom, seen, fuel - 1)
@@ -6208,7 +7204,7 @@ impl Checker {
             Ty::Pi { .. } | Ty::Handler { .. } => transferring,
             // A polymorphic value is a dictionary of closures: like a
             // function, it is not duplicable evidence.
-            Ty::Forall(_) => transferring,
+            Ty::Forall(_) | Ty::Qual(_, _) => transferring,
             // Index values and erased propositions occupy no runtime
             // representation that could be duplicated (core specification
             // section 3).
@@ -6759,6 +7755,16 @@ impl Checker {
                     self.fold_pass(&mut alt.body, unit, fold);
                 }
             }
+            ECore::HandleEvidence { handler, body, .. } => {
+                self.fold_pass(handler, unit, fold);
+                self.fold_pass(body, unit, fold);
+            }
+            ECore::Perform { args, .. } => {
+                for a in args {
+                    self.fold_pass(a, unit, fold);
+                }
+            }
+            ECore::EffCheck(inner, _) => self.fold_pass(inner, unit, fold),
         }
     }
 
@@ -7755,7 +8761,9 @@ impl Checker {
         // `Algebra.Bits.Bits`. Looking up a checked identity must not depend
         // on insertion-site source imports.
         if let Some(signature) = self.class_sigs.get(identity).and_then(|rows| rows.first()) {
-            return self.qualified_types.get(&(signature.module.clone(), signature.name.clone()));
+            if let Some(qt) = self.qualified_types.get(&(signature.module.clone(), signature.name.clone())) {
+                return Some(qt);
+            }
         }
         let name = identity.rsplit('.').next()?;
         let kinds = self.types.get(name)?;
@@ -8779,7 +9787,7 @@ impl Checker {
                         .any(|pt| !Self::is_scalar_idx_ty(pt));
                     if pfn.returns_idx || has_non_scalar_param {
                         let arg_owned: Vec<ast::Type> = args.iter().map(|a| (*a).clone()).collect();
-                        if has_non_scalar_param {
+                        if has_non_scalar_param && self.scoped_type_env.borrow().is_empty() {
                             let res = self.conv_promoted_fn_call(&pfn, &arg_owned, vars, n.span)?;
                             if let Ty::Idx(it) = self.uni.zonk(&res) {
                                 return Ok(*it);
@@ -9280,7 +10288,7 @@ impl Checker {
                 } else {
                     let class = resolver.uni.zonk_class(&request.class);
                     if self.collecting_declarations && !self.provisional_declarations && self.declaration_seed.is_none()
-                        && class.class != "Copy" && class.class != "Kernel" && class.class != "Boxed" && !is_capability_class(&class.class) {
+                        && class.class != "Copy" && class.class != "Kernel" && class.class != "Boxed" && !self.is_capability(&class.class) {
                         self.declaration_needs_headers.set(true);
                         return Err(Error::at(request.span, "index declaration evidence needs the complete instance headers"));
                     }
@@ -10487,6 +11495,10 @@ impl Checker {
                 .ty_refine_mention(dom)
                 .or_else(|| self.ty_refine_mention(cod)),
             Ty::Forall(scheme) => self.ty_refine_mention(&scheme.ty),
+            Ty::Qual(ctx, body) => ctx
+                .iter()
+                .find_map(|(_, c)| c.args.iter().find_map(|a| self.ty_refine_mention(a)))
+                .or_else(|| self.ty_refine_mention(body)),
             Ty::Thunk { inner, .. } | Ty::Later { inner, .. } | Ty::Lazy { inner, .. } => {
                 self.ty_refine_mention(inner)
             }
@@ -10539,22 +11551,55 @@ impl Checker {
 
     fn conv_row(&self, e: &ast::EffectRow, vars: &[String]) -> Result<EffRow> {
         let mut labels = Vec::new();
-        for (path, args) in &e.labels {
+        for (idx, (path, args)) in e.labels.iter().enumerate() {
             let head = self.effect_head(path, false)?;
-            let arg = match args.as_slice() {
-                [] => None,
-                [n] => {
-                    self.check_declared_region_role(&n.text, n.span)?;
-                    Some(n.text.clone())
-                }
-                _ => {
-                    return Err(Error::at(
-                        path.span(),
-                        "effect labels take at most one region argument in the bootstrap slice",
-                    ));
-                }
-            };
-            labels.push(EffLabel { head: head.into(), arg: arg.map(|a| a.as_str().into()) });
+            let is_ty_param = self.type_param_effects.contains(&head)
+                || self.effects.get(&head).is_some_and(|e| e.type_param.is_some());
+            if is_ty_param {
+                let ty_ast = if let Some(Some(t)) = e.label_tys.get(idx) {
+                    t.clone()
+                } else {
+                    match args.as_slice() {
+                        [n] => {
+                            let is_upper = n.text.chars().next().is_some_and(|c| c.is_uppercase());
+                            if is_upper {
+                                ast::Type::Con(ast::ConPath { segments: vec![n.clone()] }, n.span)
+                            } else {
+                                ast::Type::Var(n.clone(), n.span)
+                            }
+                        }
+                        [] => {
+                            return Err(Error::at(
+                                path.span(),
+                                format!("effect {head} requires a type argument"),
+                            ));
+                        }
+                        _ => {
+                            return Err(Error::at(
+                                path.span(),
+                                format!("effect {head} takes a single type argument"),
+                            ));
+                        }
+                    }
+                };
+                let ty = self.conv_type(&ty_ast, vars)?;
+                labels.push(EffLabel::with_ty(head, ty));
+            } else {
+                let arg = match args.as_slice() {
+                    [] => None,
+                    [n] => {
+                        self.check_declared_region_role(&n.text, n.span)?;
+                        Some(n.text.clone())
+                    }
+                    _ => {
+                        return Err(Error::at(
+                            path.span(),
+                            "effect labels take at most one region argument in the bootstrap slice",
+                        ));
+                    }
+                };
+                labels.push(EffLabel { head: head.into(), arg: arg.map(|a| a.as_str().into()), ty_arg: None });
+            }
         }
         let tail = match &e.tail {
             None => RowTail::Closed,
@@ -11360,10 +12405,26 @@ impl Checker {
                 Ok(Ty::fun_mult(arg_ty, m, eff, self.conv_type(res, vars)?))
             }
             ast::Type::Forall(binders, body, span) => self.conv_nested_forall(binders, body, vars, *span),
-            ast::Type::Using(_, _, span) => Err(Error::at(
-                *span,
-                "using constraints are only supported at the outermost position of a signature",
-            )),
+            ast::Type::Using(cs, body, span) => {
+                let mut ctx = Vec::new();
+                for c in cs {
+                    match c {
+                        ast::Oblig::Class(class) => ctx.push(self.conv_class(class, vars)?),
+                        ast::Oblig::Preserves { .. } | ast::Oblig::Pred(_) => {
+                            return Err(Error::at(
+                                *span,
+                                "higher-rank `using` constraints support dictionary and capability constraints (`name :: Class ...`), not value predicates",
+                            ))
+                        }
+                    }
+                }
+                let inner = self.conv_type(body, vars)?;
+                if ctx.is_empty() {
+                    Ok(inner)
+                } else {
+                    Ok(Ty::Qual(ctx, Box::new(inner)))
+                }
+            }
             ast::Type::DepFun(name, ann, mult, eff, res, span) => {
                 let dom = self.conv_type(ann, vars)?;
                 let m = match mult {
@@ -12097,10 +13158,6 @@ impl Checker {
             }
             rest = inner;
         }
-        if let ast::Type::Using(_, _, using_span) = rest {
-            return Err(Error::at(*using_span,
-                "a nested forall cannot carry `using` constraints yet; lift them to the signature (design/rank-n-polymorphism.md section 7)"));
-        }
         let mut scope = vars.to_vec();
         scope.extend(names.iter().cloned());
         let converted = self.with_declared_parameter_kinds(&all_binders, |checker| checker.conv_type(rest, &scope))?;
@@ -12307,6 +13364,7 @@ impl Checker {
                     }
                     for (_, c) in &ctx {
                         for a in &c.args {
+                            collect_row_names(a, &mut row_params, &mut region_params);
                             if let Ty::Region(r) = a {
                                 if !region_params.iter().any(|p| p.as_str() == r.as_str()) {
                                     region_params.push(r.clone().to_string());
@@ -12455,6 +13513,12 @@ impl Checker {
             }
             Ty::Forall(scheme) => {
                 self.check_length_type(&scheme.ty, env, pos, span)?;
+            }
+            Ty::Qual(ctx, body) => {
+                for (_, c) in ctx {
+                    for a in &c.args { self.check_length_type(a, env, 0, span)?; }
+                }
+                self.check_length_type(body, env, pos, span)?;
             }
             Ty::Sigma { var, dom, cod } => {
                 self.check_length_type(dom, env, 0, span)?;
@@ -12812,7 +13876,7 @@ impl Checker {
                     var: var.into(),
                     dom: Box::new(Checker::subst_namespaces(dom, types, rows, regions, evidence)),
                     mult: *mult,
-                    eff: subst_row(eff, rows, regions),
+                    eff: subst_row_full(eff, types, rows, regions, evidence),
                     cod: Box::new(cod),
                 }
             }
@@ -12825,6 +13889,18 @@ impl Checker {
                 }
             }
             Ty::Forall(scheme) => Self::subst_under_forall(scheme, types, rows, regions, evidence),
+            Ty::Qual(ctx, body) => Ty::Qual(
+                ctx.iter()
+                    .map(|(n, c)| (
+                        n.clone(),
+                        ClassApp {
+                            class: c.class.clone(),
+                            args: c.args.iter().map(|a| Checker::subst_namespaces(a, types, rows, regions, evidence)).collect(),
+                        },
+                    ))
+                    .collect(),
+                Box::new(Checker::subst_namespaces(body, types, rows, regions, evidence)),
+            ),
             Ty::Adt(n, args) => Ty::Adt(
                 n.clone(),
                 args.iter()
@@ -12839,11 +13915,11 @@ impl Checker {
             Ty::Fun(a, m, e, b) => Ty::fun_mult(
                 Checker::subst_namespaces(a, types, rows, regions, evidence),
                 *m,
-                subst_row(e, rows, regions),
+                subst_row_full(e, types, rows, regions, evidence),
                 Checker::subst_namespaces(b, types, rows, regions, evidence),
             ),
             Ty::Thunk { eff, inner } => Ty::Thunk {
-                eff: subst_row(eff, rows, regions),
+                eff: subst_row_full(eff, types, rows, regions, evidence),
                 inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
             Ty::Later { clock, inner } => Ty::Later {
@@ -12851,7 +13927,7 @@ impl Checker {
                 inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
             Ty::Lazy { eff, region, inner } => Ty::Lazy {
-                eff: subst_row(eff, rows, regions),
+                eff: subst_row_full(eff, types, rows, regions, evidence),
                 region: regions.get(region.as_str()).cloned().unwrap_or_else(|| region.to_string()).into(),
                 inner: Box::new(Checker::subst_namespaces(inner, types, rows, regions, evidence)),
             },
@@ -12875,10 +13951,14 @@ impl Checker {
                         .arg
                         .as_ref()
                         .map(|a| regions.get(a.as_str()).cloned().unwrap_or_else(|| a.to_string()).into()),
+                    ty_arg: label
+                        .ty_arg
+                        .as_ref()
+                        .map(|t| Box::new(Checker::subst_namespaces(t, types, rows, regions, evidence))),
                 },
                 input: Box::new(Checker::subst_namespaces(input, types, rows, regions, evidence)),
                 output: Box::new(Checker::subst_namespaces(output, types, rows, regions, evidence)),
-                eff: subst_row(eff, rows, regions),
+                eff: subst_row_full(eff, types, rows, regions, evidence),
                 resumption: *resumption,
             },
             // Var-headed application substitutes with beta-reduction: a
@@ -14038,14 +15118,20 @@ impl Checker {
                 | ECore::BoxInit(_, body, _)
                 | ECore::BoxGet(body, _)
                 | ECore::BoxClear(body, _)
-                | ECore::RefSet(_, body, _) => pending.push(body),
+                | ECore::RefSet(_, body, _)
+                | ECore::EffCheck(body, _) => pending.push(body),
+                ECore::HandleEvidence { handler, body, .. } => {
+                    pending.push(body);
+                    pending.push(handler);
+                }
                 ECore::Quote { holes, body, .. } => {
                     pending.push(body);
                     pending.extend(holes.iter_mut().rev());
                 }
                 ECore::DeclsQuote { holes, .. }
                 | ECore::MkClos { env: holes, .. }
-                | ECore::InstDict(_, holes, ..) => pending.extend(holes.iter_mut().rev()),
+                | ECore::InstDict(_, holes, ..)
+                | ECore::Perform { args: holes, .. } => pending.extend(holes.iter_mut().rev()),
                 ECore::App(head, args) => {
                     pending.extend(args.iter_mut().rev());
                     pending.push(head);
@@ -14721,12 +15807,12 @@ mod owned_effect_scope_tests {
         let mut checker = Checker::new();
         checker.current_module = "Main".into();
         checker.effect_bindings.insert(("Main".into(), "Event".into()), "Main.Event".into());
-        checker.effects.insert("Main.Event".into(), EffectInfo { module: "Main".into(), name: "Event".into(), region_param: None, ops: vec![] });
+        checker.effects.insert("Main.Event".into(), EffectInfo { module: "Main".into(), name: "Event".into(), region_param: None, type_param: None, ops: vec![] });
         let span = ast::Span::new(1, 1);
         let path = ast::ConPath { segments: vec![ast::Name::new("Event", span)] };
         assert_eq!(checker.effect_head(&path, false).unwrap(), "Main.Event");
         let annotation = ast::Type::Fun { arg: Box::new(ast::Type::Unit(span)), mult: None,
-            eff: Some(ast::EffectRow { labels: vec![(path.clone(), vec![])], tail: None, span }),
+            eff: Some(ast::EffectRow { labels: vec![(path.clone(), vec![])], label_tys: vec![], tail: None, span }),
             res: Box::new(ast::Type::Unit(span)), span };
         let captured = ast::capture_type_in_declaration_scope(&annotation, &[], Some(std::sync::Arc::new(ast::GlobalScope::new("Before"))), &[], &[], &[]).unwrap();
         let ast::Type::Fun { eff: Some(row), .. } = captured else { panic!("function annotation") };
@@ -14750,12 +15836,12 @@ mod owned_effect_qualified_scope_tests {
         let mut checker = Checker::new();
         checker.current_module = "Outside".into();
         checker.effect_bindings.insert(("Owner".into(), "Secret".into()), "Owner.Secret".into());
-        checker.effects.insert("Owner.Secret".into(), EffectInfo { module: "Owner".into(), name: "Secret".into(), region_param: None, ops: vec![] });
+        checker.effects.insert("Owner.Secret".into(), EffectInfo { module: "Owner".into(), name: "Secret".into(), region_param: None, type_param: None, ops: vec![] });
         let span = ast::Span::new(1, 1);
         let path = ast::ConPath { segments: vec![ast::Name::new("Owner", span), ast::Name::new("Secret", span)] };
         assert!(checker.effect_head(&path, false).is_err());
         let annotation = ast::Type::Fun { arg: Box::new(ast::Type::Unit(span)), mult: None,
-            eff: Some(ast::EffectRow { labels: vec![(path, vec![])], tail: None, span }),
+            eff: Some(ast::EffectRow { labels: vec![(path, vec![])], label_tys: vec![], tail: None, span }),
             res: Box::new(ast::Type::Unit(span)), span };
         let captured = ast::capture_type_in_declaration_scope(&annotation, &[], Some(std::sync::Arc::new(ast::GlobalScope::new("Outside"))), &[], &[], &[]).unwrap();
         let ast::Type::Fun { eff: Some(row), .. } = captured else { panic!("function annotation") };

@@ -642,6 +642,8 @@ module Cinch.TemporalMc where
       CDischarge sp ty proofs _ body -> mc-eval-discharged ctx self env body rem
       CPolyElim sp ty inner args -> mc-eval-term ctx self env inner rem
       CPolyIntro sp ty ids inner -> mc-eval-term ctx self env inner rem
+      CQualElim sp ty inner evs -> mc-eval-term ctx self env inner rem
+      CQualIntro sp ty givens inner -> mc-eval-term ctx self env inner rem
       CGuard sp ty cond body -> case mc-eval-term ctx self env cond rem of
         Err msg -> Err msg
         Ok (McBool True, next) -> mc-eval-term ctx self env body next
@@ -1117,6 +1119,8 @@ module Cinch.TemporalMc where
             CRequire _ _ body -> walk-footprint sid sctor pass body fp
             CDischarge _ _ _ _ body -> walk-footprint sid sctor pass body fp
             CPolyElim _ _ body _ -> walk-footprint sid sctor pass body fp
+            CQualElim _ _ body _ -> walk-footprint sid sctor pass body fp
+            CQualIntro _ _ _ body -> walk-footprint sid sctor pass body fp
             CGuard _ _ c body -> walk-footprint sid sctor pass body (walk-footprint sid sctor pass c fp)
             other -> fp
 

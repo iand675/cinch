@@ -136,6 +136,7 @@ module Cinch.PartialEval where
     UTuple fields -> pe-has-usage-arrow fields
     UArg a rest -> pe-has-usage-arrow a || pe-has-usage-arrow rest
     UForall _ b -> pe-has-usage-arrow b
+    UQual _ b -> pe-has-usage-arrow b
     URefine _ _ c _ -> pe-has-usage-arrow c
     other -> False
 
@@ -311,6 +312,8 @@ module Cinch.PartialEval where
     CJoin _ _ t h -> pe-max-nat (pe-term-max-id t) (pe-term-max-id h)
     CPolyIntro _ _ _ b -> pe-term-max-id b
     CPolyElim _ _ b _ -> pe-term-max-id b
+    CQualIntro _ _ _ b -> pe-term-max-id b
+    CQualElim _ _ b _ -> pe-term-max-id b
     CHandler _ _ r ops -> pe-max-nat (pe-term-max-id r) (pe-term-max-id ops)
     CHandle _ _ _ _ b h -> pe-max-nat (pe-term-max-id b) (pe-term-max-id h)
     CHandlerOperation _ _ _ _ cl rest -> pe-max-nat (pe-term-max-id cl) (pe-term-max-id rest)
@@ -627,6 +630,8 @@ module Cinch.PartialEval where
       CJoin sp ty t h -> CJoin sp ty (pe-term tables env (fuel - 1) t) (pe-term tables env (fuel - 1) h)
       CPolyIntro sp ty ids body -> CPolyIntro sp ty ids (pe-term tables env (fuel - 1) body)
       CPolyElim sp ty body args -> CPolyElim sp ty (pe-term tables env (fuel - 1) body) args
+      CQualIntro sp ty givens body -> CQualIntro sp ty givens (pe-term tables env (fuel - 1) body)
+      CQualElim sp ty body evs -> CQualElim sp ty (pe-term tables env (fuel - 1) body) evs
       CHandler sp ty ret ops -> CHandler sp ty (pe-term tables env (fuel - 1) ret) (pe-handler-ops tables env (fuel - 1) ops)
       CHandle sp ty lbl res body h -> CHandle sp ty lbl res (pe-term tables env (fuel - 1) body) (pe-term tables env (fuel - 1) h)
       other -> term

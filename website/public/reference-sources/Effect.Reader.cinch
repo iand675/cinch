@@ -1,0 +1,74 @@
+-- Effect.Reader: zero-overhead lexical reader capabilities.
+--
+-- A `Read a` capability is a first-class lexical capability supplied via
+-- `with (r = Read val) in ...`, `run-reader val (\() -> ...)`, or
+-- explicitly with `f @{r = Read val}`. Because it is a lexical value
+-- (not an algebraic effect), functions taking `using (r :: Read a) =>`
+-- remain pure (`->{}`), keep full LLVM pure-function attributes, and
+-- compose directly with `parMap`, `STM`, and `Prop` proofs.
+--
+-- Multiple readers of distinct types coexist naturally; multiple readers
+-- of the same payload type can be distinguished with `TaggedRead tag a`.
+module Effect.Reader where
+  export Read, TaggedRead
+  export ask, asks, local, with-reader, run-reader
+  export ask-tagged, asks-tagged, local-tagged, with-tagged-reader, run-tagged-reader
+
+  -- | A lexical read-only environment capability carrying a value of type `a`.
+  #[capability]
+  data Read a where
+    Read :: a -> Read a
+
+  -- | A tag-indexed lexical reader capability for carrying multiple environments
+  -- of the same payload type `a` simultaneously.
+  #[capability]
+  data TaggedRead tag a where
+    TaggedRead :: a -> TaggedRead tag a
+
+  -- | Read the current lexical environment value.
+  ask :: forall a. using (r :: Read a) => a
+  ask = case r of
+    Read x -> x
+
+  -- | Project a value from the current lexical environment.
+  asks :: forall a b. using (r :: Read a) => (a -> b) -> b
+  asks f = case r of
+    Read x -> f x
+
+  -- | Run an action with a lexically transformed environment of the same type.
+  local :: forall a b (e :: Row). using (r :: Read a) => (a -> a) -> (using (inner :: Read a) => Unit ->{|e} b) ->{|e} b
+  local f action = case r of
+    Read x -> with (env = Read (f x)) in action ()
+
+  -- | Run an action with a lexically transformed environment of a new type.
+  with-reader :: forall a b c (e :: Row). using (r :: Read a) => (a -> b) -> (using (inner :: Read b) => Unit ->{|e} c) ->{|e} c
+  with-reader f action = case r of
+    Read x -> with (env = Read (f x)) in action ()
+
+  -- | Supply an initial reader environment and run an action.
+  run-reader :: forall a b (e :: Row). a -> (using (inner :: Read a) => Unit ->{|e} b) ->{|e} b
+  run-reader val action = with (env = Read val) in action ()
+
+  -- | Read the current lexical environment value for a specific tag.
+  ask-tagged :: forall tag a. using (r :: TaggedRead tag a) => a
+  ask-tagged = case r of
+    TaggedRead x -> x
+
+  -- | Project a value from a tagged lexical environment.
+  asks-tagged :: forall tag a b. using (r :: TaggedRead tag a) => (a -> b) -> b
+  asks-tagged f = case r of
+    TaggedRead x -> f x
+
+  -- | Run an action with a lexically transformed tagged environment.
+  local-tagged :: forall tag a b (e :: Row). using (r :: TaggedRead tag a) => (a -> a) -> (using (inner :: TaggedRead tag a) => Unit ->{|e} b) ->{|e} b
+  local-tagged f action = case r of
+    TaggedRead x -> with (env = TaggedRead (f x)) in action ()
+
+  -- | Run an action with a lexically transformed tagged environment of a new type.
+  with-tagged-reader :: forall tag1 tag2 a b c (e :: Row). using (r :: TaggedRead tag1 a) => (a -> b) -> (using (inner :: TaggedRead tag2 b) => Unit ->{|e} c) ->{|e} c
+  with-tagged-reader f action = case r of
+    TaggedRead x -> with (env = TaggedRead (f x)) in action ()
+
+  -- | Supply an initial tagged reader environment and run an action.
+  run-tagged-reader :: forall tag a b (e :: Row). a -> (using (inner :: TaggedRead tag a) => Unit ->{|e} b) ->{|e} b
+  run-tagged-reader val action = with (env = TaggedRead val) in action ()

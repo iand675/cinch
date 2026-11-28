@@ -47,13 +47,19 @@ struct Locals {
     task: Option<Arc<TaskState>>,
     arena: *mut crate::arena::Arena,
     eval: crate::eval::State,
+    effects: crate::effects::EffectState,
 }
 
 impl Locals {
     /// The state of a context that runs `task`'s body and has entered
     /// nothing yet.
     fn of(task: Option<Arc<TaskState>>) -> Locals {
-        Locals { task, arena: std::ptr::null_mut(), eval: crate::eval::State::IDLE }
+        Locals {
+            task,
+            arena: std::ptr::null_mut(),
+            eval: crate::eval::State::IDLE,
+            effects: crate::effects::EffectState::IDLE,
+        }
     }
 
     /// Make this the calling thread's state and answer the state it
@@ -63,6 +69,7 @@ impl Locals {
             task: crate::task::swap_current(self.task),
             arena: crate::arena::replace_current(self.arena),
             eval: crate::eval::swap_state(self.eval),
+            effects: crate::effects::swap_state(self.effects),
         }
     }
 }

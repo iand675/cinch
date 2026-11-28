@@ -78,6 +78,12 @@ module Cinch.RuntimeIr where
     -- Marker indicating codegen is inside a self-tail loop body so stack
     -- frame allocas are skipped and stack space stays O(1).
     LoopMarker :: Local
+    -- Evidence-passing handler prompt boundary: bubbling drops locals above
+    -- this marker and branches to its bubble label.
+    EvScope :: String -> Local
+    -- Function/lambda entry boundary: bubbling drops the function roots and
+    -- returns a typed zero word.
+    EvFunction :: String -> List (UType, String) -> Local
     -- Native pointer to a stack-allocated scalar cell created by withLocal.
     StackCell :: Nat -> UType -> String -> Local
     -- Known local worker (monomorphic lambda or local recursive helper) for
@@ -121,6 +127,8 @@ module Cinch.RuntimeIr where
     WwDemand :: String -> List Nat -> Demand
     BorrowDemand :: String -> List Nat -> Demand
     BuiltinBorrowDemand :: String -> Demand
+    EvDemand :: String -> List Nat -> List UType -> Demand
+    ArenaHelperDemand :: String -> Demand
     MemcpyDemand :: Demand
     MemsetDemand :: Demand
   -- Bound scheme ids and opened rigid ids are separate namespaces.
@@ -802,6 +810,7 @@ module Cinch.RuntimeIr where
               UPi id name domain row result -> Some 1
               -- A polymorphic value is its class-indexed bundle: one block.
               UForall qs body -> Some 1
+              UQual qs body -> Some 1
               UTuple fields -> if field-types context fields 0 then Some 1 else None
               USigma id name domain body -> if field-types context (UArg domain (UArg body UEnd)) 0 then Some 1 else None
               other -> case type-head ty of
@@ -856,6 +865,7 @@ module Cinch.RuntimeIr where
       Some classes | all-obj-at req classes -> 2
       other -> 1)
     other -> 1
+
 
   data-word-class :: CoreData -> Nat
   data-word-class d = case core-data-layout d of
@@ -1088,6 +1098,8 @@ module Cinch.RuntimeIr where
     WwDemand name classes -> cat [specialized-name name classes, "#ww"]
     BorrowDemand name classes -> cat [specialized-name name classes, "#b"]
     BuiltinBorrowDemand name -> cat [name, "#borrow"]
+    EvDemand name classes actuals -> ev-specialized-name name classes actuals
+    ArenaHelperDemand name -> cat ["arena-helper:", name]
     MemcpyDemand -> "intrinsic:llvm.memcpy"
     MemsetDemand -> "intrinsic:llvm.memset"
   request-demand :: Demand -> Writer -> Writer
@@ -1152,6 +1164,8 @@ module Cinch.RuntimeIr where
     (DeferredConstructor id ty name actuals args) : rest -> drop-locals rest w
     (SelfValue owner slot ty word) : rest -> drop-locals rest w
     LoopMarker : rest -> drop-locals rest w
+    (EvScope bubble) : rest -> drop-locals rest w
+    (EvFunction ret-ty fn-roots) : rest -> drop-locals rest w
     (StackCell id ty ptr-reg) : rest -> drop-locals rest w
     (KnownWorker id name caps param-tys ret-ty) : rest -> drop-locals rest w
   in-loop-locals :: List Local -> Bool
@@ -1171,6 +1185,8 @@ module Cinch.RuntimeIr where
     (SelfValue owner slot ty word) : rest -> local id rest
     (DeferredConstructor key ty name actuals args) : rest -> local id rest
     LoopMarker : rest -> local id rest
+    (EvScope bubble) : rest -> local id rest
+    (EvFunction ret-ty fn-roots) : rest -> local id rest
     (StackCell key ty ptr-reg) : rest -> local id rest
     (KnownWorker key name caps param-tys ret-ty) : rest -> local id rest
   lookup-known-worker :: Nat -> List Local -> Option (String, List (UType, String), List UType, UType)
@@ -1749,11 +1765,56 @@ module Cinch.RuntimeIr where
         None -> None)
     other -> None
 
-  -- | Select a guarded static foreign alias or the existing proper source-call fusion.
+  inline-external-arity :: String -> Option Nat
+  inline-external-arity name =
+    let dname = display-global-name name in
+    if dname == "Effect.Throw.catch" || dname == "Effect.Throw.try-throw"
+      || dname == "Effect.Arena.with-arena"
+      || dname == "Effect.Reader.asks" || dname == "Effect.Reader.asks-tagged" then Some 1
+    else if dname == "Effect.Arena.arena-abort" || dname == "Effect.Arena.with-arena-budget"
+      || dname == "Effect.Reader.run-reader" || dname == "Effect.Reader.run-tagged-reader"
+      || dname == "Effect.Reader.local" || dname == "Effect.Reader.local-tagged"
+      || dname == "Effect.Reader.with-reader" || dname == "Effect.Reader.with-tagged-reader" then Some 2
+    else None
+
+  inline-external-term-arity :: CoreTerm -> Option Nat
+  inline-external-term-arity term = case head term of
+    CUse at function symbol role actuals -> inline-external-arity symbol
+    CQualifiedUse at function symbol role actuals evidence -> inline-external-arity symbol
+    other -> None
+
+  inline-external-let-chain :: CoreTerm -> Bool
+  inline-external-let-chain term = case term of
+    CLet sp ty id name sc rhs body ->
+      (name == "#argument-function" && list-length (scheme-params sc) == 0 && (case inline-external-term-arity rhs of Some _ -> True; None -> False))
+      || inline-external-let-chain body
+    other -> False
+
+  push-app-into-lets :: Span -> UType -> Option UType -> CoreTerm -> CoreTerm -> CoreTerm
+  push-app-into-lets sp ty row callee arg = case callee of
+    CLet lsp lty id name sc rhs body ->
+      CLet lsp ty id name sc rhs (push-app-into-lets sp ty row body arg)
+    other -> case row of
+      Some r -> CApplyEff sp ty r callee arg
+      None -> CApply sp ty callee arg
+
+  fuse-scoped-inline-external :: CoreTerm -> Option CoreTerm
+  fuse-scoped-inline-external term = case term of
+    CLet sp ty id name sc rhs body ->
+      if name == "#argument-function" && list-length (scheme-params sc) == 0 then
+        (case inline-external-term-arity rhs of
+          Some arity -> fuse-scoped-arity arity term
+          None -> None)
+      else None
+    other -> None
+
+  -- | Select a guarded static foreign alias, an inline external alias, or the existing proper source-call fusion.
   fuse-scoped-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
-  fuse-scoped-call definitions w term = case fuse-scoped-foreign w term of
+  fuse-scoped-call definitions w term = case fuse-scoped-inline-external term of
     Some fused -> Some fused
-    None -> fuse-scoped-source-call definitions w term
+    None -> case fuse-scoped-foreign w term of
+      Some fused -> Some fused
+      None -> fuse-scoped-source-call definitions w term
 
   -- | Consult actual source parameter counts and reject hidden dictionary captures before eliding a source closure.
   fuse-scoped-source-call :: List CoreDefinition -> Writer -> CoreTerm -> Option CoreTerm
@@ -1794,6 +1855,8 @@ module Cinch.RuntimeIr where
     CTuple sp ty fields -> CTuple sp ty (specialize-local id scheme value fields)
     CPolyIntro sp ty ids body -> CPolyIntro sp ty ids (specialize-local id scheme value body)
     CPolyElim sp ty input args -> CPolyElim sp ty (specialize-local id scheme value input) args
+    CQualIntro sp ty givens body -> CQualIntro sp ty givens (specialize-local id scheme value body)
+    CQualElim sp ty input evs -> CQualElim sp ty (specialize-local id scheme value input) evs
     CPrimitive sp ty name args -> CPrimitive sp ty name (specialize-local id scheme value args)
     CProved sp ty certificate body -> CProved sp ty certificate (specialize-local id scheme value body)
     CRefine sp ty certificate body -> CRefine sp ty certificate (specialize-local id scheme value body)
@@ -1947,6 +2010,8 @@ module Cinch.RuntimeIr where
         CTuple sp ty fields -> handler-cps-fields context sp fields (\values fresh -> handler-bind sp (CTuple sp ty values) next fresh) cursor
         CPolyIntro sp ty ids body -> Err "a polymorphic value inside a handled computation is not supported yet"
         CPolyElim sp ty value args -> Err "a polymorphic value inside a handled computation is not supported yet"
+        CQualIntro sp ty givens body -> handler-bind sp term next cursor
+        CQualElim sp ty value evs -> handler-cps context sp value (\word fresh -> handler-bind sp (CQualElim sp ty word evs) next fresh) cursor
         CPrimitive sp ty operation fields -> if operation == "thunk-force" && (case fields of
           CArgument at thunk (CArgumentsEnd end) -> (case deferral-parts (core-type thunk) of Some (latent, result) -> handler-performs label latent; None -> True)
           other -> True) then Err "handled effect needs a direct checked operation call"
@@ -2174,10 +2239,13 @@ module Cinch.RuntimeIr where
         other -> case body of
           CCase sp2 cty scrut alts | (case unwrap-let-var scrut of Some sid -> sid == id; None -> False) && not (term-uses-id id alts) ->
             case-value-mode-u definitions locals w ty value True is-uniq alts
-          other -> case try-move-into-alloc definitions locals w id ty value body of
-            Some moved -> moved
-            None -> case expression definitions ((Local id ty value) : locals) w body of
-              (done, result) -> (count-op False ty value done, result)
+          other -> if term-uses-ev body then
+              case expression definitions ((Local id ty value) : locals) w body of
+                (done, result) -> (count-op False ty value done, result)
+            else case try-move-into-alloc definitions locals w id ty value body of
+              Some moved -> moved
+              None -> case expression definitions ((Local id ty value) : locals) w body of
+                (done, result) -> (count-op False ty value done, result)
 
   -- | Partial escape split: when a let-bound constructor with trivial arguments
   -- sits above an `if` whose condition does not mention it, sink the `let` into
@@ -2242,7 +2310,7 @@ module Cinch.RuntimeIr where
         (bound, value) -> expression definitions locals (count-op False ty value bound) body)
     else case try-let-lambda definitions locals w sp id ty rhs body of
       Some lowered -> lowered
-      None -> case try-frame-let definitions locals w sp id ty rhs body of
+      None -> case (if term-uses-ev body then None else try-frame-let definitions locals w sp id ty rhs body) of
         Some framed -> framed
         None ->
           let is-uniq = term-is-unique-alloc (program-returns-unique (w.context.info)) [] rhs in
@@ -2254,6 +2322,669 @@ module Cinch.RuntimeIr where
     [] -> None
     (StackCell key ty ptr-reg) : rest -> if id == key then Some (ty, ptr-reg) else stack-cell-local id rest
     other : rest -> stack-cell-local id rest
+
+  -- Koka-style evidence-passing and cooperative bubbling helpers.
+  ev-label-key :: UType -> String
+  ev-label-key ty = case ty of
+    UCon name kind -> display-global-name name
+    UApp f x -> cat ["(", ev-label-key f, " ", ev-label-key x, ")"]
+    URigid id name level kind -> cat ["$", name, "#", nat-to-string id]
+    UBound id name kind -> cat ["%", name, "#", nat-to-string id]
+    UFun a b -> cat ["(", ev-label-key a, "->", ev-label-key b, ")"]
+    UFunEff a r b -> cat ["(", ev-label-key a, "->", ev-label-key r, "->", ev-label-key b, ")"]
+    UTuple xs -> cat ["T(", ev-label-key xs, ")"]
+    UArg a b -> cat [ev-label-key a, ",", ev-label-key b]
+    UEnd -> ""
+    other -> type-text ty
+  ev-types-key :: List UType -> String
+  ev-types-key tys = case tys of
+    [] -> ""
+    first : rest ->
+      let k = type-kind first in
+      if kind-equal k KType || kind-equal k KEffect then
+        cat [ev-label-key first, ";", ev-types-key rest]
+      else ev-types-key rest
+  ev-hash-bytes :: Bytes -> Nat -> Nat -> Nat
+  ev-hash-bytes bs idx acc =
+    if idx < bytes-len bs then
+      let b = bytes-get bs idx in
+      let next = (acc * 131 + b + 1) % 1000000000039 in
+      ev-hash-bytes bs (idx + 1) next
+    else acc
+  ev-string-hash :: String -> String
+  ev-string-hash text = nat-to-string (ev-hash-bytes (string-to-bytes text) 0 1469598103)
+  ev-label-hash :: UType -> String
+  ev-label-hash label = ev-string-hash (ev-label-key label)
+  ev-specialized-name :: String -> List Nat -> List UType -> String
+  ev-specialized-name name classes actuals =
+    cat [specialized-name name classes, "#ev.", ev-string-hash (ev-types-key actuals)]
+
+  ev-builtin-effect :: String -> Bool
+  ev-builtin-effect name =
+    name == "IO" || name == "Mut" || name == "Async" || name == "Cancel"
+    || name == "Eval" || name == "Diverge" || name == "Blocking"
+    || name == "STM" || name == "MVar" || name == "Foreign"
+    || name == "#kernel.STM" || name == "#kernel.MVar"
+  ev-label-head :: UType -> Option String
+  ev-label-head ty = case ty of
+    UCon name kind -> Some name
+    UApp f x -> ev-label-head f
+    other -> None
+  ev-label-can-yield :: UType -> Bool
+  ev-label-can-yield label = case ev-label-head label of
+    Some name -> not (ev-builtin-effect name)
+    None -> True
+  ev-labels-can-yield :: UType -> Bool
+  ev-labels-can-yield labels = case labels of
+    UEnd -> False
+    UArg first rest -> ev-label-can-yield first || ev-labels-can-yield rest
+    other -> True
+  row-can-yield :: UType -> Bool
+  row-can-yield row = case row of
+    URow labels -> ev-labels-can-yield labels
+    URowJoin a b -> row-can-yield a || row-can-yield b
+    UError -> False
+    other -> True
+
+  terms-use-ev :: List CoreTerm -> Bool
+  terms-use-ev terms = case terms of
+    [] -> False
+    first : rest -> term-uses-ev first || terms-use-ev rest
+  term-uses-ev :: CoreTerm -> Bool
+  term-uses-ev term = case term of
+    CHandle sp ty label residual body handled-by ->
+      handler-is-evidence handled-by || term-uses-ev body || term-uses-ev handled-by
+    CApplyEff sp ty row f x ->
+      row-can-yield row || term-uses-ev f || term-uses-ev x
+    CErasedApply sp ty row f x ->
+      row-can-yield row || term-uses-ev f
+    CUse sp ty name role actuals -> role == "operation"
+    other -> terms-use-ev (term-children term)
+  clauses-use-ev :: List CoreClause -> Bool
+  clauses-use-ev clauses = case clauses of
+    [] -> False
+    (CoreClause sp pats body) : rest -> term-uses-ev body || clauses-use-ev rest
+  definition-uses-ev :: CoreDefinition -> Bool
+  definition-uses-ev d = clauses-use-ev (d.clauses)
+  has-type-or-effect-quant :: List Quant -> Bool
+  has-type-or-effect-quant qs = case qs of
+    [] -> False
+    q : rest -> kind-equal (q.kind) KType || kind-equal (q.kind) KEffect || has-type-or-effect-quant rest
+  definition-has-poly-ev :: CoreDefinition -> Bool
+  definition-has-poly-ev d = has-type-or-effect-quant (scheme-params (d.scheme)) && definition-uses-ev d
+
+  ev-root-pairs :: List Local -> List (UType, String)
+  ev-root-pairs roots = case roots of
+    [] -> []
+    (Local id ty value) : rest -> (ty, value) : (ev-root-pairs rest)
+    (Discard ty value) : rest -> (ty, value) : (ev-root-pairs rest)
+    other : rest -> ev-root-pairs rest
+  drop-ev-roots :: List (UType, String) -> Writer -> Writer
+  drop-ev-roots pairs w = case pairs of
+    [] -> w
+    (ty, value) : rest -> count-op False ty value (drop-ev-roots rest w)
+  ev-zero-word :: String -> String
+  ev-zero-word llvm-ty =
+    if llvm-ty == "double" || llvm-ty == "float" then "0.0"
+    else if llvm-ty == "ptr" then "null"
+    else if llvm-ty == "{ i64, i64 }" then "zeroinitializer"
+    else "0"
+  emit-bubble-walk :: List Local -> Writer -> Writer
+  emit-bubble-walk locals w = case locals of
+    [] -> line w "  ret i64 0"
+    (Local id ty value) : rest -> emit-bubble-walk rest (count-op False ty value w)
+    (Discard ty value) : rest -> emit-bubble-walk rest (count-op False ty value w)
+    (EvScope bubble-lbl) : rest -> line w (cat ["  br label %", bubble-lbl])
+    (EvFunction ret-llvm fn-roots) : rest ->
+      if ret-llvm == "void" then line (drop-ev-roots fn-roots w) "  ret void"
+      else line (drop-ev-roots fn-roots w) (cat ["  ret ", ret-llvm, " ", ev-zero-word ret-llvm])
+    other : rest -> emit-bubble-walk rest w
+  emit-bubble :: List Local -> Writer -> Writer
+  emit-bubble locals w =
+    let emitted = emit-bubble-walk locals w in
+    let (next, dead) = fresh emitted "evdead" in
+    line next (cat [dead, ":"])
+  emit-yield-guard :: List Local -> UType -> String -> Writer -> (Writer, String)
+  emit-yield-guard locals ty res w =
+    let (w1, flag) = fresh w "%evy" in
+    let (w2, cmp) = fresh w1 "%evyc" in
+    let (w3, bubble-l) = fresh w2 "evbubble" in
+    let (w4, ok-l) = fresh w3 "evok" in
+    let w5 = emit-lines w4 [
+      cat ["  ", flag, " = call i64 @cinch_ev_is_yielding()"],
+      cat ["  ", cmp, " = icmp ne i64 ", flag, ", 0"],
+      cat ["  br i1 ", cmp, ", label %", bubble-l, ", label %", ok-l, ", !prof !7"],
+      cat [bubble-l, ":"]] in
+    let w6 = emit-bubble-walk locals (count-op False ty res w5) in
+    (line w6 (cat [ok-l, ":"]), res)
+
+  ev-is-op-arrow :: UType -> Bool
+  ev-is-op-arrow ty = case ty of
+    UUsageArrow u inner -> ev-is-op-arrow inner
+    UFun a b -> ev-is-op-arrow b
+    UFunEff a r b -> True
+    UPi id name a r b -> True
+    UProofFun p r b -> True
+    other -> False
+  ev-op-sig :: UType -> List UType -> Option (List UType, UType, UType)
+  ev-op-sig ty acc = case ty of
+    UUsageArrow u inner -> ev-op-sig inner acc
+    UFun a b -> ev-op-sig b (acc <> [a])
+    UFunEff a row b -> if ev-is-op-arrow b then ev-op-sig b (acc <> [a]) else Some (acc <> [a], row, b)
+    UPi id name a row b -> if ev-is-op-arrow b then ev-op-sig b (acc <> [a]) else Some (acc <> [a], row, b)
+    UProofFun p row b -> if ev-is-op-arrow b then ev-op-sig b acc else Some (acc, row, b)
+    other -> None
+  ev-op-arity :: UType -> Nat
+  ev-op-arity ty = case ev-op-sig ty [] of
+    Some (arg-tys, row, ret-ty) -> list-length arg-tys
+    None -> 0
+  ev-row-first-label :: UType -> Option UType
+  ev-row-first-label row = case row of
+    URow (UArg first rest) -> Some first
+    URowJoin a b -> (case ev-row-first-label a of Some l -> Some l; None -> ev-row-first-label b)
+    other -> None
+  ev-lookup-op-slot :: String -> List CoreEffect -> Option Nat
+  ev-lookup-op-slot name effects = case effects of
+    [] -> if display-global-name name == "Effect.Throw.throw" then Some 1 else None
+    decl : rest -> case handler-operation-slot name (decl.effect-operations) of
+      Some slot -> Some slot
+      None -> ev-lookup-op-slot name rest
+  ev-apply-words :: Writer -> String -> List String -> (Writer, String)
+  ev-apply-words w fun words = case words of
+    [] -> (w, fun)
+    first : rest -> case apply-one w fun first of
+      (next, res) -> ev-apply-words next res rest
+  ev-pack-args :: Writer -> Span -> List UType -> List String -> (Writer, String)
+  ev-pack-args w sp tys words = case words of
+    [] -> (w, "0")
+    [single] -> (w, single)
+    other -> case class-vector (w.context) tys of
+      Some codes ->
+        let desc = shape-description 1 0 codes in
+        allocate-typed w desc (typed-words words)
+      None -> unsupported w sp "effect operation arguments need checked runtime representations"
+  ev-unpack-fields :: Writer -> String -> List UType -> Nat -> (Writer, List String)
+  ev-unpack-fields w ptr tys idx = case tys of
+    [] -> (w, [])
+    ty : rest -> case load-word w ptr (nat-to-string idx) of
+      (loaded, word) ->
+        let retained = count-op True ty word loaded in
+        case ev-unpack-fields retained ptr rest (idx + 1) of
+          (done, more) -> (done, word : more)
+  ev-unpack-args :: Writer -> List UType -> String -> (Writer, List String)
+  ev-unpack-args w tys raw = case tys of
+    [] -> (w, [])
+    [single] -> (w, [raw])
+    other ->
+      let (w1, ptr) = fresh w "%evap" in
+      let w2 = line w1 (cat ["  ", ptr, " = inttoptr i64 ", raw, " to ptr"]) in
+      case ev-unpack-fields w2 ptr tys 0 of
+        (w3, words) -> (count-line False raw w3, words)
+  ev-clause-arg-types :: CoreTerm -> List UType
+  ev-clause-arg-types closure = case closure of
+    CLambda sp ty pat body -> case ty of
+      UFunEff (UFun res out) row out2 -> []
+      UFun (UFun res out) out2 | (case body of CLambda _ _ _ _ -> False; other -> True) -> []
+      UFun a b -> a : (ev-clause-arg-types body)
+      UPi id name a row b -> a : (ev-clause-arg-types body)
+      UProofFun p row b -> ev-clause-arg-types body
+      UUsageArrow u arrow -> ev-clause-arg-types (CLambda sp arrow pat body)
+      other -> []
+    other -> []
+
+  ev-perform :: List CoreDefinition -> List Local -> Writer -> Span -> String -> UType -> List CoreTerm -> (Writer, String)
+  ev-perform definitions locals w sp name fn-ty args =
+    case ev-op-sig fn-ty [] of
+      None -> unsupported w sp "effect operation needs a checked arrow signature"
+      Some (arg-tys, row, ret-ty) -> case (ev-row-first-label row, ev-lookup-op-slot name ((writer-program w).effects)) of
+        (Some label, Some slot) ->
+          let hash-str = ev-label-hash label in
+          let slot-str = nat-to-string slot in
+          case expressions definitions locals w args of
+            (w1, vals) ->
+              let (w2, entry) = fresh w1 "%eve" in
+              let (w3, abflag) = fresh w2 "%evab" in
+              let (w4, is-ab) = fresh w3 "%evabc" in
+              let (w5, ab-lbl) = fresh w4 "evabort" in
+              let (w6, tail-lbl) = fresh w5 "evtail" in
+              let w7 = emit-lines w6 [
+                cat ["  ", entry, " = call ptr @cinch_ev_lookup(i64 ", hash-str, ")"],
+                cat ["  ", abflag, " = call i64 @cinch_ev_entry_slot_aborts(ptr ", entry, ", i64 ", slot-str, ")"],
+                cat ["  ", is-ab, " = icmp ne i64 ", abflag, ", 0"],
+                cat ["  br i1 ", is-ab, ", label %", ab-lbl, ", label %", tail-lbl],
+                cat [ab-lbl, ":"]] in
+              case ev-pack-args w7 sp arg-tys vals of
+                (w8, packed) ->
+                  let (w9, marker) = fresh w8 "%evm" in
+                  let w10 = emit-lines w9 [
+                    cat ["  ", marker, " = call i64 @cinch_ev_entry_marker(ptr ", entry, ")"],
+                    cat ["  call i64 @cinch_ev_abort(i64 ", marker, ", i64 ", slot-str, ", i64 ", packed, ")"]] in
+                  let w11 = emit-bubble-walk locals w10 in
+                  let w12 = line w11 (cat [tail-lbl, ":"]) in
+                  let (w13, clo) = fresh w12 "%evclo" in
+                  let (w14, id-clo) = fresh w13 "%evid" in
+                  let w15 = emit-lines w14 [
+                    cat ["  ", clo, " = call i64 @cinch_ev_vtable_slot(ptr ", entry, ", i64 ", slot-str, ")"],
+                    cat ["  ", id-clo, " = call i64 @cinch_ev_id_closure()"]] in
+                  ev-apply-words w15 clo (vals <> [id-clo])
+        other -> unsupported w sp "effect operation needs a checked label and dispatch slot"
+
+  ev-handle-abort-dispatch :: List Local -> Writer -> UType -> String -> String -> String -> String -> String -> String -> CoreTerm -> Writer
+  ev-handle-abort-dispatch locals w out-ty out-llvm vtable slot-word arg-raw out-slot done-lbl operations = case operations of
+    CHandlerEnd sp -> line w "  unreachable"
+    CHandlerOperation sp slot openings op-row closure rest ->
+      if handler-closure-classify closure /= 2 then
+        ev-handle-abort-dispatch locals w out-ty out-llvm vtable slot-word arg-raw out-slot done-lbl rest
+      else
+        let slot-str = nat-to-string slot in
+        let (w1, cmp) = fresh w "%evsc" in
+        let (w2, hit-l) = fresh w1 "evhit" in
+        let (w3, miss-l) = fresh w2 "evmiss" in
+        let w4 = emit-lines w3 [
+          cat ["  ", cmp, " = icmp eq i64 ", slot-word, ", ", slot-str],
+          cat ["  br i1 ", cmp, ", label %", hit-l, ", label %", miss-l],
+          cat [hit-l, ":"]] in
+        case ev-unpack-args w4 (ev-clause-arg-types closure) arg-raw of
+          (w5, unpacked) ->
+            let (w6, vptr) = fresh w5 "%evvp" in
+            let (w7, sptr) = fresh w6 "%evsp" in
+            let (w8, op-clo) = fresh w7 "%evoc" in
+            let (w9, id-clo) = fresh w8 "%evic" in
+            let w10 = emit-lines w9 [
+              cat ["  ", vptr, " = inttoptr i64 ", vtable, " to ptr"],
+              cat ["  ", sptr, " = getelementptr inbounds i64, ptr ", vptr, ", i64 ", slot-str],
+              cat ["  ", op-clo, " = load i64, ptr ", sptr]] in
+            let w11 = count-line False vtable (count-line True op-clo w10) in
+            let w12 = line w11 (cat ["  ", id-clo, " = call i64 @cinch_ev_id_closure()"]) in
+            case ev-apply-words w12 op-clo (unpacked <> [id-clo]) of
+              (w13, ab-res) ->
+                let (w14, checked-res) = if row-can-yield op-row then emit-yield-guard locals out-ty ab-res w13 else (w13, ab-res) in
+                let w15 = emit-lines w14 [
+                  cat ["  store ", out-llvm, " ", checked-res, ", ptr ", out-slot],
+                  cat ["  br label %", done-lbl],
+                  cat [miss-l, ":"]] in
+                ev-handle-abort-dispatch locals w15 out-ty out-llvm vtable slot-word arg-raw out-slot done-lbl rest
+    other -> line w "  unreachable"
+
+  ev-handle :: List CoreDefinition -> List Local -> Writer -> Span -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> (Writer, String)
+  ev-handle definitions locals w sp ty label residual body handled-by = case handled-by of
+    CHandler hsp hty returned operations -> case handler-parts hty of
+      Some (hlabel, hinput, houtput, hrow) ->
+        let stripped = handler-strip-evidence handled-by in
+        let mask = handler-abort-mask handled-by in
+        let hash-str = ev-label-hash label in
+        let body-llvm = value-llvm (w.context) (core-type body) in
+        let out-llvm = value-llvm (w.context) ty in
+        case expression definitions locals w stripped of
+          (w1, vtable) ->
+            let (w2, ev-ptr) = fresh w1 "%evf" in
+            let (w3, marker) = fresh w2 "%evmk" in
+            let (w4, res-slot) = fresh w3 "%evrs" in
+            let (w5, out-slot) = fresh w4 "%evos" in
+            let (w6, bubble-l) = fresh w5 "evhbub" in
+            let (w7, after-l) = fresh w6 "evhaft" in
+            let (w8, norm-l) = fresh w7 "evhnorm" in
+            let (w9, yld-l) = fresh w8 "evhyld" in
+            let (w10, done-l) = fresh w9 "evhdn" in
+            let w11 = emit-lines w10 [
+              cat ["  ", ev-ptr, " = alloca [6 x i64], align 8"],
+              cat ["  ", res-slot, " = alloca ", body-llvm],
+              cat ["  ", out-slot, " = alloca ", out-llvm],
+              cat ["  ", marker, " = call i64 @cinch_ev_push(ptr ", ev-ptr, ", i64 ", hash-str, ", i64 ", vtable, ", i64 ", nat-to-string mask, ")"]] in
+            case expression definitions ((EvScope bubble-l) : locals) w11 body of
+              (w12, body-val) ->
+                let (w13, yflag) = fresh w12 "%evyf" in
+                let (w14, is-y) = fresh w13 "%evyi" in
+                let w15 = emit-lines w14 [
+                  cat ["  store ", body-llvm, " ", body-val, ", ptr ", res-slot],
+                  cat ["  br label %", after-l],
+                  cat [bubble-l, ":"],
+                  cat ["  br label %", after-l],
+                  cat [after-l, ":"],
+                  cat ["  call i64 @cinch_ev_pop(ptr ", ev-ptr, ")"],
+                  cat ["  ", yflag, " = call i64 @cinch_ev_is_yielding()"],
+                  cat ["  ", is-y, " = icmp ne i64 ", yflag, ", 0"],
+                  cat ["  br i1 ", is-y, ", label %", yld-l, ", label %", norm-l, ", !prof !7"],
+                  cat [norm-l, ":"]] in
+                let (w16, loaded-body) = fresh w15 "%evbv" in
+                let (w17, vptr) = fresh w16 "%evrp" in
+                let (w18, ret-clo) = fresh w17 "%evrc" in
+                let w19 = emit-lines w18 [
+                  cat ["  ", loaded-body, " = load ", body-llvm, ", ptr ", res-slot],
+                  cat ["  ", vptr, " = inttoptr i64 ", vtable, " to ptr"],
+                  cat ["  ", ret-clo, " = load i64, ptr ", vptr]] in
+                let w20 = count-line False vtable (count-line True ret-clo w19) in
+                case apply-one w20 ret-clo loaded-body of
+                  (w21, norm-res) ->
+                    let (w22, checked-norm) = if row-can-yield hrow then emit-yield-guard locals ty norm-res w21 else (w21, norm-res) in
+                    let w23 = emit-lines w22 [
+                      cat ["  store ", out-llvm, " ", checked-norm, ", ptr ", out-slot],
+                      cat ["  br label %", done-l],
+                      cat [yld-l, ":"]] in
+                    let w24 = (if mask == 0 then
+                        emit-bubble-walk locals (count-line False vtable w23)
+                      else
+                        (let (wa, caught) = fresh w23 "%evct" in
+                        let (wb, is-ct) = fresh wa "%evci" in
+                        let (wc, ct-l) = fresh wb "evhct" in
+                        let (wd, prop-l) = fresh wc "evhpr" in
+                        let (we, slw) = fresh wd "%evsl" in
+                        let (wf, argw) = fresh we "%evar" in
+                        let wg = emit-lines wf [
+                          cat ["  ", caught, " = call i64 @cinch_ev_is_caught(i64 ", marker, ")"],
+                          cat ["  ", is-ct, " = icmp ne i64 ", caught, ", 0"],
+                          cat ["  br i1 ", is-ct, ", label %", ct-l, ", label %", prop-l],
+                          cat [prop-l, ":"]] in
+                        let wh = emit-bubble-walk locals (count-line False vtable wg) in
+                        let wi = emit-lines wh [
+                          cat [ct-l, ":"],
+                          cat ["  ", slw, " = call i64 @cinch_ev_yield_slot()"],
+                          cat ["  ", argw, " = call i64 @cinch_ev_take_yield_arg()"]] in
+                        ev-handle-abort-dispatch locals wi ty out-llvm vtable slw argw out-slot done-l operations)) in
+                    let (w25, final-val) = fresh (line w24 (cat [done-l, ":"])) "%evfin" in
+                    (line w25 (cat ["  ", final-val, " = load ", out-llvm, ", ptr ", out-slot]), final-val)
+      None -> unsupported w sp "evidence handler needs a checked handler type"
+    other -> unsupported w sp "evidence handler requires an inline handler literal"
+
+  ev-external-catch :: List CoreDefinition -> List Local -> Writer -> Span -> List UType -> CoreTerm -> (Writer, String)
+  ev-external-catch definitions locals w sp actuals body-arg = case actuals of
+    err-ty : ok-ty : rest ->
+      case (word-class (w.context) err-ty, word-class (w.context) ok-ty) of
+        (Some err-code, Some ok-code) ->
+          let label = UApp (UCon "Effect.Throw.Throw" (KFun KType KEffect)) err-ty in
+          let hash-str = ev-label-hash label in
+          let err-desc = shape-description 1 0 [err-code] in
+          let ok-desc = shape-description 1 1 [ok-code] in
+          case expression definitions locals w body-arg of
+            (w1, body-clo) ->
+              let (w2, ev-ptr) = fresh w1 "%evcf" in
+              let (w3, marker) = fresh w2 "%evcm" in
+              let (w4, out-slot) = fresh w3 "%evco" in
+              let w5 = emit-lines w4 [
+                cat ["  ", ev-ptr, " = alloca [6 x i64], align 8"],
+                cat ["  ", out-slot, " = alloca i64"],
+                cat ["  ", marker, " = call i64 @cinch_ev_push(ptr ", ev-ptr, ", i64 ", hash-str, ", i64 0, i64 2)"]] in
+              case apply-one w5 body-clo "0" of
+                (w6, body-res) ->
+                  let (w7, yflag) = fresh w6 "%evcy" in
+                  let (w8, is-y) = fresh w7 "%evcyi" in
+                  let (w9, norm-l) = fresh w8 "evcnorm" in
+                  let (w10, yld-l) = fresh w9 "evcyld" in
+                  let (w11, ct-l) = fresh w10 "evcct" in
+                  let (w12, prop-l) = fresh w11 "evcpr" in
+                  let (w13, done-l) = fresh w12 "evcdn" in
+                  let w14 = emit-lines w13 [
+                    cat ["  call i64 @cinch_ev_pop(ptr ", ev-ptr, ")"],
+                    cat ["  ", yflag, " = call i64 @cinch_ev_is_yielding()"],
+                    cat ["  ", is-y, " = icmp ne i64 ", yflag, ", 0"],
+                    cat ["  br i1 ", is-y, ", label %", yld-l, ", label %", norm-l, ", !prof !7"],
+                    cat [norm-l, ":"]] in
+                  case allocate-typed w14 ok-desc [("i64", body-res)] of
+                    (w15, ok-word) ->
+                      let (w16, caught) = fresh w15 "%evcc" in
+                      let (w17, is-ct) = fresh w16 "%evcci" in
+                      let (w18, err-word) = fresh w17 "%evce" in
+                      let w19 = emit-lines w18 [
+                        cat ["  store i64 ", ok-word, ", ptr ", out-slot],
+                        cat ["  br label %", done-l],
+                        cat [yld-l, ":"],
+                        cat ["  ", caught, " = call i64 @cinch_ev_is_caught(i64 ", marker, ")"],
+                        cat ["  ", is-ct, " = icmp ne i64 ", caught, ", 0"],
+                        cat ["  br i1 ", is-ct, ", label %", ct-l, ", label %", prop-l],
+                        cat [prop-l, ":"]] in
+                      let w20 = emit-bubble-walk locals w19 in
+                      let w21 = emit-lines w20 [
+                        cat [ct-l, ":"],
+                        cat ["  ", err-word, " = call i64 @cinch_ev_take_yield_arg()"]] in
+                      case allocate-typed w21 err-desc [("i64", err-word)] of
+                        (w22, err-box) ->
+                          let w23 = emit-lines w22 [
+                            cat ["  store i64 ", err-box, ", ptr ", out-slot],
+                            cat ["  br label %", done-l],
+                            cat [done-l, ":"]] in
+                          let (w24, final-word) = fresh w23 "%evcfn" in
+                          (line w24 (cat ["  ", final-word, " = load i64, ptr ", out-slot]), final-word)
+        other -> unsupported w sp "catch needs checked runtime representations"
+    other -> unsupported w sp "catch needs checked error and value types"
+
+  ev-external-try-throw :: List CoreDefinition -> List Local -> Writer -> Span -> List UType -> CoreTerm -> (Writer, String)
+  ev-external-try-throw definitions locals w sp actuals res-arg = case actuals of
+    err-ty : ok-ty : rest ->
+      let label = UApp (UCon "Effect.Throw.Throw" (KFun KType KEffect)) err-ty in
+      let hash-str = ev-label-hash label in
+      case expression definitions locals w res-arg of
+        (w1, res-word) ->
+          case constructor-tag w1 res-word of
+            (w2, tag) ->
+              let (w3, is-ok) = fresh w2 "%evtok" in
+              let (w4, ok-l) = fresh w3 "evttok" in
+              let (w5, err-l) = fresh w4 "evtterr" in
+              let (w6, ptr) = fresh w5 "%evtp" in
+              let w7 = emit-lines w6 [
+                cat ["  ", is-ok, " = icmp eq i64 ", tag, ", 1"],
+                cat ["  ", ptr, " = inttoptr i64 ", res-word, " to ptr"],
+                cat ["  br i1 ", is-ok, ", label %", ok-l, ", label %", err-l],
+                cat [err-l, ":"]] in
+              case load-word w7 ptr "0" of
+                (w8, err-val) ->
+                  let w9 = count-line False res-word (count-op True err-ty err-val w8) in
+                  let (w10, entry) = fresh w9 "%evte" in
+                  let (w11, marker) = fresh w10 "%evtm" in
+                  let w12 = emit-lines w11 [
+                    cat ["  ", entry, " = call ptr @cinch_ev_lookup(i64 ", hash-str, ")"],
+                    cat ["  ", marker, " = call i64 @cinch_ev_entry_marker(ptr ", entry, ")"],
+                    cat ["  call i64 @cinch_ev_abort(i64 ", marker, ", i64 1, i64 ", err-val, ")"]] in
+                  let w13 = line (emit-bubble-walk locals w12) (cat [ok-l, ":"]) in
+                  case load-word w13 ptr "0" of
+                    (w14, ok-val) ->
+                      (count-line False res-word (count-op True ok-ty ok-val w14), ok-val)
+    other -> unsupported w sp "try-throw needs checked error and value types"
+
+  ev-in-ev-function :: List Local -> Bool
+  ev-in-ev-function locals = case locals of
+    [] -> False
+    first : rest -> case first of
+      EvFunction ret-llvm roots -> True
+      EvScope label -> True
+      other -> ev-in-ev-function rest
+
+  reader-unbox :: UType -> String -> Writer -> (Writer, String)
+  reader-unbox payload-ty cap-word w =
+    let (w1, ptr) = fresh w "%rdp" in
+    case load-word (line w1 (cat ["  ", ptr, " = inttoptr i64 ", cap-word, " to ptr"])) ptr "0" of
+      (w2, val) -> (count-line False cap-word (count-op True payload-ty val w2), val)
+
+  reader-box :: Span -> UType -> String -> Writer -> (Writer, String)
+  reader-box sp payload-ty val w = case word-class (w.context) payload-ty of
+    Some code -> allocate-typed w (shape-description 1 0 [code]) [("i64", val)]
+    None -> unsupported w sp "reader capability payload needs known runtime representation"
+
+  reader-run-action :: List Local -> UType -> String -> String -> Writer -> (Writer, String)
+  reader-run-action locals res-ty act-word cap-word w =
+    case apply-one w act-word cap-word of
+      (w1, thunk) -> case apply-one w1 thunk "0" of
+        (w2, res) ->
+          if ev-in-ev-function locals then emit-yield-guard locals res-ty res w2
+          else (w2, res)
+
+  ev-external-reader :: List CoreDefinition -> List Local -> Writer -> Span -> String -> List UType -> List String -> List CoreTerm -> Option (Writer, String)
+  ev-external-reader definitions locals w sp dname actuals givens args =
+    if dname == "Effect.Reader.ask" then
+      (case (actuals, givens, args) of
+        (a : _, [cap], []) -> Some (reader-unbox a cap w)
+        other -> None)
+    else if dname == "Effect.Reader.ask-tagged" then
+      (case (actuals, givens, args) of
+        (_ : a : _, [cap], []) -> Some (reader-unbox a cap w)
+        other -> None)
+    else if dname == "Effect.Reader.asks" then
+      (case (actuals, givens, args) of
+        (a : _, [cap], [f-term]) ->
+          Some (case expression definitions locals w f-term of
+            (w1, f-w) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> apply-one w2 f-w x-w)
+        other -> None)
+    else if dname == "Effect.Reader.asks-tagged" then
+      (case (actuals, givens, args) of
+        (_ : a : _, [cap], [f-term]) ->
+          Some (case expression definitions locals w f-term of
+            (w1, f-w) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> apply-one w2 f-w x-w)
+        other -> None)
+    else if dname == "Effect.Reader.run-reader" then
+      (case (actuals, givens, args) of
+        (a : b : _, [], [val-term, act-term]) ->
+          Some (case expressions definitions locals w [val-term, act-term] of
+            (w1, [val-w, act-w]) -> case reader-box sp a val-w w1 of
+              (w2, cap-w) -> reader-run-action locals b act-w cap-w w2
+            (w1, _) -> unsupported w1 sp "run-reader arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.run-tagged-reader" then
+      (case (actuals, givens, args) of
+        (_ : a : b : _, [], [val-term, act-term]) ->
+          Some (case expressions definitions locals w [val-term, act-term] of
+            (w1, [val-w, act-w]) -> case reader-box sp a val-w w1 of
+              (w2, cap-w) -> reader-run-action locals b act-w cap-w w2
+            (w1, _) -> unsupported w1 sp "run-tagged-reader arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.local" then
+      (case (actuals, givens, args) of
+        (a : b : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, x2-w) -> case reader-box sp a x2-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals b act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "local arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.local-tagged" then
+      (case (actuals, givens, args) of
+        (_ : a : b : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, x2-w) -> case reader-box sp a x2-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals b act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "local-tagged arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.with-reader" then
+      (case (actuals, givens, args) of
+        (a : b : c : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, y-w) -> case reader-box sp b y-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals c act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "with-reader arguments mismatch")
+        other -> None)
+    else if dname == "Effect.Reader.with-tagged-reader" then
+      (case (actuals, givens, args) of
+        (_ : _ : a : b : c : _, [cap], [f-term, act-term]) ->
+          Some (case expressions definitions locals w [f-term, act-term] of
+            (w1, [f-w, act-w]) -> case reader-unbox a cap w1 of
+              (w2, x-w) -> case apply-one w2 f-w x-w of
+                (w3, y-w) -> case reader-box sp b y-w w3 of
+                  (w4, cap2-w) -> reader-run-action locals c act-w cap2-w w4
+            (w1, _) -> unsupported w1 sp "with-tagged-reader arguments mismatch")
+        other -> None)
+    else None
+
+  ev-external-arena-abort :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> (Writer, String)
+  ev-external-arena-abort definitions locals w sp tok-arg err-arg =
+    case expressions definitions locals w [tok-arg, err-arg] of
+      (w1, [tok-w, err-w]) ->
+        let (w2, ptr) = fresh w1 "%atp" in
+        case load-word (line w2 (cat ["  ", ptr, " = inttoptr i64 ", tok-w, " to ptr"])) ptr "0" of
+          (w3, h-w) ->
+            let w4 = count-line False tok-w w3 in
+            call w4 "@cinch_arena_escape_abort" [h-w, err-w]
+      (w1, _) -> unsupported w1 sp "arena-abort arguments mismatch"
+
+  arena-ok-helper :: Nat -> String
+  arena-ok-helper code = if code == 0 then "ok-0" else if code == 2 then "ok-2" else "ok-1"
+  arena-err-helper :: Nat -> String
+  arena-err-helper code = if code == 0 then "err-0" else if code == 2 then "err-2" else "err-1"
+  arena-helper-symbol :: String -> String
+  arena-helper-symbol key = cat ["cinch.arena.", key]
+
+  ev-external-arena-run :: List CoreDefinition -> List Local -> Writer -> Span -> Bool -> Nat -> Nat -> Option CoreTerm -> CoreTerm -> (Writer, String)
+  ev-external-arena-run definitions locals w sp budgeted err-code ok-code budget-arg body-arg =
+    let (w0, budget-w) = (case budget-arg of
+      None -> (w, "0")
+      Some bterm -> expression definitions locals w bterm) in
+    case expression definitions locals w0 body-arg of
+      (w1, bundle-w) ->
+        let (w2, bptr) = fresh w1 "%abp" in
+        case load-word (line w2 (cat ["  ", bptr, " = inttoptr i64 ", bundle-w, " to ptr"])) bptr "0" of
+          (w3, body-fn) ->
+            let ok-key = arena-ok-helper ok-code in
+            let err-key = arena-err-helper err-code in
+            let exh-key = if budgeted then "exh" else "unreach" in
+            let w4 = (request-demand (ArenaHelperDemand exh-key) (request-demand (ArenaHelperDemand err-key) (request-demand (ArenaHelperDemand ok-key) (request-demand (ArenaHelperDemand "body") (count-line False bundle-w (count-line True body-fn w3)))))) in
+            case closure sp (arena-helper-symbol "body") [1, 0] [body-fn] w4 of
+              (w5, body-clo) -> case closure sp (arena-helper-symbol ok-key) [ok-code] [] w5 of
+                (w6, ok-clo) -> case closure sp (arena-helper-symbol err-key) [err-code] [] w6 of
+                  (w7, err-clo) -> case closure sp (arena-helper-symbol exh-key) [0] [] w7 of
+                    (w8, exh-clo) -> case call w8 "@cinch_arena_escape_run" [budget-w, body-clo, ok-clo, err-clo, exh-clo] of
+                      (w9, res-w) -> (count-line False exh-clo (count-line False err-clo (count-line False ok-clo (count-line False body-clo w9))), res-w)
+
+  arena-helper-worker :: String -> Writer -> Writer
+  arena-helper-worker key w =
+    let fn-sym = symbol (arena-helper-symbol key) in
+    if key == "body" then
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0, i64 %arg1) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 0 [0]) [("i64", "%arg1")] of
+        (w1, tok-w) -> case apply-one w1 "%arg0" tok-w of
+          (w2, res-w) -> line (line w2 (cat ["  ret i64 ", res-w])) "}"
+    else if key == "ok-0" || key == "ok-1" || key == "ok-2" then
+      let code = if key == "ok-0" then 0 else if key == "ok-2" then 2 else 1 in
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 1 [code]) [("i64", "%arg0")] of
+        (w1, res-w) -> line (line w1 (cat ["  ret i64 ", res-w])) "}"
+    else if key == "err-0" || key == "err-1" || key == "err-2" then
+      let code = if key == "err-0" then 0 else if key == "err-2" then 2 else 1 in
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 0 [code]) [("i64", "%arg0")] of
+        (w1, res-w) -> line (line w1 (cat ["  ret i64 ", res-w])) "}"
+    else if key == "exh" then
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case allocate-typed started (shape-description 1 0 []) [] of
+        (w1, exh-w) -> case allocate-typed w1 (shape-description 1 0 [1]) [("i64", exh-w)] of
+          (w2, res-w) -> line (line w2 (cat ["  ret i64 ", res-w])) "}"
+    else
+      let started = line (line w (cat ["define internal i64 ", fn-sym, "(i64 %arg0) {"])) "entry:" in
+      case call started "@cinch_arena_escape_abort" ["0", "0"] of
+        (w1, res-w) -> line (line w1 (cat ["  ret i64 ", res-w])) "}"
+
+  ev-build-op-spine :: Span -> CoreTerm -> List CoreTerm -> CoreTerm
+  ev-build-op-spine sp fun args = case args of
+    [] -> fun
+    first : rest -> case arrow-shape (core-type fun) of
+      UFun a b -> ev-build-op-spine sp (CApply sp b fun first) rest
+      UFunEff a row b -> ev-build-op-spine sp (CApplyEff sp b row fun first) rest
+      UPi id name a row b -> ev-build-op-spine sp (CApplyEff sp b row fun first) rest
+      other -> fun
+  ev-operation-closure :: Span -> UType -> UType -> String -> List UType -> Nat -> List CoreTerm -> CoreTerm
+  ev-operation-closure sp orig-ty cur-ty name actuals next-id acc = case cur-ty of
+    UUsageArrow u inner -> ev-operation-closure sp orig-ty inner name actuals next-id acc
+    UFun domain result ->
+      let arg = CLocal sp domain next-id "#op-arg" [] in
+      CLambda sp cur-ty (CPVar sp domain next-id "#op-arg") (ev-operation-closure sp orig-ty result name actuals (next-id + 1) (acc <> [arg]))
+    UFunEff domain row result ->
+      let arg = CLocal sp domain next-id "#op-arg" [] in
+      if ev-is-op-arrow result then
+        CLambda sp cur-ty (CPVar sp domain next-id "#op-arg") (ev-operation-closure sp orig-ty result name actuals (next-id + 1) (acc <> [arg]))
+      else
+        CLambda sp cur-ty (CPVar sp domain next-id "#op-arg") (ev-build-op-spine sp (CUse sp orig-ty name "operation" actuals) (acc <> [arg]))
+    UPi id pname domain row result ->
+      let arg = CLocal sp domain next-id "#op-arg" [] in
+      if ev-is-op-arrow result then
+        CLambda sp cur-ty (CPVar sp domain next-id "#op-arg") (ev-operation-closure sp orig-ty result name actuals (next-id + 1) (acc <> [arg]))
+      else
+        CLambda sp cur-ty (CPVar sp domain next-id "#op-arg") (ev-build-op-spine sp (CUse sp orig-ty name "operation" actuals) (acc <> [arg]))
+    UProofFun predicate row result ->
+      CLambda sp cur-ty (CPProof sp predicate next-id "#op-proof") (ev-operation-closure sp orig-ty result name actuals (next-id + 1) acc)
+    other -> CPrimitive sp cur-ty "#unhandled-operation" (CArgumentsEnd sp)
 
   expression :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> (Writer, String)
   expression definitions locals w term = case term of
@@ -2280,7 +3011,7 @@ module Cinch.RuntimeIr where
             None -> unsupported w sp "runtime local is absent from its lexical scope"
     CUse sp ty name role actuals ->
       if role == "dictionary" then evidence-value definitions locals w (CEGiven sp ty name)
-      else if role == "operation" then expression definitions locals w (operation-closure sp ty)
+      else if role == "operation" then expression definitions locals w (ev-operation-closure sp ty ty name actuals (1 + handler-local-id locals) [])
       else if named ty "Bool" && name == "True" then (w, "1")
       else if named ty "Bool" && name == "False" then (w, "0")
       else if role == "constructor" && name == "Refl" then (w, "0")
@@ -2293,16 +3024,26 @@ module Cinch.RuntimeIr where
     CSpawn sp ty token body -> if task-result-abi w then (case expressions definitions locals w [token, body] of (ready, [scope, closure]) -> call ready "@cinch_task_spawn" [scope, closure]; other -> unsupported w sp "malformed task spawn") else unsupported w sp "tasks require the canonical checked Result error/success ABI"
     CJoin sp ty token body -> if task-result-abi w then join-expression definitions locals w sp ty token body else unsupported w sp "tasks require the canonical checked Result error/success ABI"
     CWith sp ty given value body -> case expression definitions locals w value of
-      (ready, word) -> case expression definitions ((GivenLocal (given.symbol) (given.ty) word) : locals) ready body of
+      (ready, word) -> case expression definitions ((Discard (given.ty) word) : (GivenLocal (given.symbol) (given.ty) word) : locals) ready body of
         (done, result) -> (count-op False (given.ty) word done, result)
     CHandler sp ty returned operations -> case handler-fields operations 1 of
       Some fields -> tuple definitions locals w sp (CArgument sp returned fields)
       None -> unsupported w sp "handler fields need their checked declaration order and runtime representations"
-    CHandle sp ty label residual body handled-by -> case lower-handler ((writer-program w).effects) locals sp ty label body handled-by of
-      Ok lowered -> expression definitions locals w lowered
-      Err message -> unsupported w sp message
-    CApplyEff sp ty row f x -> application definitions locals w sp term f x
-    CApply sp ty f x -> application definitions locals w sp term f x
+    CHandle sp ty label residual body handled-by ->
+      if handler-is-evidence handled-by then
+        ev-handle definitions locals w sp ty label residual body handled-by
+      else case lower-handler ((writer-program w).effects) locals sp ty label body handled-by of
+        Ok lowered -> expression definitions locals w lowered
+        Err message -> unsupported w sp message
+    CApplyEff sp ty row f x ->
+      if inline-external-let-chain f then
+        expression definitions locals w (push-app-into-lets sp ty (Some row) f x)
+      else case application definitions locals w sp term f x of
+        (ready, res) -> if row-can-yield row then emit-yield-guard locals ty res ready else (ready, res)
+    CApply sp ty f x ->
+      if inline-external-let-chain f then
+        expression definitions locals w (push-app-into-lets sp ty None f x)
+      else application definitions locals w sp term f x
     CLambda sp ty pattern body -> lambda definitions locals w sp pattern body
     CRecursiveFunctions sp ty members body -> recursive-expression definitions locals w sp members body
     CRecursiveValues sp ty region members body -> knot-expression definitions locals w sp region members body
@@ -2324,6 +3065,8 @@ module Cinch.RuntimeIr where
     CTuple sp ty fields -> tuple definitions locals w sp fields
     CPolyIntro sp ty ids body -> poly-bundle definitions locals w sp ty ids body
     CPolyElim sp ty value args -> poly-project definitions locals w sp ty value args
+    CQualIntro sp ty givens body -> qual-intro definitions locals w sp givens body
+    CQualElim sp ty value evs -> qual-elim definitions locals w sp value evs
     CCase sp ty value alternatives -> case fold-known-case definitions locals w value alternatives of
       Some folded -> folded
       None -> case fuse-array-case definitions locals w sp value alternatives of
@@ -2347,8 +3090,10 @@ module Cinch.RuntimeIr where
       CUse at function name role actuals ->
         if role == "constructor" && decision-word-type ty && (name == "b.Yes" || name == "b.No") then
           decision-constructor sp (name == "b.Yes") w
-        else erased-constructor-or-function definitions locals w sp f
-      other -> erased-constructor-or-function definitions locals w sp f
+        else case erased-constructor-or-function definitions locals w sp f of
+          (ready, res) -> if row-can-yield row then emit-yield-guard locals ty res ready else (ready, res)
+      other -> case erased-constructor-or-function definitions locals w sp f of
+        (ready, res) -> if row-can-yield row then emit-yield-guard locals ty res ready else (ready, res)
     other -> unsupported w (Span 0 0 1 1) "Core form needs typed runtime lowering"
   -- Handled direct calls have already been rewritten by handler-cps.
   -- Constructing an operation value is pure. Applying its final argument
@@ -2457,7 +3202,15 @@ module Cinch.RuntimeIr where
   application :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> CoreTerm -> CoreTerm -> (Writer, String)
   application definitions locals w sp term f x = case head term of
       CUse at function name role actuals -> if role == "operation" then
-        (case expression definitions locals w f of (ready, closure-word) -> apply-terms definitions locals ready closure-word [x])
+        let args = arguments term [] in
+        let arity = ev-op-arity function in
+        if arity > 0 && list-length args == arity then
+          ev-perform definitions locals w sp name function args
+        else if arity > 0 && list-length args > arity then
+          case ev-perform definitions locals w sp name function (take-terms arity args) of
+            (ready, res) -> case emit-yield-guard locals (UFun (UCon "Unit" KType) (UCon "Unit" KType)) res ready of
+              (checked, fn-res) -> apply-terms definitions locals checked fn-res (drop-terms arity args)
+        else (case expression definitions locals w f of (ready, closure-word) -> apply-terms definitions locals ready closure-word [x])
         else direct-call definitions locals w sp name actuals (arguments term [])
       CLocal at function id name [] ->
         let args = arguments term [] in
@@ -2608,7 +3361,7 @@ module Cinch.RuntimeIr where
   expressions definitions locals w terms = case terms of
     [] -> (w, [])
     term : rest -> case expression definitions locals w term of
-      (first, value) -> case expressions definitions locals first rest of (done, values) -> (done, value : values)
+      (first, value) -> case expressions definitions ((Discard (core-type term) value) : locals) first rest of (done, values) -> (done, value : values)
   -- A closure's description covers every parameter word; its saved
   -- fields follow the three raw prefix words (code, arity, filled count).
   closure-word-classes :: List Nat -> Nat -> List Nat
@@ -2690,7 +3443,7 @@ module Cinch.RuntimeIr where
       else if not (any-val-term (w.context) terms) && not (val-code-needs-sret-apply ret-class) then
         apply-terms definitions locals w function terms
       else
-        case expressions definitions locals w terms of
+        case expressions definitions ((Discard (UFun (UCon "Int" KType) (UCon "Int" KType)) function) : locals) w terms of
           (evaluated, values) ->
             let arg-tys = term-types terms in
             let arg-words = payload-words (evaluated.context) arg-tys in
@@ -2759,7 +3512,7 @@ module Cinch.RuntimeIr where
       if any-wide-term (w.context) terms then unsupported w (Span 0 0 1 1) wide-refusal else
       case split-atomic-args locals rest of
         (batch-tail, after) ->
-          case expressions definitions locals w (first : batch-tail) of
+          case expressions definitions ((Discard (UFun (core-type first) (UCon "Int" KType)) function) : locals) w (first : batch-tail) of
             (ready, values) -> case apply-word-batch ready function values of
               (called, next-fn) -> apply-terms definitions locals called next-fn after
   take-terms :: Nat -> List CoreTerm -> List CoreTerm
@@ -3933,7 +4686,29 @@ module Cinch.RuntimeIr where
               Some copied -> copied
               None -> function-call definitions locals w sp d actuals classes givens args
             None -> unsupported w sp "function parameters need first-order or erased representation classes"
-          None -> external-call definitions locals w sp name actuals givens args
+          None ->
+            let dname = display-global-name name in
+            if dname == "Effect.Throw.catch" && (case (givens, args) of ([], [single]) -> True; other -> False) then
+              (case args of [single] -> ev-external-catch definitions locals w sp actuals single; other -> external-call definitions locals w sp name actuals givens args)
+            else if dname == "Effect.Throw.try-throw" && (case (givens, args) of ([], [single]) -> True; other -> False) then
+              (case args of [single] -> ev-external-try-throw definitions locals w sp actuals single; other -> external-call definitions locals w sp name actuals givens args)
+            else if dname == "Effect.Arena.arena-abort" && (case (givens, args) of ([], [tok, err]) -> True; other -> False) then
+              (case args of [tok, err] -> ev-external-arena-abort definitions locals w sp tok err; other -> external-call definitions locals w sp name actuals givens args)
+            else if dname == "Effect.Arena.with-arena" && (case (givens, args) of ([], [body]) -> True; other -> False) then
+              (case (actuals, args) of
+                (err-ty : ok-ty : _, [body]) -> case (word-class (w.context) err-ty, word-class (w.context) ok-ty) of
+                  (Some err-code, Some ok-code) -> ev-external-arena-run definitions locals w sp False err-code ok-code None body
+                  other -> unsupported w sp "with-arena needs checked runtime representations"
+                other -> external-call definitions locals w sp name actuals givens args)
+            else if dname == "Effect.Arena.with-arena-budget" && (case (givens, args) of ([], [budget, body]) -> True; other -> False) then
+              (case (actuals, args) of
+                (ok-ty : _, [budget, body]) -> case word-class (w.context) ok-ty of
+                  Some ok-code -> ev-external-arena-run definitions locals w sp True 1 ok-code (Some budget) body
+                  None -> unsupported w sp "with-arena-budget needs checked runtime representation"
+                other -> external-call definitions locals w sp name actuals givens args)
+            else (case ev-external-reader definitions locals w sp dname actuals givens args of
+              Some lowered -> lowered
+              None -> external-call definitions locals w sp name actuals givens args)
   foreign-parameter-types :: List ForeignParameter -> List String
   foreign-parameter-types params = case params of
     [] -> []
@@ -4703,6 +5478,10 @@ module Cinch.RuntimeIr where
         case definition-self-values d locals w of
           (prepared, saved) -> case (if list-length indices == 0 then (prepared, []) else implicit-value-words locals prepared sp (scheme-params (d.scheme)) actuals) of
             (indexed, witnesses) ->
+              let poly-ev = definition-has-poly-ev d in
+              let uses-ev = definition-uses-ev d in
+              let target-name = if poly-ev then ev-specialized-name (d.name) classes actuals else specialized-name (d.name) classes in
+              let request-fn w0 = if poly-ev then request-demand (EvDemand (d.name) classes actuals) w0 else demand-worker (d.name) classes w0 in
               let def-ret-class = (case d.clauses of
                 (CoreClause _ pats body) : _ -> (case proof-stage-arities pats 0 of
                   [_] -> (case word-class context (core-type body) of Some c -> c; None -> 0)
@@ -4711,11 +5490,11 @@ module Cinch.RuntimeIr where
               if list-length givens < list-length required || list-length args < count then
               (if wide-type context (final-result (scheme-body (d.scheme))) then unsupported indexed sp wide-refusal else
               case class-vector context all-types of
-                Some parameter-classes -> case expressions definitions locals (demand-worker (d.name) classes indexed) args of
+                Some parameter-classes -> case expressions definitions locals (request-fn indexed) args of
                   (ready, values) ->
                     let saved-vals = saved <> givens <> witnesses <> values in
                     let saved-tys = take-types (list-length saved-vals) all-types in
-                    closure-with sp (specialized-name (d.name) classes) parameter-classes def-ret-class saved-tys saved-vals ready
+                    closure-with sp target-name parameter-classes def-ret-class saved-tys saved-vals ready
                 None -> unsupported indexed sp "function parameters need known closure representations")
               else let non-word = definition-has-non-word context d all-types in
                 let rem-args = drop-terms count args in
@@ -4724,7 +5503,7 @@ module Cinch.RuntimeIr where
                   more -> case d.clauses of
                     (CoreClause _ _ body) : _ -> (case word-class context (peel-arrows (list-length rem-args) (core-type body)) of Some c -> c; None -> 0)
                     [] -> 0) in
-                let ww-hit = (if non-word then None else case saved of
+                let ww-hit = (if non-word || uses-ev then None else case saved of
                     [] -> (case givens of
                       [] -> (case witnesses of
                         [] -> try-ww-call definitions locals indexed d classes (take-terms count args)
@@ -4733,7 +5512,7 @@ module Cinch.RuntimeIr where
                     other -> None) in
                 case ww-hit of
                   Some (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
-                  None -> case (if non-word then None else case saved of
+                  None -> case (if non-word || uses-ev then None else case saved of
                       [] -> (case givens of
                         [] -> (case witnesses of
                           [] -> hash-map-lookup (d.name) (program-borrow-modes (writer-program indexed))
@@ -4746,7 +5525,7 @@ module Cinch.RuntimeIr where
                         (ready, values, post-drops) ->
                           case typed-call ready (definition-result-llvm context d) (symbol (cat [specialized-name (d.name) classes, "#b"])) (typed-values (value-llvms context all-types) values) of
                             (called, result) -> apply-terms-class definitions locals (drop-locals post-drops called) result rem-args over-ret-class)
-                    other -> case expressions definitions locals (demand-worker (d.name) classes indexed) (take-terms count args) of
+                    other -> case expressions definitions locals (request-fn indexed) (take-terms count args) of
                       (ready, values) ->
                         let call-args = typed-values (value-param-llvms context all-types) (saved <> givens <> witnesses <> values) in
                         case definition-sret-result context d of
@@ -4754,10 +5533,15 @@ module Cinch.RuntimeIr where
                             let (w1, retbuf) = fresh ready "%sret" in
                             let w2 = line w1 (cat ["  ", retbuf, " = alloca [", nat-to-string sz, " x i8], align ", nat-to-string al]) in
                             let sret-arg = cat ["ptr sret([", nat-to-string sz, " x i8]) align ", nat-to-string al, " ", retbuf] in
-                            let called = line w2 (cat ["  call void ", symbol (specialized-name (d.name) classes), "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
+                            let called = line w2 (cat ["  call void ", symbol target-name, "(", join (sret-arg : (typed-arguments call-args)), ")"]) in
                             apply-terms-class definitions locals called retbuf rem-args over-ret-class
-                          None -> case typed-call ready (definition-result-llvm context d) (symbol (specialized-name (d.name) classes)) call-args of
-                            (called, result) -> apply-terms-class definitions locals called result rem-args over-ret-class
+                          None -> case typed-call ready (definition-result-llvm context d) (symbol target-name) call-args of
+                            (called, result) ->
+                              case rem-args of
+                                [] -> (called, result)
+                                more ->
+                                  let (checked, fn-word) = if uses-ev then emit-yield-guard locals (UFun (UCon "Unit" KType) (UCon "Unit" KType)) result called else (called, result) in
+                                  apply-terms-class definitions locals checked fn-word more over-ret-class
     None -> unsupported w sp "function parameters need first-order or erased representation classes"
   -- Evaluate arguments for a borrowed-parameter worker call:
   -- local variables at borrowed positions pass directly without dup/drop;
@@ -4890,6 +5674,8 @@ module Cinch.RuntimeIr where
     CTuple sp ty fields -> term-value-dependencies w owner key seen fields
     CPolyIntro sp ty poly-ids fields -> term-value-dependencies w owner key seen fields
     CPolyElim sp ty fields poly-args -> term-value-dependencies w owner key seen fields
+    CQualIntro sp ty givens body -> term-value-dependencies w owner key seen body
+    CQualElim sp ty val evs -> term-value-dependencies w owner key seen val
     CPrimitive sp ty op args -> term-value-dependencies w owner key seen args
     CProved sp ty evidence body -> term-value-dependencies w owner key seen body
     CRefine sp ty evidence body -> term-value-dependencies w owner key seen body
@@ -5335,6 +6121,8 @@ module Cinch.RuntimeIr where
     CTuple sp ty fields -> term-uses id fields
     CPolyIntro sp ty poly-ids fields -> term-uses id fields
     CPolyElim sp ty fields poly-args -> term-uses id fields
+    CQualIntro sp ty givens body -> term-uses id body
+    CQualElim sp ty val evs -> term-uses id val
     CPrimitive sp ty op args -> term-uses id args
     CProved sp ty evidence body -> term-uses id body
     CRefine sp ty evidence body -> term-uses id body
@@ -5386,6 +6174,8 @@ module Cinch.RuntimeIr where
     CTuple sp ty fields -> given-uses name fields
     CPolyIntro sp ty poly-ids fields -> given-uses name fields
     CPolyElim sp ty fields poly-args -> given-uses name fields
+    CQualIntro sp ty givens body -> not (given-in name givens) && given-uses name body
+    CQualElim sp ty val evs -> given-uses name val || evidences-use name evs
     CPrimitive sp ty op args -> given-uses name args
     CProved sp ty evidence body -> given-uses name body
     CRefine sp ty evidence body -> given-uses name body
@@ -5422,6 +6212,8 @@ module Cinch.RuntimeIr where
     (Discard ty value) : rest -> captures-from parameter body all rest
     (DeferredConstructor id ty name actuals args) : rest -> captures-from parameter body all rest
     LoopMarker : rest -> captures-from parameter body all rest
+    (EvScope bubble) : rest -> captures-from parameter body all rest
+    (EvFunction ret-ty fn-roots) : rest -> captures-from parameter body all rest
     (StackCell id ty ptr-reg) : rest -> captures-from parameter body all rest
     (KnownWorker id name caps param-tys ret-ty) : rest -> captures-from parameter body all rest
   patterns-bind :: Nat -> List CorePattern -> Bool
@@ -5557,6 +6349,19 @@ module Cinch.RuntimeIr where
             let planned = request-demand (LambdaDemand name bounds rigids saved patterns actual-body) named in
             case capture-values saved planned of
               (ready, values) -> closure-with sp name classes ret-class (capture-types saved) values ready)
+  qual-intro :: List CoreDefinition -> List Local -> Writer -> Span -> List CoreGiven -> CoreTerm -> (Writer, String)
+  qual-intro definitions locals w sp givens body = case givens of
+    [] -> expression definitions locals w body
+    g : rest ->
+      let (w1, _) = fresh w "%q" in
+      let id = 900000000 + w1.next in
+      let next = case rest of [] -> body; more -> CQualIntro sp (core-type body) more body in
+      let wrapped = CWith sp (core-type next) g (CLocal sp (g.ty) id "#qual-arg" []) next in
+      lambda definitions locals w1 sp (CPVar sp (g.ty) id "#qual-arg") wrapped
+  qual-elim :: List CoreDefinition -> List Local -> Writer -> Span -> CoreTerm -> List CoreEvidence -> (Writer, String)
+  qual-elim definitions locals w sp value evs = case expression definitions locals w value of
+    (ready, fn-word) -> case evidences definitions locals ready evs of
+      (ready2, ev-words) -> apply-words ready2 fn-word ev-words
   recursive-parameters :: List CorePattern -> CoreTerm -> (List CorePattern, CoreTerm)
   recursive-parameters parameters term = case term of
     CLambda sp ty pattern body -> if erased-pattern pattern then
@@ -6833,7 +7638,7 @@ module Cinch.RuntimeIr where
   pop-inline w = case w of Writer next globals code errors layouts context -> Writer next globals code errors layouts (context-pop-inline context)
   inline-call :: List CoreDefinition -> List Local -> Writer -> Span -> CoreDefinition -> List Nat -> List String -> List CoreTerm -> Option (Writer, String)
   inline-call definitions locals w sp d classes givens args =
-    if not (inline-admitted (w.context) (d.name)) then None
+    if not (inline-admitted (w.context) (d.name)) || definition-uses-ev d then None
     else if inline-depth (w.context) >= 6 then None
     else if (case givens of [] -> True; other -> False) then
       (case inline-body-shape d of
@@ -7031,7 +7836,9 @@ module Cinch.RuntimeIr where
     CAlternative sp pattern body rest ->
       let (one, failed) = fresh w "nextalt" in
       case match-alternative pattern body locals value failed one of
-        (matched, bindings, rebuilt) -> case guarded-expression definitions (bindings <> locals) matched failed rebuilt of
+        (matched, bindings, rebuilt) ->
+          let arm-locals = if owned then bindings <> ((Discard ty value) : locals) else bindings <> locals in
+          case guarded-expression definitions arm-locals matched failed rebuilt of
           (done, result) -> let cleaned = if owned then count-op False ty value done else done in
             let stored = line cleaned (cat ["  store ", value-llvm (done.context) (core-type body), " ", result, ", ptr ", slot]) in
             let next = line (line stored (cat ["  br label %", joined])) (cat [failed, ":"]) in
@@ -7071,7 +7878,8 @@ module Cinch.RuntimeIr where
     SwitchJoin joined missed base ty value owned is-uniq ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [missed, ":"]) in
-      case guarded-expression definitions locals entry missed body of
+      let arm-locals = if owned then (Discard ty value) : locals else locals in
+      case guarded-expression definitions arm-locals entry missed body of
         (done, result) -> switch-leave definitions locals done join out result rest index incoming True
   -- A field passed unchanged, or consumed by one saturated word worker.
   -- Both forms evaluate once and give the next owner the existing reference.
@@ -7477,20 +8285,23 @@ module Cinch.RuntimeIr where
         let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
         let (pointed, pointer) = fresh entry "%ptr" in
         let cell = line pointed (cat ["  ", pointer, " = inttoptr i64 ", value, " to ptr"]) in
-        case (if owned then reset-reuse-arm definitions locals cell ty value pointer is-uniq pattern body else None) of
+        case (if owned && not (term-uses-ev body) then reset-reuse-arm definitions locals cell ty value pointer is-uniq pattern body else None) of
           Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
           None -> case match-fields fields pointer 0 missed cell of
-            (bound, bindings) -> case (if owned then rebuild-case-cell definitions bindings bound ty value pointer is-uniq pattern body else None) of
+            (bound, bindings) -> case (if owned && not (term-uses-ev body) then rebuild-case-cell definitions bindings bound ty value pointer is-uniq pattern body else None) of
               Some (done, result) -> switch-finish definitions locals done join out result rest index incoming defaulted
-              None -> (case guarded-expression definitions (bindings <> locals) bound missed body of
-                (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
+              None ->
+                let arm-locals = if owned then bindings <> ((Discard ty value) : locals) else bindings <> locals in
+                (case guarded-expression definitions arm-locals bound missed body of
+                  (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted)
       other -> (line (refuse w (Span 0 0 1 1) "dispatched arm is not a constructor pattern") "  unreachable", incoming)
   switch-word-arm :: List CoreDefinition -> List Local -> Writer -> SwitchJoin -> CoreTerm -> CoreTerm -> Nat -> String -> Bool -> (Writer, String)
   switch-word-arm definitions locals w join body rest index incoming defaulted = case join of
     SwitchJoin joined missed base ty value owned is-uniq ->
       let (one, out) = fresh w "armout" in
       let entry = line one (cat [base, ".", nat-to-string index, ":"]) in
-      case guarded-expression definitions locals entry missed body of
+      let arm-locals = if owned then (Discard ty value) : locals else locals in
+      case guarded-expression definitions arm-locals entry missed body of
         (done, result) -> switch-leave definitions locals done join out result rest index incoming defaulted
   -- Deliver one arm's word to the join. The arm's own block names the join's
   -- predecessor, so the join reaches it without a slot.
@@ -8552,14 +9363,16 @@ module Cinch.RuntimeIr where
   -- A returned parameter and a case in return position each consume one
   -- owner. The case holds it until the selected arm has evaluated.
   worker-result :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
-  worker-result definitions locals roots w failed body = case body of
-    CCase sp ty scrutinee alternatives -> (case parameter-value locals roots scrutinee of
-      Some (word, remaining) -> (case case-value definitions locals w (core-type scrutinee) word alternatives of
-        (done, result) -> (drop-locals remaining done, result))
-      None -> ordinary-worker-result definitions locals roots w failed body)
-    other -> case parameter-value locals roots body of
-      Some (word, remaining) -> (drop-locals remaining w, word)
-      None -> ordinary-worker-result definitions locals roots w failed body
+  worker-result definitions locals roots w failed body =
+    if term-uses-ev body then ordinary-worker-result definitions locals roots w failed body
+    else case body of
+      CCase sp ty scrutinee alternatives -> (case parameter-value locals roots scrutinee of
+        Some (word, remaining) -> (case case-value definitions locals w (core-type scrutinee) word alternatives of
+          (done, result) -> (drop-locals remaining done, result))
+        None -> ordinary-worker-result definitions locals roots w failed body)
+      other -> case parameter-value locals roots body of
+        Some (word, remaining) -> (drop-locals remaining w, word)
+        None -> ordinary-worker-result definitions locals roots w failed body
   ordinary-worker-result :: List CoreDefinition -> List Local -> List Local -> Writer -> String -> CoreTerm -> (Writer, String)
   ordinary-worker-result definitions locals roots w failed body = case guarded-expression definitions locals w failed body of
     (done, word) -> (drop-locals roots done, word)
@@ -8572,7 +9385,10 @@ module Cinch.RuntimeIr where
     (CoreClause sp patterns body) : rest ->
       let (one, failed) = fresh w "nexteq" in
       case match-clause patterns body prefix offset failed one of
-        (matched, bindings, rebuilt) -> case worker-result definitions (bindings <> prefix) roots matched failed rebuilt of
+        (matched, bindings, rebuilt) ->
+          let ret-llvm = value-llvm (matched.context) (core-type body) in
+          let body-locals = (EvFunction ret-llvm (ev-root-pairs roots)) : (bindings <> prefix) in
+          case worker-result definitions body-locals roots matched failed rebuilt of
           (done, result) ->
             let exited = (case arena-handle of
                   Some h -> line done (cat ["  call i64 @cinch_arena_exit_phase(i64 ", h, ")"])
@@ -8583,8 +9399,45 @@ module Cinch.RuntimeIr where
   worker-uses-arena name w =
     let info = writer-program w in
     info.reclaim && not (program-wasm32 info) && (case hash-map-lookup name (program-arena-phases info) of Some True -> True; other -> False)
+  ev-lookup-opening :: Nat -> List (Nat, UType) -> Option UType
+  ev-lookup-opening id openings = case openings of
+    [] -> None
+    (key, ty) : rest -> if key == id then Some ty else ev-lookup-opening id rest
+  ev-opening-rigid-pairs :: List Quant -> List (Nat, UType) -> List UType -> List (Nat, UType)
+  ev-opening-rigid-pairs qs openings actuals = case (qs, actuals) of
+    (q : qrest, actual : arest) ->
+      let more = ev-opening-rigid-pairs qrest openings arest in
+      if kind-equal (q.kind) KType || kind-equal (q.kind) KEffect then
+        (case ev-lookup-opening (q.id) openings of
+          Some (URigid rid rname rlvl rkind) -> (rid, actual) : more
+          other -> more)
+      else more
+    other -> []
+  ev-bound-pairs :: List Quant -> List UType -> List (Nat, UType)
+  ev-bound-pairs qs actuals = case (qs, actuals) of
+    (q : qrest, actual : arest) ->
+      let more = ev-bound-pairs qrest arest in
+      if kind-equal (q.kind) KType || kind-equal (q.kind) KEffect then (q.id, actual) : more
+      else more
+    other -> []
+  ev-subst-clauses :: (UType -> UType) -> List CoreClause -> List CoreClause
+  ev-subst-clauses f clauses = case clauses of
+    [] -> []
+    (CoreClause sp pats body) : rest ->
+      (CoreClause sp (map (map-pattern-types f) pats) (map-term-types f body)) : (ev-subst-clauses f rest)
+  ev-worker :: List CoreDefinition -> String -> List Nat -> List UType -> Writer -> Writer
+  ev-worker definitions name classes actuals w = case worker-definition name w of
+    None -> refuse w (Span 0 0 1 1) "demanded polymorphic effect definition is absent"
+    Some d ->
+      let bpairs = ev-bound-pairs (scheme-params (d.scheme)) actuals in
+      let rpairs = ev-opening-rigid-pairs (scheme-params (d.scheme)) (d.openings) actuals in
+      let subst ty = substitute-rigid-types rpairs (substitute-bound bpairs ty) in
+      let specialized = CoreDefinition (d.s) (d.name) (d.scheme) (d.openings) (d.givens) (d.private-types) (ev-subst-clauses subst (d.clauses)) in
+      worker-named definitions classes (Some (ev-specialized-name name classes actuals)) w specialized
   worker :: List CoreDefinition -> List Nat -> Writer -> CoreDefinition -> Writer
-  worker definitions classes w d = case d of
+  worker definitions classes w d = worker-named definitions classes None w d
+  worker-named :: List CoreDefinition -> List Nat -> Option String -> Writer -> CoreDefinition -> Writer
+  worker-named definitions classes override-name w d = case d of
     CoreDefinition sp name sc openings givens private clauses -> case class-bindings (scheme-params sc) classes of
       None -> refuse w sp "definition needs first-order runtime representation specialization"
       Some bounds -> case definition-rigids d bounds of
@@ -8603,15 +9456,17 @@ module Cinch.RuntimeIr where
               let parameters = runtime-parameters patterns in
               let roots = capture-roots (value-field-types dependencies) 0 <> given-roots context hidden <> runtime-index-locals indices index-offset <> parameter-roots parameters offset in
               let types = value-field-types dependencies <> given-types context <> value-types indices <> pattern-types parameters in
+              let uses-ev = definition-uses-ev d in
+              let base-name = case override-name of Some n -> n; None -> specialized-name name classes in
               -- Tail workers pass every argument in a word slot, so a Wide
               -- specialization of a group member uses the typed self-loop
               -- worker when self-tail-recursive, or an ordinary worker otherwise.
               let non-word = definition-has-non-word (scoped.context) d types in
-              case (if wide-code classes || val-code classes || non-word then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
+              case (if wide-code classes || val-code classes || non-word || uses-ev then None else hash-map-lookup name ((writer-program scoped).tail-groups)) of
                 Some (group, width) -> global-tail-worker definitions d classes prefix roots scoped group width (list-length parameters)
-                None -> if not non-word && offset == 0 && list-length (proof-stage-arities patterns offset) == 1 && self-tail-present name classes (list-length parameters) (d.clauses) then
+                None -> if not non-word && not uses-ev && offset == 0 && list-length (proof-stage-arities patterns offset) == 1 && self-tail-present name classes (list-length parameters) (d.clauses) then
                     self-loop-worker definitions classes d prefix roots types (list-length parameters) scoped
-                  else proof-worker-stages definitions classes d prefix roots offset types (proof-stage-arities patterns offset) 0 scoped
+                  else proof-worker-stages-named definitions classes base-name d prefix roots offset types (proof-stage-arities patterns offset) 0 scoped
             [] -> refuse scoped sp "runtime definition has no checked equations"
   -- | Check whether any clause contains a direct saturated self-tail call with the same class vector.
   self-tail-present :: String -> List Nat -> Nat -> List CoreClause -> Bool
@@ -8827,7 +9682,7 @@ module Cinch.RuntimeIr where
   fold-cpr-case :: List CoreDefinition -> List Local -> Writer -> CoreTerm -> CoreTerm -> Option (Writer, String)
   fold-cpr-case definitions locals w value alternatives = case call-spine value [] of
     Some (name, actuals, args) -> case worker-definition name w of
-      Some d -> if list-length args /= list-length (definition-parameters d) then None else
+      Some d -> if list-length args /= list-length (definition-parameters d) || definition-uses-ev d then None else
         (case source-scheme-classes (w.context) (scheme-params (d.scheme)) actuals of
           Some classes -> case cpr-plan w d classes of
             Some (ctor, fclasses, fllvms) -> case fold-alternatives alternatives ctor (list-length fclasses) of
@@ -8971,7 +9826,7 @@ module Cinch.RuntimeIr where
     None -> None
     Some ctx ->
       let scoped = (case ctx of RuntimeContext datas bounds rigids queue inlining -> with-representations bounds rigids w) in
-      if not (scheme-supported (scoped.context) (d.scheme)) then None
+      if not (scheme-supported (scoped.context) (d.scheme)) || definition-uses-ev d then None
       else if list-length (runtime-givens scoped d) /= 0 || list-length (definition-value-dependencies scoped d) /= 0 || list-length (d.openings) /= 0 then None
       else case d.clauses of
         (CoreClause at patterns body) : rest ->
@@ -9509,18 +10364,22 @@ module Cinch.RuntimeIr where
     (CoreClause sp patterns body) : rest ->
       let (one, failed) = fresh w "nexteq" in
       case match-clause patterns body prefix offset failed one of
-        (matched, bindings, rebuilt) -> case worker-result definitions (bindings <> prefix) roots matched failed rebuilt of
+        (matched, bindings, rebuilt) ->
+          let body-locals = (EvFunction "void" (ev-root-pairs roots)) : (bindings <> prefix) in
+          case worker-result definitions body-locals roots matched failed rebuilt of
           (done, result) ->
             let w1 = request-demand MemcpyDemand done in
             let copied = line w1 (cat ["  call void @llvm.memcpy.p0.p0.i64(ptr align ", nat-to-string al, " %sret, ptr align ", nat-to-string al, " ", result, ", i64 ", nat-to-string sz, ", i1 false)"]) in
             let returned = line copied "  ret void" in
             worker-clauses-sret definitions prefix roots offset sz al rest (line returned (cat [failed, ":"]))
-
   proof-worker-stages :: List CoreDefinition -> List Nat -> CoreDefinition -> List Local -> List Local -> Nat -> List UType -> List Nat -> Nat -> Writer -> Writer
-  proof-worker-stages definitions classes d prefix roots offset types arities rung w = case arities of
+  proof-worker-stages definitions classes d prefix roots offset types arities rung w =
+    proof-worker-stages-named definitions classes (specialized-name (d.name) classes) d prefix roots offset types arities rung w
+  proof-worker-stages-named :: List CoreDefinition -> List Nat -> String -> CoreDefinition -> List Local -> List Local -> Nat -> List UType -> List Nat -> Nat -> Writer -> Writer
+  proof-worker-stages-named definitions classes base-name d prefix roots offset types arities rung w = case arities of
     [] -> refuse w (Span 0 0 1 1) "runtime function has no checked proof stage"
     count : rest ->
-      let name = proof-stage-name (specialized-name (d.name) classes) rung in
+      let name = proof-stage-name base-name rung in
       let sret-opt = (case rest of [] -> definition-sret-result (w.context) d; other -> None) in
       let result = (case (rest, sret-opt) of ([], Some info) -> "void"; ([], None) -> definition-result-llvm (w.context) d; other -> "i64") in
       let base-params = typed-arguments (typed-values (value-param-llvms (w.context) (take-types count types)) (value-parameters count 0)) in
@@ -9530,7 +10389,7 @@ module Cinch.RuntimeIr where
         ([], Some (sret-attr, sz, al)) ->
           line (worker-clauses-sret definitions prefix roots offset sz al (d.clauses) started) "}"
         ([], None) ->
-          if rung == 0 && worker-uses-arena (d.name) started then
+          if rung == 0 && not (definition-uses-ev d) && worker-uses-arena (d.name) started then
             let entered = line started "  %arena.phase = call i64 @cinch_arena_enter_phase(i64 4096)" in
             line (worker-clauses-arena definitions prefix roots offset (Some "%arena.phase") (d.clauses) entered) "}"
           else line (worker-clauses definitions prefix roots offset (d.clauses) started) "}"
@@ -9540,9 +10399,9 @@ module Cinch.RuntimeIr where
           None -> refuse started (Span 0 0 1 1) "proof continuation needs checked runtime parameter representations"
           Some next-classes ->
             let ret-class = (case word-class (started.context) (final-result (scheme-body (d.scheme))) of Some c -> c; None -> 0) in
-            case closure-with (Span 0 0 1 1) (proof-stage-name (specialized-name (d.name) classes) (rung + 1)) next-classes ret-class (take-types count types) (value-parameters count 0) started of
+            case closure-with (Span 0 0 1 1) (proof-stage-name base-name (rung + 1)) next-classes ret-class (take-types count types) (value-parameters count 0) started of
             (ready, result) -> let returned = line (line ready (cat ["  ret i64 ", result])) "}" in
-              proof-worker-stages definitions classes d prefix roots offset types rest (rung + 1) returned)
+              proof-worker-stages-named definitions classes base-name d prefix roots offset types rest (rung + 1) returned)
   value-parameters :: Nat -> Nat -> List String
   value-parameters count index = if count == 0 then [] else (cat ["%arg", nat-to-string index]) : (value-parameters (count - 1) (index + 1))
   constructor-worker :: String -> List Nat -> Writer -> Writer
@@ -9606,9 +10465,10 @@ module Cinch.RuntimeIr where
       let full-params = (case sret-opt of Some (sret-attr, sz, al) -> (cat [sret-attr, " %sret"]) : base-params; None -> base-params) in
       let started = line (line scoped (cat ["define ", worker-linkage w name, ret-llvm, " ", symbol name, "(", join full-params, ")", worker-open w])) "entry:" in
       if is-erased then
-        (case expression definitions (captured-bindings saved 0) started body of
+        let roots = capture-roots types 0 in
+        (case expression definitions ((EvFunction ret-llvm (ev-root-pairs roots)) : (captured-bindings saved 0)) started body of
           (done, result) ->
-            let cleaned = drop-locals (capture-roots types 0) done in
+            let cleaned = drop-locals roots done in
             case sret-opt of
               Some (sret-attr, sz, al) ->
                 let w1 = request-demand MemcpyDemand cleaned in
@@ -10348,8 +11208,13 @@ module Cinch.RuntimeIr where
             case recursive-locals sp captures prefix group rebuilt matched of
             (ready, siblings) ->
               let roots = capture-roots captures 0 <> parameter-roots parameters offset <> siblings in
-              let done = tail-result definitions (bindings <> knowns <> siblings <> prefix) roots (LocalTail group prefix width) ready failed rebuilt in
-              line (line (line done (cat [failed, ":"])) "  unreachable") "}")
+              if term-uses-ev rebuilt then
+                let ret-llvm = value-llvm (ready.context) (core-type body) in
+                case worker-result definitions ((EvFunction ret-llvm (ev-root-pairs roots)) : (bindings <> knowns <> siblings <> prefix)) roots ready failed rebuilt of
+                  (done, result) -> line (line (line (line done (cat ["  ret ", ret-llvm, " ", result])) (cat [failed, ":"])) "  unreachable") "}"
+              else
+                let done = tail-result definitions (bindings <> knowns <> siblings <> prefix) roots (LocalTail group prefix width) ready failed rebuilt in
+                line (line (line done (cat [failed, ":"])) "  unreachable") "}")
   dispatch-demand :: List CoreDefinition -> Demand -> Writer -> Writer
   dispatch-demand definitions demand claimed = case demand of
     Demand name classes -> case worker-definition name claimed of
@@ -10376,6 +11241,8 @@ module Cinch.RuntimeIr where
     WwDemand name classes -> ww-worker definitions name classes claimed
     BorrowDemand name classes -> borrow-worker definitions name classes claimed
     BuiltinBorrowDemand name -> builtin-borrow-worker name claimed
+    EvDemand name classes actuals -> ev-worker definitions name classes actuals claimed
+    ArenaHelperDemand key -> arena-helper-worker key claimed
     MemcpyDemand -> global claimed "declare void @llvm.memcpy.p0.p0.i64(ptr noalias writeonly, ptr noalias readonly, i64, i1 immarg)"
     MemsetDemand -> global claimed "declare void @llvm.memset.p0.i64(ptr writeonly, i8, i64, i1 immarg)"
 
@@ -10525,6 +11392,7 @@ module Cinch.RuntimeIr where
         CsrDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         WwDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         BorrowDemand name classes -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
+        EvDemand name classes actuals -> (case hash-map-lookup name dirty-names of Some d -> False; None -> True)
         DictionaryDemand name classes -> False
         other -> True
 
@@ -10666,7 +11534,7 @@ module Cinch.RuntimeIr where
     "declare i64 @cinch_mvar_new(i64, i64, i64)\ndeclare i64 @cinch_mvar_access(i64, i64, i64, i64, ptr)\ndeclare i64 @cinch_atomic_new(i64)\ndeclare i64 @cinch_atomic_load(i64, i64)\ndeclare i64 @cinch_atomic_store(i64, i64, i64)\ndeclare i64 @cinch_atomic_swap(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_add(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_sub(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_and(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_or(i64, i64, i64)\ndeclare i64 @cinch_atomic_fetch_xor(i64, i64, i64)\ndeclare i64 @cinch_atomic_cas(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_atomic_fence(i64)\ndeclare i64 @cinch_rwlock_new(i64, i64)\ndeclare i64 @cinch_rwlock_access(i64, i64, i64, ptr)\n",
     "declare i64 @cinch_slots_new(i64, i64)\ndeclare i64 @cinch_slots_move(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_slots_clear(i64, i64, i64)\ndeclare i64 @cinch_slots_fault(i64)\ndeclare i64 @cinch_nat_low_word(i64)\ndeclare void @llvm.prefetch.p0(ptr, i32, i32, i32)\n",
     "declare i64 @cinch_io_read(i64)\ndeclare i64 @cinch_text_sha256(i64)\ndeclare i64 @cinch_text_sha512(i64)\ndeclare i64 @cinch_text_sha1(i64)\ndeclare i64 @cinch_text_md5(i64)\ndeclare i64 @cinch_text_hmac_sha256(i64, i64)\n",
-    "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_map_package_bytes(i64, i64)\ndeclare i64 @cinch_package_text(i64, i64, i64)\ndeclare i64 @cinch_nat_to_i64(i64)\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_arena_enter_phase(i64)\ndeclare i64 @cinch_arena_exit_phase(i64)\ndeclare i64 @cinch_argv_count()\n",
+    "declare i64 @cinch_random_bytes(i64)\ndeclare i64 @cinch_fs_mkdir(i64, i64)\ndeclare i64 @cinch_fs_remove(i64, i64)\ndeclare i64 @cinch_fs_temp_dir()\ndeclare i64 @cinch_map_package_bytes(i64, i64)\ndeclare i64 @cinch_package_text(i64, i64, i64)\ndeclare i64 @cinch_nat_to_i64(i64)\ndeclare i64 @cinch_signal_send(i64, i64)\ndeclare i64 @cinch_arena_new(i64)\ndeclare i64 @cinch_arena_leave(i64)\ndeclare i64 @cinch_arena_enter_phase(i64)\ndeclare i64 @cinch_arena_exit_phase(i64)\ndeclare i64 @cinch_arena_escape_run(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_arena_escape_abort(i64, i64)\ndeclare i64 @cinch_ev_push(ptr, i64, i64, i64)\ndeclare i64 @cinch_ev_pop(ptr)\ndeclare ptr @cinch_ev_lookup(i64)\ndeclare i64 @cinch_ev_entry_vtable(ptr)\ndeclare i64 @cinch_ev_vtable_slot(ptr, i64)\ndeclare i64 @cinch_ev_entry_marker(ptr)\ndeclare i64 @cinch_ev_entry_slot_aborts(ptr, i64)\ndeclare i64 @cinch_ev_abort(i64, i64, i64)\ndeclare i64 @cinch_ev_is_yielding()\ndeclare i64 @cinch_ev_is_caught(i64)\ndeclare i64 @cinch_ev_yield_slot()\ndeclare i64 @cinch_ev_take_yield_arg()\ndeclare i64 @cinch_ev_id_closure()\ndeclare i64 @cinch_argv_count()\n",
     "declare i64 @cinch_net_tcp_connect(i64, i64)\ndeclare i64 @cinch_net_tcp_listen(i64, i64)\ndeclare i64 @cinch_net_tcp_accept(i64)\ndeclare i64 @cinch_net_listener_addr(i64)\ndeclare i64 @cinch_net_listener_close(i64)\ndeclare i64 @cinch_net_udp_send(i64, i64, i64)\ndeclare i64 @cinch_net_read(i64, i64)\ndeclare i64 @cinch_net_write(i64, i64)\ndeclare i64 @cinch_net_close(i64)\ndeclare i64 @cinch_net_resolve(i64, i64)\n",
     "declare i64 @cinch_process_spawn(i64, i64, i64, i64)\ndeclare i64 @cinch_process_write_stdin(i64, i64)\ndeclare i64 @cinch_process_close_stdin(i64)\ndeclare i64 @cinch_process_read(i64, i64, i64)\ndeclare i64 @cinch_process_wait(i64)\ndeclare i64 @cinch_process_close(i64)\n",
     "declare i64 @cinch_pty_open()\ndeclare i64 @cinch_pty_spawn(i64, i64, i64, i64, i64)\ndeclare i64 @cinch_pty_read(i64, i64)\ndeclare i64 @cinch_pty_write(i64, i64)\ndeclare i64 @cinch_pty_wait(i64)\ndeclare i64 @cinch_pty_close(i64)\ndeclare i64 @cinch_pty_resize(i64, i64, i64)\n",
@@ -11484,6 +12352,8 @@ module Cinch.RuntimeIr where
     CTuple sp ty items -> term-test-boundary-errors caller test-set items
     CPolyIntro sp ty rs body -> term-test-boundary-errors caller test-set body
     CPolyElim sp ty inner args -> term-test-boundary-errors caller test-set inner
+    CQualIntro sp ty givens body -> term-test-boundary-errors caller test-set body
+    CQualElim sp ty inner evs -> term-test-boundary-errors caller test-set inner
     CPrimitive sp ty op args -> term-test-boundary-errors caller test-set args
     CProved sp ty pf inner -> term-test-boundary-errors caller test-set inner
     CRefine sp ty pf inner -> term-test-boundary-errors caller test-set inner

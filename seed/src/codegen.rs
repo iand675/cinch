@@ -655,6 +655,22 @@ fn emit_module(
         "declare i64 @cinch_arena_leave(i64)",
         "declare i64 @cinch_arena_enter_phase(i64)",
         "declare i64 @cinch_arena_exit_phase(i64)",
+        "declare i64 @cinch_arena_escape_run(i64, i64, i64, i64, i64)",
+        "declare i64 @cinch_arena_escape_abort(i64, i64)",
+        // Cross-call algebraic effect evidence & cooperative bubbling (`seed/runtime/src/effects.rs`).
+        "declare i64 @cinch_ev_push(ptr, i64, i64, i64)",
+        "declare i64 @cinch_ev_pop(ptr)",
+        "declare ptr @cinch_ev_lookup(i64)",
+        "declare i64 @cinch_ev_entry_vtable(ptr)",
+        "declare i64 @cinch_ev_vtable_slot(ptr, i64)",
+        "declare i64 @cinch_ev_entry_marker(ptr)",
+        "declare i64 @cinch_ev_entry_slot_aborts(ptr, i64)",
+        "declare i64 @cinch_ev_abort(i64, i64, i64)",
+        "declare i64 @cinch_ev_is_yielding()",
+        "declare i64 @cinch_ev_is_caught(i64)",
+        "declare i64 @cinch_ev_yield_slot()",
+        "declare i64 @cinch_ev_take_yield_arg()",
+        "declare i64 @cinch_ev_id_closure()",
         // The networking family (`seed/runtime/src/net.rs`): TCP
         // sockets by handle and platform name resolution.
         "declare i64 @cinch_net_tcp_connect(i64, i64)",
@@ -2520,6 +2536,11 @@ pub(crate) fn prim_result_class(op: PrimOp) -> Option<Class> {
         PrimOp::MVar { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::RwLock { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
         PrimOp::Slots { op, classes } => Some(subst(op.params(), &op.sig().1, &classes)),
+        PrimOp::Ev { op, class } => Some(match op {
+            crate::core::EvOp::VtableSlot | crate::core::EvOp::IdClosure => Class::Obj,
+            crate::core::EvOp::TakeYieldArg => class,
+            _ => Class::Raw,
+        }),
         PrimOp::Bytes(BytesOp::Get) => Some(Class::Raw),
         PrimOp::WordOp { op: crate::core::WordOp::TagOr } => Some(Class::TObj),
         PrimOp::WordOp { op: crate::core::WordOp::Untag } => Some(Class::Obj),
@@ -2606,6 +2627,11 @@ pub(crate) fn prim_param_classes(op: PrimOp) -> Vec<Class> {
             crate::core::ParOp::Tabulate => vec![Class::TObj, Class::Obj],
             crate::core::ParOp::Workers => vec![Class::TObj],
         },
+        PrimOp::Ev { op, class } => match op {
+            crate::core::EvOp::Push => vec![Class::Raw, Class::Raw, Class::Obj, Class::Raw],
+            crate::core::EvOp::Abort => vec![Class::Raw, Class::Raw, class],
+            _ => vec![Class::Raw; op.arity()],
+        },
         PrimOp::Conc(WithScope | Spawn | IoWrite) => vec![Class::Raw, Class::Obj],
         PrimOp::Conc(IoRead | IoSleep) => vec![Class::Raw, Class::TObj],
         PrimOp::Conc(PollCancel | JoinN(_)) => vec![Class::Raw; op.arity()],
@@ -2638,6 +2664,7 @@ pub(crate) fn prim_consumes(op: PrimOp, i: usize) -> bool {
         PrimOp::RwLock { op, .. } => op.consumes(i),
         PrimOp::Slots { op, .. } => op.consumes(i),
         PrimOp::Conc(ConcOp::WithScope | ConcOp::Spawn) => i == 1,
+        PrimOp::Ev { op: crate::core::EvOp::Abort, .. } => i == 2,
         PrimOp::WordOp { op: crate::core::WordOp::TagOr | crate::core::WordOp::Untag } => true,
         _ => false,
     }
@@ -3516,7 +3543,7 @@ fn prim_sig(op: PrimOp) -> Option<(Vec<crate::types::Ty>, crate::types::Ty)> {
     if matches!(op, Par { op: crate::core::ParOp::Workers, .. }) {
         return Some(op.sig());
     }
-    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. }) {
+    if matches!(op, Delay | Force | ApplyErased | Eval | Conc(_) | PrimOp::Par { .. } | PrimOp::Ev { .. }) {
         return None;
     }
     Some(op.sig())
@@ -4296,8 +4323,8 @@ const CPR_MAX_FIELDS: usize = 3;
 ///   the target has apply twins), or
 /// - makes a saturated known tail call to another member: a function unit
 ///   of this module whose result crosses like its own (the same product,
-///   or the same word or narrowed type). `tailcc` lets the parameter lists
-///   differ.
+///   the same unboxed sum, or the same word or narrowed type). `tailcc`
+///   lets the parameter lists differ.
 ///
 /// The set is the greatest fixed point of that rule, so a cycle of known
 /// tail calls (mutual recursion) keeps all of its members. A tail call to a
@@ -4483,7 +4510,7 @@ fn cpr_units(p: &Program, reg: &Registry) -> HashMap<String, Cpr> {
             Core::If(_, a, b) => leaves(&a.body, unit, reg, out) && leaves(&b.body, unit, reg, out),
             Core::Case { alts, .. } => alts.iter().all(|a| leaves(&a.body, unit, reg, out)),
             Core::Join { body, rest, .. } => leaves(body, unit, reg, out) && leaves(rest, unit, reg, out),
-            Core::Jump { .. } | Core::Fault => true,
+            Core::Jump { .. } | Core::Fault | Core::Bubble | Core::Zero(_) => true,
             Core::Reuse { ctor, args, .. } => {
                 out.push(Leaf::Ctor(ctor.0.clone()));
                 reg.ctors.get(&ctor.0).map(|c| c.1) == Some(args.len())
@@ -4603,7 +4630,7 @@ fn product_leaves(e: &Core, reg: &Registry) -> Option<Cpr> {
             Core::If(_, a, b) => go(&a.body, reg, found) && go(&b.body, reg, found),
             Core::Case { alts, .. } => alts.iter().all(|a| go(&a.body, reg, found)),
             Core::Join { body, rest, .. } => go(body, reg, found) && go(rest, reg, found),
-            Core::Jump { .. } | Core::Fault => true,
+            Core::Jump { .. } | Core::Fault | Core::Bubble | Core::Zero(_) => true,
             Core::Reuse { ctor, args, .. } => {
                 reg.products.get(&ctor.0).is_some_and(|c| c.fields.len() == args.len() && agree(c))
             }
@@ -5214,7 +5241,7 @@ fn build_unit(
     };
     match &body {
         UnitBody::Prim(op) => {
-            if matches!(op, PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. }) { lang.pure = false; }
+            if matches!(op, PrimOp::MVar { .. } | PrimOp::Atomic(_) | PrimOp::RwLock { .. } | PrimOp::Ev { .. }) { lang.pure = false; }
             // Always inline pure single-instruction scalar/wide/float/bit/cmp/
             // conversion primitives and direct Bytes/Nat fast paths so LLVM
             // never hits its inline budget inside large crypto/math kernels.
@@ -5485,7 +5512,7 @@ fn build_unit(
         .extend(closures_named(&body_text, reg.unit_symbols()));
     scan.closures_taken
         .extend(closures_named(&unit_globals, reg.unit_symbols()));
-    // The boxing wrapper calls the constructor's unit, which the body
+    // The boxing wrapper calls the constructor's unit(s), which the body
     // itself no longer reaches.
     if let Some(cpr) = cpr {
         scan.refs.insert(cpr.ctor.clone());
@@ -5517,7 +5544,7 @@ fn build_unit(
         wrapper,
         // The body's attributes describe the body. A boxing wrapper
         // allocates where its body does not, so it carries none of them.
-        wrapper_group: cpr.is_none(),
+        wrapper_group: cpr.is_none() && csr.is_none(),
         scan,
         lang_facts: lang,
     })
@@ -9157,6 +9184,28 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     let r = rt_call(b, k.extern_name(), &["i64 %p0".to_string()]);
                     ret(b, &r);
                 }
+                ArenaEscapeRun => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &[
+                            "i64 %p0".to_string(),
+                            "i64 %p1".to_string(),
+                            "i64 %p2".to_string(),
+                            "i64 %p3".to_string(),
+                            "i64 %p4".to_string(),
+                        ],
+                    );
+                    ret(b, &r);
+                }
+                ArenaEscapeAbort => {
+                    let r = rt_call(
+                        b,
+                        k.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string()],
+                    );
+                    ret(b, &r);
+                }
                 MapPackageBytes | PackageText => {
                     let args: Vec<String> = (0..op.arity()).map(|i| format!("i64 %p{i}")).collect();
                     let r = rt_call(b, k.extern_name(), &args);
@@ -9381,6 +9430,65 @@ fn prim_body(b: &mut Builder, cx: &LowerCx, reg: &Registry, name: &str, op: Prim
                     );
                     let w = freeze_word(b, &r);
                     ret_result(b, reg, op, &w, |_| "0".to_string());
+                }
+            }
+        }
+        Ev { op: ev_op, .. } => {
+            use crate::core::EvOp::*;
+            match ev_op {
+                Push => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = inttoptr i64 %p0 to ptr"));
+                    let r = rt_call(
+                        b,
+                        ev_op.extern_name(),
+                        &[
+                            format!("ptr {p}"),
+                            "i64 %p1".to_string(),
+                            "i64 %p2".to_string(),
+                            "i64 %p3".to_string(),
+                        ],
+                    );
+                    ret(b, &r);
+                }
+                Pop | EntryMarker => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = inttoptr i64 %p0 to ptr"));
+                    let r = rt_call(b, ev_op.extern_name(), &[format!("ptr {p}")]);
+                    ret(b, &r);
+                }
+                Lookup => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = call ptr @{}(i64 %p0)", ev_op.extern_name()));
+                    let r = b.reg();
+                    b.line(&format!("{r} = ptrtoint ptr {p} to i64"));
+                    ret(b, &r);
+                }
+                VtableSlot | EntrySlotAborts => {
+                    let p = b.reg();
+                    b.line(&format!("{p} = inttoptr i64 %p0 to ptr"));
+                    let r = rt_call(
+                        b,
+                        ev_op.extern_name(),
+                        &[format!("ptr {p}"), "i64 %p1".to_string()],
+                    );
+                    ret(b, &r);
+                }
+                Abort => {
+                    let r = rt_call(
+                        b,
+                        ev_op.extern_name(),
+                        &["i64 %p0".to_string(), "i64 %p1".to_string(), "i64 %p2".to_string()],
+                    );
+                    ret(b, &r);
+                }
+                IsCaught => {
+                    let r = rt_call(b, ev_op.extern_name(), &["i64 %p0".to_string()]);
+                    ret(b, &r);
+                }
+                IsYielding | YieldSlot | TakeYieldArg | IdClosure => {
+                    let r = rt_call(b, ev_op.extern_name(), &[]);
+                    ret(b, &r);
                 }
             }
         }
@@ -11754,6 +11862,9 @@ fn collect_prims(e: &Core, out: &mut BTreeSet<PrimOp>) {
         | Core::Foreign(_)
         | Core::SpliceVal(_)
         | Core::Fault
+        | Core::EvAllocEntry
+        | Core::Bubble
+        | Core::Zero(_)
         | Core::LazyAlloc
         | Core::BoxAlloc
         | Core::DeclsQuote { .. }
@@ -11839,6 +11950,9 @@ fn collect_binders(e: &Core, out: &mut Vec<LocalId>) {
         | Core::Foreign(_)
         | Core::SpliceVal(_)
         | Core::Fault
+        | Core::EvAllocEntry
+        | Core::Bubble
+        | Core::Zero(_)
         | Core::Quote { .. }
         | Core::DeclsQuote { .. }
         | Core::SyntaxLit(..)
@@ -13429,6 +13543,36 @@ impl CoreEmitter<'_, '_> {
                 self.b.start(&l);
                 Ok("0".to_string())
             }
+            Core::EvAllocEntry => {
+                let slot = self.b.alloca_words(6);
+                let addr = self.b.reg();
+                self.b.line(&format!("{addr} = ptrtoint ptr {slot} to i64"));
+                Ok(addr)
+            }
+            Core::Zero(c) => {
+                let _ = c;
+                Ok("0".to_string())
+            }
+            Core::Bubble => {
+                self.settle_tokens(0);
+                if let Some(cpr) = &self.cpr {
+                    let ty = cpr.ty();
+                    self.b.line(&format!("ret {ty} zeroinitializer"));
+                } else if self.csr.is_some() {
+                    self.b.line("ret { i64, i64 } zeroinitializer");
+                } else {
+                    let ret_ty = self.ret.ty();
+                    let zero = if self.ret.is_wide() {
+                        "0".to_string()
+                    } else {
+                        self.ret.narrow(self.b, "0")
+                    };
+                    self.b.line(&format!("ret {ret_ty} {zero}"));
+                }
+                let l = self.b.label();
+                self.b.start(&l);
+                Ok("0".to_string())
+            }
             Core::InstDict(id, subs, _) => {
                 let info = self
                     .reg
@@ -13810,7 +13954,7 @@ impl CoreEmitter<'_, '_> {
         }
         // The token's slot first: both paths write it before the body runs.
         let tslot = token.map(|t| self.slot(t));
-        // A product result that was never boxed is the unique path without
+        // A product or sum result that was never boxed is the unique path without
         // a cell: the moved fields already hold their references, the rest
         // are dropped, and there is nothing to keep for a reuse.
         if self.virt.contains_key(&block) || self.virt_sum.contains_key(&block) {
@@ -15133,9 +15277,8 @@ impl CoreEmitter<'_, '_> {
                     }
                 }
             }
-            // A product result's fault leaf: the path never returns, so the
-            // aggregate after it only keeps the block well formed.
-            Core::Fault if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
+            // A product or sum result's fault or bubble leaf.
+            Core::Fault | Core::Bubble if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
                 self.emit_expr(e)?;
                 if !self.b.terminated {
                     let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
@@ -15143,7 +15286,7 @@ impl CoreEmitter<'_, '_> {
                 }
                 Ok(())
             }
-            Core::Fault if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+            Core::Fault | Core::Bubble if matches!(dest, Dest::Ret) && self.csr.is_some() => {
                 self.emit_expr(e)?;
                 if !self.b.terminated {
                     let ty = self.csr.as_ref().unwrap().ty();
@@ -15151,10 +15294,38 @@ impl CoreEmitter<'_, '_> {
                 }
                 Ok(())
             }
-            Core::Fault if matches!(dest, Dest::Fields { .. } | Dest::Sum { .. }) => {
+            Core::Zero(_) if matches!(dest, Dest::Ret) && self.cpr.is_some() => {
+                let ty = self.cpr.as_ref().map(Cpr::ty).unwrap_or_default();
+                self.b.line(&format!("ret {ty} zeroinitializer"));
+                self.b.terminated = true;
+                Ok(())
+            }
+            Core::Zero(_) if matches!(dest, Dest::Ret) && self.csr.is_some() => {
+                let ty = self.csr.as_ref().unwrap().ty();
+                self.b.line(&format!("ret {ty} zeroinitializer"));
+                self.b.terminated = true;
+                Ok(())
+            }
+            Core::Fault | Core::Bubble if matches!(dest, Dest::Fields { .. } | Dest::Sum { .. }) => {
                 self.emit_expr(e)?;
                 if !self.b.terminated {
                     self.b.line("unreachable");
+                }
+                Ok(())
+            }
+            Core::Zero(_) if matches!(dest, Dest::Fields { .. }) => {
+                if let Dest::Fields { slots, .. } = dest {
+                    let zeros = vec!["0".to_string(); slots.len()];
+                    self.settle_tokens(dest.base());
+                    dest.settle_fields(self.b, &zeros);
+                }
+                Ok(())
+            }
+            Core::Zero(_) if matches!(dest, Dest::Sum { .. }) => {
+                if let Dest::Sum { slots, .. } = dest {
+                    let zeros = vec!["0".to_string(); slots.len()];
+                    self.settle_tokens(dest.base());
+                    dest.settle_sum(self.b, 0, &zeros);
                 }
                 Ok(())
             }
@@ -15242,6 +15413,7 @@ impl CoreEmitter<'_, '_> {
     /// can; in a value position it is a slot and a block. Each alternative
     /// goes through [`CoreEmitter::emit_to`], so a `Jump` in an alternative
     /// reaches the same destination through its join's block.
+
     /// Return `vals` as this product result's aggregate.
     fn ret_product(&mut self, vals: &[String]) {
         let Some(cpr) = self.cpr.clone() else { return };
@@ -18181,6 +18353,9 @@ fn reify(out: &mut Vec<QWord>, e: &Core, reg: &Registry) -> Result<()> {
             }
         }
         Core::Fault => q_imm(out, quote_op::FAULT),
+        Core::EvAllocEntry | Core::Bubble | Core::Zero(_) => {
+            return err("algebraic effect evidence handlers cannot be reified in a quotation")
+        }
         Core::BoxAlloc | Core::BoxInit(..) | Core::BoxGet(..) | Core::BoxClear(..) => {
             return Err(crate::Error::plain(
                 "a recursive `letrec` value cannot be reified into a quotation body",

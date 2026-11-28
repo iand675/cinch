@@ -549,7 +549,7 @@ module Cinch.Load where
   type-row-valid bodies row =
     let kind = text (field "kind" row) in
     string-length (text (field "identity" row)) > 0
-    && member kind ["data", "record", "codata", "opaque", "refinement", "signature", "type_family"]
+    && member kind ["data", "record", "codata", "opaque", "refinement", "signature", "type_family", "effect"]
     && parameters-valid (field "parameters" row) (field "params" row) []
     && ctors-valid bodies (field "ctors" row) [] && strings-p (field "fields" row)
     && ownership-header-valid row

@@ -88,9 +88,9 @@ module Cinch.Typing where
     [] -> True
     arg : rest -> not (has-forall arg) && wf context scope arg && poly-arguments-wf context scope rest
   equal-type :: UType -> UType -> Bool
-  equal-type a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) of [] -> True; other -> False)
+  equal-type a b = valid-type a && valid-type b && store-error-count (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (empty-store "Core typing")) == 0
   equal-type-in :: TypingContext -> UType -> UType -> Bool
-  equal-type-in context a b = valid-type a && valid-type b && (case store-errors (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted (context.type-families) (context.promoted) (empty-store "Core typing"))) of [] -> True; other -> False)
+  equal-type-in context a b = valid-type a && valid-type b && store-error-count (unify (Span 0 0 1 1) (without-index-levels a) (without-index-levels b) (with-families-and-promoted (context.type-families) (context.promoted) (empty-store "Core typing"))) == 0
   reduce-in :: TypingContext -> UType -> UType
   reduce-in context ty = reduce-types (context.type-families) (context.promoted) ty
   typing-type-head :: UType -> UType
@@ -121,8 +121,13 @@ module Cinch.Typing where
     UProofFun pred row result -> add-type-rigids result (add-type-rigids row (add-type-rigids pred scope))
     UUsageArrow u arrow -> add-type-rigids arrow scope
     UForall qs body -> add-type-rigids body scope
+    UQual qs body -> add-uquals-rigids qs (add-type-rigids body scope)
     UIndexMath op left right -> add-type-rigids right (add-type-rigids left scope)
     other -> scope
+  add-uquals-rigids :: UQuals -> TypeScope -> TypeScope
+  add-uquals-rigids qs scope = case qs of
+    UQEnd -> scope
+    UQCons name ty rest -> add-uquals-rigids rest (add-type-rigids ty scope)
   add-index-rigids :: UType -> IndexTerm -> TypeScope -> TypeScope
   add-index-rigids carrier idx scope = case idx of
     IRigid id name level -> add-missing-rigid id (value-kind carrier) scope
@@ -300,10 +305,10 @@ module Cinch.Typing where
     None -> None
     Some shape -> usage-fields-for shape actuals
   -- | Run the existing structural property walk over imported fields under the actual type arguments.
-  task-usage-property :: TypingContext -> String -> List UType -> Bool -> List UType -> Nat -> Bool
-  task-usage-property context owner actuals sharing seen fuel = case task-usage-fields context owner actuals of
-    Some fields -> task-types-property context sharing seen fuel fields
-    None -> False
+  task-usage-walk :: TypingContext -> String -> List UType -> Bool -> List UType -> Nat -> Option (List UType)
+  task-usage-walk context owner actuals sharing seen fuel = case task-usage-fields context owner actuals of
+    Some fields -> task-types-walk context sharing seen fuel fields
+    None -> None
   -- | Retain the same transfer walk for hidden fields; mutable cells still require a shareable payload.
   task-usage-transfer :: TypingContext -> String -> List UType -> List UType -> Nat -> Bool
   task-usage-transfer context owner actuals seen fuel = case task-usage-fields context owner actuals of
@@ -640,6 +645,19 @@ module Cinch.Typing where
         && equal-type-in context ty (substitute-bound (poly-argument-pairs (quants-list qs) args) inner)
         && checked-term context scope gamma facts value
       other -> False)
+    CQualIntro sp ty givens body -> (case ty of
+      UQual qs inner -> list-length givens == uquals-length qs && wf context scope ty
+        && qual-givens-match context (uquals-list qs) givens
+        && equal-type-in context inner (core-type body)
+        && effects-fit (core-effects body) (URow UEnd)
+        && checked-term (with-copy-givens context givens) scope gamma facts body
+      other -> False)
+    CQualElim sp ty value evs -> (case core-type value of
+      UQual qs inner -> list-length evs == uquals-length qs
+        && qual-evidences-match context (uquals-list qs) evs
+        && equal-type-in context ty inner
+        && checked-term context scope gamma facts value
+      other -> False)
     CPrimitive sp ty name args -> (if name == "copy-out" then copy-out-checked context ty args
       else if has name ["borrow", "mut-borrow"] then borrow-checked scope (name == "mut-borrow") ty args
       else if name == "ref-set" then ref-set-checked ty args
@@ -676,7 +694,13 @@ module Cinch.Typing where
   task-actuals :: List Quant -> List UType -> List (Nat, UType)
   task-actuals qs args = case (qs, args) of (q : rest, a : more) -> (q.id, a) : (task-actuals rest more); other -> []
   task-seen-type :: UType -> List UType -> Bool
-  task-seen-type ty seen = case seen of [] -> False; old : rest -> equal-type ty old || task-seen-type ty rest
+  task-seen-type ty seen = case seen of
+    [] -> False
+    old : rest ->
+      (if same-shape ty old then valid-type ty
+       else (case (typing-type-head ty, typing-type-head old) of
+         (UCon na _, UCon nb _) -> na == nb && equal-type ty old
+         other -> equal-type ty old)) || task-seen-type ty rest
   -- A partial imported constructor table or an opaque resource supplies no
   -- structural Copy evidence.
   copyable-type :: TypingContext -> List UType -> Nat -> UType -> Bool
@@ -754,6 +778,12 @@ module Cinch.Typing where
         (Some (row, region, carrier), Some (latent, returned)) -> in-memo-region region scope
           && equal-type row latent && equal-type carrier returned && scope-region-closed region row
         other -> False)
+    other -> False
+  task-signature-decl :: String -> CoreGlobal -> Bool
+  task-signature-decl owner decl = case decl of
+    GlobalMethod name class slot sc -> owner == class
+    GlobalBody d body -> task-signature-decl owner d
+    GlobalGuardedBody d body -> task-signature-decl owner d
     other -> False
   typing-fixed-array-elem :: UType -> Option UType
   typing-fixed-array-elem ty = case task-base ty of
@@ -858,10 +888,7 @@ module Cinch.Typing where
   task-signature :: String -> List CoreGlobal -> Bool
   task-signature owner declarations = case declarations of
     [] -> False
-    (GlobalMethod name class slot sc) : rest -> owner == class || task-signature owner rest
-    (GlobalBody d body) : rest -> task-signature owner [d] || task-signature owner rest
-    (GlobalGuardedBody d body) : rest -> task-signature owner [d] || task-signature owner rest
-    other : rest -> task-signature owner rest
+    first : rest -> if task-signature-decl owner first then True else task-signature owner rest
   -- Structural Copy/Share uses checked complete data declarations. Unknown
   -- carriers and mutable buffers do not acquire sharing from a printed name.
   -- `Sym` is an immortal, immutable interned cell, and `Data.String.String`
@@ -879,58 +906,89 @@ module Cinch.Typing where
     name == interface-global "Data.HashMap.HashMap"
     || name == interface-global "Data.Map.Map"
   task-shareable :: TypingContext -> List UType -> Nat -> UType -> Bool
-  task-shareable context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "Sym", "String", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then True else task-data-property context True seen fuel ty
-    UTuple fields -> task-fields-property context True seen fuel fields
-    USigma id name domain body -> task-property context True seen fuel domain && task-property context True seen fuel body
+  task-shareable context seen fuel ty = case task-shareable-walk context seen fuel ty of
+    Some _ -> True
+    None -> False
+  task-shareable-walk :: TypingContext -> List UType -> Nat -> UType -> Option (List UType)
+  task-shareable-walk context seen fuel ty = if fuel == 0 then None else case task-base ty of
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "Sym", "String", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then Some seen else task-data-walk context True seen fuel ty
+    UTuple fields -> task-fields-walk context True seen fuel fields
+    USigma id name domain body -> case task-property-walk context True seen fuel domain of
+      None -> None
+      Some seen1 -> task-property-walk context True seen1 fuel body
     -- `Array`, `Tensor` and `Columnar` are builtin type formers, not
     -- declarations, so no `CoreData` describes them and the structural walk
     -- below would have no field to read. Their element type decides sharing,
     -- exactly as it does in the seed's `structural_usage` and in
     -- `copyable-type` (design/parallel-evaluation.md section 2.3: an
     -- immutable `Array` is `Share` iff every element is).
-    UApp (UCon name kind) element -> if name == "b.Io" then True
-      else if (array-type-name name || cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) then task-shareable context seen (fuel - 1) element
-      else task-data-property context True seen fuel ty
-    UApp (UApp (UCon name kind) owner) region -> if name == "b.Scope" then True
+    UApp (UCon name kind) element -> if name == "b.Io" then Some seen
+      else if (array-type-name name || cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) then task-shareable-walk context seen (fuel - 1) element
+      else task-data-walk context True seen fuel ty
+    UApp (UApp (UCon name kind) owner) region -> if name == "b.Scope" then Some seen
       else if shareable-stdlib-binary name then
-        task-shareable context seen (fuel - 1) owner && task-shareable context seen (fuel - 1) region
+        (case task-shareable-walk context seen (fuel - 1) owner of
+          None -> None
+          Some seen1 -> task-shareable-walk context seen1 (fuel - 1) region)
       else (case borrow-type-parts (task-base ty) of
-        Some (False, lifetime, carrier) -> task-shareable context seen (fuel - 1) carrier
-        other -> task-data-property context True seen fuel ty)
-    URigid id name level KRegion -> True
-    UBound id name KRegion -> True
-    other -> task-data-property context True seen fuel ty
+        Some (False, lifetime, carrier) -> task-shareable-walk context seen (fuel - 1) carrier
+        other -> task-data-walk context True seen fuel ty)
+    URigid id name level KRegion -> Some seen
+    UBound id name KRegion -> Some seen
+    other -> task-data-walk context True seen fuel ty
   -- A closed scalar/data value cannot hide a scoped closure. This allows
   -- ordinary saturated calls to return such values without inventing loans.
   task-region-free-type :: TypingContext -> List UType -> Nat -> UType -> Bool
-  task-region-free-type context seen fuel ty = if fuel == 0 then False else case task-base ty of
-    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then True else task-data-property context False seen fuel ty
-    UTuple fields -> task-fields-property context False seen fuel fields
-    USigma id name domain body -> task-property context False seen fuel domain && task-property context False seen fuel body
-    UApp (UCon name kind) element | (cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) -> task-region-free-type context seen (fuel - 1) element
+  task-region-free-type context seen fuel ty = case task-region-free-walk context seen fuel ty of
+    Some _ -> True
+    None -> False
+  task-region-free-walk :: TypingContext -> List UType -> Nat -> UType -> Option (List UType)
+  task-region-free-walk context seen fuel ty = if fuel == 0 then None else case task-base ty of
+    UCon name KType -> if has name ["Int", "Nat", "Bool", "Unit", "Char", "String", "Bytes", "Sym", "AtomicCell", "I8", "I16", "I32", "I64", "Isize", "U8", "U16", "U32", "U64", "Usize", "I128", "U128", "F32", "F64"] || name == global-data-string-string || name == interface-global "Data.Path.Path" then Some seen else task-data-walk context False seen fuel ty
+    UTuple fields -> task-fields-walk context False seen fuel fields
+    USigma id name domain body -> case task-property-walk context False seen fuel domain of
+      None -> None
+      Some seen1 -> task-property-walk context False seen1 fuel body
+    UApp (UCon name kind) element | (cell-type-name name || shareable-stdlib-unary name) && kind-equal kind (KFun KType KType) -> task-region-free-walk context seen (fuel - 1) element
     UApp (UApp (UCon name kind) first) second | shareable-stdlib-binary name ->
-      task-region-free-type context seen (fuel - 1) first && task-region-free-type context seen (fuel - 1) second
-    other -> task-data-property context False seen fuel ty
-  task-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
-  task-property context sharing seen fuel ty = if sharing then task-shareable context seen fuel ty else task-region-free-type context seen fuel ty
-  task-fields-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
-  task-fields-property context sharing seen fuel fields = case fields of UEnd -> True; UArg ty more -> task-property context sharing seen fuel ty && task-fields-property context sharing seen fuel more; other -> False
+      (case task-region-free-walk context seen (fuel - 1) first of
+        None -> None
+        Some seen1 -> task-region-free-walk context seen1 (fuel - 1) second)
+    other -> task-data-walk context False seen fuel ty
+  task-property-walk :: TypingContext -> Bool -> List UType -> Nat -> UType -> Option (List UType)
+  task-property-walk context sharing seen fuel ty = if sharing then task-shareable-walk context seen fuel ty else task-region-free-walk context seen fuel ty
+  task-fields-walk :: TypingContext -> Bool -> List UType -> Nat -> UType -> Option (List UType)
+  task-fields-walk context sharing seen fuel fields = case fields of
+    UEnd -> Some seen
+    UArg ty more -> case task-property-walk context sharing seen fuel ty of
+      None -> None
+      Some seen1 -> task-fields-walk context sharing seen1 fuel more
+    other -> None
   task-types-property :: TypingContext -> Bool -> List UType -> Nat -> List UType -> Bool
-  task-types-property context sharing seen fuel types = case types of [] -> True; ty : rest -> task-property context sharing seen fuel ty && task-types-property context sharing seen fuel rest
-  task-data-property :: TypingContext -> Bool -> List UType -> Nat -> UType -> Bool
-  task-data-property context sharing seen fuel ty = if fuel == 0 then False else if task-seen-type ty seen then True else case task-type-spine ty [] of
-    (UCon name kind, args) -> if sharing && task-signature name (context-declarations context) then task-types-property context True seen (fuel - 1) args else
+  task-types-property context sharing seen fuel types = case task-types-walk context sharing seen fuel types of
+    Some _ -> True
+    None -> False
+  task-types-walk :: TypingContext -> Bool -> List UType -> Nat -> List UType -> Option (List UType)
+  task-types-walk context sharing seen fuel types = case types of
+    [] -> Some seen
+    ty : rest -> case task-property-walk context sharing seen fuel ty of
+      None -> None
+      Some seen1 -> task-types-walk context sharing seen1 fuel rest
+  task-data-walk :: TypingContext -> Bool -> List UType -> Nat -> UType -> Option (List UType)
+  task-data-walk context sharing seen fuel ty = if fuel == 0 then None else if task-seen-type ty seen then Some seen else case task-type-spine ty [] of
+    (UCon name kind, args) -> if sharing && task-signature name (context-declarations context) then task-types-walk context True (ty : seen) (fuel - 1) args else
       (case task-data name (context.datas) of
-        None -> task-usage-property context name args sharing (ty : seen) (fuel - 1)
-        Some d -> list-length args == list-length (core-data-params d) && (case core-data-constructors d of
-          [] -> task-usage-property context name args sharing (ty : seen) (fuel - 1)
-          constructors -> task-constructors-property context sharing (ty : seen) (fuel - 1) (task-actuals (core-data-params d) args) constructors))
-    other -> False
-  task-constructors-property :: TypingContext -> Bool -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Bool
-  task-constructors-property context sharing seen fuel pairs ctors = case ctors of
-    [] -> True
-    ctor : rest -> task-types-property context sharing seen fuel (map-task-types pairs (core-constructor-fields ctor)) && task-constructors-property context sharing seen fuel pairs rest
+        None -> task-usage-walk context name args sharing (ty : seen) (fuel - 1)
+        Some d -> if list-length args == list-length (core-data-params d) then (case core-data-constructors d of
+          [] -> task-usage-walk context name args sharing (ty : seen) (fuel - 1)
+          constructors -> task-constructors-walk context sharing (ty : seen) (fuel - 1) (task-actuals (core-data-params d) args) constructors) else None)
+    other -> None
+  task-constructors-walk :: TypingContext -> Bool -> List UType -> Nat -> List (Nat, UType) -> List CoreConstructor -> Option (List UType)
+  task-constructors-walk context sharing seen fuel pairs ctors = case ctors of
+    [] -> Some seen
+    ctor : rest -> case task-types-walk context sharing seen fuel (map-task-types pairs (core-constructor-fields ctor)) of
+      None -> None
+      Some seen1 -> task-constructors-walk context sharing seen1 fuel pairs rest
   map-task-types :: List (Nat, UType) -> List UType -> List UType
   map-task-types pairs types = case types of [] -> []; ty : rest -> (substitute-bound pairs ty) : (map-task-types pairs rest)
   data TaskLocal where
@@ -989,10 +1047,25 @@ module Cinch.Typing where
     USigma id name domain body -> task-regions domain <> task-regions body
     UTuple fields -> task-regions fields
     UForall qs body -> task-regions body
+    UQual qs body -> uquals-task-regions qs <> task-regions body
     UArg first rest -> task-regions first <> task-regions rest
     URow labels -> task-regions labels
     URowJoin a b -> task-regions a <> task-regions b
     other -> []
+  uquals-task-regions :: UQuals -> List UType
+  uquals-task-regions qs = case qs of
+    UQEnd -> []
+    UQCons name ty rest -> task-regions ty <> uquals-task-regions rest
+  qual-givens-match :: TypingContext -> List Requirement -> List CoreGiven -> Bool
+  qual-givens-match context reqs givens = case (reqs, givens) of
+    ([], []) -> True
+    (r : rs, g : gs) -> equal-type-in context (r.ty) (g.ty) && qual-givens-match context rs gs
+    other -> False
+  qual-evidences-match :: TypingContext -> List Requirement -> List CoreEvidence -> Bool
+  qual-evidences-match context reqs evs = case (reqs, evs) of
+    ([], []) -> True
+    (r : rs, e : es) -> equal-type-in context (r.ty) (evidence-type e) && qual-evidences-match context rs es
+    other -> False
   task-region-present :: UType -> List UType -> Bool
   task-region-present region regions = case regions of [] -> False; first : rest -> equal-type region first || task-region-present region rest
   task-outlives :: List UType -> UType -> UType -> UType -> Bool
@@ -1412,7 +1485,11 @@ module Cinch.Typing where
     CMethod sp ty name owner slot actuals evidence -> task-free-evidences bound evidence
     CScope sp ty region evidence callback -> task-evidence-types bound evidence <> task-free-evidence bound callback
     CWith sp ty given value body -> task-free-evidence bound value <> task-free-evidence ((given.symbol) : bound) body
+    CQualIntro sp ty givens body -> task-free-evidence (given-symbols givens <> bound) body
+    CQualElim sp ty val evs -> task-free-evidence bound val <> task-free-evidences bound evs
     other -> task-free-evidence-list bound (runtime-term-children term)
+  given-symbols :: List CoreGiven -> List String
+  given-symbols gs = case gs of [] -> []; g : rest -> (g.symbol) : (given-symbols rest)
   task-evidence-types :: List String -> CoreEvidence -> List UType
   task-evidence-types bound evidence = case evidence of
     CEGiven sp ty name -> if has name bound then [] else [ty]
@@ -1454,9 +1531,54 @@ module Cinch.Typing where
     CApply sp ty callee token -> if task-reference-forwarder context callee then Some token else None
     CApplyEff sp ty row callee token -> if task-reference-forwarder context callee then Some token else None
     other -> None
+  arena-data-lookup :: String -> List CoreData -> Option CoreData
+  arena-data-lookup name datas = case datas of
+    [] -> None
+    d : rest -> if core-data-name d == name then Some d else arena-data-lookup name rest
+  arena-ctors-nullary :: List CoreConstructor -> Bool
+  arena-ctors-nullary ctors = case ctors of
+    [] -> True
+    c : rest -> list-length (core-constructor-fields c) == 0 && arena-ctors-nullary rest
+  arena-escape-safe :: List CoreData -> UType -> Bool
+  arena-escape-safe datas ty = case ty of
+    URefine id name base pred -> arena-escape-safe datas base
+    UMeta id k -> True
+    UCon name k ->
+      if name == "Int" || name == "Nat" || name == "Bool" || name == "Unit" || name == "Char"
+        || name == "I8" || name == "I16" || name == "I32" || name == "I64" || name == "I128" || name == "Isize"
+        || name == "U8" || name == "U16" || name == "U32" || name == "U64" || name == "U128" || name == "Usize"
+        || name == "F32" || name == "F64" then True
+      else case arena-data-lookup name datas of
+        Some d -> let ctors = core-data-constructors d in list-length ctors > 0 && arena-ctors-nullary ctors
+        None -> False
+    other -> False
+  arena-escape-primitive :: String -> Bool
+  arena-escape-primitive name =
+    name == "Effect.Arena.with-arena" || name == interface-global "Effect.Arena.with-arena"
+      || name == "Effect.Arena.with-arena-budget" || name == interface-global "Effect.Arena.with-arena-budget"
+  arena-escape-error-for :: TypingContext -> Span -> String -> List UType -> Option (Span, String)
+  arena-escape-error-for context sp name actuals =
+    if name == "Effect.Arena.with-arena" || name == interface-global "Effect.Arena.with-arena" then (case actuals of
+      [e, a] ->
+        if not (arena-escape-safe (context.datas) e) then Some (sp, "arena escape error type must be scalar/Copy (arena-allocated values cannot escape `with-arena`)")
+        else if not (arena-escape-safe (context.datas) a) then Some (sp, "arena escape return type must be scalar/Copy (arena-allocated values cannot escape `with-arena`)")
+        else None
+      other -> None)
+    else if name == "Effect.Arena.with-arena-budget" || name == interface-global "Effect.Arena.with-arena-budget" then (case actuals of
+      [a] ->
+        if not (arena-escape-safe (context.datas) a) then Some (sp, "arena escape return type must be scalar/Copy (arena-allocated values cannot escape `with-arena`)")
+        else None
+      other -> None)
+    else None
+  arena-escape-error :: TypingContext -> Span -> CoreTerm -> Option (Span, String)
+  arena-escape-error context sp term = case term of
+    CUse at ty name role actuals -> arena-escape-error-for context sp name actuals
+    CQualifiedUse at ty name role actuals evidence -> arena-escape-error-for context sp name actuals
+    other -> None
   task-global-trace :: TypingContext -> List TaskLocal -> List UType -> Span -> UType -> CoreTerm -> List CoreEvidence -> TaskTrace
   task-global-trace context env scopes sp ty term evidence =
-    let required = require-task (not (task-reference-forwarder context term)) sp "a task forwarding helper must be fully applied in its source compilation" in
+    let required = first-task-error (arena-escape-error context sp term)
+          (require-task (not (task-reference-forwarder context term)) sp "a task forwarding helper must be fully applied in its source compilation") in
     task-result-trace context ty (task-traces-merge (TaskTrace required (task-evidences-regions evidence) True) (task-trace-list context env scopes False (term-children term)))
   task-type-holds-mut :: UType -> Bool
   task-type-holds-mut ty = let base = task-base ty in case mutable-borrow base of
@@ -1470,8 +1592,13 @@ module Cinch.Typing where
       UTuple fields -> task-type-holds-mut fields
       USigma id name domain body -> task-type-holds-mut domain || task-type-holds-mut body
       UForall qs body -> task-type-holds-mut body
+      UQual qs body -> uquals-hold-mut qs || task-type-holds-mut body
       UArg first rest -> task-type-holds-mut first || task-type-holds-mut rest
       other -> False)
+  uquals-hold-mut :: UQuals -> Bool
+  uquals-hold-mut qs = case qs of UQEnd -> False; UQCons name ty rest -> task-type-holds-mut ty || uquals-hold-mut rest
+  uquals-hold-memo :: UQuals -> Bool
+  uquals-hold-memo qs = case qs of UQEnd -> False; UQCons name ty rest -> task-type-holds-memo ty || uquals-hold-memo rest
   task-types-hold-mut :: List UType -> Bool
   task-types-hold-mut types = case types of [] -> False; ty : rest -> task-type-holds-mut ty || task-types-hold-mut rest
   task-free-holds-mut :: List (Nat, UType) -> Bool
@@ -1488,6 +1615,7 @@ module Cinch.Typing where
       UTuple fields -> task-type-holds-memo fields
       USigma id name domain body -> task-type-holds-memo domain || task-type-holds-memo body
       UForall qs body -> task-type-holds-memo body
+      UQual qs body -> uquals-hold-memo qs || task-type-holds-memo body
       UArg first rest -> task-type-holds-memo first || task-type-holds-memo rest
       other -> False)
   task-free-holds-memo :: List (Nat, UType) -> Bool
@@ -1760,8 +1888,8 @@ module Cinch.Typing where
     CSpawn sp ty token callback -> True
     CJoin sp ty token handles -> True
     CPrimitive sp ty op args -> has op ["copy-out", "thunk-force", "thunk-delay"] || task-code-present context args
-    CUse sp ty name role actuals -> task-reference-forwarder context term || task-code-list context (term-children term)
-    CQualifiedUse sp ty name role actuals evidence -> task-reference-forwarder context term || task-code-list context (term-children term)
+    CUse sp ty name role actuals -> arena-escape-primitive name || task-reference-forwarder context term || task-code-list context (term-children term)
+    CQualifiedUse sp ty name role actuals evidence -> arena-escape-primitive name || task-reference-forwarder context term || task-code-list context (term-children term)
     other -> task-code-list context (term-children term))
   task-code-list :: TypingContext -> List CoreTerm -> Bool
   task-code-list context terms = case terms of [] -> False; first : rest -> task-code-present context first || task-code-list context rest
@@ -1816,7 +1944,12 @@ module Cinch.Typing where
     (CoreClause sp patterns body) : rest ->
       let bound = par-bindings prefix patterns [] in
       let owned = if additive then capture-usage declared patterns (CaptureUsage [] []) else CaptureUsage [] [] in
-      case par-term-error context owned bound body of
+      let abort-err = (case owned.ids2 of
+        [] -> None
+        ids -> if linear-across-abort (context.effects) ids False body then
+            Some (sp, "multiplicity %1: linear binder must be used exactly once on every path, and cannot stay live across an aborting effect")
+          else None) in
+      case first-task-error abort-err (par-term-error context owned bound body) of
         Some error -> Some error
         None -> par-clauses-error context additive prefix declared rest
   -- The `%1`/`%aff` parameters of this clause, by the binder's position: a
@@ -1880,9 +2013,17 @@ module Cinch.Typing where
       let needs-exact = case ids of [] -> False; other -> linear-continuation label ids False body in
       first-task-error (if needs-exact then handler-usage-error context sp True handled-by else None)
         (par-children-error context owned bound [body, handled-by])
-    CLambda sp ty p body -> par-term-error context (capture-usage ty [p] owned) (par-binding p bound) body
+    CLambda sp ty p body ->
+      let next-owned = capture-usage ty [p] owned in
+      let abort-err = (case next-owned.ids2 of
+        [] -> None
+        ids -> if linear-across-abort (context.effects) ids False body then
+            Some (sp, "multiplicity %1: linear binder must be used exactly once on every path, and cannot stay live across an aborting effect")
+          else None) in
+      first-task-error abort-err (par-term-error context next-owned (par-binding p bound) body)
     CLet sp ty id name sc rhs body -> first-task-error (par-term-error context owned bound rhs) (par-term-error context owned ((id, name, scheme-body sc) : bound) body)
     CWith sp ty given value body -> first-task-error (par-term-error context owned bound value) (par-term-error (with-copy-givens context [given]) owned bound body)
+    CQualIntro sp ty givens body -> par-term-error (with-copy-givens context givens) owned bound body
     other -> par-children-error context owned bound (runtime-term-children term)
   par-children-error :: TypingContext -> CaptureUsage -> List (Nat, String, UType) -> List CoreTerm -> Option (Span, String)
   par-children-error context owned bound terms = case terms of
@@ -1922,6 +2063,7 @@ module Cinch.Typing where
     CLambda sp ty pat body -> False
     CHandler sp ty returned operations -> False
     CPolyIntro sp ty openings body -> False
+    CQualIntro sp ty givens body -> False
     CPrimitive sp ty op args | (op == "thunk-delay") -> False
     other -> linear-sequence label ids after (runtime-term-children term)
   linear-sequence :: UType -> List Nat -> Bool -> List CoreTerm -> Bool
@@ -1935,6 +2077,32 @@ module Cinch.Typing where
     CGuard sp ty guard body -> linear-continuation label ids (after || linear-reference ids body || linear-reference ids rest) guard
       || linear-continuation label ids after body
     other -> linear-continuation label ids after arm
+  linear-across-abort :: List CoreEffect -> List Nat -> Bool -> CoreTerm -> Bool
+  linear-across-abort effects ids after term = case term of
+    CApplyEff sp ty row f x -> (after && row-has-uninhabited-effect effects row) || linear-abort-sequence effects ids after [f, x]
+    CErasedApply sp ty row f witness -> (after && row-has-uninhabited-effect effects row) || linear-across-abort effects ids after f
+    CIf sp ty condition yes no -> linear-across-abort effects ids (after || linear-reference ids yes || linear-reference ids no) condition
+      || linear-across-abort effects ids after yes || linear-across-abort effects ids after no
+    CAlternative sp pat body rest -> linear-abort-arm effects ids after body rest || linear-across-abort effects ids after rest
+    CHandle sp ty inner residual body handled-by ->
+      (after && row-has-uninhabited-effect effects (core-effects term))
+      || linear-across-abort effects ids after body
+      || linear-across-abort effects ids after handled-by
+    CLambda sp ty pat body -> False
+    CHandler sp ty returned operations -> False
+    CPolyIntro sp ty openings body -> False
+    CQualIntro sp ty givens body -> False
+    CPrimitive sp ty op args | (op == "thunk-delay") -> False
+    other -> linear-abort-sequence effects ids after (runtime-term-children term)
+  linear-abort-sequence :: List CoreEffect -> List Nat -> Bool -> List CoreTerm -> Bool
+  linear-abort-sequence effects ids after terms = case terms of
+    [] -> False
+    first : rest -> linear-across-abort effects ids (after || linear-suffix ids rest) first || linear-abort-sequence effects ids after rest
+  linear-abort-arm :: List CoreEffect -> List Nat -> Bool -> CoreTerm -> CoreTerm -> Bool
+  linear-abort-arm effects ids after arm rest = case arm of
+    CGuard sp ty guard body -> linear-across-abort effects ids (after || linear-reference ids body || linear-reference ids rest) guard
+      || linear-across-abort effects ids after body
+    other -> linear-across-abort effects ids after arm
   handler-usage-error :: TypingContext -> Span -> Bool -> CoreTerm -> Option (Span, String)
   handler-usage-error context site exact term = case term of
     CHandler sp ty returned clauses -> (case handler-parts ty of
@@ -2112,7 +2280,7 @@ module Cinch.Typing where
   checked-handle :: TypingContext -> TypeScope -> ProofScope -> List Proposition -> UType -> UType -> UType -> CoreTerm -> CoreTerm -> Bool
   checked-handle context scope gamma facts ty label residual body handled-by = wf context scope label && wf context scope residual
     && checked-term context scope gamma facts body && checked-term context scope gamma facts handled-by
-    && (case effect-for-label label (context.effects) of Some declaration -> handler-body-direct label (handler-operation-names (declaration.effect-operations)) body; None -> False)
+    && (case effect-for-label label (context.effects) of Some declaration -> handler-body-allowed label (handler-operation-names (declaration.effect-operations)) handled-by body; None -> False)
     && (case handler-parts (core-type handled-by) of
       Some (declared, input, output, row) -> equal-type label declared && equal-type input (core-type body) && equal-type output ty
         && (case handler-residual label (core-effects body) of Some actual -> equal-type actual residual; None -> False)
@@ -2127,7 +2295,17 @@ module Cinch.Typing where
     && (case add-local-scheme id sc lscope of
       Some bound -> let writes = core-mutable-writes rhs in
         let next = proof-after-writes (scope-let gamma facts id sc rhs) writes in
-        let more = case scoped-core-let-fact gamma facts id sc rhs of Some p -> p : facts; None -> facts in
+        let base = case scoped-core-let-fact gamma facts id sc rhs of Some p -> p : facts; None -> facts in
+        let more = (case rhs of
+          CIf _ _ cond yes no ->
+            let y-ab = term-aborts-uninhabited (context.effects) yes in
+            let n-ab = term-aborts-uninhabited (context.effects) no in
+            if y-ab /= n-ab then
+              (case scoped-core-branch gamma base cond n-ab of
+                Some p -> p : base
+                None -> base)
+            else base
+          other -> base) in
         checked-term context bound next (facts-after-writes gamma more writes) body
       None -> False)
   recursive-type-scope :: TypingContext -> TypeScope -> CoreTerm -> Option TypeScope
@@ -2183,7 +2361,7 @@ module Cinch.Typing where
     (CoreClause sp patterns body) : rest -> clause-typed context scope (with-guarded-bindings (context-guarded-bodies context) (with-checked-body-bindings (context-body-context context) (make-proof-scope values []))) expected empty-row patterns body && clauses-typed-with context scope values expected rest
   typing-definition-closed :: TypingContext -> CoreDefinition -> Bool
   typing-definition-closed context definition =
-    core-definition-checked-contracts-closed-with (context.type-families) (context.promoted) (context-body-context context) (context-guarded-bodies context) definition
+    core-definition-checked-contracts-closed-with-effects (context.type-families) (context.promoted) (context-body-context context) (context-guarded-bodies context) (context.effects) definition
     && task-definition-safe context definition && (case par-definition-error context definition of None -> True; Some error -> False) && definition-structure-closed context definition
 
   -- On the compiler path the same checks also provide diagnostics. Keep
@@ -2194,9 +2372,10 @@ module Cinch.Typing where
     let proms = context.promoted in
     let bodies = context-body-context context in
     let guarded = context-guarded-bodies context in
+    let effs = context.effects in
     let at = Span 0 0 1 1 in
-    if not (core-definition-checked-contracts-closed-with fams proms bodies guarded definition) then
-      let reason = case core-definition-refusal-with fams proms bodies guarded definition of Some message -> message; None -> "the conjunction refused without a named clause" in
+    if not (core-definition-checked-contracts-closed-with-effects fams proms bodies guarded effs definition) then
+      let reason = case core-definition-refusal-with-effects fams proms bodies guarded effs definition of Some message -> message; None -> "the conjunction refused without a named clause" in
       Some (at, "typed core contains an unresolved scheme or error term: " <> definition.name <> ": " <> reason)
       else case par-definition-error context definition of
         Some error -> Some error
