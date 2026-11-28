@@ -1,0 +1,1346 @@
+-- | RFC 9002 QUIC Loss Detection, RTT Estimation, and power-of-two DMA-backed
+-- `SentPacketRing` (fixed 48-byte stride `SentPacketEntry`).
+--
+-- Isolation & memory contract:
+--   * Zero dependency on `Net.Quic.Types` — uses `U64` packet numbers, `U8`
+--     packet-number-space constants (`pn-space-initial`, `pn-space-handshake`,
+--     `pn-space-app`), and `Engine.Types` (`TimeNs`, DMA alloc/free).
+--   * `SentPacketEntry` is an exact 48-byte `#[repr(C, value)]` POD record.
+--   * `RttEstimator` is an exact 48-byte `#[repr(C, value)]` POD record.
+--   * `AckOutcome` is an exact 88-byte `#[repr(C, value)]` POD summary returned
+--     by `recovery-on-ack-received`, `recovery-on-ack-ranges-received`, and
+--     `recovery-on-loss-timeout` so callers feed BBRv2 / CUBIC with zero heap
+--     allocations and zero RC traffic.
+--   * `SentPacketRing` and `RecoveryState` are 8-byte `#[repr(C, value)]` POD
+--     handles backed by a single page-aligned DMA slab (`engine-dma-alloc`).
+--   * All steady-state operations (`recovery-on-packet-sent`,
+--     `recovery-on-ack-received`, `recovery-on-ack-ranges-received`,
+--     `recovery-pto-duration-ns`, `recovery-loss-time-ns`,
+--     `recovery-next-timeout-ns`, `recovery-on-loss-timeout`) are `#[no-alloc]`.
+module Net.Quic.Recovery where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Packet-number-space constants (RFC 9000 / RFC 9002)
+  export pn-space-initial, pn-space-handshake, pn-space-app
+
+  -- Sent packet status constants
+  export pkt-status-empty, pkt-status-in-flight, pkt-status-acked, pkt-status-lost
+
+  -- RFC 9002 Appendix A.2 constants
+  export quic-initial-rtt-ns, quic-granularity-ns, quic-default-max-ack-delay-ns
+  export quic-packet-threshold, quic-persistent-congestion-threshold
+
+  -- POD records
+  export SentPacketEntry, RttEstimator, AckOutcome
+  export sent-packet-entry-empty, ack-outcome-empty
+
+  -- Pure #[no-alloc] RttEstimator API
+  export rtt-estimator-init, rtt-estimator-update
+  export rtt-estimator-pto-base-ns, rtt-estimator-loss-delay-ns
+
+  -- Standalone DMA-backed SentPacketRing API
+  export SentPacketRing, sent-ring-new, sent-ring-destroy
+  export sent-ring-push, sent-ring-load, sent-ring-store-status
+  export sent-ring-head, sent-ring-tail, sent-ring-count, sent-ring-cap
+
+  -- RFC 9002 Recovery engine API
+  export RecoveryState, recovery-new, recovery-new-with-max-ack-delay, recovery-destroy
+  export recovery-set-handshake-confirmed, recovery-set-max-ack-delay-ns, recovery-set-app-limited
+  export recovery-on-packet-sent, recovery-on-ack-received, recovery-on-ack-ranges-received
+  export recovery-pto-duration-ns, recovery-loss-time-ns, recovery-next-timeout-ns
+  export recovery-on-loss-timeout
+  export recovery-rtt, recovery-bytes-in-flight, recovery-pto-count
+  export recovery-delivered-bytes, recovery-delivered-ns, recovery-in-flight-count
+  export recovery-largest-acked-pn, recovery-is-app-limited
+
+  -- =========================================================================
+  -- 0. Constants & internal #[no-alloc] helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-initial :: U8
+  pn-space-initial = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-handshake :: U8
+  pn-space-handshake = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-app :: U8
+  pn-space-app = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-status-empty :: U8
+  pkt-status-empty = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-status-in-flight :: U8
+  pkt-status-in-flight = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-status-acked :: U8
+  pkt-status-acked = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-status-lost :: U8
+  pkt-status-lost = 3
+
+  -- | RFC 9002 kInitialRtt = 333 ms (in nanoseconds).
+  #[inline(always)]
+  #[no-alloc]
+  quic-initial-rtt-ns :: U64
+  quic-initial-rtt-ns = 333000000
+
+  -- | RFC 9002 kGranularity = 1 ms (in nanoseconds).
+  #[inline(always)]
+  #[no-alloc]
+  quic-granularity-ns :: U64
+  quic-granularity-ns = 1000000
+
+  -- | RFC 9000 / 9002 default max_ack_delay = 25 ms (in nanoseconds).
+  #[inline(always)]
+  #[no-alloc]
+  quic-default-max-ack-delay-ns :: U64
+  quic-default-max-ack-delay-ns = 25000000
+
+  -- | RFC 9002 kPacketThreshold = 3 packets.
+  #[inline(always)]
+  #[no-alloc]
+  quic-packet-threshold :: U64
+  quic-packet-threshold = 3
+
+  -- | RFC 9002 kPersistentCongestionThreshold = 3 PTOs.
+  #[inline(always)]
+  #[no-alloc]
+  quic-persistent-congestion-threshold :: U64
+  quic-persistent-congestion-threshold = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  u64-unset :: U64
+  u64-unset = 18446744073709551615
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)]
+  #[no-alloc]
+  max-u64 :: U64 -> U64 -> U64
+  max-u64 a b = if gt-u64 a b then a else b
+
+  #[inline(always)]
+  #[no-alloc]
+  min-u64 :: U64 -> U64 -> U64
+  min-u64 a b = if lt-u64 a b then a else b
+
+  #[inline(always)]
+  #[no-alloc]
+  abs-diff-u64 :: U64 -> U64 -> U64
+  abs-diff-u64 a b = if ge-u64 a b then wrapping-sub-u64 a b else wrapping-sub-u64 b a
+
+  #[inline(always)]
+  #[no-alloc]
+  is-pow2-u32 :: U32 -> Bool
+  is-pow2-u32 n =
+    if lt-u32 n 16 then b-false
+    else eq-u32 (bit-and-u32 n (wrapping-sub-u32 n 1)) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  clamp-space :: U8 -> U8
+  clamp-space sp = if gt-u8 sp 2 then 2 else sp
+
+  -- =========================================================================
+  -- 1. Core POD records (`SentPacketEntry` 48B, `RttEstimator` 48B, `AckOutcome`)
+  -- =========================================================================
+
+  -- | Fixed-stride 48-byte sent-packet metadata entry stored in `SentPacketRing`.
+  #[repr(C, value)]
+  record SentPacketEntry where
+    pkt-pn :: U64
+    pkt-sent-ns :: U64
+    pkt-delivered-bytes :: U64
+    pkt-delivered-ns :: U64
+    pkt-bytes :: U32
+    pkt-pn-space :: U8
+    pkt-ack-eliciting :: U8
+    pkt-in-flight :: U8
+    pkt-is-app-limited :: U8
+    pkt-status :: U8
+    pkt-pad0 :: U8
+    pkt-pad1 :: U16
+    pkt-pad2 :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  sent-packet-entry-empty :: Unit -> SentPacketEntry
+  sent-packet-entry-empty _ = SentPacketEntry 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+  -- | RFC 9002 Section 5 RTT estimator (48-byte POD).
+  #[repr(C, value)]
+  record RttEstimator where
+    rtt-latest-ns :: U64
+    rtt-smoothed-ns :: U64
+    rtt-var-ns :: U64
+    rtt-min-ns :: U64
+    rtt-max-ack-delay-ns :: U64
+    rtt-has-sample :: U8
+    rtt-pad0 :: U8
+    rtt-pad1 :: U16
+    rtt-pad2 :: U32
+
+  -- | Unboxed summary of an ACK or loss-timeout event, feeding BBRv2 / CUBIC
+  -- directly without heap allocation.
+  #[repr(C, value)]
+  record AckOutcome where
+    ack-out-acked-bytes :: U64
+    ack-out-lost-bytes :: U64
+    ack-out-delivered-bytes :: U64
+    ack-out-delivered-ns :: U64
+    ack-out-prior-delivered-bytes :: U64
+    ack-out-prior-delivered-ns :: U64
+    ack-out-prior-sent-ns :: U64
+    ack-out-latest-rtt-ns :: U64
+    ack-out-largest-acked-pn :: U64
+    ack-out-acked-packets :: U32
+    ack-out-lost-packets :: U32
+    ack-out-is-app-limited :: U8
+    ack-out-persistent-congestion :: U8
+    ack-out-pto-fired :: U8
+    ack-out-rtt-updated :: U8
+    ack-out-pad :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-outcome-empty :: Unit -> AckOutcome
+  ack-outcome-empty _ = AckOutcome 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+  -- =========================================================================
+  -- 2. RFC 9002 Section 5 RTT Estimation (#[no-alloc])
+  -- =========================================================================
+
+  -- | Initialize an `RttEstimator` with `kInitialRtt = 333ms`,
+  -- `rttvar = kInitialRtt / 2`, and `max-ack-delay-ns` (defaults to `25ms` if `0`).
+  #[inline(always)]
+  #[no-alloc]
+  rtt-estimator-init :: U64 -> RttEstimator
+  rtt-estimator-init max-ack-delay-ns =
+    let mad = if eq-u64 max-ack-delay-ns 0 then quic-default-max-ack-delay-ns else max-ack-delay-ns in
+    RttEstimator 0 quic-initial-rtt-ns (wrapping-shr-u64 quic-initial-rtt-ns 1) u64-unset mad 0 0 0 0
+
+  -- | Update `RttEstimator` on a new `latest-rtt-ns` sample and `ack-delay-ns`
+  -- per RFC 9002 Section 5.3. When `clamp-ack-delay /= 0`, `ack-delay-ns` is
+  -- clamped to `rtt-max-ack-delay-ns` (for Application Data after confirmation).
+  #[no-alloc]
+  rtt-estimator-update :: RttEstimator -> U64 -> U64 -> U8 -> RttEstimator
+  rtt-estimator-update r latest-rtt ack-delay-ns clamp-ack-delay =
+    if eq-u8 r.rtt-has-sample 0 then
+      let srtt = latest-rtt in
+      let rvar = wrapping-shr-u64 latest-rtt 1 in
+      RttEstimator latest-rtt srtt rvar latest-rtt r.rtt-max-ack-delay-ns 1 0 0 0
+    else
+      let min-r = min-u64 r.rtt-min-ns latest-rtt in
+      let eff-delay = (
+        if ne-u8 clamp-ack-delay 0 then min-u64 ack-delay-ns r.rtt-max-ack-delay-ns
+        else ack-delay-ns) in
+      let adj-rtt = (
+        if ge-u64 latest-rtt (saturating-add-u64 min-r eff-delay) then
+          wrapping-sub-u64 latest-rtt eff-delay
+        else latest-rtt) in
+      let diff = abs-diff-u64 r.rtt-smoothed-ns adj-rtt in
+      let new-var = wrapping-shr-u64 (saturating-add-u64 (saturating-mul-u64 3 r.rtt-var-ns) diff) 2 in
+      let new-srtt = wrapping-shr-u64 (saturating-add-u64 (saturating-mul-u64 7 r.rtt-smoothed-ns) adj-rtt) 3 in
+      RttEstimator latest-rtt new-srtt new-var min-r r.rtt-max-ack-delay-ns 1 0 0 0
+
+  -- | Base RFC 9002 PTO duration (without `2^pto_count` backoff):
+  -- `smoothed_rtt + max(4 * rttvar, kGranularity) + max_ack_delay`.
+  #[inline(always)]
+  #[no-alloc]
+  rtt-estimator-pto-base-ns :: RttEstimator -> U64
+  rtt-estimator-pto-base-ns r =
+    let var4 = saturating-mul-u64 4 r.rtt-var-ns in
+    let var-term = max-u64 var4 quic-granularity-ns in
+    saturating-add-u64 (saturating-add-u64 r.rtt-smoothed-ns var-term) r.rtt-max-ack-delay-ns
+
+  -- | RFC 9002 Section 6.1.2 time-threshold loss delay:
+  -- `max(9/8 * max(latest_rtt, smoothed_rtt), kGranularity)`.
+  #[inline(always)]
+  #[no-alloc]
+  rtt-estimator-loss-delay-ns :: RttEstimator -> U64
+  rtt-estimator-loss-delay-ns r =
+    let base = max-u64 r.rtt-latest-ns r.rtt-smoothed-ns in
+    let scaled = wrapping-shr-u64 (saturating-mul-u64 base 9) 3 in
+    max-u64 scaled quic-granularity-ns
+
+  -- =========================================================================
+  -- 3. Standalone 48-byte-stride SentPacketRing helpers & API
+  -- =========================================================================
+
+  -- Entry stride = 48 bytes (`idx * 48 = (idx << 5) + (idx << 4)`).
+  #[inline(always)]
+  #[no-alloc]
+  entry-offset :: U64 -> U64 -> U64
+  entry-offset entries-off slot =
+    let b = wrapping-add-u64 (wrapping-shl-u64 slot 5) (wrapping-shl-u64 slot 4) in
+    wrapping-add-u64 entries-off b
+
+  #[inline(always)]
+  #[no-alloc]
+  store-entry-at :: U64 -> SentPacketEntry ->{MVar} Unit
+  store-entry-at ea e =
+    let _ = raw-store-u64 (addr-at ea 0) e.pkt-pn in
+    let _ = raw-store-u64 (addr-at ea 8) e.pkt-sent-ns in
+    let _ = raw-store-u64 (addr-at ea 16) e.pkt-delivered-bytes in
+    let _ = raw-store-u64 (addr-at ea 24) e.pkt-delivered-ns in
+    let _ = raw-store-u32 (addr-at ea 32) e.pkt-bytes in
+    let _ = raw-store-u8 (addr-at ea 36) e.pkt-pn-space in
+    let _ = raw-store-u8 (addr-at ea 37) e.pkt-ack-eliciting in
+    let _ = raw-store-u8 (addr-at ea 38) e.pkt-in-flight in
+    let _ = raw-store-u8 (addr-at ea 39) e.pkt-is-app-limited in
+    let _ = raw-store-u8 (addr-at ea 40) e.pkt-status in
+    let _ = raw-store-u8 (addr-at ea 41) 0 in
+    let _ = raw-store-u32 (addr-at ea 44) 0 in
+    ()
+
+  #[inline(always)]
+  #[no-alloc]
+  load-entry-at :: U64 ->{MVar} SentPacketEntry
+  load-entry-at ea =
+    let pn = raw-load-u64 (addr-at ea 0) in
+    let sent-ns = raw-load-u64 (addr-at ea 8) in
+    let del-bytes = raw-load-u64 (addr-at ea 16) in
+    let del-ns = raw-load-u64 (addr-at ea 24) in
+    let nbytes = raw-load-u32 (addr-at ea 32) in
+    let sp = raw-load-u8 (addr-at ea 36) in
+    let ae = raw-load-u8 (addr-at ea 37) in
+    let inf = raw-load-u8 (addr-at ea 38) in
+    let appl = raw-load-u8 (addr-at ea 39) in
+    let st = raw-load-u8 (addr-at ea 40) in
+    SentPacketEntry pn sent-ns del-bytes del-ns nbytes sp ae inf appl st 0 0 0
+
+  -- | Handle to a standalone power-of-two DMA-backed `SentPacketRing`.
+  -- Slab layout:
+  --   +0  head :: U64
+  --   +8  tail :: U64
+  --   +16 cap  :: U32
+  --   +20 mask :: U32
+  --   +24 slab-bytes :: U64
+  --   +64 entries[cap] (48 bytes each)
+  record SentPacketRing where
+    ring-base :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  sr-off-head :: U64
+  sr-off-head = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  sr-off-tail :: U64
+  sr-off-tail = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  sr-off-cap :: U64
+  sr-off-cap = 16
+
+  #[inline(always)]
+  #[no-alloc]
+  sr-off-mask :: U64
+  sr-off-mask = 20
+
+  #[inline(always)]
+  #[no-alloc]
+  sr-off-slab :: U64
+  sr-off-slab = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  sr-off-entries :: U64
+  sr-off-entries = 64
+
+  -- | Allocate a standalone DMA-backed `SentPacketRing` with power-of-two
+  -- capacity `cap` (`>= 16`). Returns `None` on invalid capacity or mmap error.
+  sent-ring-new :: U32 ->{IO, MVar} Option SentPacketRing
+  sent-ring-new cap =
+    if not (is-pow2-u32 cap) then None
+    else
+      let raw-bytes = wrapping-add-u64 sr-off-entries (wrapping-mul-u64 (u32-to-u64 cap) 48) in
+      let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc aligned 4096 in
+      if eq-u64 base 0 then None
+      else
+        let _ = raw-store-u64 (addr-at base sr-off-head) 0 in
+        let _ = raw-store-u64 (addr-at base sr-off-tail) 0 in
+        let _ = raw-store-u32 (addr-at base sr-off-cap) cap in
+        let _ = raw-store-u32 (addr-at base sr-off-mask) (wrapping-sub-u32 cap 1) in
+        let _ = raw-store-u64 (addr-at base sr-off-slab) aligned in
+        Some (SentPacketRing base)
+
+  sent-ring-destroy :: SentPacketRing ->{IO, MVar} Unit
+  sent-ring-destroy r =
+    if eq-u64 r.ring-base 0 then ()
+    else
+      let sz = raw-load-u64 (addr-at r.ring-base sr-off-slab) in
+      let _ = engine-dma-free r.ring-base sz in
+      ()
+
+  #[inline(always)]
+  #[no-alloc]
+  sent-ring-head :: SentPacketRing ->{MVar} U64
+  sent-ring-head r = raw-load-u64 (addr-at r.ring-base sr-off-head)
+
+  #[inline(always)]
+  #[no-alloc]
+  sent-ring-tail :: SentPacketRing ->{MVar} U64
+  sent-ring-tail r = raw-load-u64 (addr-at r.ring-base sr-off-tail)
+
+  #[inline(always)]
+  #[no-alloc]
+  sent-ring-cap :: SentPacketRing ->{MVar} U32
+  sent-ring-cap r = raw-load-u32 (addr-at r.ring-base sr-off-cap)
+
+  #[inline(always)]
+  #[no-alloc]
+  sent-ring-count :: SentPacketRing ->{MVar} U64
+  sent-ring-count r =
+    let h = raw-load-u64 (addr-at r.ring-base sr-off-head) in
+    let t = raw-load-u64 (addr-at r.ring-base sr-off-tail) in
+    saturating-sub-u64 t h
+
+  #[no-alloc]
+  sent-ring-push :: SentPacketRing -> SentPacketEntry ->{MVar} Bool
+  sent-ring-push r e =
+    let base = r.ring-base in
+    let h = raw-load-u64 (addr-at base sr-off-head) in
+    let t = raw-load-u64 (addr-at base sr-off-tail) in
+    let cap = u32-to-u64 (raw-load-u32 (addr-at base sr-off-cap)) in
+    if ge-u64 (wrapping-sub-u64 t h) cap then b-false
+    else
+      let mask = u32-to-u64 (raw-load-u32 (addr-at base sr-off-mask)) in
+      let slot = bit-and-u64 t mask in
+      let ea = wrapping-add-u64 base (entry-offset sr-off-entries slot) in
+      let _ = store-entry-at ea e in
+      let _ = raw-store-u64 (addr-at base sr-off-tail) (wrapping-add-u64 t 1) in
+      b-true
+
+  #[no-alloc]
+  sent-ring-load :: SentPacketRing -> U64 ->{MVar} SentPacketEntry
+  sent-ring-load r idx =
+    let base = r.ring-base in
+    let mask = u32-to-u64 (raw-load-u32 (addr-at base sr-off-mask)) in
+    let slot = bit-and-u64 idx mask in
+    load-entry-at (wrapping-add-u64 base (entry-offset sr-off-entries slot))
+
+  #[no-alloc]
+  sent-ring-store-status :: SentPacketRing -> U64 -> U8 ->{MVar} Unit
+  sent-ring-store-status r idx st =
+    let base = r.ring-base in
+    let mask = u32-to-u64 (raw-load-u32 (addr-at base sr-off-mask)) in
+    let slot = bit-and-u64 idx mask in
+    let ea = wrapping-add-u64 base (entry-offset sr-off-entries slot) in
+    raw-store-u8 (addr-at ea 40) st
+
+  -- =========================================================================
+  -- 4. RecoveryState DMA Slab Layout & Lifecycle
+  -- =========================================================================
+
+  -- | Handle to an RFC 9002 recovery engine backed by a single DMA slab (8B POD).
+  --
+  -- Slab layout:
+  --   Header (bytes 0..319):
+  --     +0   ring-head            :: U64
+  --     +8   ring-tail            :: U64
+  --     +16  ring-cap             :: U32
+  --     +20  ring-mask            :: U32
+  --     +24  slab-bytes           :: U64
+  --     +32  rtt-latest-ns        :: U64
+  --     +40  rtt-smoothed-ns      :: U64
+  --     +48  rtt-var-ns           :: U64
+  --     +56  rtt-min-ns           :: U64
+  --     +64  rtt-max-ack-delay-ns :: U64
+  --     +72  first-rtt-sample-ns  :: U64
+  --     +80  bytes-in-flight      :: U64
+  --     +88  delivered-bytes      :: U64
+  --     +96  delivered-ns         :: U64
+  --     +104 app-limited-until    :: U64  (delivered_bytes watermark; 0 = not app-limited)
+  --     +112 pto-count            :: U32
+  --     +116 rtt-has-sample       :: U8
+  --     +117 handshake-confirmed  :: U8
+  --     +118 active-space-mask    :: U8   (bitmask of spaces with packets in ring)
+  --     +119 pad                  :: U8
+  --     +120 in-flight-count      :: U64
+  --     +128 largest-acked[3]     :: [U64; 3] (128, 136, 144)
+  --     +152 has-largest-acked[3] :: [U8; 3]  (152, 153, 154)
+  --     +160 loss-time-ns[3]      :: [U64; 3] (160, 168, 176)
+  --     +184 last-ae-sent-ns[3]   :: [U64; 3] (184, 192, 200)
+  --     +208 lost-run-start-ns[3] :: [U64; 3] (208, 216, 224)
+  --     +232 lost-run-end-ns[3]   :: [U64; 3] (232, 240, 248)
+  --     +256 lost-run-count[3]    :: [U32; 3] (256, 260, 264)
+  --     +272 ae-in-flight[3]      :: [U32; 3] (272, 276, 280)
+  --   Entries (bytes 448..):
+  --     +448 entries[cap]        :: [SentPacketEntry; cap] (48 bytes each)
+  record RecoveryState where
+    rec-base :: U64
+
+  #[inline(always)] #[no-alloc] off-head :: U64
+  off-head = 0
+  #[inline(always)] #[no-alloc] off-tail :: U64
+  off-tail = 8
+  #[inline(always)] #[no-alloc] off-cap :: U64
+  off-cap = 16
+  #[inline(always)] #[no-alloc] off-mask :: U64
+  off-mask = 20
+  #[inline(always)] #[no-alloc] off-slab :: U64
+  off-slab = 24
+  #[inline(always)] #[no-alloc] off-rtt-latest :: U64
+  off-rtt-latest = 32
+  #[inline(always)] #[no-alloc] off-rtt-smoothed :: U64
+  off-rtt-smoothed = 40
+  #[inline(always)] #[no-alloc] off-rtt-var :: U64
+  off-rtt-var = 48
+  #[inline(always)] #[no-alloc] off-rtt-min :: U64
+  off-rtt-min = 56
+  #[inline(always)] #[no-alloc] off-rtt-mad :: U64
+  off-rtt-mad = 64
+  #[inline(always)] #[no-alloc] off-first-rtt-ns :: U64
+  off-first-rtt-ns = 72
+  #[inline(always)] #[no-alloc] off-bif :: U64
+  off-bif = 80
+  #[inline(always)] #[no-alloc] off-deliv-bytes :: U64
+  off-deliv-bytes = 88
+  #[inline(always)] #[no-alloc] off-deliv-ns :: U64
+  off-deliv-ns = 96
+  #[inline(always)] #[no-alloc] off-app-lim :: U64
+  off-app-lim = 104
+  #[inline(always)] #[no-alloc] off-pto-cnt :: U64
+  off-pto-cnt = 112
+  #[inline(always)] #[no-alloc] off-rtt-has :: U64
+  off-rtt-has = 116
+  #[inline(always)] #[no-alloc] off-hs-conf :: U64
+  off-hs-conf = 117
+  #[inline(always)] #[no-alloc] off-space-mask :: U64
+  off-space-mask = 118
+  #[inline(always)] #[no-alloc] off-inf-cnt :: U64
+  off-inf-cnt = 120
+  #[inline(always)] #[no-alloc] off-largest-acked :: U64
+  off-largest-acked = 128
+  #[inline(always)] #[no-alloc] off-has-largest-acked :: U64
+  off-has-largest-acked = 152
+  #[inline(always)] #[no-alloc] off-loss-time :: U64
+  off-loss-time = 160
+  #[inline(always)] #[no-alloc] off-last-ae-ns :: U64
+  off-last-ae-ns = 184
+  #[inline(always)] #[no-alloc] off-lost-start :: U64
+  off-lost-start = 208
+  #[inline(always)] #[no-alloc] off-lost-end :: U64
+  off-lost-end = 232
+  #[inline(always)] #[no-alloc] off-lost-cnt :: U64
+  off-lost-cnt = 256
+  #[inline(always)] #[no-alloc] off-ae-inf :: U64
+  off-ae-inf = 272
+  -- Scan scratchpad inside DMA slab (bytes 288..431) so ACK/loss loops carry
+  -- zero `#[repr(value)]` struct locals across tail calls.
+  #[inline(always)] #[no-alloc] sc-acked-bytes :: U64
+  sc-acked-bytes = 288
+  #[inline(always)] #[no-alloc] sc-lost-bytes :: U64
+  sc-lost-bytes = 296
+  #[inline(always)] #[no-alloc] sc-max-ack-pn :: U64
+  sc-max-ack-pn = 304
+  #[inline(always)] #[no-alloc] sc-max-ack-sent :: U64
+  sc-max-ack-sent = 312
+  #[inline(always)] #[no-alloc] sc-prior-db :: U64
+  sc-prior-db = 320
+  #[inline(always)] #[no-alloc] sc-prior-dn :: U64
+  sc-prior-dn = 328
+  #[inline(always)] #[no-alloc] sc-prior-sn :: U64
+  sc-prior-sn = 336
+  #[inline(always)] #[no-alloc] sc-next-lt :: U64
+  sc-next-lt = 344
+  #[inline(always)] #[no-alloc] sc-min-lost :: U64
+  sc-min-lost = 352
+  #[inline(always)] #[no-alloc] sc-max-lost :: U64
+  sc-max-lost = 360
+  #[inline(always)] #[no-alloc] sc-acked-pkts :: U64
+  sc-acked-pkts = 368
+  #[inline(always)] #[no-alloc] sc-lost-pkts :: U64
+  sc-lost-pkts = 372
+  #[inline(always)] #[no-alloc] sc-lost-elig :: U64
+  sc-lost-elig = 376
+  #[inline(always)] #[no-alloc] sc-max-ack-ae :: U64
+  sc-max-ack-ae = 380
+  #[inline(always)] #[no-alloc] sc-has-max-ack :: U64
+  sc-has-max-ack = 381
+  #[inline(always)] #[no-alloc] sc-has-ae-acked :: U64
+  sc-has-ae-acked = 382
+  #[inline(always)] #[no-alloc] sc-prior-al :: U64
+  sc-prior-al = 383
+  #[inline(always)] #[no-alloc] sc-has-prior :: U64
+  sc-has-prior = 384
+  -- Loop-invariant scan parameters (bytes 392..447) so `ack-pass-loop` and
+  -- `loss-pass-loop` stay within 4 register arguments for `tailcc`.
+  #[inline(always)] #[no-alloc] sc-p-largest :: U64
+  sc-p-largest = 392
+  #[inline(always)] #[no-alloc] sc-p-first-range :: U64
+  sc-p-first-range = 400
+  #[inline(always)] #[no-alloc] sc-p-ranges-addr :: U64
+  sc-p-ranges-addr = 408
+  #[inline(always)] #[no-alloc] sc-p-loss-delay :: U64
+  sc-p-loss-delay = 416
+  #[inline(always)] #[no-alloc] sc-p-lost-send :: U64
+  sc-p-lost-send = 424
+  #[inline(always)] #[no-alloc] sc-p-first-rtt :: U64
+  sc-p-first-rtt = 432
+  #[inline(always)] #[no-alloc] sc-p-range-cnt :: U64
+  sc-p-range-cnt = 440
+  #[inline(always)] #[no-alloc] sc-p-sp :: U64
+  sc-p-sp = 444
+  #[inline(always)] #[no-alloc] sc-p-single-sp :: U64
+  sc-p-single-sp = 445
+  #[inline(always)] #[no-alloc] sc-p-has-rtt :: U64
+  sc-p-has-rtt = 446
+  #[inline(always)] #[no-alloc] off-entries :: U64
+  off-entries = 512
+
+  #[inline(always)]
+  #[no-alloc]
+  space-u64-off :: U64 -> U8 -> U64
+  space-u64-off base-off sp =
+    wrapping-add-u64 base-off (wrapping-shl-u64 (u8-to-u64 (clamp-space sp)) 3)
+
+  #[inline(always)]
+  #[no-alloc]
+  space-u32-off :: U64 -> U8 -> U64
+  space-u32-off base-off sp =
+    wrapping-add-u64 base-off (wrapping-shl-u64 (u8-to-u64 (clamp-space sp)) 2)
+
+  #[inline(always)]
+  #[no-alloc]
+  space-u8-off :: U64 -> U8 -> U64
+  space-u8-off base-off sp =
+    wrapping-add-u64 base-off (u8-to-u64 (clamp-space sp))
+
+  -- | Allocate a new RFC 9002 `RecoveryState` with a power-of-two
+  -- `SentPacketRing` of `ring-cap` entries (`>= 16`) and explicit
+  -- `max-ack-delay-ns` (defaults to `25ms` when `0`).
+  recovery-new-with-max-ack-delay :: U32 -> U64 ->{IO, MVar} Option RecoveryState
+  recovery-new-with-max-ack-delay ring-cap max-ack-delay-ns =
+    if not (is-pow2-u32 ring-cap) then None
+    else
+      let raw-bytes = wrapping-add-u64 off-entries (wrapping-mul-u64 (u32-to-u64 ring-cap) 48) in
+      let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc aligned 4096 in
+      if eq-u64 base 0 then None
+      else
+        let rtt = rtt-estimator-init max-ack-delay-ns in
+        let _ = raw-store-u64 (addr-at base off-head) 0 in
+        let _ = raw-store-u64 (addr-at base off-tail) 0 in
+        let _ = raw-store-u32 (addr-at base off-cap) ring-cap in
+        let _ = raw-store-u32 (addr-at base off-mask) (wrapping-sub-u32 ring-cap 1) in
+        let _ = raw-store-u64 (addr-at base off-slab) aligned in
+        let _ = raw-store-u64 (addr-at base off-rtt-latest) rtt.rtt-latest-ns in
+        let _ = raw-store-u64 (addr-at base off-rtt-smoothed) rtt.rtt-smoothed-ns in
+        let _ = raw-store-u64 (addr-at base off-rtt-var) rtt.rtt-var-ns in
+        let _ = raw-store-u64 (addr-at base off-rtt-min) rtt.rtt-min-ns in
+        let _ = raw-store-u64 (addr-at base off-rtt-mad) rtt.rtt-max-ack-delay-ns in
+        let _ = raw-store-u64 (addr-at base off-first-rtt-ns) 0 in
+        let _ = raw-store-u64 (addr-at base off-bif) 0 in
+        let _ = raw-store-u64 (addr-at base off-deliv-bytes) 0 in
+        let _ = raw-store-u64 (addr-at base off-deliv-ns) 0 in
+        let _ = raw-store-u64 (addr-at base off-app-lim) 0 in
+        let _ = raw-store-u32 (addr-at base off-pto-cnt) 0 in
+        let _ = raw-store-u8 (addr-at base off-rtt-has) 0 in
+        let _ = raw-store-u8 (addr-at base off-hs-conf) 0 in
+        let _ = raw-store-u8 (addr-at base off-space-mask) 0 in
+        let _ = raw-store-u64 (addr-at base off-inf-cnt) 0 in
+        Some (RecoveryState base)
+
+  -- | Allocate a new RFC 9002 `RecoveryState` with default `max_ack_delay = 25ms`.
+  recovery-new :: U32 ->{IO, MVar} Option RecoveryState
+  recovery-new ring-cap = recovery-new-with-max-ack-delay ring-cap quic-default-max-ack-delay-ns
+
+  -- | Release the DMA slab owned by `rec`.
+  recovery-destroy :: RecoveryState ->{IO, MVar} Unit
+  recovery-destroy rec =
+    if eq-u64 rec.rec-base 0 then ()
+    else
+      let sz = raw-load-u64 (addr-at rec.rec-base off-slab) in
+      let _ = engine-dma-free rec.rec-base sz in
+      ()
+
+  -- =========================================================================
+  -- 5. Accessors & configuration (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  load-rtt :: U64 ->{MVar} RttEstimator
+  load-rtt base =
+    RttEstimator
+      (raw-load-u64 (addr-at base off-rtt-latest))
+      (raw-load-u64 (addr-at base off-rtt-smoothed))
+      (raw-load-u64 (addr-at base off-rtt-var))
+      (raw-load-u64 (addr-at base off-rtt-min))
+      (raw-load-u64 (addr-at base off-rtt-mad))
+      (raw-load-u8 (addr-at base off-rtt-has))
+      0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  store-rtt :: U64 -> RttEstimator ->{MVar} Unit
+  store-rtt base r =
+    let _ = raw-store-u64 (addr-at base off-rtt-latest) r.rtt-latest-ns in
+    let _ = raw-store-u64 (addr-at base off-rtt-smoothed) r.rtt-smoothed-ns in
+    let _ = raw-store-u64 (addr-at base off-rtt-var) r.rtt-var-ns in
+    let _ = raw-store-u64 (addr-at base off-rtt-min) r.rtt-min-ns in
+    let _ = raw-store-u64 (addr-at base off-rtt-mad) r.rtt-max-ack-delay-ns in
+    let _ = raw-store-u8 (addr-at base off-rtt-has) r.rtt-has-sample in
+    ()
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-rtt :: RecoveryState ->{MVar} RttEstimator
+  recovery-rtt rec = load-rtt rec.rec-base
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-bytes-in-flight :: RecoveryState ->{MVar} U64
+  recovery-bytes-in-flight rec = raw-load-u64 (addr-at rec.rec-base off-bif)
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-in-flight-count :: RecoveryState ->{MVar} U64
+  recovery-in-flight-count rec = raw-load-u64 (addr-at rec.rec-base off-inf-cnt)
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-pto-count :: RecoveryState ->{MVar} U32
+  recovery-pto-count rec = raw-load-u32 (addr-at rec.rec-base off-pto-cnt)
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-delivered-bytes :: RecoveryState ->{MVar} U64
+  recovery-delivered-bytes rec = raw-load-u64 (addr-at rec.rec-base off-deliv-bytes)
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-delivered-ns :: RecoveryState ->{MVar} U64
+  recovery-delivered-ns rec = raw-load-u64 (addr-at rec.rec-base off-deliv-ns)
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-largest-acked-pn :: RecoveryState -> U8 ->{MVar} U64
+  recovery-largest-acked-pn rec sp =
+    raw-load-u64 (addr-at rec.rec-base (space-u64-off off-largest-acked sp))
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-is-app-limited :: RecoveryState ->{MVar} Bool
+  recovery-is-app-limited rec =
+    let lim = raw-load-u64 (addr-at rec.rec-base off-app-lim) in
+    if eq-u64 lim 0 then b-false
+    else lt-u64 (raw-load-u64 (addr-at rec.rec-base off-deliv-bytes)) lim
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-set-handshake-confirmed :: RecoveryState -> U8 ->{MVar} Unit
+  recovery-set-handshake-confirmed rec confirmed =
+    raw-store-u8 (addr-at rec.rec-base off-hs-conf) (if ne-u8 confirmed 0 then 1 else 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-set-max-ack-delay-ns :: RecoveryState -> U64 ->{MVar} Unit
+  recovery-set-max-ack-delay-ns rec mad-ns =
+    raw-store-u64 (addr-at rec.rec-base off-rtt-mad) mad-ns
+
+  -- | Mark the connection as application-limited until all currently in-flight
+  -- bytes have been delivered (BBRv2 delivery-rate estimation).
+  #[inline(always)]
+  #[no-alloc]
+  recovery-set-app-limited :: RecoveryState ->{MVar} Unit
+  recovery-set-app-limited rec =
+    let base = rec.rec-base in
+    let deliv = raw-load-u64 (addr-at base off-deliv-bytes) in
+    let bif = raw-load-u64 (addr-at base off-bif) in
+    let app-mark = saturating-add-u64 deliv (if gt-u64 bif 0 then bif else 1) in
+    raw-store-u64 (addr-at base off-app-lim) app-mark
+
+  -- =========================================================================
+  -- 6. Packet Send Tracking (RFC 9002 Appendix A.5 + BBR delivery snapshot)
+  -- =========================================================================
+
+  -- | Record transmission of a QUIC packet in `pn-space` (`0`=Initial,
+  -- `1`=Handshake, `2`=AppData) of `nbytes` at `sent-ns`.
+  -- Returns `True` on success, or `False` if the `SentPacketRing` is full.
+  #[no-alloc]
+  recovery-on-packet-sent :: RecoveryState -> U8 -> U64 -> U32 -> U64 -> U8 -> U8 ->{MVar} Bool
+  recovery-on-packet-sent rec pn-space pn nbytes sent-ns ack-eliciting in-flight =
+    let base = rec.rec-base in
+    let sp = clamp-space pn-space in
+    let h = raw-load-u64 (addr-at base off-head) in
+    let t = raw-load-u64 (addr-at base off-tail) in
+    let cap = u32-to-u64 (raw-load-u32 (addr-at base off-cap)) in
+    if ge-u64 (wrapping-sub-u64 t h) cap then b-false
+    else
+      let bif = raw-load-u64 (addr-at base off-bif) in
+      -- When starting a fresh flight from idle (bytes_in_flight == 0), anchor
+      -- delivered_ns to sent_ns for accurate BBR delivery-rate sampling.
+      let deliv-ns0 = raw-load-u64 (addr-at base off-deliv-ns) in
+      let deliv-ns = (
+        if eq-u64 bif 0 then
+          let _ = raw-store-u64 (addr-at base off-deliv-ns) sent-ns in
+          sent-ns
+        else deliv-ns0) in
+      let deliv-bytes = raw-load-u64 (addr-at base off-deliv-bytes) in
+      let app-lim-w = raw-load-u64 (addr-at base off-app-lim) in
+      let is-appl = if both (ne-u64 app-lim-w 0) (lt-u64 deliv-bytes app-lim-w) then (1 :: U8) else (0 :: U8) in
+      let ae = if ne-u8 ack-eliciting 0 then (1 :: U8) else (0 :: U8) in
+      let inf = if ne-u8 in-flight 0 then (1 :: U8) else (0 :: U8) in
+      let mask = u32-to-u64 (raw-load-u32 (addr-at base off-mask)) in
+      let slot = bit-and-u64 t mask in
+      let ea = wrapping-add-u64 base (entry-offset off-entries slot) in
+      let entry = SentPacketEntry pn sent-ns deliv-bytes deliv-ns nbytes sp ae inf is-appl pkt-status-in-flight 0 0 0 in
+      let _ = store-entry-at ea entry in
+      let _ = raw-store-u64 (addr-at base off-tail) (wrapping-add-u64 t 1) in
+      let sp-bit = wrapping-shl-u8 1 (u8-to-u32 sp) in
+      let old-mask = raw-load-u8 (addr-at base off-space-mask) in
+      let _ = raw-store-u8 (addr-at base off-space-mask) (bit-or-u8 old-mask sp-bit) in
+      let _ = (
+        if ne-u8 inf 0 then
+          let _ = raw-store-u64 (addr-at base off-bif) (saturating-add-u64 bif (u32-to-u64 nbytes)) in
+          let ic = raw-load-u64 (addr-at base off-inf-cnt) in
+          raw-store-u64 (addr-at base off-inf-cnt) (wrapping-add-u64 ic 1)
+        else ()) in
+      let _ = (
+        if ne-u8 ae 0 then
+          let _ = raw-store-u64 (addr-at base (space-u64-off off-last-ae-ns sp)) sent-ns in
+          let ae-c = raw-load-u32 (addr-at base (space-u32-off off-ae-inf sp)) in
+          raw-store-u32 (addr-at base (space-u32-off off-ae-inf sp)) (wrapping-add-u32 ae-c 1)
+        else ()) in
+      b-true
+
+  -- =========================================================================
+  -- 7. Ring compaction, ACK range matching, & RFC 9002 Loss Detection
+  -- =========================================================================
+
+  -- Advance `ring-head` past leading entries that are no longer in-flight.
+  #[no-alloc]
+  advance-ring-head :: U64 -> U64 -> U64 -> U64 ->{MVar} U64
+  advance-ring-head base idx tail mask =
+    if ge-u64 idx tail then idx
+    else
+      let slot = bit-and-u64 idx mask in
+      let ea = wrapping-add-u64 base (entry-offset off-entries slot) in
+      let st = raw-load-u8 (addr-at ea 40) in
+      if eq-u8 st pkt-status-in-flight then idx
+      else advance-ring-head base (wrapping-add-u64 idx 1) tail mask
+
+  -- Check if packet `pn` falls within the first ACK range `[largest - first-range .. largest]`
+  -- or any additional `(gap, ack-range-len)` range stored in DMA at `ranges-addr`.
+  #[no-alloc]
+  pn-in-extra-ranges :: U64 -> U64 -> I64 -> U32 -> U32 ->{MVar} Bool
+  pn-in-extra-ranges pn prev-smallest ranges-addr count i =
+    if ge-u32 i count then b-false
+    else
+      let off = wrapping-shl-u64 (u32-to-u64 i) 4 in
+      let gap = raw-load-u64 (wrapping-add-i64 ranges-addr (wrapping-u64-to-i64 off)) in
+      let rlen = raw-load-u64 (wrapping-add-i64 ranges-addr (wrapping-u64-to-i64 (wrapping-add-u64 off 8))) in
+      let skip = saturating-add-u64 gap 2 in
+      if lt-u64 prev-smallest skip then b-false
+      else
+        let hi = wrapping-sub-u64 prev-smallest skip in
+        let lo = saturating-sub-u64 hi rlen in
+        if both (ge-u64 pn lo) (le-u64 pn hi) then b-true
+        else if gt-u64 pn hi then b-false
+        else pn-in-extra-ranges pn lo ranges-addr count (wrapping-add-u32 i 1)
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-in-ack-frame :: U64 -> U64 -> U64 -> I64 -> U32 ->{MVar} Bool
+  pn-in-ack-frame pn largest first-range ranges-addr range-count =
+    if gt-u64 pn largest then b-false
+    else
+      let first-lo = saturating-sub-u64 largest first-range in
+      if ge-u64 pn first-lo then b-true
+      else if eq-u32 range-count 0 then b-false
+      else if eq-i64 ranges-addr 0 then b-false
+      else pn-in-extra-ranges pn first-lo ranges-addr range-count 0
+
+  -- Reset the in-slab ACK/loss scan scratchpad before running passes.
+  #[inline(always)]
+  #[no-alloc]
+  reset-scan-scratch :: U64 ->{MVar} Unit
+  reset-scan-scratch base =
+    let _ = raw-store-u64 (addr-at base sc-acked-bytes) 0 in
+    let _ = raw-store-u64 (addr-at base sc-lost-bytes) 0 in
+    let _ = raw-store-u64 (addr-at base sc-max-ack-pn) 0 in
+    let _ = raw-store-u64 (addr-at base sc-max-ack-sent) 0 in
+    let _ = raw-store-u64 (addr-at base sc-prior-db) 0 in
+    let _ = raw-store-u64 (addr-at base sc-prior-dn) 0 in
+    let _ = raw-store-u64 (addr-at base sc-prior-sn) 0 in
+    let _ = raw-store-u64 (addr-at base sc-next-lt) 0 in
+    let _ = raw-store-u64 (addr-at base sc-min-lost) u64-unset in
+    let _ = raw-store-u64 (addr-at base sc-max-lost) 0 in
+    let _ = raw-store-u32 (addr-at base sc-acked-pkts) 0 in
+    let _ = raw-store-u32 (addr-at base sc-lost-pkts) 0 in
+    let _ = raw-store-u32 (addr-at base sc-lost-elig) 0 in
+    let _ = raw-store-u8 (addr-at base sc-max-ack-ae) 0 in
+    let _ = raw-store-u8 (addr-at base sc-has-max-ack) 0 in
+    let _ = raw-store-u8 (addr-at base sc-has-ae-acked) 0 in
+    let _ = raw-store-u8 (addr-at base sc-prior-al) 0 in
+    let _ = raw-store-u8 (addr-at base sc-has-prior) 0 in
+    ()
+
+  -- Pass 1: Acknowledge matching in-flight packets in `sp` and collect the
+  -- largest newly acknowledged packet + BBR delivery-rate sample.
+  -- Kept to 4 register arguments (`base idx tail mask`) so `tailcc` uses zero stack args.
+  #[no-alloc]
+  ack-pass-loop :: U64 -> U64 -> U64 -> U64 ->{MVar} Unit
+  ack-pass-loop base idx tail mask =
+    if ge-u64 idx tail then ()
+    else
+      let slot = bit-and-u64 idx mask in
+      let ea = wrapping-add-u64 base (entry-offset off-entries slot) in
+      let st = raw-load-u8 (addr-at ea 40) in
+      if ne-u8 st pkt-status-in-flight then
+        ack-pass-loop base (wrapping-add-u64 idx 1) tail mask
+      else
+        let sp = raw-load-u8 (addr-at base sc-p-sp) in
+        let p-sp = raw-load-u8 (addr-at ea 36) in
+        if ne-u8 p-sp sp then
+          ack-pass-loop base (wrapping-add-u64 idx 1) tail mask
+        else
+          let largest = raw-load-u64 (addr-at base sc-p-largest) in
+          let single-space = raw-load-u8 (addr-at base sc-p-single-sp) in
+          let pn = raw-load-u64 (addr-at ea 0) in
+          if gt-u64 pn largest then
+            if ne-u8 single-space 0 then ()
+            else ack-pass-loop base (wrapping-add-u64 idx 1) tail mask
+          else
+            let first-range = raw-load-u64 (addr-at base sc-p-first-range) in
+            let ranges-addr = raw-load-i64 (addr-at base sc-p-ranges-addr) in
+            let range-count = raw-load-u32 (addr-at base sc-p-range-cnt) in
+            if pn-in-ack-frame pn largest first-range ranges-addr range-count then
+              let sent-ns = raw-load-u64 (addr-at ea 8) in
+              let p-deliv = raw-load-u64 (addr-at ea 16) in
+              let p-deliv-ns = raw-load-u64 (addr-at ea 24) in
+              let nbytes = raw-load-u32 (addr-at ea 32) in
+              let ae = raw-load-u8 (addr-at ea 37) in
+              let inf = raw-load-u8 (addr-at ea 38) in
+              let appl = raw-load-u8 (addr-at ea 39) in
+              let _ = raw-store-u8 (addr-at ea 40) pkt-status-acked in
+              let _ = (
+                if ne-u8 inf 0 then
+                  let bif = raw-load-u64 (addr-at base off-bif) in
+                  let _ = raw-store-u64 (addr-at base off-bif) (saturating-sub-u64 bif (u32-to-u64 nbytes)) in
+                  let ic = raw-load-u64 (addr-at base off-inf-cnt) in
+                  let _ = raw-store-u64 (addr-at base off-inf-cnt) (saturating-sub-u64 ic 1) in
+                  let ab = raw-load-u64 (addr-at base sc-acked-bytes) in
+                  raw-store-u64 (addr-at base sc-acked-bytes) (saturating-add-u64 ab (u32-to-u64 nbytes))
+                else ()) in
+              let _ = (
+                if ne-u8 ae 0 then
+                  let ae-c = raw-load-u32 (addr-at base (space-u32-off off-ae-inf sp)) in
+                  let _ = raw-store-u32 (addr-at base (space-u32-off off-ae-inf sp)) (saturating-sub-u32 ae-c 1) in
+                  let _ = raw-store-u32 (addr-at base (space-u32-off off-lost-cnt sp)) 0 in
+                  raw-store-u8 (addr-at base sc-has-ae-acked) 1
+                else ()) in
+              let ap = raw-load-u32 (addr-at base sc-acked-pkts) in
+              let _ = raw-store-u32 (addr-at base sc-acked-pkts) (wrapping-add-u32 ap 1) in
+              let has-m = raw-load-u8 (addr-at base sc-has-max-ack) in
+              let cur-mpn = raw-load-u64 (addr-at base sc-max-ack-pn) in
+              let _ = (
+                if if eq-u8 has-m 0 then b-true else gt-u64 pn cur-mpn then
+                  let _ = raw-store-u64 (addr-at base sc-max-ack-pn) pn in
+                  let _ = raw-store-u64 (addr-at base sc-max-ack-sent) sent-ns in
+                  let _ = raw-store-u8 (addr-at base sc-max-ack-ae) ae in
+                  raw-store-u8 (addr-at base sc-has-max-ack) 1
+                else ()) in
+              let has-p = raw-load-u8 (addr-at base sc-has-prior) in
+              let cur-pdb = raw-load-u64 (addr-at base sc-prior-db) in
+              let _ = (
+                if if eq-u8 has-p 0 then b-true else ge-u64 p-deliv cur-pdb then
+                  let _ = raw-store-u64 (addr-at base sc-prior-db) p-deliv in
+                  let _ = raw-store-u64 (addr-at base sc-prior-dn) p-deliv-ns in
+                  let _ = raw-store-u64 (addr-at base sc-prior-sn) sent-ns in
+                  let _ = raw-store-u8 (addr-at base sc-prior-al) appl in
+                  raw-store-u8 (addr-at base sc-has-prior) 1
+                else ()) in
+              ack-pass-loop base (wrapping-add-u64 idx 1) tail mask
+            else
+              ack-pass-loop base (wrapping-add-u64 idx 1) tail mask
+
+  -- Pass 2: RFC 9002 Section 6.1 packet-threshold (kPacketThreshold = 3) and
+  -- time-threshold (max(9/8 * max(latest_rtt, smoothed_rtt), 1ms)) loss detection.
+  -- Kept to 4 register arguments (`base idx tail mask`) so `tailcc` uses zero stack args.
+  #[no-alloc]
+  loss-pass-loop :: U64 -> U64 -> U64 -> U64 ->{MVar} Unit
+  loss-pass-loop base idx tail mask =
+    if ge-u64 idx tail then ()
+    else
+      let slot = bit-and-u64 idx mask in
+      let ea = wrapping-add-u64 base (entry-offset off-entries slot) in
+      let st = raw-load-u8 (addr-at ea 40) in
+      if ne-u8 st pkt-status-in-flight then
+        loss-pass-loop base (wrapping-add-u64 idx 1) tail mask
+      else
+        let sp = raw-load-u8 (addr-at base sc-p-sp) in
+        let p-sp = raw-load-u8 (addr-at ea 36) in
+        if ne-u8 p-sp sp then
+          loss-pass-loop base (wrapping-add-u64 idx 1) tail mask
+        else
+          let largest-acked = raw-load-u64 (addr-at base sc-p-largest) in
+          let single-space = raw-load-u8 (addr-at base sc-p-single-sp) in
+          let pn = raw-load-u64 (addr-at ea 0) in
+          if gt-u64 pn largest-acked then
+            if ne-u8 single-space 0 then ()
+            else loss-pass-loop base (wrapping-add-u64 idx 1) tail mask
+          else
+            let sent-ns = raw-load-u64 (addr-at ea 8) in
+            let loss-delay = raw-load-u64 (addr-at base sc-p-loss-delay) in
+            let lost-send-time = raw-load-u64 (addr-at base sc-p-lost-send) in
+            let by-pkt = le-u64 (saturating-add-u64 pn quic-packet-threshold) largest-acked in
+            let by-time = le-u64 sent-ns lost-send-time in
+            if if by-pkt then b-true else by-time then
+              let nbytes = raw-load-u32 (addr-at ea 32) in
+              let ae = raw-load-u8 (addr-at ea 37) in
+              let inf = raw-load-u8 (addr-at ea 38) in
+              let _ = raw-store-u8 (addr-at ea 40) pkt-status-lost in
+              let _ = (
+                if ne-u8 inf 0 then
+                  let bif = raw-load-u64 (addr-at base off-bif) in
+                  let _ = raw-store-u64 (addr-at base off-bif) (saturating-sub-u64 bif (u32-to-u64 nbytes)) in
+                  let ic = raw-load-u64 (addr-at base off-inf-cnt) in
+                  let _ = raw-store-u64 (addr-at base off-inf-cnt) (saturating-sub-u64 ic 1) in
+                  let lb = raw-load-u64 (addr-at base sc-lost-bytes) in
+                  raw-store-u64 (addr-at base sc-lost-bytes) (saturating-add-u64 lb (u32-to-u64 nbytes))
+                else ()) in
+              let _ = (
+                if ne-u8 ae 0 then
+                  let ae-c = raw-load-u32 (addr-at base (space-u32-off off-ae-inf sp)) in
+                  raw-store-u32 (addr-at base (space-u32-off off-ae-inf sp)) (saturating-sub-u32 ae-c 1)
+                else ()) in
+              let lp = raw-load-u32 (addr-at base sc-lost-pkts) in
+              let _ = raw-store-u32 (addr-at base sc-lost-pkts) (wrapping-add-u32 lp 1) in
+              let has-rtt = raw-load-u8 (addr-at base sc-p-has-rtt) in
+              let first-rtt-ns = raw-load-u64 (addr-at base sc-p-first-rtt) in
+              let pc-elig = both (ne-u8 has-rtt 0) (both (ne-u8 ae 0) (ge-u64 sent-ns first-rtt-ns)) in
+              let _ = (
+                if pc-elig then
+                  let cur-min = raw-load-u64 (addr-at base sc-min-lost) in
+                  let cur-max = raw-load-u64 (addr-at base sc-max-lost) in
+                  let ec = raw-load-u32 (addr-at base sc-lost-elig) in
+                  let _ = raw-store-u64 (addr-at base sc-min-lost) (min-u64 cur-min sent-ns) in
+                  let _ = raw-store-u64 (addr-at base sc-max-lost) (max-u64 cur-max sent-ns) in
+                  raw-store-u32 (addr-at base sc-lost-elig) (wrapping-add-u32 ec 1)
+                else ()) in
+              loss-pass-loop base (wrapping-add-u64 idx 1) tail mask
+            else
+              let cand-lt = saturating-add-u64 sent-ns loss-delay in
+              let cur-lt = raw-load-u64 (addr-at base sc-next-lt) in
+              let new-lt = if eq-u64 cur-lt 0 then cand-lt else min-u64 cur-lt cand-lt in
+              let _ = raw-store-u64 (addr-at base sc-next-lt) new-lt in
+              loss-pass-loop base (wrapping-add-u64 idx 1) tail mask
+
+  -- Update consecutive-loss window and check RFC 9002 Section 7.6 persistent
+  -- congestion (`max_lost_sent - min_lost_sent >= 3 * PTO_base`).
+  #[no-alloc]
+  check-persistent-congestion :: U64 -> U8 -> U64 -> U8 ->{MVar} U8
+  check-persistent-congestion base sp pto-base-ns has-sample =
+    let elig = raw-load-u32 (addr-at base sc-lost-elig) in
+    if eq-u32 elig 0 then 0
+    else if eq-u8 has-sample 0 then 0
+    else
+      let min-lost = raw-load-u64 (addr-at base sc-min-lost) in
+      let max-lost = raw-load-u64 (addr-at base sc-max-lost) in
+      let prev-cnt = raw-load-u32 (addr-at base (space-u32-off off-lost-cnt sp)) in
+      let prev-start = raw-load-u64 (addr-at base (space-u64-off off-lost-start sp)) in
+      let prev-end = raw-load-u64 (addr-at base (space-u64-off off-lost-end sp)) in
+      let run-start = if eq-u32 prev-cnt 0 then min-lost else min-u64 prev-start min-lost in
+      let run-end = if eq-u32 prev-cnt 0 then max-lost else max-u64 prev-end max-lost in
+      let run-cnt = wrapping-add-u32 prev-cnt elig in
+      let _ = raw-store-u64 (addr-at base (space-u64-off off-lost-start sp)) run-start in
+      let _ = raw-store-u64 (addr-at base (space-u64-off off-lost-end sp)) run-end in
+      let _ = raw-store-u32 (addr-at base (space-u32-off off-lost-cnt sp)) run-cnt in
+      if lt-u32 run-cnt 2 then 0
+      else
+        let span = saturating-sub-u64 run-end run-start in
+        let pc-period = saturating-mul-u64 pto-base-ns quic-persistent-congestion-threshold in
+        if ge-u64 span pc-period then
+          let _ = raw-store-u32 (addr-at base (space-u32-off off-lost-cnt sp)) 0 in
+          1
+        else 0
+
+  -- Shared RFC 9002 ACK + Loss Detection entry point supporting both single-range
+  -- and multi-range DMA ACK frames (`AckMap.ack-map-extract-ranges-raw` format).
+  #[no-alloc]
+  recovery-on-ack-ranges-received :: RecoveryState -> U8 -> U64 -> U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} AckOutcome
+  recovery-on-ack-ranges-received rec pn-space largest-acked first-ack-range ranges-addr range-count ack-delay-ns now-ns =
+    let base = rec.rec-base in
+    let sp = clamp-space pn-space in
+    let h0 = raw-load-u64 (addr-at base off-head) in
+    let t0 = raw-load-u64 (addr-at base off-tail) in
+    let mask = u32-to-u64 (raw-load-u32 (addr-at base off-mask)) in
+    let sp-bit = wrapping-shl-u8 1 (u8-to-u32 sp) in
+    let single-sp = if eq-u8 (raw-load-u8 (addr-at base off-space-mask)) sp-bit then (1 :: U8) else (0 :: U8) in
+    -- Update largest_acked[sp]
+    let had-la = raw-load-u8 (addr-at base (space-u8-off off-has-largest-acked sp)) in
+    let prev-la = raw-load-u64 (addr-at base (space-u64-off off-largest-acked sp)) in
+    let eff-la = if eq-u8 had-la 0 then largest-acked else max-u64 prev-la largest-acked in
+    let _ = raw-store-u64 (addr-at base (space-u64-off off-largest-acked sp)) eff-la in
+    let _ = raw-store-u8 (addr-at base (space-u8-off off-has-largest-acked sp)) 1 in
+    -- Pass 1: Acknowledge packets in ACK ranges
+    let _ = reset-scan-scratch base in
+    let _ = raw-store-u8 (addr-at base sc-p-sp) sp in
+    let _ = raw-store-u8 (addr-at base sc-p-single-sp) single-sp in
+    let _ = raw-store-u64 (addr-at base sc-p-largest) largest-acked in
+    let _ = raw-store-u64 (addr-at base sc-p-first-range) first-ack-range in
+    let _ = raw-store-i64 (addr-at base sc-p-ranges-addr) ranges-addr in
+    let _ = raw-store-u32 (addr-at base sc-p-range-cnt) range-count in
+    let _ = ack-pass-loop base h0 t0 mask in
+    -- Update cumulative delivered bytes & timestamp
+    let acked-bytes = raw-load-u64 (addr-at base sc-acked-bytes) in
+    let acked-pkts = raw-load-u32 (addr-at base sc-acked-pkts) in
+    let deliv0 = raw-load-u64 (addr-at base off-deliv-bytes) in
+    let deliv1 = saturating-add-u64 deliv0 acked-bytes in
+    let _ = raw-store-u64 (addr-at base off-deliv-bytes) deliv1 in
+    let deliv-ns1 = (
+      if gt-u32 acked-pkts 0 then
+        let _ = raw-store-u64 (addr-at base off-deliv-ns) now-ns in
+        now-ns
+      else raw-load-u64 (addr-at base off-deliv-ns)) in
+    -- Clear app-limited if we delivered past the watermark
+    let app-lim-w = raw-load-u64 (addr-at base off-app-lim) in
+    let _ = (
+      if both (ne-u64 app-lim-w 0) (ge-u64 deliv1 app-lim-w) then
+        raw-store-u64 (addr-at base off-app-lim) 0
+      else ()) in
+    -- Update RTT when largest newly acknowledged == largest_acked AND at least one
+    -- newly acknowledged packet is ack-eliciting (RFC 9002 Section 5.1)
+    let has-max-ack = raw-load-u8 (addr-at base sc-has-max-ack) in
+    let max-ack-pn = raw-load-u64 (addr-at base sc-max-ack-pn) in
+    let max-ack-sent = raw-load-u64 (addr-at base sc-max-ack-sent) in
+    let has-ae-acked = raw-load-u8 (addr-at base sc-has-ae-acked) in
+    let can-rtt = both (ne-u8 has-max-ack 0) (both (eq-u64 max-ack-pn largest-acked) (ne-u8 has-ae-acked 0)) in
+    let latest-rtt-sample = if can-rtt then saturating-sub-u64 now-ns max-ack-sent else 0 in
+    let rtt-updated = if can-rtt then (1 :: U8) else (0 :: U8) in
+    let _ = (
+      if can-rtt then
+        let had-sample = raw-load-u8 (addr-at base off-rtt-has) in
+        let _ = (
+          if eq-u8 had-sample 0 then raw-store-u64 (addr-at base off-first-rtt-ns) now-ns
+          else ()) in
+        let clamp-delay = if eq-u8 sp pn-space-app then (1 :: U8) else (0 :: U8) in
+        let r-new = rtt-estimator-update (load-rtt base) latest-rtt-sample ack-delay-ns clamp-delay in
+        store-rtt base r-new
+      else ()) in
+    -- Reset PTO count on newly acknowledged packets (RFC 9002 Appendix A.7)
+    let _ = (
+      if gt-u32 acked-pkts 0 then
+        raw-store-u32 (addr-at base off-pto-cnt) 0
+      else ()) in
+    -- Advance head before loss pass to skip already-acked leading slots
+    let h1 = advance-ring-head base h0 t0 mask in
+    let _ = raw-store-u64 (addr-at base off-head) h1 in
+    -- Pass 2: RFC 9002 Loss Detection
+    let rtt1 = load-rtt base in
+    let loss-delay = rtt-estimator-loss-delay-ns rtt1 in
+    let pto-base = rtt-estimator-pto-base-ns rtt1 in
+    let has-rtt1 = raw-load-u8 (addr-at base off-rtt-has) in
+    let lost-send-time = saturating-sub-u64 now-ns loss-delay in
+    let first-rtt-ns = raw-load-u64 (addr-at base off-first-rtt-ns) in
+    let _ = raw-store-u64 (addr-at base sc-p-largest) eff-la in
+    let _ = raw-store-u64 (addr-at base sc-p-loss-delay) loss-delay in
+    let _ = raw-store-u64 (addr-at base sc-p-lost-send) lost-send-time in
+    let _ = raw-store-u64 (addr-at base sc-p-first-rtt) first-rtt-ns in
+    let _ = raw-store-u8 (addr-at base sc-p-has-rtt) has-rtt1 in
+    let _ = loss-pass-loop base h1 t0 mask in
+    let next-lt = raw-load-u64 (addr-at base sc-next-lt) in
+    let _ = raw-store-u64 (addr-at base (space-u64-off off-loss-time sp)) next-lt in
+    let pc = check-persistent-congestion base sp pto-base has-rtt1 in
+    -- Compact head past newly-lost leading slots
+    let h2 = advance-ring-head base h1 t0 mask in
+    let _ = raw-store-u64 (addr-at base off-head) h2 in
+    AckOutcome
+      acked-bytes
+      (raw-load-u64 (addr-at base sc-lost-bytes))
+      deliv1
+      deliv-ns1
+      (raw-load-u64 (addr-at base sc-prior-db))
+      (raw-load-u64 (addr-at base sc-prior-dn))
+      (raw-load-u64 (addr-at base sc-prior-sn))
+      latest-rtt-sample
+      eff-la
+      acked-pkts
+      (raw-load-u32 (addr-at base sc-lost-pkts))
+      (raw-load-u8 (addr-at base sc-prior-al))
+      pc
+      0
+      rtt-updated
+      0
+
+  -- | Convenience RFC 9002 ACK handler for a contiguous ACK range
+  -- `[largest-acked - first-ack-range .. largest-acked]`.
+  #[inline(always)]
+  #[no-alloc]
+  recovery-on-ack-received :: RecoveryState -> U8 -> U64 -> U64 -> U64 -> U64 ->{MVar} AckOutcome
+  recovery-on-ack-received rec pn-space largest-acked first-ack-range ack-delay-ns now-ns =
+    recovery-on-ack-ranges-received rec pn-space largest-acked first-ack-range 0 0 ack-delay-ns now-ns
+
+  -- =========================================================================
+  -- 8. RFC 9002 Section 6.2 PTO & Loss Detection Timer
+  -- =========================================================================
+
+  -- | Current PTO duration in nanoseconds:
+  -- `(smoothed_rtt + max(4 * rttvar, 1ms) + max_ack_delay) << min(pto_count, 16)`.
+  #[no-alloc]
+  recovery-pto-duration-ns :: RecoveryState ->{MVar} U64
+  recovery-pto-duration-ns rec =
+    let base = rec.rec-base in
+    let rtt = load-rtt base in
+    let pto-base = rtt-estimator-pto-base-ns rtt in
+    let cnt = raw-load-u32 (addr-at base off-pto-cnt) in
+    let shift = if gt-u32 cnt 16 then (16 :: U32) else cnt in
+    let mul = wrapping-shl-u64 1 shift in
+    saturating-mul-u64 pto-base mul
+
+  -- | Return the earliest active time-threshold loss deadline across all three
+  -- packet number spaces (in nanoseconds), or `0` if no loss timer is armed.
+  #[no-alloc]
+  recovery-loss-time-ns :: RecoveryState ->{MVar} U64
+  recovery-loss-time-ns rec =
+    let base = rec.rec-base in
+    let t0 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-initial)) in
+    let t1 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-handshake)) in
+    let t2 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-app)) in
+    let m01 = if eq-u64 t0 0 then t1 else if eq-u64 t1 0 then t0 else min-u64 t0 t1 in
+    if eq-u64 m01 0 then t2 else if eq-u64 t2 0 then m01 else min-u64 m01 t2
+
+  -- | Return the earliest RFC 9002 loss-detection OR PTO timeout timestamp
+  -- (nanoseconds), or `0` if no ack-eliciting packets are in flight.
+  #[no-alloc]
+  recovery-next-timeout-ns :: RecoveryState ->{MVar} U64
+  recovery-next-timeout-ns rec =
+    let lt = recovery-loss-time-ns rec in
+    if ne-u64 lt 0 then lt
+    else
+      let base = rec.rec-base in
+      let ae0 = raw-load-u32 (addr-at base (space-u32-off off-ae-inf pn-space-initial)) in
+      let ae1 = raw-load-u32 (addr-at base (space-u32-off off-ae-inf pn-space-handshake)) in
+      let ae2 = raw-load-u32 (addr-at base (space-u32-off off-ae-inf pn-space-app)) in
+      let pto = recovery-pto-duration-ns rec in
+      let d0 = if gt-u32 ae0 0 then saturating-add-u64 (raw-load-u64 (addr-at base (space-u64-off off-last-ae-ns pn-space-initial))) pto else 0 in
+      let d1 = if gt-u32 ae1 0 then saturating-add-u64 (raw-load-u64 (addr-at base (space-u64-off off-last-ae-ns pn-space-handshake))) pto else 0 in
+      let d2 = if gt-u32 ae2 0 then saturating-add-u64 (raw-load-u64 (addr-at base (space-u64-off off-last-ae-ns pn-space-app))) pto else 0 in
+      let m01 = if eq-u64 d0 0 then d1 else if eq-u64 d1 0 then d0 else min-u64 d0 d1 in
+      if eq-u64 m01 0 then d2 else if eq-u64 d2 0 then m01 else min-u64 m01 d2
+
+  -- Pick which space has the earliest active loss time (`3` = none).
+  #[inline(always)]
+  #[no-alloc]
+  earliest-loss-space :: U64 ->{MVar} U8
+  earliest-loss-space base =
+    let t0 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-initial)) in
+    let t1 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-handshake)) in
+    let t2 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-app)) in
+    let best-s0 = if ne-u64 t0 0 then (0 :: U8) else (3 :: U8) in
+    let best-t0 = t0 in
+    let take1 = both (ne-u64 t1 0) (if eq-u8 best-s0 3 then b-true else lt-u64 t1 best-t0) in
+    let best-s1 = if take1 then (1 :: U8) else best-s0 in
+    let best-t1 = if take1 then t1 else best-t0 in
+    let take2 = both (ne-u64 t2 0) (if eq-u8 best-s1 3 then b-true else lt-u64 t2 best-t1) in
+    if take2 then (2 :: U8) else best-s1
+
+  -- | Handle expiration of the RFC 9002 loss-detection / PTO timer at `now-ns`.
+  --
+  -- * If a time-threshold loss deadline is active, runs time-threshold loss
+  --   detection for that space and returns lost bytes/packets and persistent
+  --   congestion status.
+  -- * Otherwise (PTO fired), increments `pto_count` and sets
+  --   `ack-out-pto-fired = 1` so the caller transmits 1-2 probe packets.
+  #[no-alloc]
+  recovery-on-loss-timeout :: RecoveryState -> U64 ->{MVar} AckOutcome
+  recovery-on-loss-timeout rec now-ns =
+    let base = rec.rec-base in
+    let sp = earliest-loss-space base in
+    if lt-u8 sp 3 then
+      let rtt = load-rtt base in
+      let h0 = raw-load-u64 (addr-at base off-head) in
+      let t0 = raw-load-u64 (addr-at base off-tail) in
+      let mask = u32-to-u64 (raw-load-u32 (addr-at base off-mask)) in
+      let sp-bit = wrapping-shl-u8 1 (u8-to-u32 sp) in
+      let single-sp = if eq-u8 (raw-load-u8 (addr-at base off-space-mask)) sp-bit then (1 :: U8) else (0 :: U8) in
+      let la = raw-load-u64 (addr-at base (space-u64-off off-largest-acked sp)) in
+      let loss-delay = rtt-estimator-loss-delay-ns rtt in
+      let pto-base = rtt-estimator-pto-base-ns rtt in
+      let has-rtt = raw-load-u8 (addr-at base off-rtt-has) in
+      let lost-send-time = saturating-sub-u64 now-ns loss-delay in
+      let first-rtt-ns = raw-load-u64 (addr-at base off-first-rtt-ns) in
+      let _ = reset-scan-scratch base in
+      let _ = raw-store-u8 (addr-at base sc-p-sp) sp in
+      let _ = raw-store-u8 (addr-at base sc-p-single-sp) single-sp in
+      let _ = raw-store-u64 (addr-at base sc-p-largest) la in
+      let _ = raw-store-u64 (addr-at base sc-p-loss-delay) loss-delay in
+      let _ = raw-store-u64 (addr-at base sc-p-lost-send) lost-send-time in
+      let _ = raw-store-u64 (addr-at base sc-p-first-rtt) first-rtt-ns in
+      let _ = raw-store-u8 (addr-at base sc-p-has-rtt) has-rtt in
+      let _ = loss-pass-loop base h0 t0 mask in
+      let _ = raw-store-u64 (addr-at base (space-u64-off off-loss-time sp)) (raw-load-u64 (addr-at base sc-next-lt)) in
+      let pc = check-persistent-congestion base sp pto-base has-rtt in
+      let h1 = advance-ring-head base h0 t0 mask in
+      let _ = raw-store-u64 (addr-at base off-head) h1 in
+      AckOutcome
+        0
+        (raw-load-u64 (addr-at base sc-lost-bytes))
+        (raw-load-u64 (addr-at base off-deliv-bytes))
+        (raw-load-u64 (addr-at base off-deliv-ns))
+        0 0 0 0 la
+        0
+        (raw-load-u32 (addr-at base sc-lost-pkts))
+        0
+        pc
+        0
+        0
+        0
+    else
+      -- PTO fired: exponential backoff (`pto_count += 1`).
+      let cnt = raw-load-u32 (addr-at base off-pto-cnt) in
+      let _ = raw-store-u32 (addr-at base off-pto-cnt) (saturating-add-u32 cnt 1) in
+      AckOutcome
+        0 0
+        (raw-load-u64 (addr-at base off-deliv-bytes))
+        (raw-load-u64 (addr-at base off-deliv-ns))
+        0 0 0 0 0
+        0 0 0 0
+        1
+        0 0

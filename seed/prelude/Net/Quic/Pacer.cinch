@@ -1,0 +1,285 @@
+-- | Zero-allocation token-bucket & `SO_TXTIME` (EDT) QUIC packet pacer
+-- (`PacerState`) with `UDP_GSO` burst coalescing.
+--
+-- Memory & performance contract:
+--   * `PacerState` is a 48-byte `#[repr(C, value)]` POD record with zero heap
+--     allocations and zero RC traffic (`#[no-alloc]`).
+--   * Uses exact `U128` fixed-point token replenishment with a sub-byte
+--     nanosecond remainder (`pacer-frac-num`) so pacing rate matches target
+--     bytes/sec without rounding drift from 1 Mbps through 100+ Gbps.
+--   * Supports burst coalescing up to `max-burst-bytes = 10 * mtu` for
+--     `UDP_GSO` while clamping ahead-of-time `SO_TXTIME` release timestamps
+--     to `now + max-ahead-ns`.
+module Net.Quic.Pacer where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Wide
+  import Engine.Types
+
+  -- Core POD type & defaults
+  export PacerState
+  export pacer-default-burst-packets, pacer-default-max-ahead-ns
+
+  -- Initialization & steady-state #[no-alloc] pacing API
+  export pacer-init, pacer-init-with-burst
+  export pacer-refill, pacer-can-send-now, pacer-burst-budget
+  export pacer-next-send-time-ns, pacer-next-burst-time-ns, pacer-on-packet-sent
+
+  -- Accessors
+  export pacer-tokens-bytes, pacer-mtu, pacer-max-burst-bytes, pacer-max-ahead-ns
+
+  -- =========================================================================
+  -- 0. Constants & #[no-alloc] U128 arithmetic helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  ns-per-sec-u64 :: U64
+  ns-per-sec-u64 = 1000000000
+
+  #[inline(always)]
+  #[no-alloc]
+  ns-per-sec-u128 :: U128
+  ns-per-sec-u128 = 1000000000
+
+  -- | Default GSO burst limit: 10 MTU packets.
+  #[inline(always)]
+  #[no-alloc]
+  pacer-default-burst-packets :: U32
+  pacer-default-burst-packets = 10
+
+  -- | Default `SO_TXTIME` ahead-of-time clamp: 10 ms (10,000,000 ns).
+  #[inline(always)]
+  #[no-alloc]
+  pacer-default-max-ahead-ns :: U64
+  pacer-default-max-ahead-ns = 10000000
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  -- Compute `floor(a * b / denom)` in `U128` without overflow; returns `0` if `denom == 0`.
+  #[inline(always)]
+  #[no-alloc]
+  mul-div-u64 :: U64 -> U64 -> U64 -> U64
+  mul-div-u64 a b denom =
+    let d128 = u64-to-u128 denom in
+    if d128 /= 0 then
+      let num = wrapping-mul-u128 (u64-to-u128 a) (u64-to-u128 b) in
+      saturating-u128-to-u64 (div-u128 num d128)
+    else 0
+
+  -- Compute `ceil(bytes * 1_000_000_000 / rate_bps)` in `U128` without overflow.
+  #[inline(always)]
+  #[no-alloc]
+  bytes-to-ns-ceil :: U64 -> U64 -> U64
+  bytes-to-ns-ceil nbytes rate-bps =
+    if eq-u64 nbytes 0 then 0
+    else
+      let d128 = u64-to-u128 rate-bps in
+      if d128 /= 0 then
+        let num = wrapping-mul-u128 (u64-to-u128 nbytes) 1000000000 in
+        let num-ceil = saturating-add-u128 num (wrapping-sub-u128 d128 1) in
+        saturating-u128-to-u64 (div-u128 num-ceil d128)
+      else 0
+
+  -- =========================================================================
+  -- 1. PacerState POD record (48 bytes)
+  -- =========================================================================
+
+  -- | Zero-allocation token-bucket & `SO_TXTIME` pacer state (48-byte POD).
+  #[repr(C, value)]
+  record PacerState where
+    pacer-next-release :: U64
+    pacer-tokens :: U64
+    pacer-frac-num :: U64
+    pacer-last-update-ns :: U64
+    pacer-max-ahead :: U64
+    pacer-mtu-val :: U32
+    pacer-max-burst :: U32
+
+  -- | Initialize a pacer with `mtu` (bytes), default burst `10 * mtu` for
+  -- `UDP_GSO`, and default `SO_TXTIME` ahead clamp of `10 ms` at `now-ns`.
+  #[inline(always)]
+  #[no-alloc]
+  pacer-init :: U32 -> U64 -> PacerState
+  pacer-init mtu now-ns =
+    let safe-mtu = if lt-u32 mtu 1200 then 1200 else mtu in
+    let max-burst = saturating-mul-u32 safe-mtu pacer-default-burst-packets in
+    PacerState now-ns (u32-to-u64 max-burst) 0 now-ns pacer-default-max-ahead-ns safe-mtu max-burst
+
+  -- | Initialize a pacer with explicit `mtu`, `max-burst-bytes`, `max-ahead-ns`,
+  -- and initial monotonic timestamp `now-ns`.
+  #[inline(always)]
+  #[no-alloc]
+  pacer-init-with-burst :: U32 -> U32 -> U64 -> U64 -> PacerState
+  pacer-init-with-burst mtu max-burst max-ahead-ns now-ns =
+    let safe-mtu = if eq-u32 mtu 0 then 1200 else mtu in
+    let safe-burst = if lt-u32 max-burst safe-mtu then safe-mtu else max-burst in
+    let safe-ahead = if eq-u64 max-ahead-ns 0 then pacer-default-max-ahead-ns else max-ahead-ns in
+    PacerState now-ns (u32-to-u64 safe-burst) 0 now-ns safe-ahead safe-mtu safe-burst
+
+  #[inline(always)]
+  #[no-alloc]
+  pacer-tokens-bytes :: PacerState -> U64
+  pacer-tokens-bytes st = st.pacer-tokens
+
+  #[inline(always)]
+  #[no-alloc]
+  pacer-mtu :: PacerState -> U32
+  pacer-mtu st = st.pacer-mtu-val
+
+  #[inline(always)]
+  #[no-alloc]
+  pacer-max-burst-bytes :: PacerState -> U32
+  pacer-max-burst-bytes st = st.pacer-max-burst
+
+  #[inline(always)]
+  #[no-alloc]
+  pacer-max-ahead-ns :: PacerState -> U64
+  pacer-max-ahead-ns st = st.pacer-max-ahead
+
+  -- =========================================================================
+  -- 2. Refill, release-time calculation, burst budget, and send debit
+  -- =========================================================================
+
+  -- | Replenish byte tokens up to `now-ns` at `pacing-rate-bps` (bytes/sec),
+  -- preserving sub-byte remainder for zero long-run rate drift.
+  #[no-alloc]
+  pacer-refill :: PacerState -> U64 -> U64 -> PacerState
+  pacer-refill st now-ns pacing-rate-bps =
+    if le-u64 now-ns st.pacer-last-update-ns then st
+    else if eq-u64 pacing-rate-bps 0 then
+      PacerState now-ns (u32-to-u64 st.pacer-max-burst) 0 now-ns st.pacer-max-ahead st.pacer-mtu-val st.pacer-max-burst
+    else
+      let dt = wrapping-sub-u64 now-ns st.pacer-last-update-ns in
+      let scaled = saturating-add-u128 (wrapping-mul-u128 (u64-to-u128 dt) (u64-to-u128 pacing-rate-bps)) (u64-to-u128 st.pacer-frac-num) in
+      let added = saturating-u128-to-u64 (div-u128 scaled 1000000000) in
+      let rem-num = saturating-u128-to-u64 (rem-u128 scaled 1000000000) in
+      let cap = (u32-to-u64 st.pacer-max-burst :: U64) in
+      let sum = saturating-add-u64 st.pacer-tokens added in
+      let new-toks = if ge-u64 sum cap then cap else sum in
+      let new-frac = if ge-u64 sum cap then 0 else rem-num in
+      let mtu64 = (u32-to-u64 st.pacer-mtu-val :: U64) in
+      let new-rel = if ge-u64 new-toks mtu64 then now-ns else if gt-u64 st.pacer-next-release now-ns then st.pacer-next-release else now-ns in
+      PacerState new-rel new-toks new-frac now-ns st.pacer-max-ahead st.pacer-mtu-val st.pacer-max-burst
+
+  -- | Compute the exact release timestamp (nanoseconds) for `SO_TXTIME` or a
+  -- software pacing timer at `now-ns` under `pacing-rate-bps` (bytes/sec).
+  --
+  -- Returns `now-ns` when burst tokens are available (`tokens >= mtu`), or the
+  -- earliest timestamp when a full MTU can be released, clamped to
+  -- `now-ns + pacer-max-ahead` against excessive ahead-of-time drift.
+  #[no-alloc]
+  pacer-next-send-time-ns :: PacerState -> U64 -> U64 -> U64
+  pacer-next-send-time-ns st now-ns pacing-rate-bps =
+    if eq-u64 pacing-rate-bps 0 then now-ns
+    else
+      let r = pacer-refill st now-ns pacing-rate-bps in
+      let mtu64 = u32-to-u64 r.pacer-mtu-val in
+      let max-ts = saturating-add-u64 now-ns r.pacer-max-ahead in
+      if gt-u64 r.pacer-next-release now-ns then
+        if lt-u64 r.pacer-next-release max-ts then r.pacer-next-release else max-ts
+      else if ge-u64 r.pacer-tokens mtu64 then
+        now-ns
+      else
+        let deficit = wrapping-sub-u64 mtu64 r.pacer-tokens in
+        let wait-ns = bytes-to-ns-ceil deficit pacing-rate-bps in
+        let rel-ts = saturating-add-u64 now-ns wait-ns in
+        if lt-u64 rel-ts max-ts then rel-ts else max-ts
+
+  -- | Compute the exact release timestamp (nanoseconds) for a burst of `nbytes`
+  -- (clamped to `[mtu, max-burst]`) under `pacing-rate-bps` (bytes/sec).
+  #[no-alloc]
+  pacer-next-burst-time-ns :: PacerState -> U64 -> U64 -> U32 -> U64
+  pacer-next-burst-time-ns st now-ns pacing-rate-bps nbytes =
+    if eq-u64 pacing-rate-bps 0 then now-ns
+    else if eq-u32 nbytes 0 then now-ns
+    else
+      let r = pacer-refill st now-ns pacing-rate-bps in
+      let mtu64 = (u32-to-u64 r.pacer-mtu-val :: U64) in
+      let cap = (u32-to-u64 r.pacer-max-burst :: U64) in
+      let req0 = (u32-to-u64 nbytes :: U64) in
+      let req1 = if lt-u64 req0 mtu64 then mtu64 else req0 in
+      let req = if gt-u64 req1 cap then cap else req1 in
+      let max-ts = saturating-add-u64 now-ns r.pacer-max-ahead in
+      let rel-by-tok = (
+        if ge-u64 r.pacer-tokens req then now-ns
+        else
+          let deficit = wrapping-sub-u64 req r.pacer-tokens in
+          let wait-ns = bytes-to-ns-ceil deficit pacing-rate-bps in
+          saturating-add-u64 now-ns wait-ns) in
+      let rel-ts = if gt-u64 r.pacer-next-release rel-by-tok then r.pacer-next-release else rel-by-tok in
+      if lt-u64 rel-ts max-ts then rel-ts else max-ts
+
+  -- | Return `True` if a packet/burst of `bytes` may be transmitted immediately
+  -- at `now-ns` under `pacing-rate-bps`.
+  #[no-alloc]
+  pacer-can-send-now :: PacerState -> U64 -> U64 -> U32 -> Bool
+  pacer-can-send-now st now-ns pacing-rate-bps nbytes =
+    if eq-u32 nbytes 0 then b-true
+    else if eq-u64 pacing-rate-bps 0 then b-true
+    else
+      let r = pacer-refill st now-ns pacing-rate-bps in
+      if gt-u64 r.pacer-next-release now-ns then b-false
+      else
+        let need = (u32-to-u64 nbytes :: U64) in
+        let cap = (u32-to-u64 r.pacer-max-burst :: U64) in
+        let req = if gt-u64 need cap then cap else need in
+        ge-u64 r.pacer-tokens req
+
+  -- | Return the current byte burst budget available immediately at `now-ns`
+  -- (capped at `max-burst-bytes = 10 * mtu`) for `UDP_GSO` coalescing.
+  -- Returns `0` when the pacer is waiting for its next release timestamp.
+  #[no-alloc]
+  pacer-burst-budget :: PacerState -> U64 -> U64 -> U32
+  pacer-burst-budget st now-ns pacing-rate-bps =
+    if eq-u64 pacing-rate-bps 0 then st.pacer-max-burst
+    else
+      let r = pacer-refill st now-ns pacing-rate-bps in
+      if gt-u64 r.pacer-next-release now-ns then 0
+      else
+        let toks32 = if gt-u64 r.pacer-tokens (u32-to-u64 r.pacer-max-burst) then r.pacer-max-burst else wrapping-u64-to-u32 r.pacer-tokens in
+        toks32
+
+  -- | Debit `bytes` sent at `now-ns` under `pacing-rate-bps` (bytes/sec),
+  -- updating token balance and advancing `next-release-ns` by
+  -- `bytes * 1_000_000_000 / pacing-rate-bps` (clamped to `now-ns + max-ahead-ns`).
+  #[no-alloc]
+  pacer-on-packet-sent :: PacerState -> U64 -> U64 -> U32 -> PacerState
+  pacer-on-packet-sent st now-ns pacing-rate-bps nbytes =
+    if eq-u32 nbytes 0 then st
+    else if eq-u64 pacing-rate-bps 0 then st
+    else
+      let r = pacer-refill st now-ns pacing-rate-bps in
+      let b64 = u32-to-u64 nbytes in
+      let max-ts = saturating-add-u64 now-ns r.pacer-max-ahead in
+      let mtu64 = u32-to-u64 r.pacer-mtu-val in
+      if ge-u64 r.pacer-tokens b64 then
+        let rem-toks = wrapping-sub-u64 r.pacer-tokens b64 in
+        let next-rel = (
+          if ge-u64 rem-toks mtu64 then now-ns
+          else
+            let need = wrapping-sub-u64 mtu64 rem-toks in
+            let dt = bytes-to-ns-ceil need pacing-rate-bps in
+            let cand = saturating-add-u64 now-ns dt in
+            if lt-u64 cand max-ts then cand else max-ts) in
+        PacerState next-rel rem-toks r.pacer-frac-num r.pacer-last-update-ns r.pacer-max-ahead r.pacer-mtu-val r.pacer-max-burst
+      else
+        -- Deficit send (burst exceeded tokens or SO_TXTIME ahead-of-time stamp):
+        -- advance release clock and last-update timestamp by the exact deficit
+        -- wire time so future refills never double-count credit.
+        let deficit = wrapping-sub-u64 b64 r.pacer-tokens in
+        let dt-ns = bytes-to-ns-ceil deficit pacing-rate-bps in
+        let base-ns = if gt-u64 r.pacer-next-release now-ns then r.pacer-next-release else now-ns in
+        let raw-rel = saturating-add-u64 base-ns dt-ns in
+        let clamped-rel = if lt-u64 raw-rel max-ts then raw-rel else max-ts in
+        PacerState clamped-rel 0 0 clamped-rel r.pacer-max-ahead r.pacer-mtu-val r.pacer-max-burst

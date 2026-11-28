@@ -1,0 +1,378 @@
+-- | Zero-allocation 256-bit sliding-window QUIC receive packet-number tracker
+-- (`AckMap`) and RFC 9000 Section 19.3 ACK range extractor.
+--
+-- Memory & performance contract:
+--   * `AckMap` is a 56-byte `#[repr(C, value)]` POD record carrying four `U64`
+--     bitset words (`w0..w3`), the largest received packet number, its receive
+--     timestamp, and the pending ack-eliciting packet counter.
+--   * Bit `d` (`0 <= d < 256`) represents packet number `largest - d`, with
+--     word `d >> 6` and bit `d & 63`. Whenever `has-any == 1`, bit 0 of `w0`
+--     is set (representing `largest`).
+--   * All operations (`ack-map-empty`, `ack-map-is-duplicate`, `ack-map-has-pn`,
+--     `ack-map-on-recv`, `ack-map-on-recv-checked`, `ack-map-first-range`,
+--     `ack-map-extract-ranges-raw`) are `#[no-alloc]` with O(1) packet receipt
+--     and `trailing-zeros-u64` run-skipping ACK range extraction.
+module Net.Quic.AckMap where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Core POD types
+  export AckMap, AckRecvResult
+
+  -- Construction & inspection
+  export ack-map-empty, ack-map-has-any, ack-map-largest, ack-map-largest-recv-ns
+  export ack-map-ack-eliciting-pending, ack-map-needs-ack, ack-map-ack-delay-ns
+  export ack-map-mark-acked
+
+  -- O(1) receive & duplicate / replay detection
+  export ack-map-is-duplicate, ack-map-has-pn
+  export ack-map-on-recv, ack-map-on-recv-checked
+  export ack-recv-accepted, ack-recv-map
+
+  -- RFC 9000 Section 19.3.1 ACK range extraction (#[no-alloc])
+  export ack-map-first-range, ack-map-extract-ranges-raw
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & 256-bit bitset helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: I64 -> U64 -> I64
+  addr-at base off = wrapping-add-i64 base (wrapping-u64-to-i64 off)
+
+  -- =========================================================================
+  -- 1. Core POD types (`AckMap`, `AckRecvResult`)
+  -- =========================================================================
+
+  -- | 256-bit sliding receive packet-number tracker (56-byte POD).
+  --
+  -- Tracks packet numbers in `[largest - 255, largest]`. Any packet strictly
+  -- older than `largest - 255` is treated as duplicate/untrackable so replay
+  -- packets outside the window are never falsely accepted.
+  #[repr(C, value)]
+  record AckMap where
+    ack-largest :: U64
+    ack-largest-recv-ns :: U64
+    ack-w0 :: U64
+    ack-w1 :: U64
+    ack-w2 :: U64
+    ack-w3 :: U64
+    ack-eliciting-pending :: U32
+    ack-has-any :: U8
+    ack-pad0 :: U8
+    ack-pad1 :: U16
+
+  -- | Combined result of `ack-map-on-recv-checked` avoiding tuple boxing.
+  -- `ack-res-accepted` is `1` if the packet was newly recorded and `0` if it
+  -- was a duplicate or too old (`pn + 256 <= largest`).
+  #[repr(C, value)]
+  record AckRecvResult where
+    ack-res-map :: AckMap
+    ack-res-accepted :: U8
+    ack-res-pad0 :: U8
+    ack-res-pad1 :: U16
+    ack-res-pad2 :: U32
+
+  -- | Create an empty `AckMap` with no packets received.
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-empty :: Unit -> AckMap
+  ack-map-empty _ = AckMap 0 0 0 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-has-any :: AckMap -> Bool
+  ack-map-has-any m = ne-u8 m.ack-has-any 0
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-largest :: AckMap -> U64
+  ack-map-largest m = m.ack-largest
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-largest-recv-ns :: AckMap -> U64
+  ack-map-largest-recv-ns m = m.ack-largest-recv-ns
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-ack-eliciting-pending :: AckMap -> U32
+  ack-map-ack-eliciting-pending m = m.ack-eliciting-pending
+
+  -- | Return `True` when at least one ack-eliciting packet awaits acknowledgment
+  -- (or callers may check `ge-u32 (ack-map-ack-eliciting-pending m) 2` for RFC
+  -- 9000 Section 13.2.2 immediate ACK on every 2nd ack-eliciting packet).
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-needs-ack :: AckMap -> Bool
+  ack-map-needs-ack m = gt-u32 m.ack-eliciting-pending 0
+
+  -- | Compute the ACK delay (`now-ns - largest-recv-ns`) in nanoseconds.
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-ack-delay-ns :: AckMap -> U64 -> U64
+  ack-map-ack-delay-ns m now-ns =
+    if eq-u8 m.ack-has-any 0 then 0
+    else saturating-sub-u64 now-ns m.ack-largest-recv-ns
+
+  -- | Clear `ack-eliciting-pending` after emitting an ACK frame.
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-mark-acked :: AckMap -> AckMap
+  ack-map-mark-acked m =
+    AckMap m.ack-largest m.ack-largest-recv-ns m.ack-w0 m.ack-w1 m.ack-w2 m.ack-w3 0 m.ack-has-any 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-recv-accepted :: AckRecvResult -> Bool
+  ack-recv-accepted r = ne-u8 r.ack-res-accepted 0
+
+  #[inline(always)]
+  #[no-alloc]
+  ack-recv-map :: AckRecvResult -> AckMap
+  ack-recv-map r = r.ack-res-map
+
+  -- =========================================================================
+  -- 2. Bit inspection & 256-bit left shift helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  word-at :: AckMap -> U32 -> U64
+  word-at m w =
+    if eq-u32 w 0 then m.ack-w0
+    else if eq-u32 w 1 then m.ack-w1
+    else if eq-u32 w 2 then m.ack-w2
+    else m.ack-w3
+
+  #[inline(always)]
+  #[no-alloc]
+  bit-is-set :: AckMap -> U32 -> Bool
+  bit-is-set m d =
+    let wi = wrapping-shr-u32 d 6 in
+    let bi = bit-and-u32 d 63 in
+    let word = word-at m wi in
+    ne-u64 (bit-and-u64 word (wrapping-shl-u64 1 bi)) 0
+
+  -- | Return `True` if packet `pn` is already recorded in `m` OR is strictly
+  -- older than the 256-packet sliding window (`pn + 256 <= largest`), preventing
+  -- false replay acceptance.
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-is-duplicate :: AckMap -> U64 -> Bool
+  ack-map-is-duplicate m pn =
+    if eq-u8 m.ack-has-any 0 then b-false
+    else if gt-u64 pn m.ack-largest then b-false
+    else
+      let diff = wrapping-sub-u64 m.ack-largest pn in
+      if ge-u64 diff 256 then b-true
+      else bit-is-set m (wrapping-u64-to-u32 diff)
+
+  -- | Return `True` iff packet `pn` is explicitly recorded in the current
+  -- 256-packet window (`largest - 255 <= pn <= largest` and bit is set).
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-has-pn :: AckMap -> U64 -> Bool
+  ack-map-has-pn m pn =
+    if eq-u8 m.ack-has-any 0 then b-false
+    else if gt-u64 pn m.ack-largest then b-false
+    else
+      let diff = wrapping-sub-u64 m.ack-largest pn in
+      if ge-u64 diff 256 then b-false
+      else bit-is-set m (wrapping-u64-to-u32 diff)
+
+  -- Shift 256-bit `(w0, w1, w2, w3)` left by `shift` (`1 <= shift < 256`) and
+  -- set bit 0 of `w0` for the new `largest`.
+  #[inline(always)]
+  #[no-alloc]
+  shift-and-set-largest :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U32 -> U32 -> AckMap
+  shift-and-set-largest new-largest recv-ns w0 w1 w2 w3 shift new-pend =
+    let ws = wrapping-shr-u32 shift 6 in
+    let bs = bit-and-u32 shift 63 in
+    let a0 = if eq-u32 ws 0 then w0 else 0 in
+    let a1 = if eq-u32 ws 0 then w1 else if eq-u32 ws 1 then w0 else 0 in
+    let a2 = if eq-u32 ws 0 then w2 else if eq-u32 ws 1 then w1 else if eq-u32 ws 2 then w0 else 0 in
+    let a3 = if eq-u32 ws 0 then w3 else if eq-u32 ws 1 then w2 else if eq-u32 ws 2 then w1 else w0 in
+    if eq-u32 bs 0 then
+      AckMap new-largest recv-ns (bit-or-u64 a0 1) a1 a2 a3 new-pend 1 0 0
+    else
+      let inv = wrapping-sub-u32 64 bs in
+      let r0 = bit-or-u64 (wrapping-shl-u64 a0 bs) 1 in
+      let r1 = bit-or-u64 (wrapping-shl-u64 a1 bs) (wrapping-shr-u64 a0 inv) in
+      let r2 = bit-or-u64 (wrapping-shl-u64 a2 bs) (wrapping-shr-u64 a1 inv) in
+      let r3 = bit-or-u64 (wrapping-shl-u64 a3 bs) (wrapping-shr-u64 a2 inv) in
+      AckMap new-largest recv-ns r0 r1 r2 r3 new-pend 1 0 0
+
+  -- | Record receipt of packet `pn` at timestamp `recv-ns` (`ack-eliciting`:
+  -- non-zero if the packet contains an ack-eliciting frame). Returns both the
+  -- updated `AckMap` and whether the packet was newly accepted (`1`) or
+  -- rejected as duplicate/too-old (`0`). O(1), `#[no-alloc]`.
+  #[no-alloc]
+  ack-map-on-recv-checked :: AckMap -> U64 -> U64 -> U8 -> AckRecvResult
+  ack-map-on-recv-checked m pn recv-ns ack-eliciting =
+    let inc = if ne-u8 ack-eliciting 0 then (1 :: U32) else (0 :: U32) in
+    let new-pend = saturating-add-u32 m.ack-eliciting-pending inc in
+    if eq-u8 m.ack-has-any 0 then
+      AckRecvResult (AckMap pn recv-ns 1 0 0 0 new-pend 1 0 0) 1 0 0 0
+    else if gt-u64 pn m.ack-largest then
+      let diff = wrapping-sub-u64 pn m.ack-largest in
+      if ge-u64 diff 256 then
+        AckRecvResult (AckMap pn recv-ns 1 0 0 0 new-pend 1 0 0) 1 0 0 0
+      else
+        let updated = shift-and-set-largest pn recv-ns m.ack-w0 m.ack-w1 m.ack-w2 m.ack-w3 (wrapping-u64-to-u32 diff) new-pend in
+        AckRecvResult updated 1 0 0 0
+    else
+      let diff = wrapping-sub-u64 m.ack-largest pn in
+      if ge-u64 diff 256 then
+        -- Too old to track: reject without modifying map to prevent replays.
+        AckRecvResult m 0 0 0 0
+      else
+        let d = wrapping-u64-to-u32 diff in
+        let wi = wrapping-shr-u32 d 6 in
+        let mask = wrapping-shl-u64 1 (bit-and-u32 d 63) in
+        let cur-w = word-at m wi in
+        if ne-u64 (bit-and-u64 cur-w mask) 0 then
+          -- Duplicate packet
+          AckRecvResult m 0 0 0 0
+        else
+          let nw0 = if eq-u32 wi 0 then bit-or-u64 m.ack-w0 mask else m.ack-w0 in
+          let nw1 = if eq-u32 wi 1 then bit-or-u64 m.ack-w1 mask else m.ack-w1 in
+          let nw2 = if eq-u32 wi 2 then bit-or-u64 m.ack-w2 mask else m.ack-w2 in
+          let nw3 = if eq-u32 wi 3 then bit-or-u64 m.ack-w3 mask else m.ack-w3 in
+          AckRecvResult (AckMap m.ack-largest m.ack-largest-recv-ns nw0 nw1 nw2 nw3 new-pend 1 0 0) 1 0 0 0
+
+  -- | Record receipt of packet `pn` at `recv-ns` (`ack-eliciting` non-zero if
+  -- ack-eliciting), returning the updated `AckMap` (unchanged if duplicate or
+  -- outside the 256-packet window). O(1), `#[no-alloc]`.
+  #[inline(always)]
+  #[no-alloc]
+  ack-map-on-recv :: AckMap -> U64 -> U64 -> U8 -> AckMap
+  ack-map-on-recv m pn recv-ns ack-eliciting =
+    (ack-map-on-recv-checked m pn recv-ns ack-eliciting).ack-res-map
+
+  -- =========================================================================
+  -- 3. RFC 9000 Section 19.3.1 ACK Range Extraction (#[no-alloc])
+  -- =========================================================================
+
+  -- Count contiguous 1-bits starting at bit index `pos` (`0 <= pos <= 256`),
+  -- stopping at the first 0-bit or at `limit` (to avoid underflowing PN 0).
+  #[no-alloc]
+  count-ones-from :: AckMap -> U32 -> U32 -> U32 -> U32
+  count-ones-from m pos limit acc =
+    if ge-u32 pos limit then acc
+    else
+      let wi = wrapping-shr-u32 pos 6 in
+      let bi = bit-and-u32 pos 63 in
+      let rem-in-word = wrapping-sub-u32 64 bi in
+      let rem-to-limit = wrapping-sub-u32 limit pos in
+      let step-cap = if lt-u32 rem-in-word rem-to-limit then rem-in-word else rem-to-limit in
+      let shifted = wrapping-shr-u64 (word-at m wi) bi in
+      let ones = (trailing-zeros-u64 (bit-not-u64 shifted) :: U32) in
+      let take = if lt-u32 ones step-cap then ones else step-cap in
+      let acc2 = wrapping-add-u32 acc take in
+      if lt-u32 take rem-in-word then acc2
+      else count-ones-from m (wrapping-add-u32 pos take) limit acc2
+
+  -- Count contiguous 0-bits starting at bit index `pos` (`0 <= pos <= 256`),
+  -- stopping at the first 1-bit or at `limit`.
+  #[no-alloc]
+  count-zeros-from :: AckMap -> U32 -> U32 -> U32 -> U32
+  count-zeros-from m pos limit acc =
+    if ge-u32 pos limit then acc
+    else
+      let wi = wrapping-shr-u32 pos 6 in
+      let bi = bit-and-u32 pos 63 in
+      let rem-in-word = wrapping-sub-u32 64 bi in
+      let rem-to-limit = wrapping-sub-u32 limit pos in
+      let step-cap = if lt-u32 rem-in-word rem-to-limit then rem-in-word else rem-to-limit in
+      let shifted = wrapping-shr-u64 (word-at m wi) bi in
+      let zeros = (trailing-zeros-u64 shifted :: U32) in
+      let take = if lt-u32 zeros step-cap then zeros else step-cap in
+      let acc2 = wrapping-add-u32 acc take in
+      if lt-u32 take rem-in-word then acc2
+      else count-zeros-from m (wrapping-add-u32 pos take) limit acc2
+
+  -- Maximum valid bit index in the window (`min(256, largest + 1)`), ensuring
+  -- packet numbers never wrap below 0.
+  #[inline(always)]
+  #[no-alloc]
+  window-bit-limit :: AckMap -> U32
+  window-bit-limit m =
+    if ge-u64 m.ack-largest 255 then 256
+    else wrapping-add-u32 (wrapping-u64-to-u32 m.ack-largest) 1
+
+  -- | Compute the RFC 9000 Section 19.3.1 `First ACK Range` value: the number
+  -- of contiguous acknowledged packets strictly below `largest` (so `0` means
+  -- only `largest` itself, `k` means `[largest - k .. largest]`).
+  #[no-alloc]
+  ack-map-first-range :: AckMap -> U64
+  ack-map-first-range m =
+    if eq-u8 m.ack-has-any 0 then 0
+    else
+      let lim = window-bit-limit m in
+      let ones = count-ones-from m 0 lim 0 in
+      if eq-u32 ones 0 then 0
+      else u32-to-u64 (wrapping-sub-u32 ones 1)
+
+  #[no-alloc]
+  extract-ranges-loop :: AckMap -> U32 -> U32 -> I64 -> U32 -> U32 ->{MVar} U32
+  extract-ranges-loop m pos lim out-addr max-ranges written =
+    if ge-u32 written max-ranges then written
+    else if ge-u32 pos lim then written
+    else
+      let zeros = count-zeros-from m pos lim 0 in
+      let pos1 = wrapping-add-u32 pos zeros in
+      if ge-u32 pos1 lim then written
+      else
+        let ones = count-ones-from m pos1 lim 0 in
+        if eq-u32 ones 0 then written
+        else
+          -- RFC 9000 Section 19.3.1:
+          --   gap = zero_run - 1  (0 encodes 1 missing packet)
+          --   ack_range_len = one_run - 1 (0 encodes 1 acknowledged packet)
+          let gap = u32-to-u64 (wrapping-sub-u32 zeros 1) in
+          let range-len = u32-to-u64 (wrapping-sub-u32 ones 1) in
+          let entry-off = wrapping-shl-u64 (u32-to-u64 written) 4 in
+          let _ = raw-store-u64 (addr-at out-addr entry-off) gap in
+          let _ = raw-store-u64 (addr-at out-addr (wrapping-add-u64 entry-off 8)) range-len in
+          extract-ranges-loop m (wrapping-add-u32 pos1 ones) lim out-addr max-ranges (wrapping-add-u32 written 1)
+
+  -- | Extract additional RFC 9000 ACK ranges (after `First ACK Range`) into a
+  -- flat DMA scratch buffer at `out-addr` with capacity `max-ranges` entries.
+  --
+  -- Each written entry occupies 16 bytes:
+  --   * `+0`: `gap :: U64` (`unacked_count - 1`)
+  --   * `+8`: `ack_range_len :: U64` (`acked_count - 1`)
+  --
+  -- Returns the number of additional ACK ranges written (`ACK Range Count`).
+  -- Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  ack-map-extract-ranges-raw :: AckMap -> I64 -> U32 ->{MVar} U32
+  ack-map-extract-ranges-raw m out-addr max-ranges =
+    if eq-u8 m.ack-has-any 0 then 0
+    else if eq-i64 out-addr 0 then 0
+    else if eq-u32 max-ranges 0 then 0
+    else
+      let lim = window-bit-limit m in
+      let first-ones = count-ones-from m 0 lim 0 in
+      extract-ranges-loop m first-ones lim out-addr max-ranges 0

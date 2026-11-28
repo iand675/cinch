@@ -1,0 +1,1175 @@
+-- | Zero-allocation **BBRv2** (`BbrState`) and **CUBIC** (RFC 9438 + HyStart++,
+-- `CubicState`) QUIC congestion controllers.
+--
+-- Memory & performance contract:
+--   * Both `BbrState` and `CubicState` are 8-byte `#[repr(C, value)]` POD
+--     handles backed by a single 4 KiB page-aligned DMA slab (`bbr-new` /
+--     `cubic-new`), or initialized in-place inside a caller-owned slab
+--     (`bbr-init-at` / `cubic-init-at`).
+--   * Every steady-state congestion-control callback (`bbr-on-ack`,
+--     `bbr-on-ecn`, `bbr-on-persistent-congestion`, `cubic-on-ack`,
+--     `cubic-on-loss`, `cubic-on-persistent-congestion`, and all query
+--     functions) is `#[no-alloc]` with exact `U128` fixed-point arithmetic
+--     (zero heap allocations, zero RC traffic, zero floating-point drift).
+--
+-- BBRv2 model highlights:
+--   * Full 7-mode state machine: `BbrStartup`, `BbrDrain`, `BbrProbeBwDown`,
+--     `BbrProbeBwCruise`, `BbrProbeBwRefill`, `BbrProbeBwUp`, `BbrProbeRtt`.
+--   * Exact 10-round windowed `max_bw` filter + 10-second `min_rtt` filter.
+--   * Explicit model bounds `bdp = max_bw * min_rtt`, `inflight_hi`,
+--     `inflight_lo`, `bw_hi`, `bw_lo`.
+--   * Exact fixed-point gains (scale 256): Startup `2.77x`/`2.0x`, Drain
+--     `0.35x`, ProbeBW `1.25x`/`0.75x`/`1.0x`, ProbeRTT `4 * MSS`.
+--   * 2% loss-rate threshold (ignoring random non-congestion loss < 2% to keep
+--     high link utilization) and `0.7` (`beta`) ECN/congestion backoff.
+module Net.Quic.Bbr where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Data.Wide
+  import Engine.Types
+  import Prim.Atomic
+
+  -- BBRv2 mode enum & U8 constants
+  export BbrMode, BbrStartup, BbrDrain, BbrProbeBwDown, BbrProbeBwCruise
+  export BbrProbeBwRefill, BbrProbeBwUp, BbrProbeRtt
+  export bbr-mode-startup, bbr-mode-drain, bbr-mode-probe-bw-down, bbr-mode-probe-bw-cruise
+  export bbr-mode-probe-bw-refill, bbr-mode-probe-bw-up, bbr-mode-probe-rtt
+  export bbr-mode-to-u8, bbr-mode-from-u8
+
+  -- BBRv2 fixed-point gain constants (scale 256)
+  export bbr-gain-unit, bbr-startup-pacing-gain, bbr-startup-cwnd-gain
+  export bbr-drain-pacing-gain, bbr-probe-up-gain, bbr-probe-down-gain
+  export bbr-probe-rtt-duration-ns, bbr-min-rtt-filter-ns
+
+  -- BBRv2 controller lifecycle & steady-state API
+  export BbrState, bbr-new, bbr-init-at, bbr-destroy
+  export bbr-on-ack, bbr-on-ecn, bbr-on-persistent-congestion
+  export bbr-mode-u8, bbr-mode, bbr-cwnd, bbr-pacing-rate
+  export bbr-max-bw, bbr-min-rtt-ns, bbr-bdp
+  export bbr-inflight-hi, bbr-inflight-lo, bbr-bw-hi, bbr-bw-lo
+  export bbr-pacing-gain, bbr-cwnd-gain, bbr-round-count, bbr-filled-pipe
+
+  -- CUBIC (RFC 9438 + HyStart++) controller lifecycle & steady-state API
+  export CubicState, cubic-new, cubic-init-at, cubic-destroy
+  export cubic-on-ack, cubic-on-loss, cubic-on-persistent-congestion
+  export cubic-cwnd, cubic-ssthresh, cubic-w-max, cubic-pacing-rate
+  export cubic-in-hystart-css, cubic-icbrt-u64
+
+  -- =========================================================================
+  -- 0. Shared constants & #[no-alloc] U128 helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)]
+  #[no-alloc]
+  min-u64 :: U64 -> U64 -> U64
+  min-u64 a b = if lt-u64 a b then a else b
+
+  #[inline(always)]
+  #[no-alloc]
+  max-u64 :: U64 -> U64 -> U64
+  max-u64 a b = if gt-u64 a b then a else b
+
+  #[inline(always)]
+  #[no-alloc]
+  u64-unset :: U64
+  u64-unset = 18446744073709551615
+
+  #[inline(always)]
+  #[no-alloc]
+  ns-per-sec-u64 :: U64
+  ns-per-sec-u64 = 1000000000
+
+  #[inline(always)]
+  #[no-alloc]
+  ns-per-sec-u128 :: U128
+  ns-per-sec-u128 = 1000000000
+
+  -- Compute `floor(a * b / denom)` safely in U128; returns `0` if `denom == 0`.
+  #[inline(always)]
+  #[no-alloc]
+  mul-div-u64 :: U64 -> U64 -> U64 -> U64
+  mul-div-u64 a b denom =
+    let d128 = u64-to-u128 denom in
+    if d128 /= 0 then
+      let num = wrapping-mul-u128 (u64-to-u128 a) (u64-to-u128 b) in
+      saturating-u128-to-u64 (div-u128 num d128)
+    else 0
+
+  -- =========================================================================
+  -- 1. BBRv2 Modes & Gain Constants (fixed-point scale = 256)
+  -- =========================================================================
+
+  data BbrMode where
+    BbrStartup :: BbrMode
+    BbrDrain :: BbrMode
+    BbrProbeBwDown :: BbrMode
+    BbrProbeBwCruise :: BbrMode
+    BbrProbeBwRefill :: BbrMode
+    BbrProbeBwUp :: BbrMode
+    BbrProbeRtt :: BbrMode
+
+  #[inline(always)] #[no-alloc] bbr-mode-startup :: U8
+  bbr-mode-startup = 0
+  #[inline(always)] #[no-alloc] bbr-mode-drain :: U8
+  bbr-mode-drain = 1
+  #[inline(always)] #[no-alloc] bbr-mode-probe-bw-down :: U8
+  bbr-mode-probe-bw-down = 2
+  #[inline(always)] #[no-alloc] bbr-mode-probe-bw-cruise :: U8
+  bbr-mode-probe-bw-cruise = 3
+  #[inline(always)] #[no-alloc] bbr-mode-probe-bw-refill :: U8
+  bbr-mode-probe-bw-refill = 4
+  #[inline(always)] #[no-alloc] bbr-mode-probe-bw-up :: U8
+  bbr-mode-probe-bw-up = 5
+  #[inline(always)] #[no-alloc] bbr-mode-probe-rtt :: U8
+  bbr-mode-probe-rtt = 6
+
+  #[no-alloc]
+  bbr-mode-to-u8 :: BbrMode -> U8
+  bbr-mode-to-u8 m = case m of
+    BbrStartup -> bbr-mode-startup
+    BbrDrain -> bbr-mode-drain
+    BbrProbeBwDown -> bbr-mode-probe-bw-down
+    BbrProbeBwCruise -> bbr-mode-probe-bw-cruise
+    BbrProbeBwRefill -> bbr-mode-probe-bw-refill
+    BbrProbeBwUp -> bbr-mode-probe-bw-up
+    BbrProbeRtt -> bbr-mode-probe-rtt
+
+  bbr-mode-from-u8 :: U8 -> BbrMode
+  bbr-mode-from-u8 code =
+    if eq-u8 code 0 then BbrStartup
+    else if eq-u8 code 1 then BbrDrain
+    else if eq-u8 code 2 then BbrProbeBwDown
+    else if eq-u8 code 3 then BbrProbeBwCruise
+    else if eq-u8 code 4 then BbrProbeBwRefill
+    else if eq-u8 code 5 then BbrProbeBwUp
+    else BbrProbeRtt
+
+  -- Fixed-point gain scale: 256 = 1.0x.
+  #[inline(always)] #[no-alloc] bbr-gain-unit :: U64
+  bbr-gain-unit = 256
+
+  -- Startup pacing gain: 2.77x (709 / 256 ~= 2.7695x).
+  #[inline(always)] #[no-alloc] bbr-startup-pacing-gain :: U64
+  bbr-startup-pacing-gain = 709
+
+  -- Startup & ProbeBW cwnd gain: 2.0x (512 / 256).
+  #[inline(always)] #[no-alloc] bbr-startup-cwnd-gain :: U64
+  bbr-startup-cwnd-gain = 512
+
+  -- Drain pacing gain: 0.35x (90 / 256 ~= 0.3516x).
+  #[inline(always)] #[no-alloc] bbr-drain-pacing-gain :: U64
+  bbr-drain-pacing-gain = 90
+
+  -- ProbeBW_UP pacing gain: 1.25x (320 / 256).
+  #[inline(always)] #[no-alloc] bbr-probe-up-gain :: U64
+  bbr-probe-up-gain = 320
+
+  -- ProbeBW_DOWN pacing gain: 0.75x (192 / 256).
+  #[inline(always)] #[no-alloc] bbr-probe-down-gain :: U64
+  bbr-probe-down-gain = 192
+
+  -- ProbeRTT dwell duration: 200 ms.
+  #[inline(always)] #[no-alloc] bbr-probe-rtt-duration-ns :: U64
+  bbr-probe-rtt-duration-ns = 200000000
+
+  -- min_rtt filter expiry window: 10 seconds.
+  #[inline(always)] #[no-alloc] bbr-min-rtt-filter-ns :: U64
+  bbr-min-rtt-filter-ns = 10000000000
+
+  -- ProbeBW cruise interval before refilling & probing up: 500 ms.
+  #[inline(always)] #[no-alloc] bbr-cruise-wait-ns :: U64
+  bbr-cruise-wait-ns = 500000000
+
+  -- =========================================================================
+  -- 2. BbrState DMA Layout (4 KiB slab, 512 bytes used)
+  -- =========================================================================
+
+  -- | Handle to a zero-allocation BBRv2 congestion controller (8-byte POD).
+  --
+  -- Layout in DMA slab:
+  --   +0   cwnd                  :: U64
+  --   +8   pacing-rate           :: U64  (bytes/sec)
+  --   +16  max-bw                :: U64  (bytes/sec, 10-round windowed max)
+  --   +24  bw-hi                 :: U64  (max_u64 = unset)
+  --   +32  bw-lo                 :: U64  (max_u64 = unset)
+  --   +40  min-rtt-ns            :: U64  (max_u64 = unset)
+  --   +48  min-rtt-stamp-ns      :: U64
+  --   +56  bdp                   :: U64
+  --   +64  inflight-hi           :: U64  (max_u64 = unset)
+  --   +72  inflight-lo           :: U64  (max_u64 = unset)
+  --   +80  pacing-gain           :: U64  (scale 256)
+  --   +88  cwnd-gain             :: U64  (scale 256)
+  --   +96  round-count           :: U64
+  --   +104 next-round-delivered  :: U64
+  --   +112 full-bw               :: U64
+  --   +120 cycle-stamp-ns        :: U64
+  --   +128 probe-rtt-done-ns     :: U64
+  --   +136 round-deliv-start     :: U64
+  --   +144 round-lost-bytes      :: U64
+  --   +152 round-ecn-bytes       :: U64
+  --   +160 bw-latest             :: U64
+  --   +168 inflight-latest       :: U64
+  --   +176 cycle-start-round     :: U64
+  --   +184 probe-up-cnt          :: U64
+  --   +192 probe-up-acks         :: U64
+  --   +200 mss                   :: U32
+  --   +204 full-bw-cnt           :: U32
+  --   +208 mode                  :: U8
+  --   +209 filled-pipe           :: U8
+  --   +210 probe-rtt-round-done  :: U8
+  --   +211 has-min-rtt           :: U8
+  --   +212 owns-slab             :: U8
+  --   +213 loss-in-round-events  :: U8
+  --   +216 startup-loss-rounds   :: U32
+  --   +256 bw-win-val[10]        :: [U64; 10] (256..335)
+  --   +336 bw-win-round[10]      :: [U64; 10] (336..415)
+  --   +416 bw-win-valid[10]      :: [U8; 10]  (416..425)
+  record BbrState where
+    bbr-base :: U64
+
+  #[inline(always)] #[no-alloc] b-off-cwnd :: U64
+  b-off-cwnd = 0
+  #[inline(always)] #[no-alloc] b-off-pacing :: U64
+  b-off-pacing = 8
+  #[inline(always)] #[no-alloc] b-off-max-bw :: U64
+  b-off-max-bw = 16
+  #[inline(always)] #[no-alloc] b-off-bw-hi :: U64
+  b-off-bw-hi = 24
+  #[inline(always)] #[no-alloc] b-off-bw-lo :: U64
+  b-off-bw-lo = 32
+  #[inline(always)] #[no-alloc] b-off-min-rtt :: U64
+  b-off-min-rtt = 40
+  #[inline(always)] #[no-alloc] b-off-min-rtt-stamp :: U64
+  b-off-min-rtt-stamp = 48
+  #[inline(always)] #[no-alloc] b-off-bdp :: U64
+  b-off-bdp = 56
+  #[inline(always)] #[no-alloc] b-off-inf-hi :: U64
+  b-off-inf-hi = 64
+  #[inline(always)] #[no-alloc] b-off-inf-lo :: U64
+  b-off-inf-lo = 72
+  #[inline(always)] #[no-alloc] b-off-pgain :: U64
+  b-off-pgain = 80
+  #[inline(always)] #[no-alloc] b-off-cgain :: U64
+  b-off-cgain = 88
+  #[inline(always)] #[no-alloc] b-off-round :: U64
+  b-off-round = 96
+  #[inline(always)] #[no-alloc] b-off-next-round-deliv :: U64
+  b-off-next-round-deliv = 104
+  #[inline(always)] #[no-alloc] b-off-full-bw :: U64
+  b-off-full-bw = 112
+  #[inline(always)] #[no-alloc] b-off-cycle-stamp :: U64
+  b-off-cycle-stamp = 120
+  #[inline(always)] #[no-alloc] b-off-prtt-done :: U64
+  b-off-prtt-done = 128
+  #[inline(always)] #[no-alloc] b-off-rdeliv-start :: U64
+  b-off-rdeliv-start = 136
+  #[inline(always)] #[no-alloc] b-off-rlost :: U64
+  b-off-rlost = 144
+  #[inline(always)] #[no-alloc] b-off-recn :: U64
+  b-off-recn = 152
+  #[inline(always)] #[no-alloc] b-off-bw-latest :: U64
+  b-off-bw-latest = 160
+  #[inline(always)] #[no-alloc] b-off-inf-latest :: U64
+  b-off-inf-latest = 168
+  #[inline(always)] #[no-alloc] b-off-cycle-round :: U64
+  b-off-cycle-round = 176
+  #[inline(always)] #[no-alloc] b-off-probe-up-cnt :: U64
+  b-off-probe-up-cnt = 184
+  #[inline(always)] #[no-alloc] b-off-probe-up-acks :: U64
+  b-off-probe-up-acks = 192
+  #[inline(always)] #[no-alloc] b-off-mss :: U64
+  b-off-mss = 200
+  #[inline(always)] #[no-alloc] b-off-full-bw-cnt :: U64
+  b-off-full-bw-cnt = 204
+  #[inline(always)] #[no-alloc] b-off-mode :: U64
+  b-off-mode = 208
+  #[inline(always)] #[no-alloc] b-off-filled :: U64
+  b-off-filled = 209
+  #[inline(always)] #[no-alloc] b-off-prtt-rdone :: U64
+  b-off-prtt-rdone = 210
+  #[inline(always)] #[no-alloc] b-off-has-min-rtt :: U64
+  b-off-has-min-rtt = 211
+  #[inline(always)] #[no-alloc] b-off-owns-slab :: U64
+  b-off-owns-slab = 212
+  #[inline(always)] #[no-alloc] b-off-loss-ev :: U64
+  b-off-loss-ev = 213
+  #[inline(always)] #[no-alloc] b-off-startup-loss-r :: U64
+  b-off-startup-loss-r = 216
+  #[inline(always)] #[no-alloc] b-off-prior-cwnd :: U64
+  b-off-prior-cwnd = 224
+  #[inline(always)] #[no-alloc] b-off-win-val :: U64
+  b-off-win-val = 256
+  #[inline(always)] #[no-alloc] b-off-win-rnd :: U64
+  b-off-win-rnd = 336
+  #[inline(always)] #[no-alloc] b-off-win-valid :: U64
+  b-off-win-valid = 416
+
+  #[no-alloc]
+  clear-bw-window :: U64 -> U32 ->{MVar} Unit
+  clear-bw-window base i =
+    if ge-u32 i 10 then ()
+    else
+      let off8 = wrapping-shl-u64 (u32-to-u64 i) 3 in
+      let _ = raw-store-u64 (addr-at base (wrapping-add-u64 b-off-win-val off8)) 0 in
+      let _ = raw-store-u64 (addr-at base (wrapping-add-u64 b-off-win-rnd off8)) 0 in
+      let _ = raw-store-u8 (addr-at base (wrapping-add-u64 b-off-win-valid (u32-to-u64 i))) 0 in
+      clear-bw-window base (wrapping-add-u32 i 1)
+
+  bbr-init-slab :: U64 -> U32 -> U64 -> U8 ->{MVar} BbrState
+  bbr-init-slab base mss now-ns owns =
+    let safe-mss = if lt-u32 mss 1200 then (1200 :: U32) else mss in
+    let init-cwnd = saturating-mul-u64 (u32-to-u64 safe-mss) 10 in
+    -- Initial pacing rate before first sample: Startup gain * init_cwnd / 333ms
+    let init-rate = mul-div-u64 (mul-div-u64 init-cwnd bbr-startup-pacing-gain bbr-gain-unit) ns-per-sec-u64 333000000 in
+    let _ = raw-store-u64 (addr-at base b-off-cwnd) init-cwnd in
+    let _ = raw-store-u64 (addr-at base b-off-pacing) (max-u64 init-rate 120000) in
+    let _ = raw-store-u64 (addr-at base b-off-max-bw) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-bw-hi) u64-unset in
+    let _ = raw-store-u64 (addr-at base b-off-bw-lo) u64-unset in
+    let _ = raw-store-u64 (addr-at base b-off-min-rtt) u64-unset in
+    let _ = raw-store-u64 (addr-at base b-off-min-rtt-stamp) now-ns in
+    let _ = raw-store-u64 (addr-at base b-off-bdp) init-cwnd in
+    let _ = raw-store-u64 (addr-at base b-off-inf-hi) u64-unset in
+    let _ = raw-store-u64 (addr-at base b-off-inf-lo) u64-unset in
+    let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-startup-pacing-gain in
+    let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+    let _ = raw-store-u64 (addr-at base b-off-round) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-next-round-deliv) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-full-bw) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-cycle-stamp) now-ns in
+    let _ = raw-store-u64 (addr-at base b-off-prtt-done) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-rdeliv-start) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-rlost) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-recn) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-bw-latest) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-inf-latest) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-cycle-round) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-probe-up-cnt) 1 in
+    let _ = raw-store-u64 (addr-at base b-off-probe-up-acks) 0 in
+    let _ = raw-store-u32 (addr-at base b-off-mss) safe-mss in
+    let _ = raw-store-u32 (addr-at base b-off-full-bw-cnt) 0 in
+    let _ = raw-store-u8 (addr-at base b-off-mode) bbr-mode-startup in
+    let _ = raw-store-u8 (addr-at base b-off-filled) 0 in
+    let _ = raw-store-u8 (addr-at base b-off-prtt-rdone) 0 in
+    let _ = raw-store-u8 (addr-at base b-off-has-min-rtt) 0 in
+    let _ = raw-store-u8 (addr-at base b-off-owns-slab) owns in
+    let _ = raw-store-u8 (addr-at base b-off-loss-ev) 0 in
+    let _ = raw-store-u32 (addr-at base b-off-startup-loss-r) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-prior-cwnd) init-cwnd in
+    let _ = clear-bw-window base 0 in
+    BbrState base
+
+  -- | Initialize a `BbrState` in-place at caller-owned 512-byte DMA address `addr`.
+  bbr-init-at :: I64 -> U32 -> U64 ->{MVar} BbrState
+  bbr-init-at addr mss now-ns = bbr-init-slab (wrapping-i64-to-u64 addr) mss now-ns 0
+
+  -- | Allocate a new DMA-backed `BbrState` (`mss` in bytes, e.g. `1200`).
+  bbr-new :: U32 -> U64 ->{IO, MVar} Option BbrState
+  bbr-new mss now-ns =
+    let base = engine-dma-alloc 4096 4096 in
+    if eq-u64 base 0 then None
+    else Some (bbr-init-slab base mss now-ns 1)
+
+  -- | Destroy a `BbrState` allocated by `bbr-new`.
+  bbr-destroy :: BbrState ->{IO, MVar} Unit
+  bbr-destroy st =
+    if eq-u64 st.bbr-base 0 then ()
+    else
+      let owns = raw-load-u8 (addr-at st.bbr-base b-off-owns-slab) in
+      if ne-u8 owns 0 then
+        let _ = engine-dma-free st.bbr-base 4096 in
+        ()
+      else ()
+
+  -- =========================================================================
+  -- 3. BBRv2 Accessors (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] bbr-mode-u8 :: BbrState ->{MVar} U8
+  bbr-mode-u8 st = raw-load-u8 (addr-at st.bbr-base b-off-mode)
+
+  bbr-mode :: BbrState ->{MVar} BbrMode
+  bbr-mode st = bbr-mode-from-u8 (raw-load-u8 (addr-at st.bbr-base b-off-mode))
+
+  #[inline(always)] #[no-alloc] bbr-cwnd :: BbrState ->{MVar} U64
+  bbr-cwnd st = raw-load-u64 (addr-at st.bbr-base b-off-cwnd)
+
+  #[inline(always)] #[no-alloc] bbr-pacing-rate :: BbrState ->{MVar} U64
+  bbr-pacing-rate st = raw-load-u64 (addr-at st.bbr-base b-off-pacing)
+
+  #[inline(always)] #[no-alloc] bbr-max-bw :: BbrState ->{MVar} U64
+  bbr-max-bw st = raw-load-u64 (addr-at st.bbr-base b-off-max-bw)
+
+  #[inline(always)] #[no-alloc] bbr-min-rtt-ns :: BbrState ->{MVar} U64
+  bbr-min-rtt-ns st = raw-load-u64 (addr-at st.bbr-base b-off-min-rtt)
+
+  #[inline(always)] #[no-alloc] bbr-bdp :: BbrState ->{MVar} U64
+  bbr-bdp st = raw-load-u64 (addr-at st.bbr-base b-off-bdp)
+
+  #[inline(always)] #[no-alloc] bbr-inflight-hi :: BbrState ->{MVar} U64
+  bbr-inflight-hi st = raw-load-u64 (addr-at st.bbr-base b-off-inf-hi)
+
+  #[inline(always)] #[no-alloc] bbr-inflight-lo :: BbrState ->{MVar} U64
+  bbr-inflight-lo st = raw-load-u64 (addr-at st.bbr-base b-off-inf-lo)
+
+  #[inline(always)] #[no-alloc] bbr-bw-hi :: BbrState ->{MVar} U64
+  bbr-bw-hi st = raw-load-u64 (addr-at st.bbr-base b-off-bw-hi)
+
+  #[inline(always)] #[no-alloc] bbr-bw-lo :: BbrState ->{MVar} U64
+  bbr-bw-lo st = raw-load-u64 (addr-at st.bbr-base b-off-bw-lo)
+
+  #[inline(always)] #[no-alloc] bbr-pacing-gain :: BbrState ->{MVar} U64
+  bbr-pacing-gain st = raw-load-u64 (addr-at st.bbr-base b-off-pgain)
+
+  #[inline(always)] #[no-alloc] bbr-cwnd-gain :: BbrState ->{MVar} U64
+  bbr-cwnd-gain st = raw-load-u64 (addr-at st.bbr-base b-off-cgain)
+
+  #[inline(always)] #[no-alloc] bbr-round-count :: BbrState ->{MVar} U64
+  bbr-round-count st = raw-load-u64 (addr-at st.bbr-base b-off-round)
+
+  #[inline(always)] #[no-alloc] bbr-filled-pipe :: BbrState ->{MVar} Bool
+  bbr-filled-pipe st = ne-u8 (raw-load-u8 (addr-at st.bbr-base b-off-filled)) 0
+
+  -- =========================================================================
+  -- 4. BBRv2 10-Round Max-BW Filter & Model Update (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  scan-max-bw :: U64 -> U64 -> U32 -> U64 ->{MVar} U64
+  scan-max-bw base cur-round i best =
+    if ge-u32 i 10 then best
+    else
+      let vld = raw-load-u8 (addr-at base (wrapping-add-u64 b-off-win-valid (u32-to-u64 i))) in
+      let next-best = (
+        if ne-u8 vld 0 then
+          let off8 = wrapping-shl-u64 (u32-to-u64 i) 3 in
+          let rnd = raw-load-u64 (addr-at base (wrapping-add-u64 b-off-win-rnd off8)) in
+          if lt-u64 (saturating-sub-u64 cur-round rnd) 10 then
+            max-u64 best (raw-load-u64 (addr-at base (wrapping-add-u64 b-off-win-val off8)))
+          else best
+        else best) in
+      scan-max-bw base cur-round (wrapping-add-u32 i 1) next-best
+
+  -- Record a bandwidth sample into the exact 10-round windowed max filter.
+  #[no-alloc]
+  update-bw-filter :: U64 -> U64 -> U64 ->{MVar} U64
+  update-bw-filter base bw-sample cur-round =
+    let slot = rem-u64 cur-round 10 in
+    let off8 = wrapping-shl-u64 slot 3 in
+    let vld = raw-load-u8 (addr-at base (wrapping-add-u64 b-off-win-valid slot)) in
+    let old-rnd = raw-load-u64 (addr-at base (wrapping-add-u64 b-off-win-rnd off8)) in
+    let old-val = raw-load-u64 (addr-at base (wrapping-add-u64 b-off-win-val off8)) in
+    let new-val = if both (ne-u8 vld 0) (eq-u64 old-rnd cur-round) then max-u64 old-val bw-sample else bw-sample in
+    let _ = raw-store-u64 (addr-at base (wrapping-add-u64 b-off-win-val off8)) new-val in
+    let _ = raw-store-u64 (addr-at base (wrapping-add-u64 b-off-win-rnd off8)) cur-round in
+    let _ = raw-store-u8 (addr-at base (wrapping-add-u64 b-off-win-valid slot)) 1 in
+    let mx = scan-max-bw base cur-round 0 0 in
+    let _ = raw-store-u64 (addr-at base b-off-max-bw) mx in
+    mx
+
+  #[inline(always)]
+  #[no-alloc]
+  effective-bw :: U64 ->{MVar} U64
+  effective-bw base =
+    let m = raw-load-u64 (addr-at base b-off-max-bw) in
+    let hi = raw-load-u64 (addr-at base b-off-bw-hi) in
+    let lo = raw-load-u64 (addr-at base b-off-bw-lo) in
+    min-u64 m (min-u64 hi lo)
+
+  #[inline(always)]
+  #[no-alloc]
+  set-mode-gains :: U64 -> U8 -> U64 ->{MVar} Unit
+  set-mode-gains base mode now-ns =
+    let _ = raw-store-u8 (addr-at base b-off-mode) mode in
+    let _ = raw-store-u64 (addr-at base b-off-cycle-stamp) now-ns in
+    let _ = raw-store-u64 (addr-at base b-off-cycle-round) (raw-load-u64 (addr-at base b-off-round)) in
+    if eq-u8 mode bbr-mode-startup then
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-startup-pacing-gain in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+      ()
+    else if eq-u8 mode bbr-mode-drain then
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-drain-pacing-gain in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+      ()
+    else if eq-u8 mode bbr-mode-probe-bw-down then
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-probe-down-gain in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+      ()
+    else if eq-u8 mode bbr-mode-probe-bw-cruise then
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-gain-unit in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+      ()
+    else if eq-u8 mode bbr-mode-probe-bw-refill then
+      -- Reset short-term lower bounds before refilling the pipe
+      let _ = raw-store-u64 (addr-at base b-off-bw-lo) u64-unset in
+      let _ = raw-store-u64 (addr-at base b-off-inf-lo) u64-unset in
+      let _ = raw-store-u64 (addr-at base b-off-probe-up-cnt) 1 in
+      let _ = raw-store-u64 (addr-at base b-off-probe-up-acks) 0 in
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-gain-unit in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+      ()
+    else if eq-u8 mode bbr-mode-probe-bw-up then
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-probe-up-gain in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) bbr-startup-cwnd-gain in
+      ()
+    else
+      -- ProbeRTT: save prior_cwnd and cap cwnd to 4 * MSS while pacing at 1.0x
+      let cur-c = raw-load-u64 (addr-at base b-off-cwnd) in
+      let old-p = raw-load-u64 (addr-at base b-off-prior-cwnd) in
+      let _ = raw-store-u64 (addr-at base b-off-prior-cwnd) (max-u64 cur-c old-p) in
+      let _ = raw-store-u64 (addr-at base b-off-prtt-done) 0 in
+      let _ = raw-store-u8 (addr-at base b-off-prtt-rdone) 0 in
+      let _ = raw-store-u64 (addr-at base b-off-pgain) bbr-gain-unit in
+      let _ = raw-store-u64 (addr-at base b-off-cgain) 128 in
+      ()
+
+  -- Recompute BDP, pacing rate (bytes/sec), and cwnd from current BBRv2 model.
+  #[no-alloc]
+  bbr-recompute-outputs :: U64 -> U64 -> U64 ->{MVar} Unit
+  bbr-recompute-outputs base acked-bytes bytes-in-flight =
+    let mss = u32-to-u64 (raw-load-u32 (addr-at base b-off-mss)) in
+    let min-cwnd = saturating-mul-u64 mss 4 in
+    let mode = raw-load-u8 (addr-at base b-off-mode) in
+    let bw = effective-bw base in
+    let has-rtt = raw-load-u8 (addr-at base b-off-has-min-rtt) in
+    let min-rtt = raw-load-u64 (addr-at base b-off-min-rtt) in
+    let pgain = raw-load-u64 (addr-at base b-off-pgain) in
+    let cgain = raw-load-u64 (addr-at base b-off-cgain) in
+    -- Update BDP = bw * min_rtt / 1e9
+    let bdp = (
+      if both (gt-u64 bw 0) (ne-u8 has-rtt 0) then
+        max-u64 (mul-div-u64 bw min-rtt ns-per-sec-u64) min-cwnd
+      else raw-load-u64 (addr-at base b-off-bdp)) in
+    let _ = raw-store-u64 (addr-at base b-off-bdp) bdp in
+    -- Update pacing rate: apply 1% pacing margin in CRUISE so queue stays near 0
+    let _ = (
+      if gt-u64 bw 0 then
+        let raw-rate = mul-div-u64 bw pgain bbr-gain-unit in
+        let adj-rate = (
+          if eq-u8 mode bbr-mode-probe-bw-cruise then mul-div-u64 raw-rate 99 100
+          else raw-rate) in
+        raw-store-u64 (addr-at base b-off-pacing) (max-u64 adj-rate (saturating-mul-u64 mss 10))
+      else ()) in
+    -- Update cwnd
+    let cur-cwnd = raw-load-u64 (addr-at base b-off-cwnd) in
+    let new-cwnd = (
+      if eq-u8 mode bbr-mode-probe-rtt then
+        min-cwnd
+      else
+        -- Target cwnd = cgain * bdp / 256 + 3 * mss (GSO / ACK aggregation headroom)
+        let quanta = saturating-mul-u64 mss 3 in
+        let target0 = saturating-add-u64 (mul-div-u64 bdp cgain bbr-gain-unit) quanta in
+        -- Apply BBRv2 inflight_hi and inflight_lo upper bounds when active
+        let inf-hi = raw-load-u64 (addr-at base b-off-inf-hi) in
+        let inf-lo = raw-load-u64 (addr-at base b-off-inf-lo) in
+        -- Leave 15% headroom below inflight_hi during CRUISE/DOWN (not during UP)
+        let eff-hi = (
+          if eq-u64 inf-hi u64-unset then u64-unset
+          else if eq-u8 mode bbr-mode-probe-bw-up then inf-hi
+          else max-u64 bdp (mul-div-u64 inf-hi 85 100)) in
+        let bounded = min-u64 target0 (min-u64 eff-hi inf-lo) in
+        let c1 = (
+          if eq-u8 mode bbr-mode-startup then
+            -- During Startup grow cwnd smoothly on every ACK up to target
+            let grown = saturating-add-u64 cur-cwnd acked-bytes in
+            max-u64 grown bounded
+          else if gt-u64 cur-cwnd bounded then
+            -- Converge down toward bounded target without stalling active flight
+            max-u64 bounded (min-u64 cur-cwnd (saturating-add-u64 bytes-in-flight mss))
+          else
+            min-u64 (saturating-add-u64 cur-cwnd acked-bytes) bounded) in
+        max-u64 c1 min-cwnd) in
+    let _ = raw-store-u64 (addr-at base b-off-cwnd) new-cwnd in
+    ()
+
+  -- Apply BBRv2 congestion backoff (beta = 0.7) on ECN CE or > 2% loss rate.
+  #[no-alloc]
+  bbr-apply-beta-backoff :: U64 -> U64 -> U64 ->{MVar} Unit
+  bbr-apply-beta-backoff base bytes-in-flight now-ns =
+    let mss = u32-to-u64 (raw-load-u32 (addr-at base b-off-mss)) in
+    let min-cwnd = saturating-mul-u64 mss 4 in
+    let bw = effective-bw base in
+    let bw-latest = raw-load-u64 (addr-at base b-off-bw-latest) in
+    let bdp = raw-load-u64 (addr-at base b-off-bdp) in
+    let inf-latest = raw-load-u64 (addr-at base b-off-inf-latest) in
+    let old-bw-lo = raw-load-u64 (addr-at base b-off-bw-lo) in
+    let base-bw = if eq-u64 old-bw-lo u64-unset then bw else old-bw-lo in
+    let new-bw-lo = max-u64 bw-latest (mul-div-u64 base-bw 7 10) in
+    let _ = if gt-u64 new-bw-lo 0 then raw-store-u64 (addr-at base b-off-bw-lo) new-bw-lo else () in
+    let old-inf-lo = raw-load-u64 (addr-at base b-off-inf-lo) in
+    let base-inf = if eq-u64 old-inf-lo u64-unset then max-u64 bdp bytes-in-flight else old-inf-lo in
+    let new-inf-lo = max-u64 min-cwnd (max-u64 inf-latest (mul-div-u64 base-inf 7 10)) in
+    let _ = raw-store-u64 (addr-at base b-off-inf-lo) new-inf-lo in
+    let mode = raw-load-u8 (addr-at base b-off-mode) in
+    if eq-u8 mode bbr-mode-probe-bw-up then
+      let _ = raw-store-u64 (addr-at base b-off-inf-hi) (max-u64 bdp (max-u64 bytes-in-flight min-cwnd)) in
+      set-mode-gains base bbr-mode-probe-bw-down now-ns
+    else ()
+
+  -- | Handle ECN CE congestion signal (`ecn-ce-bytes` marked in flight) per
+  -- BBRv2 beta = 0.7 backoff.
+  #[no-alloc]
+  bbr-on-ecn :: BbrState -> U64 -> U64 -> U64 ->{MVar} Unit
+  bbr-on-ecn st ecn-ce-bytes bytes-in-flight now-ns =
+    if eq-u64 ecn-ce-bytes 0 then ()
+    else
+      let base = st.bbr-base in
+      let old = raw-load-u64 (addr-at base b-off-recn) in
+      let _ = raw-store-u64 (addr-at base b-off-recn) (saturating-add-u64 old ecn-ce-bytes) in
+      let _ = bbr-apply-beta-backoff base bytes-in-flight now-ns in
+      bbr-recompute-outputs base 0 bytes-in-flight
+
+  -- | Handle RFC 9002 persistent congestion by collapsing cwnd to `4 * MSS`
+  -- and restarting bandwidth discovery cleanly.
+  #[no-alloc]
+  bbr-on-persistent-congestion :: BbrState -> U64 ->{MVar} Unit
+  bbr-on-persistent-congestion st now-ns =
+    let base = st.bbr-base in
+    let mss = u32-to-u64 (raw-load-u32 (addr-at base b-off-mss)) in
+    let min-cwnd = saturating-mul-u64 mss 4 in
+    let _ = raw-store-u64 (addr-at base b-off-cwnd) min-cwnd in
+    let _ = raw-store-u64 (addr-at base b-off-inf-lo) u64-unset in
+    let _ = raw-store-u64 (addr-at base b-off-bw-lo) u64-unset in
+    let _ = raw-store-u8 (addr-at base b-off-filled) 0 in
+    let _ = raw-store-u32 (addr-at base b-off-full-bw-cnt) 0 in
+    let _ = raw-store-u64 (addr-at base b-off-full-bw) 0 in
+    set-mode-gains base bbr-mode-startup now-ns
+
+  -- | Main BBRv2 ACK + Loss feedback entry point (`#[no-alloc]`).
+  --
+  -- Parameters map directly from `Recovery.AckOutcome`:
+  --   `st`, `acked-bytes`, `lost-bytes`, `bytes-in-flight`,
+  --   `delivered-bytes`, `delivered-ns`, `prior-delivered-bytes`,
+  --   `prior-delivered-ns`, `latest-rtt-ns`, `is-app-limited`, `now-ns`.
+  #[no-alloc]
+  bbr-on-ack :: BbrState -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U8 -> U64 ->{MVar} Unit
+  bbr-on-ack st acked-bytes lost-bytes bytes-in-flight delivered-bytes delivered-ns prior-delivered-bytes prior-delivered-ns latest-rtt-ns is-app-limited now-ns =
+    let base = st.bbr-base in
+    let mss = u32-to-u64 (raw-load-u32 (addr-at base b-off-mss)) in
+    let min-cwnd = saturating-mul-u64 mss 4 in
+    -- 1. Advance round-trip counter when prior_delivered >= next_round_delivered
+    let next-rnd-deliv = raw-load-u64 (addr-at base b-off-next-round-deliv) in
+    let round-start = both (gt-u64 acked-bytes 0) (ge-u64 prior-delivered-bytes next-rnd-deliv) in
+    let cur-round0 = raw-load-u64 (addr-at base b-off-round) in
+    let cur-round = (
+      if round-start then
+        let nr = wrapping-add-u64 cur-round0 1 in
+        let _ = raw-store-u64 (addr-at base b-off-round) nr in
+        let _ = raw-store-u64 (addr-at base b-off-next-round-deliv) delivered-bytes in
+        nr
+      else cur-round0) in
+    -- 2. Compute delivery-rate sample & update 10-round max_bw filter
+    let mode0 = raw-load-u8 (addr-at base b-off-mode) in
+    let delta-deliv = saturating-sub-u64 delivered-bytes prior-delivered-bytes in
+    let ack-elapsed = saturating-sub-u64 delivered-ns prior-delivered-ns in
+    let interval-ns = if gt-u64 ack-elapsed 0 then ack-elapsed else latest-rtt-ns in
+    let bw-sample = (
+      if both (gt-u64 delta-deliv 0) (gt-u64 interval-ns 0) then
+        mul-div-u64 delta-deliv ns-per-sec-u64 interval-ns
+      else 0) in
+    let cur-max-bw = raw-load-u64 (addr-at base b-off-max-bw) in
+    let _ = (
+      if gt-u64 bw-sample 0 then
+        let prev-latest = raw-load-u64 (addr-at base b-off-bw-latest) in
+        let _ = raw-store-u64 (addr-at base b-off-bw-latest) (if round-start then bw-sample else max-u64 prev-latest bw-sample) in
+        -- During ProbeBW_CRUISE or ProbeRTT we intentionally pace below max_bw
+        -- or cap cwnd to 4*MSS, so hold the windowed peak unless exceeded (the
+        -- 10-round filter ages slots during Startup and ProbeBW_UP cycles).
+        if if eq-u8 mode0 bbr-mode-probe-bw-cruise then b-true else eq-u8 mode0 bbr-mode-probe-rtt then
+          if gt-u64 bw-sample cur-max-bw then
+            let _ = update-bw-filter base bw-sample cur-round in
+            ()
+          else ()
+        else if if eq-u8 is-app-limited 0 then b-true else ge-u64 bw-sample cur-max-bw then
+          let _ = update-bw-filter base bw-sample cur-round in
+          ()
+        else ()
+      else ()) in
+    let prev-inf-latest = raw-load-u64 (addr-at base b-off-inf-latest) in
+    let cur-flight-deliv = saturating-add-u64 bytes-in-flight acked-bytes in
+    let _ = raw-store-u64 (addr-at base b-off-inf-latest) (if round-start then cur-flight-deliv else max-u64 prev-inf-latest cur-flight-deliv) in
+    -- 3. Update 10-second min_rtt filter & check ProbeRTT trigger
+    let prev-min-rtt = raw-load-u64 (addr-at base b-off-min-rtt) in
+    let prev-stamp = raw-load-u64 (addr-at base b-off-min-rtt-stamp) in
+    let has-min = raw-load-u8 (addr-at base b-off-has-min-rtt) in
+    let min-expired = both (ne-u8 has-min 0) (gt-u64 (saturating-sub-u64 now-ns prev-stamp) bbr-min-rtt-filter-ns) in
+    let _ = (
+      if gt-u64 latest-rtt-ns 0 then
+        if if eq-u8 has-min 0 then b-true else if le-u64 latest-rtt-ns prev-min-rtt then b-true else min-expired then
+          let _ = raw-store-u64 (addr-at base b-off-min-rtt) latest-rtt-ns in
+          let _ = raw-store-u64 (addr-at base b-off-min-rtt-stamp) now-ns in
+          raw-store-u8 (addr-at base b-off-has-min-rtt) 1
+        else ()
+      else ()) in
+    -- 4. Track per-round losses and evaluate BBRv2 2% loss-rate threshold
+    let rlost0 = raw-load-u64 (addr-at base b-off-rlost) in
+    let rlost1 = saturating-add-u64 rlost0 lost-bytes in
+    let _ = raw-store-u64 (addr-at base b-off-rlost) rlost1 in
+    let lev0 = raw-load-u8 (addr-at base b-off-loss-ev) in
+    let lev1 = if gt-u64 lost-bytes 0 then saturating-add-u8 lev0 1 else lev0 in
+    let _ = raw-store-u8 (addr-at base b-off-loss-ev) lev1 in
+    let rdeliv-start = raw-load-u64 (addr-at base b-off-rdeliv-start) in
+    let rdeliv = saturating-sub-u64 delivered-bytes rdeliv-start in
+    let rtotal = saturating-add-u64 rdeliv rlost1 in
+    let bdp0 = raw-load-u64 (addr-at base b-off-bdp) in
+    let min-sample-bytes = max-u64 bdp0 (saturating-mul-u64 mss 50) in
+    -- Evaluate BBRv2 2% loss threshold once a full flight (>= BDP) is observed
+    -- with >= 3 distinct loss events, preventing false backoff on random drops.
+    let check-loss = ge-u64 rtotal min-sample-bytes in
+    let loss-too-high = both check-loss (both (ge-u8 lev1 3) (gt-u64 (saturating-mul-u64 rlost1 100) (saturating-mul-u64 rtotal 2))) in
+    let startup-exit-loss = both loss-too-high (ge-u8 lev1 6) in
+    let _ = (
+      if loss-too-high then
+        -- In Startup only react when >= 6 loss events occur (bbr_full_loss_cnt).
+        let _ = (
+          if eq-u8 mode0 bbr-mode-startup then
+            if startup-exit-loss then bbr-apply-beta-backoff base bytes-in-flight now-ns else ()
+          else bbr-apply-beta-backoff base bytes-in-flight now-ns) in
+        let _ = raw-store-u64 (addr-at base b-off-rlost) 0 in
+        let _ = raw-store-u64 (addr-at base b-off-rdeliv-start) delivered-bytes in
+        raw-store-u8 (addr-at base b-off-loss-ev) 0
+      else if both round-start (ge-u64 rtotal min-sample-bytes) then
+        let _ = raw-store-u64 (addr-at base b-off-rlost) 0 in
+        let _ = raw-store-u64 (addr-at base b-off-recn) 0 in
+        let _ = raw-store-u64 (addr-at base b-off-rdeliv-start) delivered-bytes in
+        raw-store-u8 (addr-at base b-off-loss-ev) 0
+      else ()) in
+    -- 5. Mode state machine transitions
+    let mode = raw-load-u8 (addr-at base b-off-mode) in
+    let max-bw = raw-load-u64 (addr-at base b-off-max-bw) in
+    let bdp = (
+      if both (gt-u64 max-bw 0) (ne-u8 (raw-load-u8 (addr-at base b-off-has-min-rtt)) 0) then
+        max-u64 (mul-div-u64 (effective-bw base) (raw-load-u64 (addr-at base b-off-min-rtt)) ns-per-sec-u64) min-cwnd
+      else bdp0) in
+    let _ = (
+      -- Trigger ProbeRTT if min_rtt has not been refreshed in > 10 seconds
+      if both (ne-u8 mode bbr-mode-probe-rtt) min-expired then
+        set-mode-gains base bbr-mode-probe-rtt now-ns
+      else if eq-u8 mode bbr-mode-startup then
+        -- Check Startup full-bandwidth plateau (3 rounds without 25% growth)
+        -- OR excessive loss (>2% with >= 6 loss events in round)
+        if startup-exit-loss then
+          let _ = raw-store-u8 (addr-at base b-off-filled) 1 in
+          set-mode-gains base bbr-mode-drain now-ns
+        else if both round-start (eq-u8 is-app-limited 0) then
+          let full-bw = raw-load-u64 (addr-at base b-off-full-bw) in
+          let thresh = saturating-add-u64 full-bw (wrapping-shr-u64 full-bw 2) in
+          if ge-u64 max-bw thresh then
+            let _ = raw-store-u64 (addr-at base b-off-full-bw) max-bw in
+            raw-store-u32 (addr-at base b-off-full-bw-cnt) 0
+          else
+            let cnt = wrapping-add-u32 (raw-load-u32 (addr-at base b-off-full-bw-cnt)) 1 in
+            let _ = raw-store-u32 (addr-at base b-off-full-bw-cnt) cnt in
+            if ge-u32 cnt 3 then
+              let _ = raw-store-u8 (addr-at base b-off-filled) 1 in
+              set-mode-gains base bbr-mode-drain now-ns
+            else ()
+        else ()
+      else if eq-u8 mode bbr-mode-drain then
+        if le-u64 bytes-in-flight bdp then
+          set-mode-gains base bbr-mode-probe-bw-cruise now-ns
+        else ()
+      else if eq-u8 mode bbr-mode-probe-bw-down then
+        let cyc-rnd = raw-load-u64 (addr-at base b-off-cycle-round) in
+        let rounds-in = saturating-sub-u64 cur-round cyc-rnd in
+        if if le-u64 bytes-in-flight bdp then b-true else ge-u64 rounds-in 1 then
+          set-mode-gains base bbr-mode-probe-bw-cruise now-ns
+        else ()
+      else if eq-u8 mode bbr-mode-probe-bw-cruise then
+        let cyc-stamp = raw-load-u64 (addr-at base b-off-cycle-stamp) in
+        if ge-u64 (saturating-sub-u64 now-ns cyc-stamp) bbr-cruise-wait-ns then
+          set-mode-gains base bbr-mode-probe-bw-refill now-ns
+        else ()
+      else if eq-u8 mode bbr-mode-probe-bw-refill then
+        let cyc-rnd = raw-load-u64 (addr-at base b-off-cycle-round) in
+        if ge-u64 (saturating-sub-u64 cur-round cyc-rnd) 1 then
+          set-mode-gains base bbr-mode-probe-bw-up now-ns
+        else ()
+      else if eq-u8 mode bbr-mode-probe-bw-up then
+        -- Raise inflight_hi smoothly when probing up without excess loss
+        let inf-hi = raw-load-u64 (addr-at base b-off-inf-hi) in
+        let _ = (
+          if ne-u64 inf-hi u64-unset then
+            let up-acks = saturating-add-u64 (raw-load-u64 (addr-at base b-off-probe-up-acks)) acked-bytes in
+            let _ = raw-store-u64 (addr-at base b-off-probe-up-acks) up-acks in
+            if ge-u64 up-acks mss then
+              let _ = raw-store-u64 (addr-at base b-off-inf-hi) (saturating-add-u64 inf-hi mss) in
+              raw-store-u64 (addr-at base b-off-probe-up-acks) 0
+            else ()
+          else ()) in
+        let cyc-rnd = raw-load-u64 (addr-at base b-off-cycle-round) in
+        let rounds-in = saturating-sub-u64 cur-round cyc-rnd in
+        let target-up = mul-div-u64 bdp bbr-probe-up-gain bbr-gain-unit in
+        if both (ge-u64 rounds-in 1) (ge-u64 bytes-in-flight target-up) then
+          set-mode-gains base bbr-mode-probe-bw-down now-ns
+        else if ge-u64 rounds-in 2 then
+          set-mode-gains base bbr-mode-probe-bw-down now-ns
+        else ()
+      else
+        -- ProbeRTT: wait until bytes_in_flight <= 4 * MSS, then dwell >= 200ms and >= 1 round
+        let done-ns = raw-load-u64 (addr-at base b-off-prtt-done) in
+        if eq-u64 done-ns 0 then
+          if le-u64 bytes-in-flight min-cwnd then
+            let _ = raw-store-u64 (addr-at base b-off-prtt-done) (saturating-add-u64 now-ns bbr-probe-rtt-duration-ns) in
+            raw-store-u8 (addr-at base b-off-prtt-rdone) 0
+          else ()
+        else
+          let rdone0 = raw-load-u8 (addr-at base b-off-prtt-rdone) in
+          let rdone = if round-start then (1 :: U8) else rdone0 in
+          let _ = raw-store-u8 (addr-at base b-off-prtt-rdone) rdone in
+          if both (ne-u8 rdone 0) (ge-u64 now-ns done-ns) then
+            let _ = raw-store-u64 (addr-at base b-off-min-rtt-stamp) now-ns in
+            -- Restore pre-ProbeRTT cwnd and refresh max_bw filter timestamp so
+            -- exiting ProbeRTT resumes full line rate without slow-starting.
+            let prior-c = raw-load-u64 (addr-at base b-off-prior-cwnd) in
+            let _ = raw-store-u64 (addr-at base b-off-cwnd) (max-u64 prior-c bdp) in
+            let _ = (
+              if gt-u64 max-bw 0 then
+                let _ = update-bw-filter base max-bw cur-round in
+                ()
+              else ()) in
+            let filled = raw-load-u8 (addr-at base b-off-filled) in
+            if ne-u8 filled 0 then set-mode-gains base bbr-mode-probe-bw-cruise now-ns
+            else set-mode-gains base bbr-mode-startup now-ns
+          else ()) in
+    -- 6. Recompute BDP, pacing rate, and cwnd
+    bbr-recompute-outputs base acked-bytes bytes-in-flight
+
+  -- =========================================================================
+  -- 5. CUBIC (RFC 9438 + RFC 9406 HyStart++) Congestion Controller (#[no-alloc])
+  -- =========================================================================
+
+  -- | Exact integer cube root `floor(cbrt(n))` via binary search (`#[no-alloc]`).
+  #[no-alloc]
+  icbrt-loop :: U64 -> U64 -> U64 -> U64
+  icbrt-loop n lo hi =
+    if ge-u64 lo hi then lo
+    else
+      let mid = wrapping-add-u64 lo (wrapping-shr-u64 (wrapping-add-u64 (wrapping-sub-u64 hi lo) 1) 1) in
+      let m128 = u64-to-u128 mid in
+      let cube = wrapping-mul-u128 (wrapping-mul-u128 m128 m128) m128 in
+      if le-u128 cube (u64-to-u128 n) then icbrt-loop n mid hi
+      else icbrt-loop n lo (wrapping-sub-u64 mid 1)
+
+  #[no-alloc]
+  cubic-icbrt-u64 :: U64 -> U64
+  cubic-icbrt-u64 n =
+    if eq-u64 n 0 then 0
+    else icbrt-loop n 1 2642245
+
+  -- | Handle to a zero-allocation RFC 9438 CUBIC + HyStart++ controller (8B POD).
+  --
+  -- Layout in DMA slab:
+  --   +0   cwnd                  :: U64  (bytes)
+  --   +8   ssthresh              :: U64  (bytes)
+  --   +16  w-max                 :: U64  (bytes)
+  --   +24  w-last-max            :: U64  (bytes, fast convergence)
+  --   +32  w-est                 :: U64  (bytes, TCP-friendly Reno estimate)
+  --   +40  epoch-start-ns        :: U64  (0 = not in CA epoch)
+  --   +48  k-ms                  :: U64  (inflection point K in milliseconds)
+  --   +56  recovery-start-ns     :: U64  (RFC 9002 §7.3.2 recovery epoch)
+  --   +64  pacing-rate           :: U64  (bytes/sec)
+  --   +72  hy-last-min-rtt       :: U64  (HyStart++ previous round min RTT)
+  --   +80  hy-curr-min-rtt       :: U64  (HyStart++ current round min RTT)
+  --   +88  hy-css-baseline-rtt   :: U64  (HyStart++ CSS baseline min RTT)
+  --   +96  hy-round-end-pn       :: U64
+  --   +104 mss                   :: U32
+  --   +108 hy-sample-cnt         :: U32
+  --   +112 hy-css-rounds         :: U32
+  --   +116 hy-in-css             :: U8
+  --   +117 owns-slab             :: U8
+  record CubicState where
+    cubic-base :: U64
+
+  #[inline(always)] #[no-alloc] c-off-cwnd :: U64
+  c-off-cwnd = 0
+  #[inline(always)] #[no-alloc] c-off-ssthresh :: U64
+  c-off-ssthresh = 8
+  #[inline(always)] #[no-alloc] c-off-wmax :: U64
+  c-off-wmax = 16
+  #[inline(always)] #[no-alloc] c-off-wlast :: U64
+  c-off-wlast = 24
+  #[inline(always)] #[no-alloc] c-off-west :: U64
+  c-off-west = 32
+  #[inline(always)] #[no-alloc] c-off-epoch :: U64
+  c-off-epoch = 40
+  #[inline(always)] #[no-alloc] c-off-kms :: U64
+  c-off-kms = 48
+  #[inline(always)] #[no-alloc] c-off-rec-start :: U64
+  c-off-rec-start = 56
+  #[inline(always)] #[no-alloc] c-off-pacing :: U64
+  c-off-pacing = 64
+  #[inline(always)] #[no-alloc] c-off-hy-last :: U64
+  c-off-hy-last = 72
+  #[inline(always)] #[no-alloc] c-off-hy-curr :: U64
+  c-off-hy-curr = 80
+  #[inline(always)] #[no-alloc] c-off-hy-base :: U64
+  c-off-hy-base = 88
+  #[inline(always)] #[no-alloc] c-off-hy-end-pn :: U64
+  c-off-hy-end-pn = 96
+  #[inline(always)] #[no-alloc] c-off-mss :: U64
+  c-off-mss = 104
+  #[inline(always)] #[no-alloc] c-off-hy-cnt :: U64
+  c-off-hy-cnt = 108
+  #[inline(always)] #[no-alloc] c-off-hy-css-r :: U64
+  c-off-hy-css-r = 112
+  #[inline(always)] #[no-alloc] c-off-hy-css :: U64
+  c-off-hy-css = 116
+  #[inline(always)] #[no-alloc] c-off-owns :: U64
+  c-off-owns = 117
+
+  cubic-init-slab :: U64 -> U32 -> U8 ->{MVar} CubicState
+  cubic-init-slab base mss owns =
+    let safe-mss = if lt-u32 mss 1200 then (1200 :: U32) else mss in
+    let init-cwnd = saturating-mul-u64 (u32-to-u64 safe-mss) 10 in
+    let init-rate = mul-div-u64 (saturating-mul-u64 init-cwnd 2) ns-per-sec-u64 333000000 in
+    let _ = raw-store-u64 (addr-at base c-off-cwnd) init-cwnd in
+    let _ = raw-store-u64 (addr-at base c-off-ssthresh) u64-unset in
+    let _ = raw-store-u64 (addr-at base c-off-wmax) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-wlast) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-west) init-cwnd in
+    let _ = raw-store-u64 (addr-at base c-off-epoch) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-kms) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-rec-start) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-pacing) (max-u64 init-rate 120000) in
+    let _ = raw-store-u64 (addr-at base c-off-hy-last) u64-unset in
+    let _ = raw-store-u64 (addr-at base c-off-hy-curr) u64-unset in
+    let _ = raw-store-u64 (addr-at base c-off-hy-base) u64-unset in
+    let _ = raw-store-u64 (addr-at base c-off-hy-end-pn) 0 in
+    let _ = raw-store-u32 (addr-at base c-off-mss) safe-mss in
+    let _ = raw-store-u32 (addr-at base c-off-hy-cnt) 0 in
+    let _ = raw-store-u32 (addr-at base c-off-hy-css-r) 0 in
+    let _ = raw-store-u8 (addr-at base c-off-hy-css) 0 in
+    let _ = raw-store-u8 (addr-at base c-off-owns) owns in
+    CubicState base
+
+  cubic-init-at :: I64 -> U32 ->{MVar} CubicState
+  cubic-init-at addr mss = cubic-init-slab (wrapping-i64-to-u64 addr) mss 0
+
+  cubic-new :: U32 ->{IO, MVar} Option CubicState
+  cubic-new mss =
+    let base = engine-dma-alloc 4096 4096 in
+    if eq-u64 base 0 then None
+    else Some (cubic-init-slab base mss 1)
+
+  cubic-destroy :: CubicState ->{IO, MVar} Unit
+  cubic-destroy st =
+    if eq-u64 st.cubic-base 0 then ()
+    else
+      let owns = raw-load-u8 (addr-at st.cubic-base c-off-owns) in
+      if ne-u8 owns 0 then
+        let _ = engine-dma-free st.cubic-base 4096 in
+        ()
+      else ()
+
+  #[inline(always)] #[no-alloc] cubic-cwnd :: CubicState ->{MVar} U64
+  cubic-cwnd st = raw-load-u64 (addr-at st.cubic-base c-off-cwnd)
+
+  #[inline(always)] #[no-alloc] cubic-ssthresh :: CubicState ->{MVar} U64
+  cubic-ssthresh st = raw-load-u64 (addr-at st.cubic-base c-off-ssthresh)
+
+  #[inline(always)] #[no-alloc] cubic-w-max :: CubicState ->{MVar} U64
+  cubic-w-max st = raw-load-u64 (addr-at st.cubic-base c-off-wmax)
+
+  #[inline(always)] #[no-alloc] cubic-pacing-rate :: CubicState ->{MVar} U64
+  cubic-pacing-rate st = raw-load-u64 (addr-at st.cubic-base c-off-pacing)
+
+  #[inline(always)] #[no-alloc] cubic-in-hystart-css :: CubicState ->{MVar} Bool
+  cubic-in-hystart-css st = ne-u8 (raw-load-u8 (addr-at st.cubic-base c-off-hy-css)) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  cubic-update-pacing :: U64 -> U64 ->{MVar} Unit
+  cubic-update-pacing base srtt-ns =
+    let cwnd = raw-load-u64 (addr-at base c-off-cwnd) in
+    let ssth = raw-load-u64 (addr-at base c-off-ssthresh) in
+    let mss = u32-to-u64 (raw-load-u32 (addr-at base c-off-mss)) in
+    let rtt = if gt-u64 srtt-ns 100000 then srtt-ns else 100000 in
+    -- RFC 9002 §7.7: 2.0x in slow start, 1.25x in congestion avoidance
+    let num = if lt-u64 cwnd ssth then saturating-mul-u64 cwnd 200 else saturating-mul-u64 cwnd 125 in
+    let rate = mul-div-u64 num (div-u64 ns-per-sec-u64 100) rtt in
+    let _ = raw-store-u64 (addr-at base c-off-pacing) (max-u64 rate (saturating-mul-u64 mss 10)) in
+    ()
+
+  -- Evaluate RFC 9438 `W_cubic(t_ms)` in bytes:
+  --   `W_cubic(t) = W_max + C * (t - K)^3 * MSS`, with `C = 0.4`.
+  #[no-alloc]
+  eval-w-cubic :: U64 -> U64 -> U64 -> U64 -> U64
+  eval-w-cubic w-max k-ms t-ms mss =
+    let dt = if ge-u64 t-ms k-ms then wrapping-sub-u64 t-ms k-ms else wrapping-sub-u64 k-ms t-ms in
+    let dt128 = u64-to-u128 dt in
+    let dt3 = wrapping-mul-u128 (wrapping-mul-u128 dt128 dt128) dt128 in
+    -- delta_bytes = 0.4 * (dt_ms / 1000)^3 * mss = (4 * dt_ms^3 * mss) / 10_000_000_000
+    let num = wrapping-mul-u128 (wrapping-mul-u128 4 dt3) (u64-to-u128 mss) in
+    let delta = saturating-u128-to-u64 (div-u128 num 10000000000) in
+    if ge-u64 t-ms k-ms then saturating-add-u64 w-max delta
+    else saturating-sub-u64 w-max delta
+
+  -- | RFC 9438 CUBIC + RFC 9406 HyStart++ ACK handler (`#[no-alloc]`).
+  #[no-alloc]
+  cubic-on-ack :: CubicState -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 ->{MVar} Unit
+  cubic-on-ack st acked-bytes largest-acked-pn latest-rtt-ns srtt-ns now-ns sent-ns =
+    if eq-u64 acked-bytes 0 then ()
+    else
+      let base = st.cubic-base in
+      let mss = u32-to-u64 (raw-load-u32 (addr-at base c-off-mss)) in
+      let rec-start = raw-load-u64 (addr-at base c-off-rec-start) in
+      -- Ignore packets sent before recovery epoch start (RFC 9002 §7.3.2)
+      let in-recovery = both (gt-u64 rec-start 0) (le-u64 sent-ns rec-start) in
+      if in-recovery then
+        cubic-update-pacing base srtt-ns
+      else
+        let cwnd = raw-load-u64 (addr-at base c-off-cwnd) in
+        let ssth = raw-load-u64 (addr-at base c-off-ssthresh) in
+        let new-cwnd = (
+          if lt-u64 cwnd ssth then
+            -- Slow Start with RFC 9406 HyStart++ delay increase detection
+            let end-pn = raw-load-u64 (addr-at base c-off-hy-end-pn) in
+            let _ = (
+              if gt-u64 largest-acked-pn end-pn then
+                -- New HyStart++ round
+                let cur-min = raw-load-u64 (addr-at base c-off-hy-curr) in
+                let _ = raw-store-u64 (addr-at base c-off-hy-last) cur-min in
+                let _ = raw-store-u64 (addr-at base c-off-hy-curr) u64-unset in
+                let _ = raw-store-u32 (addr-at base c-off-hy-cnt) 0 in
+                let _ = raw-store-u64 (addr-at base c-off-hy-end-pn) (saturating-add-u64 largest-acked-pn (max-u64 (mul-div-u64 cwnd 1 mss) 4)) in
+                let in-css = raw-load-u8 (addr-at base c-off-hy-css) in
+                if ne-u8 in-css 0 then
+                  let css-r = wrapping-add-u32 (raw-load-u32 (addr-at base c-off-hy-css-r)) 1 in
+                  let _ = raw-store-u32 (addr-at base c-off-hy-css-r) css-r in
+                  if ge-u32 css-r 5 then
+                    -- Exit slow start into Congestion Avoidance after 5 CSS rounds
+                    let _ = raw-store-u64 (addr-at base c-off-ssthresh) cwnd in
+                    raw-store-u8 (addr-at base c-off-hy-css) 0
+                  else ()
+                else ()
+              else ()) in
+            let _ = (
+              if gt-u64 latest-rtt-ns 0 then
+                let cur-min = min-u64 (raw-load-u64 (addr-at base c-off-hy-curr)) latest-rtt-ns in
+                let _ = raw-store-u64 (addr-at base c-off-hy-curr) cur-min in
+                let scnt = wrapping-add-u32 (raw-load-u32 (addr-at base c-off-hy-cnt)) 1 in
+                let _ = raw-store-u32 (addr-at base c-off-hy-cnt) scnt in
+                let in-css = raw-load-u8 (addr-at base c-off-hy-css) in
+                let last-min = raw-load-u64 (addr-at base c-off-hy-last) in
+                if both (eq-u8 in-css 0) (both (ge-u32 scnt 8) (lt-u64 last-min u64-unset)) then
+                  -- RttThresh = clamp(last_round_min_rtt / 8, 4ms, 16ms)
+                  let raw-th = wrapping-shr-u64 last-min 3 in
+                  let th = max-u64 4000000 (min-u64 raw-th 16000000) in
+                  if ge-u64 cur-min (saturating-add-u64 last-min th) then
+                    let _ = raw-store-u64 (addr-at base c-off-hy-base) cur-min in
+                    let _ = raw-store-u8 (addr-at base c-off-hy-css) 1 in
+                    raw-store-u32 (addr-at base c-off-hy-css-r) 0
+                  else ()
+                else if both (ne-u8 in-css 0) (lt-u64 cur-min (raw-load-u64 (addr-at base c-off-hy-base))) then
+                  -- Spurious delay increase: resume normal slow start
+                  let _ = raw-store-u8 (addr-at base c-off-hy-css) 0 in
+                  raw-store-u32 (addr-at base c-off-hy-css-r) 0
+                else ()
+              else ()) in
+            let in-css2 = raw-load-u8 (addr-at base c-off-hy-css) in
+            let growth = if ne-u8 in-css2 0 then wrapping-shr-u64 acked-bytes 2 else acked-bytes in
+            saturating-add-u64 cwnd growth
+          else
+            -- Congestion Avoidance: W_cubic(t + RTT) vs TCP-friendly W_est (RFC 9438 §4.3)
+            let ep0 = raw-load-u64 (addr-at base c-off-epoch) in
+            let ep = (
+              if eq-u64 ep0 0 then
+                let _ = raw-store-u64 (addr-at base c-off-epoch) now-ns in
+                let w-max0 = raw-load-u64 (addr-at base c-off-wmax) in
+                let _ = (
+                  if lt-u64 cwnd w-max0 then
+                    -- K_ms = cbrt((W_max - cwnd) / mss * 1000^3 / 0.4) = cbrt((W_max - cwnd) * 2_500_000_000 / mss)
+                    let diff-pkts = mul-div-u64 (wrapping-sub-u64 w-max0 cwnd) 2500000000 mss in
+                    raw-store-u64 (addr-at base c-off-kms) (cubic-icbrt-u64 diff-pkts)
+                  else
+                    let _ = raw-store-u64 (addr-at base c-off-wmax) cwnd in
+                    raw-store-u64 (addr-at base c-off-kms) 0) in
+                let _ = raw-store-u64 (addr-at base c-off-west) cwnd in
+                now-ns
+              else ep0) in
+            let w-max = raw-load-u64 (addr-at base c-off-wmax) in
+            let k-ms = raw-load-u64 (addr-at base c-off-kms) in
+            let t-ns = saturating-add-u64 (saturating-sub-u64 now-ns ep) srtt-ns in
+            let t-ms = div-u64 t-ns 1000000 in
+            let w-cub = eval-w-cubic w-max k-ms t-ms mss in
+            -- TCP-friendly Reno estimate: alpha_aimd = 3*(1-0.7)/(1+0.7) ~= 0.5294
+            let w-est0 = raw-load-u64 (addr-at base c-off-west) in
+            let est-inc = mul-div-u64 (mul-div-u64 acked-bytes 529 1000) mss cwnd in
+            let w-est1 = saturating-add-u64 w-est0 (max-u64 est-inc 1) in
+            let _ = raw-store-u64 (addr-at base c-off-west) w-est1 in
+            let tgt-cwnd = max-u64 w-cub w-est1 in
+            if gt-u64 tgt-cwnd cwnd then
+              let inc = mul-div-u64 (wrapping-sub-u64 tgt-cwnd cwnd) acked-bytes cwnd in
+              saturating-add-u64 cwnd (max-u64 inc 1)
+            else
+              saturating-add-u64 cwnd (max-u64 (mul-div-u64 mss acked-bytes (saturating-mul-u64 cwnd 100)) 1)) in
+        let _ = raw-store-u64 (addr-at base c-off-cwnd) new-cwnd in
+        cubic-update-pacing base srtt-ns
+
+  -- | RFC 9438 CUBIC loss handler (`beta = 0.7`, fast convergence, one reduction
+  -- per recovery epoch per RFC 9002 §7.3.2).
+  #[no-alloc]
+  cubic-on-loss :: CubicState -> U64 -> U64 -> U64 ->{MVar} Unit
+  cubic-on-loss st lost-sent-ns srtt-ns now-ns =
+    let base = st.cubic-base in
+    let rec-start = raw-load-u64 (addr-at base c-off-rec-start) in
+    if both (gt-u64 rec-start 0) (le-u64 lost-sent-ns rec-start) then ()
+    else
+      let mss = u32-to-u64 (raw-load-u32 (addr-at base c-off-mss)) in
+      let min-cwnd = saturating-mul-u64 mss 2 in
+      let cwnd = raw-load-u64 (addr-at base c-off-cwnd) in
+      let w-last = raw-load-u64 (addr-at base c-off-wlast) in
+      -- Fast convergence (RFC 9438 §4.7): if cwnd < w_last_max, scale w_max by (1+beta)/2 = 0.85
+      let new-wmax = (
+        if lt-u64 cwnd w-last then mul-div-u64 cwnd 85 100
+        else cwnd) in
+      let _ = raw-store-u64 (addr-at base c-off-wlast) cwnd in
+      let _ = raw-store-u64 (addr-at base c-off-wmax) new-wmax in
+      let new-cwnd = max-u64 min-cwnd (mul-div-u64 cwnd 7 10) in
+      let _ = raw-store-u64 (addr-at base c-off-cwnd) new-cwnd in
+      let _ = raw-store-u64 (addr-at base c-off-ssthresh) new-cwnd in
+      let _ = raw-store-u64 (addr-at base c-off-west) new-cwnd in
+      let _ = raw-store-u64 (addr-at base c-off-epoch) 0 in
+      let _ = raw-store-u64 (addr-at base c-off-rec-start) now-ns in
+      let _ = raw-store-u8 (addr-at base c-off-hy-css) 0 in
+      cubic-update-pacing base srtt-ns
+
+  -- | RFC 9002 Section 7.6.2 persistent congestion reset for CUBIC (`2 * MSS`).
+  #[no-alloc]
+  cubic-on-persistent-congestion :: CubicState -> U64 ->{MVar} Unit
+  cubic-on-persistent-congestion st srtt-ns =
+    let base = st.cubic-base in
+    let mss = u32-to-u64 (raw-load-u32 (addr-at base c-off-mss)) in
+    let min-cwnd = saturating-mul-u64 mss 2 in
+    let _ = raw-store-u64 (addr-at base c-off-cwnd) min-cwnd in
+    let _ = raw-store-u64 (addr-at base c-off-ssthresh) u64-unset in
+    let _ = raw-store-u64 (addr-at base c-off-wmax) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-wlast) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-epoch) 0 in
+    let _ = raw-store-u64 (addr-at base c-off-rec-start) 0 in
+    let _ = raw-store-u8 (addr-at base c-off-hy-css) 0 in
+    cubic-update-pacing base srtt-ns
