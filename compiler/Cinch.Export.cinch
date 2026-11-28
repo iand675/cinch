@@ -1481,6 +1481,27 @@ module Cinch.Export where
   build-prim-proof-rows contracts = case contracts of
     [] -> JArrEnd
     (name, hash, doc) : rest -> append (qualify-prim-proof-rows name (field "prim_proofs" doc)) (build-prim-proof-rows rest)
+  expand-safety-fact-list :: String -> Json -> Json
+  expand-safety-fact-list def-name facts = case facts of
+    JArr f rest ->
+      JArr (JObj "attribute" f (JObj "definition" (JStr def-name) (JObj "result" (JStr "verified") JObjEnd)))
+        (expand-safety-fact-list def-name rest)
+    other -> JArrEnd
+  qualify-safety-assertion-rows :: String -> Json -> Json
+  qualify-safety-assertion-rows owner rows = case rows of
+    JArr row rest ->
+      let local = text (field "name" row) in
+      let qname = string-concat-all [owner, ".", local] in
+      append (expand-safety-fact-list qname (field "facts" row)) (qualify-safety-assertion-rows owner rest)
+    other -> JArrEnd
+  build-safety-assertion-rows :: List (String, String, Json) -> Json
+  build-safety-assertion-rows contracts = case contracts of
+    [] -> JArrEnd
+    (name, hash, doc) : rest -> append (qualify-safety-assertion-rows name (field "assertions" doc)) (build-safety-assertion-rows rest)
+  attach-optional-safety :: Json -> Json -> Json
+  attach-optional-safety rows obj = case rows of
+    JArrEnd -> obj
+    other -> JObj "safety" (JObj "assertions" rows (JObj "jpl" JNull JObjEnd)) obj
   build-generated-manifest :: List (String, List String) -> Json -> Json -> String -> Json -> List LoadedInterface -> List (String, Json) -> Json
   build-generated-manifest generated primitives temporal entry target-facts interfaces rows =
     let contracts = source-build-contracts rows <> admitted-build-contracts interfaces in
@@ -1488,10 +1509,12 @@ module Cinch.Export where
           (JObj "foreign" (build-assumptions "foreign" contracts)
             (JObj "declared" (build-assumptions "declared" contracts) JObjEnd)) in
     let prim-proofs = build-prim-proof-rows contracts in
-    attach-optional-field "prim_proofs" prim-proofs
-      (JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
-        (JObj "prims" primitives (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
-          (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "temporal" temporal (JObj "target" target-facts JObjEnd)))))))))
+    let safety-rows = build-safety-assertion-rows contracts in
+    attach-optional-safety safety-rows
+      (attach-optional-field "prim_proofs" prim-proofs
+        (JObj "entry" (JStr entry) (JObj "runtime_abi" (JNum runtime-abi-int)
+          (JObj "prims" primitives (JObj "generated" (generated-modules generated) (JObj "modules" (sort-rows "module" (build-module-rows contracts))
+            (JObj "assumptions" trust (JObj "laws" (build-law-rows contracts) (JObj "temporal" temporal (JObj "target" target-facts JObjEnd))))))))))
 
   source-build-contracts :: List (String, Json) -> List (String, String, Json)
   source-build-contracts rows = case rows of
