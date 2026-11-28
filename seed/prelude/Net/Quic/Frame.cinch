@@ -1,0 +1,1062 @@
+-- | Zero-allocation RFC 9000 §19 & RFC 9221 QUIC frame codec (`Net.Quic.Frame`).
+--
+-- Encodes and decodes every QUIC frame type directly over raw DMA buffers
+-- (`I64`) using unboxed `#[repr(C, value)]` views (`QuicFrameHeader` and
+-- `QuicAckRange`) with zero heap allocations (`#[no-alloc]`):
+--   * `0x00` PADDING
+--   * `0x01` PING
+--   * `0x02` ACK / `0x03` ACK_ECN (with first ACK range + arbitrary extra ranges)
+--   * `0x04` RESET_STREAM
+--   * `0x05` STOP_SENDING
+--   * `0x06` CRYPTO
+--   * `0x07` NEW_TOKEN
+--   * `0x08..0x0f` STREAM (OFF / LEN / FIN flag combinations)
+--   * `0x10` MAX_DATA
+--   * `0x11` MAX_STREAM_DATA
+--   * `0x12` / `0x13` MAX_STREAMS (bidi / uni)
+--   * `0x14` DATA_BLOCKED
+--   * `0x15` STREAM_DATA_BLOCKED
+--   * `0x16` / `0x17` STREAMS_BLOCKED (bidi / uni)
+--   * `0x18` NEW_CONNECTION_ID
+--   * `0x19` RETIRE_CONNECTION_ID
+--   * `0x1a` PATH_CHALLENGE
+--   * `0x1b` PATH_RESPONSE
+--   * `0x1c` / `0x1d` CONNECTION_CLOSE (transport / application)
+--   * `0x1e` HANDSHAKE_DONE
+--   * `0x30` / `0x31` DATAGRAM (RFC 9221 without / with explicit length)
+module Net.Quic.Frame where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Net.Quic.Types
+  import Net.Quic.Varint
+  import Prim.Atomic
+
+  -- Frame type constants
+  export frame-type-padding, frame-type-ping, frame-type-ack, frame-type-ack-ecn
+  export frame-type-reset-stream, frame-type-stop-sending, frame-type-crypto, frame-type-new-token
+  export frame-type-stream-base, frame-type-stream-max
+  export frame-type-max-data, frame-type-max-stream-data
+  export frame-type-max-streams-bidi, frame-type-max-streams-uni
+  export frame-type-data-blocked, frame-type-stream-data-blocked
+  export frame-type-streams-blocked-bidi, frame-type-streams-blocked-uni
+  export frame-type-new-connection-id, frame-type-retire-connection-id
+  export frame-type-path-challenge, frame-type-path-response
+  export frame-type-connection-close-transport, frame-type-connection-close-app
+  export frame-type-handshake-done
+  export frame-type-datagram, frame-type-datagram-len
+  export stream-flag-fin, stream-flag-len, stream-flag-off
+
+  -- Unboxed POD frame & ACK-range views
+  export QuicFrameHeader, quic-frame-err, quic-frame-ok
+  export QuicAckRange, quic-ack-range-err, quic-ack-range-ok
+
+  -- Zero-alloc decoders
+  export quic-frame-decode-raw, quic-ack-range-decode-raw, quic-frame-skip-padding-raw
+
+  -- Zero-alloc encoders for all 22+ frame types
+  export quic-frame-encode-padding, quic-frame-encode-ping
+  export quic-frame-encode-ack, quic-frame-encode-ack-header, quic-ack-range-encode-raw, quic-frame-encode-ack-ecn-tail
+  export quic-frame-encode-reset-stream, quic-frame-encode-stop-sending
+  export quic-frame-encode-crypto, quic-frame-encode-new-token
+  export quic-frame-encode-stream
+  export quic-frame-encode-max-data, quic-frame-encode-max-stream-data
+  export quic-frame-encode-max-streams
+  export quic-frame-encode-data-blocked, quic-frame-encode-stream-data-blocked
+  export quic-frame-encode-streams-blocked
+  export quic-frame-encode-new-connection-id, quic-frame-encode-retire-connection-id
+  export quic-frame-encode-path-challenge, quic-frame-encode-path-response
+  export quic-frame-encode-connection-close-transport, quic-frame-encode-connection-close-app
+  export quic-frame-encode-handshake-done
+  export quic-frame-encode-datagram
+
+  -- =========================================================================
+  -- 1. Frame Type Constants
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-padding :: U64
+  frame-type-padding = 0x00
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-ping :: U64
+  frame-type-ping = 0x01
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-ack :: U64
+  frame-type-ack = 0x02
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-ack-ecn :: U64
+  frame-type-ack-ecn = 0x03
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-reset-stream :: U64
+  frame-type-reset-stream = 0x04
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-stop-sending :: U64
+  frame-type-stop-sending = 0x05
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-crypto :: U64
+  frame-type-crypto = 0x06
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-new-token :: U64
+  frame-type-new-token = 0x07
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-stream-base :: U64
+  frame-type-stream-base = 0x08
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-stream-max :: U64
+  frame-type-stream-max = 0x0f
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-max-data :: U64
+  frame-type-max-data = 0x10
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-max-stream-data :: U64
+  frame-type-max-stream-data = 0x11
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-max-streams-bidi :: U64
+  frame-type-max-streams-bidi = 0x12
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-max-streams-uni :: U64
+  frame-type-max-streams-uni = 0x13
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-data-blocked :: U64
+  frame-type-data-blocked = 0x14
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-stream-data-blocked :: U64
+  frame-type-stream-data-blocked = 0x15
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-streams-blocked-bidi :: U64
+  frame-type-streams-blocked-bidi = 0x16
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-streams-blocked-uni :: U64
+  frame-type-streams-blocked-uni = 0x17
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-new-connection-id :: U64
+  frame-type-new-connection-id = 0x18
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-retire-connection-id :: U64
+  frame-type-retire-connection-id = 0x19
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-path-challenge :: U64
+  frame-type-path-challenge = 0x1a
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-path-response :: U64
+  frame-type-path-response = 0x1b
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-connection-close-transport :: U64
+  frame-type-connection-close-transport = 0x1c
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-connection-close-app :: U64
+  frame-type-connection-close-app = 0x1d
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-handshake-done :: U64
+  frame-type-handshake-done = 0x1e
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-datagram :: U64
+  frame-type-datagram = 0x30
+
+  #[inline(always)]
+  #[no-alloc]
+  frame-type-datagram-len :: U64
+  frame-type-datagram-len = 0x31
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-flag-fin :: U8
+  stream-flag-fin = 0x01
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-flag-len :: U8
+  stream-flag-len = 0x02
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-flag-off :: U8
+  stream-flag-off = 0x04
+
+  -- =========================================================================
+  -- 2. Unboxed POD Frame & ACK-Range Views (`#[repr(C, value)]`)
+  -- =========================================================================
+
+  -- | Zero-allocation parsed view of any RFC 9000 §19 / RFC 9221 QUIC frame.
+  -- Inline payloads (CRYPTO, STREAM, NEW_TOKEN, NEW_CONNECTION_ID CID,
+  -- CONNECTION_CLOSE reason phrase, PATH_CHALLENGE/RESPONSE, DATAGRAM) are
+  -- referenced zero-copy via `(qf-data-off, qf-data-len)` within the caller's
+  -- DMA buffer.
+  #[repr(C, value)]
+  record QuicFrameHeader where
+    qf-type :: U64
+    qf-f0 :: U64
+    qf-f1 :: U64
+    qf-f2 :: U64
+    qf-f3 :: U64
+    qf-f4 :: U64
+    qf-f5 :: U64
+    qf-f6 :: U64
+    qf-data-off :: U32
+    qf-data-len :: U32
+    qf-aux-off :: U32
+    qf-consumed :: U32
+    qf-flags :: U8
+    qf-ok :: U8
+    qf-pad :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-frame-err :: Unit -> QuicFrameHeader
+  quic-frame-err _ = QuicFrameHeader 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-frame-ok :: QuicFrameHeader -> Bool
+  quic-frame-ok f = ne-u8 f.qf-ok 0
+
+  -- | Zero-allocation decoded additional ACK range `(gap, ack_range_len)`.
+  #[repr(C, value)]
+  record QuicAckRange where
+    ack-gap :: U64
+    ack-range-len :: U64
+    ack-consumed :: U32
+    ack-ok :: U8
+    ack-pad0 :: U8
+    ack-pad1 :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-ack-range-err :: Unit -> QuicAckRange
+  quic-ack-range-err _ = QuicAckRange 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-ack-range-ok :: QuicAckRange -> Bool
+  quic-ack-range-ok r = ne-u8 r.ack-ok 0
+
+  -- =========================================================================
+  -- 3. Internal Raw Memory Helpers (`#[no-alloc]`)
+  -- =========================================================================
+
+  #[no-alloc]
+  raw-copy-bytes :: I64 -> I64 -> U32 -> U32 ->{MVar} Unit
+  raw-copy-bytes dst src i n =
+    if ge-u32 i n then ()
+    else if le-u32 (wrapping-add-u32 i 8) n then
+      let v = raw-load-u64 (wrapping-add-i64 src (u32-to-i64 i)) in
+      let _ = raw-store-u64 (wrapping-add-i64 dst (u32-to-i64 i)) v in
+      raw-copy-bytes dst src (wrapping-add-u32 i 8) n
+    else
+      let b = raw-load-u8 (wrapping-add-i64 src (u32-to-i64 i)) in
+      let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 i)) b in
+      raw-copy-bytes dst src (wrapping-add-u32 i 1) n
+
+  #[no-alloc]
+  raw-fill-zero :: I64 -> U32 -> U32 ->{MVar} Unit
+  raw-fill-zero dst i n =
+    if ge-u32 i n then ()
+    else if le-u32 (wrapping-add-u32 i 8) n then
+      let _ = raw-store-u64 (wrapping-add-i64 dst (u32-to-i64 i)) 0 in
+      raw-fill-zero dst (wrapping-add-u32 i 8) n
+    else
+      let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 i)) 0 in
+      raw-fill-zero dst (wrapping-add-u32 i 1) n
+
+  -- =========================================================================
+  -- 4. Zero-Alloc Decoders
+  -- =========================================================================
+
+  -- | Decode one additional ACK range `(gap, ack_range_len)` at `buf-addr + off`.
+  #[no-alloc]
+  quic-ack-range-decode-raw :: I64 -> U32 -> U32 ->{MVar} QuicAckRange
+  quic-ack-range-decode-raw buf-addr off len =
+    let g = quic-varint-decode-raw buf-addr off len in
+    if eq-u8 g.ok 0 then quic-ack-range-err ()
+    else
+      let p1 = wrapping-add-u32 off g.consumed in
+      let r = quic-varint-decode-raw buf-addr p1 len in
+      if eq-u8 r.ok 0 then quic-ack-range-err ()
+      else
+        QuicAckRange g.val r.val (wrapping-add-u32 g.consumed r.consumed) 1 0 0
+
+  -- | Skip contiguous `0x00` PADDING bytes starting at `off`, returning the
+  -- number of zero bytes skipped.
+  #[no-alloc]
+  skip-pad-loop :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  skip-pad-loop buf-addr off len count =
+    if ge-u32 off len then count
+    else
+      let b = raw-load-u8 (wrapping-add-i64 buf-addr (u32-to-i64 off)) in
+      if eq-u8 b 0 then skip-pad-loop buf-addr (wrapping-add-u32 off 1) len (wrapping-add-u32 count 1)
+      else count
+
+  #[no-alloc]
+  quic-frame-skip-padding-raw :: I64 -> U32 -> U32 ->{MVar} U32
+  quic-frame-skip-padding-raw buf-addr off len = skip-pad-loop buf-addr off len 0
+
+  -- Validate and skip `remaining` ACK range pairs `(gap, range_len)`.
+  -- Returns the ending offset on success, or `0xFFFFFFFF` on truncation.
+  #[no-alloc]
+  skip-ack-ranges :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  skip-ack-ranges buf-addr pos len rem-count =
+    if eq-u64 rem-count 0 then pos
+    else
+      let ar = quic-ack-range-decode-raw buf-addr pos len in
+      if eq-u8 ar.ack-ok 0 then 0xffffffff
+      else skip-ack-ranges buf-addr (wrapping-add-u32 pos ar.ack-consumed) len (wrapping-sub-u64 rem-count 1)
+
+  #[no-alloc]
+  decode-ack-frame :: I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} QuicFrameHeader
+  decode-ack-frame buf-addr start pos len ftype =
+    let has-ecn = eq-u64 ftype frame-type-ack-ecn in
+    let d0 = quic-varint-decode-raw buf-addr pos len in
+    if eq-u8 d0.ok 0 then quic-frame-err ()
+    else
+      let p1 = wrapping-add-u32 pos d0.consumed in
+      let d1 = quic-varint-decode-raw buf-addr p1 len in
+      if eq-u8 d1.ok 0 then quic-frame-err ()
+      else
+        let p2 = wrapping-add-u32 p1 d1.consumed in
+        let d2 = quic-varint-decode-raw buf-addr p2 len in
+        if eq-u8 d2.ok 0 then quic-frame-err ()
+        else
+          let p3 = wrapping-add-u32 p2 d2.consumed in
+          let d3 = quic-varint-decode-raw buf-addr p3 len in
+          if eq-u8 d3.ok 0 then quic-frame-err ()
+          else if gt-u64 d3.val d0.val then quic-frame-err ()
+          else
+            let ranges-off = wrapping-add-u32 p3 d3.consumed in
+            let after-ranges = skip-ack-ranges buf-addr ranges-off len d2.val in
+            if eq-u32 after-ranges 0xffffffff then quic-frame-err ()
+            else if has-ecn then
+              let e0 = quic-varint-decode-raw buf-addr after-ranges len in
+              if eq-u8 e0.ok 0 then quic-frame-err ()
+              else
+                let pe1 = wrapping-add-u32 after-ranges e0.consumed in
+                let e1 = quic-varint-decode-raw buf-addr pe1 len in
+                if eq-u8 e1.ok 0 then quic-frame-err ()
+                else
+                  let pe2 = wrapping-add-u32 pe1 e1.consumed in
+                  let e2 = quic-varint-decode-raw buf-addr pe2 len in
+                  if eq-u8 e2.ok 0 then quic-frame-err ()
+                  else
+                    let end = wrapping-add-u32 pe2 e2.consumed in
+                    let rbytes = wrapping-sub-u32 after-ranges ranges-off in
+                    QuicFrameHeader ftype d0.val d1.val d2.val d3.val e0.val e1.val e2.val ranges-off rbytes after-ranges (wrapping-sub-u32 end start) 1 1 0
+            else
+              let rbytes = wrapping-sub-u32 after-ranges ranges-off in
+              QuicFrameHeader ftype d0.val d1.val d2.val d3.val 0 0 0 ranges-off rbytes ranges-off (wrapping-sub-u32 after-ranges start) 0 1 0
+
+  #[no-alloc]
+  decode-stream-frame :: I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} QuicFrameHeader
+  decode-stream-frame buf-addr start pos len ftype =
+    let flags = wrapping-u64-to-u8 (bit-and-u64 ftype 7) in
+    let has-off = ne-u8 (bit-and-u8 flags stream-flag-off) 0 in
+    let has-len = ne-u8 (bit-and-u8 flags stream-flag-len) 0 in
+    let sid = quic-varint-decode-raw buf-addr pos len in
+    if eq-u8 sid.ok 0 then quic-frame-err ()
+    else
+      let p1 = wrapping-add-u32 pos sid.consumed in
+      let off-dec = if has-off then quic-varint-decode-raw buf-addr p1 len else VarintDecoded 0 0 1 0 0 in
+      if eq-u8 off-dec.ok 0 then quic-frame-err ()
+      else
+        let p2 = wrapping-add-u32 p1 off-dec.consumed in
+        if has-len then
+          let ldec = quic-varint-decode-raw buf-addr p2 len in
+          if eq-u8 ldec.ok 0 then quic-frame-err ()
+          else
+            let data-off = wrapping-add-u32 p2 ldec.consumed in
+            let avail = wrapping-sub-u32 len data-off in
+            if gt-u64 ldec.val (u32-to-u64 avail) then quic-frame-err ()
+            else
+              let dlen = wrapping-u64-to-u32 ldec.val in
+              let end = wrapping-add-u32 data-off dlen in
+              QuicFrameHeader ftype sid.val off-dec.val 0 0 0 0 0 data-off dlen 0 (wrapping-sub-u32 end start) flags 1 0
+        else
+          let dlen = wrapping-sub-u32 len p2 in
+          QuicFrameHeader ftype sid.val off-dec.val 0 0 0 0 0 p2 dlen 0 (wrapping-sub-u32 len start) flags 1 0
+
+  #[no-alloc]
+  decode-new-cid-frame :: I64 -> U32 -> U32 -> U32 ->{MVar} QuicFrameHeader
+  decode-new-cid-frame buf-addr start pos len =
+    let seq = quic-varint-decode-raw buf-addr pos len in
+    if eq-u8 seq.ok 0 then quic-frame-err ()
+    else
+      let p1 = wrapping-add-u32 pos seq.consumed in
+      let ret = quic-varint-decode-raw buf-addr p1 len in
+      if eq-u8 ret.ok 0 then quic-frame-err ()
+      else if gt-u64 ret.val seq.val then quic-frame-err ()
+      else
+        let p2 = wrapping-add-u32 p1 ret.consumed in
+        if ge-u32 p2 len then quic-frame-err ()
+        else
+          let cid-len = raw-load-u8 (wrapping-add-i64 buf-addr (u32-to-i64 p2)) in
+          if eq-u8 cid-len 0 then quic-frame-err ()
+          else if gt-u8 cid-len quic-cid-max-len then quic-frame-err ()
+          else
+            let cid-off = wrapping-add-u32 p2 1 in
+            let clen32 = u8-to-u32 cid-len in
+            let need = wrapping-add-u32 clen32 16 in
+            if lt-u32 (wrapping-sub-u32 len cid-off) need then quic-frame-err ()
+            else
+              let token-off = wrapping-add-u32 cid-off clen32 in
+              let end = wrapping-add-u32 token-off 16 in
+              QuicFrameHeader frame-type-new-connection-id seq.val ret.val 0 0 0 0 0 cid-off clen32 token-off (wrapping-sub-u32 end start) 0 1 0
+
+  #[no-alloc]
+  decode-conn-close-frame :: I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} QuicFrameHeader
+  decode-conn-close-frame buf-addr start pos len ftype =
+    let is-app = eq-u64 ftype frame-type-connection-close-app in
+    let err = quic-varint-decode-raw buf-addr pos len in
+    if eq-u8 err.ok 0 then quic-frame-err ()
+    else
+      let p1 = wrapping-add-u32 pos err.consumed in
+      let fdec = if is-app then VarintDecoded 0 0 1 0 0 else quic-varint-decode-raw buf-addr p1 len in
+      if eq-u8 fdec.ok 0 then quic-frame-err ()
+      else
+        let p2 = wrapping-add-u32 p1 fdec.consumed in
+        let rlen = quic-varint-decode-raw buf-addr p2 len in
+        if eq-u8 rlen.ok 0 then quic-frame-err ()
+        else
+          let roff = wrapping-add-u32 p2 rlen.consumed in
+          let avail = wrapping-sub-u32 len roff in
+          if gt-u64 rlen.val (u32-to-u64 avail) then quic-frame-err ()
+          else
+            let dlen = wrapping-u64-to-u32 rlen.val in
+            let end = wrapping-add-u32 roff dlen in
+            let fl = if is-app then (1 :: U8) else 0 in
+            QuicFrameHeader ftype err.val fdec.val 0 0 0 0 0 roff dlen 0 (wrapping-sub-u32 end start) fl 1 0
+
+  -- | Decode one QUIC frame at `buf-addr + off` within payload length `len`.
+  -- Zero heap allocations (`#[no-alloc]`). Returns `QuicFrameHeader` with
+  -- `qf-ok == 1` on success and `qf-ok == 0` on truncation or malformed input.
+  #[no-alloc]
+  quic-frame-decode-raw :: I64 -> U32 -> U32 ->{MVar} QuicFrameHeader
+  quic-frame-decode-raw buf-addr off len =
+    if ge-u32 off len then quic-frame-err ()
+    else
+      let tdec = quic-varint-decode-raw buf-addr off len in
+      if eq-u8 tdec.ok 0 then quic-frame-err ()
+      else
+        let ftype = tdec.val in
+        let pos = wrapping-add-u32 off tdec.consumed in
+        if eq-u64 ftype frame-type-padding then
+          QuicFrameHeader frame-type-padding 0 0 0 0 0 0 0 0 0 0 tdec.consumed 0 1 0
+        else if eq-u64 ftype frame-type-ping then
+          QuicFrameHeader frame-type-ping 0 0 0 0 0 0 0 0 0 0 tdec.consumed 0 1 0
+        else if eq-u64 ftype frame-type-ack then
+          decode-ack-frame buf-addr off pos len ftype
+        else if eq-u64 ftype frame-type-ack-ecn then
+          decode-ack-frame buf-addr off pos len ftype
+        else if eq-u64 ftype frame-type-reset-stream then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let p1 = wrapping-add-u32 pos d0.consumed in
+            let d1 = quic-varint-decode-raw buf-addr p1 len in
+            if eq-u8 d1.ok 0 then quic-frame-err ()
+            else
+              let p2 = wrapping-add-u32 p1 d1.consumed in
+              let d2 = quic-varint-decode-raw buf-addr p2 len in
+              if eq-u8 d2.ok 0 then quic-frame-err ()
+              else
+                let end = wrapping-add-u32 p2 d2.consumed in
+                QuicFrameHeader ftype d0.val d1.val d2.val 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-stop-sending then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let p1 = wrapping-add-u32 pos d0.consumed in
+            let d1 = quic-varint-decode-raw buf-addr p1 len in
+            if eq-u8 d1.ok 0 then quic-frame-err ()
+            else
+              let end = wrapping-add-u32 p1 d1.consumed in
+              QuicFrameHeader ftype d0.val d1.val 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-crypto then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let p1 = wrapping-add-u32 pos d0.consumed in
+            let d1 = quic-varint-decode-raw buf-addr p1 len in
+            if eq-u8 d1.ok 0 then quic-frame-err ()
+            else
+              let data-off = wrapping-add-u32 p1 d1.consumed in
+              let avail = wrapping-sub-u32 len data-off in
+              if gt-u64 d1.val (u32-to-u64 avail) then quic-frame-err ()
+              else
+                let dlen = wrapping-u64-to-u32 d1.val in
+                let end = wrapping-add-u32 data-off dlen in
+                QuicFrameHeader ftype d0.val 0 0 0 0 0 0 data-off dlen 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-new-token then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else if eq-u64 d0.val 0 then quic-frame-err ()
+          else
+            let data-off = wrapping-add-u32 pos d0.consumed in
+            let avail = wrapping-sub-u32 len data-off in
+            if gt-u64 d0.val (u32-to-u64 avail) then quic-frame-err ()
+            else
+              let dlen = wrapping-u64-to-u32 d0.val in
+              let end = wrapping-add-u32 data-off dlen in
+              QuicFrameHeader ftype 0 0 0 0 0 0 0 data-off dlen 0 (wrapping-sub-u32 end off) 0 1 0
+        else if le-u64 ftype frame-type-stream-max then
+          decode-stream-frame buf-addr off pos len ftype
+        else if eq-u64 ftype frame-type-max-data then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let end = wrapping-add-u32 pos d0.consumed in
+            QuicFrameHeader ftype d0.val 0 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-max-stream-data then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let p1 = wrapping-add-u32 pos d0.consumed in
+            let d1 = quic-varint-decode-raw buf-addr p1 len in
+            if eq-u8 d1.ok 0 then quic-frame-err ()
+            else
+              let end = wrapping-add-u32 p1 d1.consumed in
+              QuicFrameHeader ftype d0.val d1.val 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if le-u64 ftype frame-type-max-streams-uni then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else if gt-u64 d0.val 1152921504606846976 then quic-frame-err ()
+          else
+            let end = wrapping-add-u32 pos d0.consumed in
+            let fl = if eq-u64 ftype frame-type-max-streams-uni then (1 :: U8) else 0 in
+            QuicFrameHeader ftype d0.val 0 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) fl 1 0
+        else if eq-u64 ftype frame-type-data-blocked then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let end = wrapping-add-u32 pos d0.consumed in
+            QuicFrameHeader ftype d0.val 0 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-stream-data-blocked then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let p1 = wrapping-add-u32 pos d0.consumed in
+            let d1 = quic-varint-decode-raw buf-addr p1 len in
+            if eq-u8 d1.ok 0 then quic-frame-err ()
+            else
+              let end = wrapping-add-u32 p1 d1.consumed in
+              QuicFrameHeader ftype d0.val d1.val 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if le-u64 ftype frame-type-streams-blocked-uni then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else if gt-u64 d0.val 1152921504606846976 then quic-frame-err ()
+          else
+            let end = wrapping-add-u32 pos d0.consumed in
+            let fl = if eq-u64 ftype frame-type-streams-blocked-uni then (1 :: U8) else 0 in
+            QuicFrameHeader ftype d0.val 0 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) fl 1 0
+        else if eq-u64 ftype frame-type-new-connection-id then
+          decode-new-cid-frame buf-addr off pos len
+        else if eq-u64 ftype frame-type-retire-connection-id then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let end = wrapping-add-u32 pos d0.consumed in
+            QuicFrameHeader ftype d0.val 0 0 0 0 0 0 0 0 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-path-challenge then
+          if lt-u32 (wrapping-sub-u32 len pos) 8 then quic-frame-err ()
+          else
+            let v = swap-bytes-u64 (raw-load-u64 (wrapping-add-i64 buf-addr (u32-to-i64 pos))) in
+            let end = wrapping-add-u32 pos 8 in
+            QuicFrameHeader ftype v 0 0 0 0 0 0 pos 8 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-path-response then
+          if lt-u32 (wrapping-sub-u32 len pos) 8 then quic-frame-err ()
+          else
+            let v = swap-bytes-u64 (raw-load-u64 (wrapping-add-i64 buf-addr (u32-to-i64 pos))) in
+            let end = wrapping-add-u32 pos 8 in
+            QuicFrameHeader ftype v 0 0 0 0 0 0 pos 8 0 (wrapping-sub-u32 end off) 0 1 0
+        else if eq-u64 ftype frame-type-connection-close-transport then
+          decode-conn-close-frame buf-addr off pos len ftype
+        else if eq-u64 ftype frame-type-connection-close-app then
+          decode-conn-close-frame buf-addr off pos len ftype
+        else if eq-u64 ftype frame-type-handshake-done then
+          QuicFrameHeader ftype 0 0 0 0 0 0 0 0 0 0 tdec.consumed 0 1 0
+        else if eq-u64 ftype frame-type-datagram then
+          let dlen = wrapping-sub-u32 len pos in
+          QuicFrameHeader ftype 0 0 0 0 0 0 0 pos dlen 0 (wrapping-sub-u32 len off) 0 1 0
+        else if eq-u64 ftype frame-type-datagram-len then
+          let d0 = quic-varint-decode-raw buf-addr pos len in
+          if eq-u8 d0.ok 0 then quic-frame-err ()
+          else
+            let data-off = wrapping-add-u32 pos d0.consumed in
+            let avail = wrapping-sub-u32 len data-off in
+            if gt-u64 d0.val (u32-to-u64 avail) then quic-frame-err ()
+            else
+              let dlen = wrapping-u64-to-u32 d0.val in
+              let end = wrapping-add-u32 data-off dlen in
+              QuicFrameHeader ftype 0 0 0 0 0 0 0 data-off dlen 0 (wrapping-sub-u32 end off) 1 1 0
+        else quic-frame-err ()
+
+  -- =========================================================================
+  -- 5. Zero-Alloc Encoders (every function returns bytes written, or 0 on error)
+  -- =========================================================================
+
+  -- | Encode `count` PADDING (`0x00`) bytes at `buf-addr + off`.
+  #[no-alloc]
+  quic-frame-encode-padding :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  quic-frame-encode-padding buf-addr off cap count =
+    if gt-u32 off cap then 0
+    else if lt-u32 (wrapping-sub-u32 cap off) count then 0
+    else
+      let _ = raw-fill-zero (wrapping-add-i64 buf-addr (u32-to-i64 off)) 0 count in
+      count
+
+  -- | Encode a PING (`0x01`) frame.
+  #[no-alloc]
+  quic-frame-encode-ping :: I64 -> U32 -> U32 ->{MVar} U32
+  quic-frame-encode-ping buf-addr off cap =
+    if ge-u32 off cap then 0
+    else
+      let _ = raw-store-u8 (wrapping-add-i64 buf-addr (u32-to-i64 off)) 0x01 in
+      1
+
+  -- | Encode the header of an ACK (`0x02`) or ACK_ECN (`0x03`) frame
+  -- (`type`, `largest-acked`, `ack-delay`, `range-count`, `first-ack-range`).
+  -- Follow with `range-count` calls to `quic-ack-range-encode-raw` and, if
+  -- `has-ecn` is `True`, one call to `quic-frame-encode-ack-ecn-tail`.
+  #[no-alloc]
+  quic-frame-encode-ack-header :: I64 -> U32 -> U32 -> Bool -> U64 -> U64 -> U64 -> U64 ->{MVar} U32
+  quic-frame-encode-ack-header buf-addr off cap has-ecn largest-acked ack-delay range-count first-range =
+    if gt-u64 first-range largest-acked then 0
+    else
+      let ftype = if has-ecn then frame-type-ack-ecn else frame-type-ack in
+      let w0 = quic-varint-encode-raw buf-addr off cap ftype in
+      if eq-u32 w0 0 then 0
+      else
+        let p1 = wrapping-add-u32 off w0 in
+        let w1 = quic-varint-encode-raw buf-addr p1 cap largest-acked in
+        if eq-u32 w1 0 then 0
+        else
+          let p2 = wrapping-add-u32 p1 w1 in
+          let w2 = quic-varint-encode-raw buf-addr p2 cap ack-delay in
+          if eq-u32 w2 0 then 0
+          else
+            let p3 = wrapping-add-u32 p2 w2 in
+            let w3 = quic-varint-encode-raw buf-addr p3 cap range-count in
+            if eq-u32 w3 0 then 0
+            else
+              let p4 = wrapping-add-u32 p3 w3 in
+              let w4 = quic-varint-encode-raw buf-addr p4 cap first-range in
+              if eq-u32 w4 0 then 0
+              else wrapping-sub-u32 (wrapping-add-u32 p4 w4) off
+
+  -- | Encode a single-range ACK (`0x02`) frame (`range-count = 0`).
+  #[no-alloc]
+  quic-frame-encode-ack :: I64 -> U32 -> U32 -> U64 -> U64 -> U64 ->{MVar} U32
+  quic-frame-encode-ack buf-addr off cap largest-acked ack-delay first-range =
+    quic-frame-encode-ack-header buf-addr off cap (eq-u32 0 1) largest-acked ack-delay 0 first-range
+
+  -- | Encode one additional ACK range `(gap, range-len)`.
+  #[no-alloc]
+  quic-ack-range-encode-raw :: I64 -> U32 -> U32 -> U64 -> U64 ->{MVar} U32
+  quic-ack-range-encode-raw buf-addr off cap gap range-len =
+    let w0 = quic-varint-encode-raw buf-addr off cap gap in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap range-len in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- | Encode the 3 ECN counts `(ect0, ect1, ecn-ce)` appended to an ACK_ECN frame.
+  #[no-alloc]
+  quic-frame-encode-ack-ecn-tail :: I64 -> U32 -> U32 -> U64 -> U64 -> U64 ->{MVar} U32
+  quic-frame-encode-ack-ecn-tail buf-addr off cap ect0 ect1 ecn-ce =
+    let w0 = quic-varint-encode-raw buf-addr off cap ect0 in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap ect1 in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap ecn-ce in
+        if eq-u32 w2 0 then 0
+        else wrapping-sub-u32 (wrapping-add-u32 p2 w2) off
+
+  -- | Encode RESET_STREAM (`0x04`).
+  #[no-alloc]
+  quic-frame-encode-reset-stream :: I64 -> U32 -> U32 -> StreamId -> U64 -> U64 ->{MVar} U32
+  quic-frame-encode-reset-stream buf-addr off cap sid app-err final-size =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-reset-stream in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap sid.stream-id-raw in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap app-err in
+        if eq-u32 w2 0 then 0
+        else
+          let p3 = wrapping-add-u32 p2 w2 in
+          let w3 = quic-varint-encode-raw buf-addr p3 cap final-size in
+          if eq-u32 w3 0 then 0
+          else wrapping-sub-u32 (wrapping-add-u32 p3 w3) off
+
+  -- | Encode STOP_SENDING (`0x05`).
+  #[no-alloc]
+  quic-frame-encode-stop-sending :: I64 -> U32 -> U32 -> StreamId -> U64 ->{MVar} U32
+  quic-frame-encode-stop-sending buf-addr off cap sid app-err =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-stop-sending in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap sid.stream-id-raw in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap app-err in
+        if eq-u32 w2 0 then 0
+        else wrapping-sub-u32 (wrapping-add-u32 p2 w2) off
+
+  -- | Encode CRYPTO (`0x06`), copying `data-len` bytes from `data-addr`.
+  #[no-alloc]
+  quic-frame-encode-crypto :: I64 -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  quic-frame-encode-crypto buf-addr off cap crypto-off data-addr data-len =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-crypto in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap crypto-off in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap (u32-to-u64 data-len) in
+        if eq-u32 w2 0 then 0
+        else
+          let p3 = wrapping-add-u32 p2 w2 in
+          if lt-u32 (wrapping-sub-u32 cap p3) data-len then 0
+          else
+            let _ = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 p3)) data-addr 0 data-len in
+            wrapping-sub-u32 (wrapping-add-u32 p3 data-len) off
+
+  -- | Encode NEW_TOKEN (`0x07`, requires `token-len > 0`).
+  #[no-alloc]
+  quic-frame-encode-new-token :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  quic-frame-encode-new-token buf-addr off cap token-addr token-len =
+    if eq-u32 token-len 0 then 0
+    else
+      let w0 = quic-varint-encode-raw buf-addr off cap frame-type-new-token in
+      if eq-u32 w0 0 then 0
+      else
+        let p1 = wrapping-add-u32 off w0 in
+        let w1 = quic-varint-encode-raw buf-addr p1 cap (u32-to-u64 token-len) in
+        if eq-u32 w1 0 then 0
+        else
+          let p2 = wrapping-add-u32 p1 w1 in
+          if lt-u32 (wrapping-sub-u32 cap p2) token-len then 0
+          else
+            let _ = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 p2)) token-addr 0 token-len in
+            wrapping-sub-u32 (wrapping-add-u32 p2 token-len) off
+
+  -- | Encode STREAM (`0x08..0x0f`). Sets `OFF` bit when `stream-off > 0`,
+  -- `LEN` bit when `with-len` is `True`, and `FIN` bit when `is-fin` is `True`.
+  #[no-alloc]
+  quic-frame-encode-stream :: I64 -> U32 -> U32 -> StreamId -> U64 -> Bool -> Bool -> I64 -> U32 ->{MVar} U32
+  quic-frame-encode-stream buf-addr off cap sid stream-off with-len is-fin data-addr data-len =
+    if ge-u32 off cap then 0
+    else
+      let has-off = gt-u64 stream-off 0 in
+      let f0 = if has-off then stream-flag-off else (0 :: U8) in
+      let f1 = if with-len then bit-or-u8 f0 stream-flag-len else f0 in
+      let f2 = if is-fin then bit-or-u8 f1 stream-flag-fin else f1 in
+      let fbyte = bit-or-u8 0x08 f2 in
+      let _ = raw-store-u8 (wrapping-add-i64 buf-addr (u32-to-i64 off)) fbyte in
+      let p1 = wrapping-add-u32 off 1 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap sid.stream-id-raw in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = if has-off then quic-varint-encode-raw buf-addr p2 cap stream-off else 0 in
+        if (if has-off then eq-u32 w2 0 else eq-u32 0 1) then 0
+        else
+          let p3 = wrapping-add-u32 p2 w2 in
+          let w3 = if with-len then quic-varint-encode-raw buf-addr p3 cap (u32-to-u64 data-len) else 0 in
+          if (if with-len then eq-u32 w3 0 else eq-u32 0 1) then 0
+          else
+            let p4 = wrapping-add-u32 p3 w3 in
+            if lt-u32 (wrapping-sub-u32 cap p4) data-len then 0
+            else
+              let _c = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 p4)) data-addr 0 data-len in
+              wrapping-sub-u32 (wrapping-add-u32 p4 data-len) off
+
+  -- | Encode MAX_DATA (`0x10`).
+  #[no-alloc]
+  quic-frame-encode-max-data :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-frame-encode-max-data buf-addr off cap max-data =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-max-data in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap max-data in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- | Encode MAX_STREAM_DATA (`0x11`).
+  #[no-alloc]
+  quic-frame-encode-max-stream-data :: I64 -> U32 -> U32 -> StreamId -> U64 ->{MVar} U32
+  quic-frame-encode-max-stream-data buf-addr off cap sid max-stream-data =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-max-stream-data in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap sid.stream-id-raw in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap max-stream-data in
+        if eq-u32 w2 0 then 0
+        else wrapping-sub-u32 (wrapping-add-u32 p2 w2) off
+
+  -- | Encode MAX_STREAMS (`0x12` bidi / `0x13` uni).
+  #[no-alloc]
+  quic-frame-encode-max-streams :: I64 -> U32 -> U32 -> Bool -> U64 ->{MVar} U32
+  quic-frame-encode-max-streams buf-addr off cap is-uni max-streams =
+    if gt-u64 max-streams 1152921504606846976 then 0
+    else
+      let ftype = if is-uni then frame-type-max-streams-uni else frame-type-max-streams-bidi in
+      let w0 = quic-varint-encode-raw buf-addr off cap ftype in
+      if eq-u32 w0 0 then 0
+      else
+        let p1 = wrapping-add-u32 off w0 in
+        let w1 = quic-varint-encode-raw buf-addr p1 cap max-streams in
+        if eq-u32 w1 0 then 0
+        else wrapping-add-u32 w0 w1
+
+  -- | Encode DATA_BLOCKED (`0x14`).
+  #[no-alloc]
+  quic-frame-encode-data-blocked :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-frame-encode-data-blocked buf-addr off cap max-data =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-data-blocked in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap max-data in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- | Encode STREAM_DATA_BLOCKED (`0x15`).
+  #[no-alloc]
+  quic-frame-encode-stream-data-blocked :: I64 -> U32 -> U32 -> StreamId -> U64 ->{MVar} U32
+  quic-frame-encode-stream-data-blocked buf-addr off cap sid max-stream-data =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-stream-data-blocked in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap sid.stream-id-raw in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap max-stream-data in
+        if eq-u32 w2 0 then 0
+        else wrapping-sub-u32 (wrapping-add-u32 p2 w2) off
+
+  -- | Encode STREAMS_BLOCKED (`0x16` bidi / `0x17` uni).
+  #[no-alloc]
+  quic-frame-encode-streams-blocked :: I64 -> U32 -> U32 -> Bool -> U64 ->{MVar} U32
+  quic-frame-encode-streams-blocked buf-addr off cap is-uni max-streams =
+    if gt-u64 max-streams 1152921504606846976 then 0
+    else
+      let ftype = if is-uni then frame-type-streams-blocked-uni else frame-type-streams-blocked-bidi in
+      let w0 = quic-varint-encode-raw buf-addr off cap ftype in
+      if eq-u32 w0 0 then 0
+      else
+        let p1 = wrapping-add-u32 off w0 in
+        let w1 = quic-varint-encode-raw buf-addr p1 cap max-streams in
+        if eq-u32 w1 0 then 0
+        else wrapping-add-u32 w0 w1
+
+  -- | Encode NEW_CONNECTION_ID (`0x18`) with `cid` (`1..=20` bytes) and a
+  -- 16-byte stateless reset token at `reset-token-addr`.
+  #[no-alloc]
+  quic-frame-encode-new-connection-id :: I64 -> U32 -> U32 -> U64 -> U64 -> ConnId -> I64 ->{MVar} U32
+  quic-frame-encode-new-connection-id buf-addr off cap seq-num retire-prior-to cid reset-token-addr =
+    if gt-u64 retire-prior-to seq-num then 0
+    else if eq-u8 cid.cid-len 0 then 0
+    else if gt-u8 cid.cid-len quic-cid-max-len then 0
+    else
+      let w0 = quic-varint-encode-raw buf-addr off cap frame-type-new-connection-id in
+      if eq-u32 w0 0 then 0
+      else
+        let p1 = wrapping-add-u32 off w0 in
+        let w1 = quic-varint-encode-raw buf-addr p1 cap seq-num in
+        if eq-u32 w1 0 then 0
+        else
+          let p2 = wrapping-add-u32 p1 w1 in
+          let w2 = quic-varint-encode-raw buf-addr p2 cap retire-prior-to in
+          if eq-u32 w2 0 then 0
+          else
+            let p3 = wrapping-add-u32 p2 w2 in
+            let clen32 = u8-to-u32 cid.cid-len in
+            let tail-need = wrapping-add-u32 (wrapping-add-u32 1 clen32) 16 in
+            if lt-u32 (wrapping-sub-u32 cap p3) tail-need then 0
+            else
+              let _l = raw-store-u8 (wrapping-add-i64 buf-addr (u32-to-i64 p3)) cid.cid-len in
+              let cid-off = wrapping-add-u32 p3 1 in
+              let _c = conn-id-write-raw cid (wrapping-add-i64 buf-addr (u32-to-i64 cid-off)) in
+              let tok-off = wrapping-add-u32 cid-off clen32 in
+              let _t = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 tok-off)) reset-token-addr 0 16 in
+              wrapping-sub-u32 (wrapping-add-u32 tok-off 16) off
+
+  -- | Encode RETIRE_CONNECTION_ID (`0x19`).
+  #[no-alloc]
+  quic-frame-encode-retire-connection-id :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-frame-encode-retire-connection-id buf-addr off cap seq-num =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-retire-connection-id in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap seq-num in
+      if eq-u32 w1 0 then 0
+      else wrapping-add-u32 w0 w1
+
+  -- | Encode PATH_CHALLENGE (`0x1a`) with 8-byte big-endian `challenge`.
+  #[no-alloc]
+  quic-frame-encode-path-challenge :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-frame-encode-path-challenge buf-addr off cap challenge =
+    if gt-u32 off cap then 0
+    else if lt-u32 (wrapping-sub-u32 cap off) 9 then 0
+    else
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      let _0 = raw-store-u8 p 0x1a in
+      let _1 = raw-store-u64 (wrapping-add-i64 p 1) (swap-bytes-u64 challenge) in
+      9
+
+  -- | Encode PATH_RESPONSE (`0x1b`) with 8-byte big-endian `response`.
+  #[no-alloc]
+  quic-frame-encode-path-response :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-frame-encode-path-response buf-addr off cap response =
+    if gt-u32 off cap then 0
+    else if lt-u32 (wrapping-sub-u32 cap off) 9 then 0
+    else
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      let _0 = raw-store-u8 p 0x1b in
+      let _1 = raw-store-u64 (wrapping-add-i64 p 1) (swap-bytes-u64 response) in
+      9
+
+  -- | Encode transport CONNECTION_CLOSE (`0x1c`).
+  #[no-alloc]
+  quic-frame-encode-connection-close-transport :: I64 -> U32 -> U32 -> QuicTransportError -> U64 -> I64 -> U32 ->{MVar} U32
+  quic-frame-encode-connection-close-transport buf-addr off cap err trigger-frame-type reason-addr reason-len =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-connection-close-transport in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap err.quic-err-raw in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap trigger-frame-type in
+        if eq-u32 w2 0 then 0
+        else
+          let p3 = wrapping-add-u32 p2 w2 in
+          let w3 = quic-varint-encode-raw buf-addr p3 cap (u32-to-u64 reason-len) in
+          if eq-u32 w3 0 then 0
+          else
+            let p4 = wrapping-add-u32 p3 w3 in
+            if lt-u32 (wrapping-sub-u32 cap p4) reason-len then 0
+            else
+              let _c = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 p4)) reason-addr 0 reason-len in
+              wrapping-sub-u32 (wrapping-add-u32 p4 reason-len) off
+
+  -- | Encode application CONNECTION_CLOSE (`0x1d`).
+  #[no-alloc]
+  quic-frame-encode-connection-close-app :: I64 -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  quic-frame-encode-connection-close-app buf-addr off cap app-err reason-addr reason-len =
+    let w0 = quic-varint-encode-raw buf-addr off cap frame-type-connection-close-app in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = quic-varint-encode-raw buf-addr p1 cap app-err in
+      if eq-u32 w1 0 then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        let w2 = quic-varint-encode-raw buf-addr p2 cap (u32-to-u64 reason-len) in
+        if eq-u32 w2 0 then 0
+        else
+          let p3 = wrapping-add-u32 p2 w2 in
+          if lt-u32 (wrapping-sub-u32 cap p3) reason-len then 0
+          else
+            let _c = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 p3)) reason-addr 0 reason-len in
+            wrapping-sub-u32 (wrapping-add-u32 p3 reason-len) off
+
+  -- | Encode HANDSHAKE_DONE (`0x1e`).
+  #[no-alloc]
+  quic-frame-encode-handshake-done :: I64 -> U32 -> U32 ->{MVar} U32
+  quic-frame-encode-handshake-done buf-addr off cap =
+    if ge-u32 off cap then 0
+    else
+      let _ = raw-store-u8 (wrapping-add-i64 buf-addr (u32-to-i64 off)) 0x1e in
+      1
+
+  -- | Encode RFC 9221 DATAGRAM (`0x30` without length, `0x31` with length).
+  #[no-alloc]
+  quic-frame-encode-datagram :: I64 -> U32 -> U32 -> Bool -> I64 -> U32 ->{MVar} U32
+  quic-frame-encode-datagram buf-addr off cap with-len data-addr data-len =
+    let ftype = if with-len then frame-type-datagram-len else frame-type-datagram in
+    let w0 = quic-varint-encode-raw buf-addr off cap ftype in
+    if eq-u32 w0 0 then 0
+    else
+      let p1 = wrapping-add-u32 off w0 in
+      let w1 = if with-len then quic-varint-encode-raw buf-addr p1 cap (u32-to-u64 data-len) else 0 in
+      if (if with-len then eq-u32 w1 0 else eq-u32 0 1) then 0
+      else
+        let p2 = wrapping-add-u32 p1 w1 in
+        if lt-u32 (wrapping-sub-u32 cap p2) data-len then 0
+        else
+          let _c = raw-copy-bytes (wrapping-add-i64 buf-addr (u32-to-i64 p2)) data-addr 0 data-len in
+          wrapping-sub-u32 (wrapping-add-u32 p2 data-len) off

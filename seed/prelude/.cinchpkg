@@ -1451,6 +1451,22 @@
     {
       "name": "Net.Tls.Fast.Spec",
       "path": "Net/Tls/Fast/Spec.cinch"
+    },
+    {
+      "name": "Net.Quic.Types",
+      "path": "Net/Quic/Types.cinch"
+    },
+    {
+      "name": "Net.Quic.Varint",
+      "path": "Net/Quic/Varint.cinch"
+    },
+    {
+      "name": "Net.Quic.Frame",
+      "path": "Net/Quic/Frame.cinch"
+    },
+    {
+      "name": "Net.Quic.Packet",
+      "path": "Net/Quic/Packet.cinch"
     }
   ],
   "order": [
@@ -1815,6 +1831,10 @@
     "Net.Tls.Fast",
     "Net.Tls.Ktls",
     "Net.Tls.QuicBridge",
-    "Net.Tls.Fast.Spec"
+    "Net.Tls.Fast.Spec",
+    "Net.Quic.Types",
+    "Net.Quic.Varint",
+    "Net.Quic.Frame",
+    "Net.Quic.Packet"
   ]
 }
