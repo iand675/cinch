@@ -1,0 +1,162 @@
+-- | Zero-allocation (`#[no-alloc]`) 128-bit SIMD WebSocket (RFC 6455) in-place
+-- payload masking kernels over both `Bytes` buffers and raw DMA slabs.
+--
+-- Replicates the 4-byte masking key across all 16 lanes of a `U128` via
+-- `simd-u32x4-splat`, XORs 16 bytes per iteration using unaligned 128-bit
+-- loads/stores (`bytes-load-u128-at`/`bytes-store-u128-at` and
+-- `raw-load-u128`/`raw-store-u128`), and finishes any `< 16`-byte tail with
+-- 4-byte + 1-byte XORs. Supports arbitrary chunk phase rotation via
+-- `ws-mask-rotate`.
+module Engine.Simd.Mask where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Machine
+  import Data.Nat
+  import Data.Wide
+  import Prim.Atomic
+  import Prim.SimdExt
+
+  export ws-mask-rotate
+  export ws-mask-bytes-in-place
+  export ws-mask-bytes-in-place-at-phase
+  export ws-mask-dma-in-place
+  export ws-mask-dma-in-place-at-phase
+
+  -- | Rotate a little-endian 4-byte WebSocket masking key `[m0, m1, m2, m3]` by
+  -- `advance` bytes so streaming/chunked masking preserves exact RFC 6455 key phase:
+  -- `m'[i] = m[(i + advance) mod 4]`.
+  #[inline(always)]
+  #[no-alloc]
+  ws-mask-rotate :: U32 -> U32 -> U32
+  ws-mask-rotate mask advance =
+    let shift = wrapping-shl-u32 (bit-and-u32 advance 3) 3 in
+    rotate-right-u32 mask shift
+
+  -- =========================================================================
+  -- 1. Bytes in-place WebSocket masking (16B SIMD + 4B + 1B tail)
+  -- =========================================================================
+
+  #[no-alloc]
+  ws-mask-bytes-tail1 :: using (end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (end :: Nat) -> U32 -> Unit
+  ws-mask-bytes-tail1 b pos end mask =
+    if 0 <= pos then
+      if nat-from-i64 pos < end then
+        let k = wrapping-u32-to-u8 mask in
+        let v = bit-xor-u8 (bytes-get-u8-at b pos) k in
+        let _ = bytes-set-u8-at b pos v in
+        ws-mask-bytes-tail1 b (wrapping-add-i64 pos 1) end (rotate-right-u32 mask 8)
+      else ()
+    else ()
+
+  #[no-alloc]
+  ws-mask-bytes-tail4 :: using (lim4 + 4 <= bytes-len b, end <= bytes-len b) => (b :: Bytes) -> (pos :: I64) -> (lim4 :: Nat) -> (end :: Nat) -> U32 -> Unit
+  ws-mask-bytes-tail4 b pos lim4 end mask =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim4 then
+        let w = bit-xor-u32 (bytes-load-le32-at b pos) mask in
+        let _ = bytes-store-le32-at b pos w in
+        ws-mask-bytes-tail4 b (wrapping-add-i64 pos 4) lim4 end mask
+      else ws-mask-bytes-tail1 b pos end mask
+    else ()
+
+  #[no-alloc]
+  ws-mask-bytes-loop16
+    :: using (lim16 + 16 <= bytes-len b, lim4 + 4 <= bytes-len b, end <= bytes-len b)
+    => (b :: Bytes) -> (pos :: I64) -> (lim16 :: Nat) -> (lim4 :: Nat) -> (end :: Nat) -> U128 -> U32 -> Unit
+  ws-mask-bytes-loop16 b pos lim16 lim4 end mask128 mask =
+    if 0 <= pos then
+      if nat-from-i64 pos <= lim16 then
+        let v = simd-u8x16-xor (bytes-load-u128-at b pos) mask128 in
+        let _ = bytes-store-u128-at b pos v in
+        ws-mask-bytes-loop16 b (wrapping-add-i64 pos 16) lim16 lim4 end mask128 mask
+      else ws-mask-bytes-tail4 b pos lim4 end mask
+    else ()
+
+  #[inline(always)]
+  #[no-alloc]
+  clamp-to-len :: (x :: Nat) -> (b :: Bytes) -> refined (r <= bytes-len b) Nat
+  clamp-to-len x b = if x <= bytes-len b then x else bytes-len b
+
+  -- | Mask/unmask `b[off..off+len)` (clamped to `bytes-len b`) in place with the
+  -- little-endian 4-byte WebSocket `mask`. Involution: applying twice restores `b`.
+  #[no-alloc]
+  ws-mask-bytes-in-place :: Bytes -> Nat -> Nat -> U32 -> Unit
+  ws-mask-bytes-in-place b off len mask =
+    let start-n = clamp-to-len off b in
+    let end-n = clamp-to-len (start-n + len) b in
+    if start-n < end-n then
+      let s = nat-to-i64 start-n in
+      if 16 <= end-n then
+        let mask128 = simd-u32x4-splat mask in
+        ws-mask-bytes-loop16 b s (end-n - 16) (end-n - 4) end-n mask128 mask
+      else if 4 <= end-n then
+        ws-mask-bytes-tail4 b s (end-n - 4) end-n mask
+      else
+        ws-mask-bytes-tail1 b s end-n mask
+    else ()
+
+  -- | Phase-aware streaming variant: rotates `mask` by `phase`, masks `b[off..off+len)`
+  -- in place, and returns the rotated mask key ready for the next contiguous chunk.
+  #[no-alloc]
+  ws-mask-bytes-in-place-at-phase :: Bytes -> Nat -> Nat -> U32 -> U32 -> U32
+  ws-mask-bytes-in-place-at-phase b off len mask phase =
+    let rotated = ws-mask-rotate mask phase in
+    let start-n = clamp-to-len off b in
+    let end-n = clamp-to-len (start-n + len) b in
+    if start-n < end-n then
+      let actual = end-n - start-n in
+      let _ = ws-mask-bytes-in-place b start-n actual rotated in
+      ws-mask-rotate rotated (wrapping-i64-to-u32 (nat-to-i64 actual))
+    else rotated
+
+  -- =========================================================================
+  -- 2. Raw DMA in-place WebSocket masking (zero-copy 16B SIMD + 4B + 1B tail)
+  -- =========================================================================
+
+  #[no-alloc]
+  ws-mask-dma-tail1 :: I64 -> U32 -> U32 ->{MVar} Unit
+  ws-mask-dma-tail1 addr rem mask =
+    if eq-u32 rem 0 then ()
+    else
+      let v = bit-xor-u8 (raw-load-u8 addr) (wrapping-u32-to-u8 mask) in
+      let _ = raw-store-u8 addr v in
+      ws-mask-dma-tail1 (wrapping-add-i64 addr 1) (wrapping-sub-u32 rem 1) (rotate-right-u32 mask 8)
+
+  #[no-alloc]
+  ws-mask-dma-tail4 :: I64 -> U32 -> U32 ->{MVar} Unit
+  ws-mask-dma-tail4 addr rem mask =
+    if ge-u32 rem 4 then
+      let w = bit-xor-u32 (raw-load-u32 addr) mask in
+      let _ = raw-store-u32 addr w in
+      ws-mask-dma-tail4 (wrapping-add-i64 addr 4) (wrapping-sub-u32 rem 4) mask
+    else ws-mask-dma-tail1 addr rem mask
+
+  #[no-alloc]
+  ws-mask-dma-loop16 :: I64 -> U32 -> U128 -> U32 ->{MVar} Unit
+  ws-mask-dma-loop16 addr rem mask128 mask =
+    if ge-u32 rem 16 then
+      let v = simd-u8x16-xor (raw-load-u128 addr) mask128 in
+      let _ = raw-store-u128 addr v in
+      ws-mask-dma-loop16 (wrapping-add-i64 addr 16) (wrapping-sub-u32 rem 16) mask128 mask
+    else ws-mask-dma-tail4 addr rem mask
+
+  -- | Mask/unmask `len` raw DMA bytes at `addr` in place with the little-endian
+  -- 4-byte WebSocket `mask`. Involution: applying twice restores memory contents.
+  #[no-alloc]
+  ws-mask-dma-in-place :: I64 -> U32 -> U32 ->{MVar} Unit
+  ws-mask-dma-in-place addr len mask =
+    if eq-u32 len 0 then ()
+    else if ge-u32 len 16 then
+      ws-mask-dma-loop16 addr len (simd-u32x4-splat mask) mask
+    else
+      ws-mask-dma-tail4 addr len mask
+
+  -- | Phase-aware DMA variant: rotates `mask` by `phase`, masks `len` bytes at `addr`
+  -- in place, and returns the rotated mask key ready for the next contiguous chunk.
+  #[no-alloc]
+  ws-mask-dma-in-place-at-phase :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  ws-mask-dma-in-place-at-phase addr len mask phase =
+    let rotated = ws-mask-rotate mask phase in
+    let _ = ws-mask-dma-in-place addr len rotated in
+    ws-mask-rotate rotated len

@@ -1387,6 +1387,18 @@
     {
       "name": "Engine.Timer.Spec",
       "path": "Engine/Timer/Spec.cinch"
+    },
+    {
+      "name": "Engine.Simd.Scan",
+      "path": "Engine/Simd/Scan.cinch"
+    },
+    {
+      "name": "Engine.Simd.Crc32c",
+      "path": "Engine/Simd/Crc32c.cinch"
+    },
+    {
+      "name": "Engine.Simd.Mask",
+      "path": "Engine/Simd/Mask.cinch"
     }
   ],
   "order": [
@@ -1735,6 +1747,9 @@
     "Engine.Ring.Shm",
     "Engine.Ring.Spec",
     "Engine.Timer",
-    "Engine.Timer.Spec"
+    "Engine.Timer.Spec",
+    "Engine.Simd.Scan",
+    "Engine.Simd.Crc32c",
+    "Engine.Simd.Mask"
   ]
 }
