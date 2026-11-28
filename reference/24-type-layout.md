@@ -1,6 +1,6 @@
 # Type layout and runtime representation
 
-A source type, a native value word, an aggregate's byte layout, and a C calling convention are distinct layers. This chapter specifies how the compiler computes and enforces each of them, how to inspect recorded layouts, and where explicit representation attributes interact with foreign boundaries and native optimization. For attribute attachment grammar and the complete `#[repr(...)]` index, see [attributes and pragmas](23-attributes-and-pragmas.md#syntax-and-attachment) and [every `repr` variant](23-attributes-and-pragmas.md#repr-every-current-variant).
+A source type, a native value word, an aggregate's byte layout, and a C calling convention are distinct layers. This chapter specifies explicit C/FFI byte layouts, alignment, packing, transparent wrappers, and foreign boundary marshaling. For the full native memory model — including default refinement-driven niche fusion, bit-packing, 3-bit pointer tagging, NaN-sentinel float sums, polymorphic niche specialization, `#[repr(value)]` POD structs, automatic unpacking, and CPR/CSR/WW register lowering — see [How memory layout works](31-memory-layout.md). For attribute attachment grammar and the complete `#[repr(...)]` index, see [attributes and pragmas](23-attributes-and-pragmas.md#syntax-and-attachment) and [every `repr` variant](23-attributes-and-pragmas.md#repr-every-current-variant).
 
 # Mental model: four separate layers
 
@@ -123,7 +123,7 @@ module Main where
   main = 0
 ```
 
-<span class="support-tag support-tag--planned">Coming soon</span> Compiler-chosen default layouts with deterministic field reordering and automatic unpacking recorded in interfaces are planned; today, unannotated aggregates always use `uniform-word`.
+Unannotated declarations have no C FFI layout (`uniform-word` at the boundary), though the native backend automatically applies niche fusion, bit-packing, pointer tagging, and small leaf record unpacking where eligible; see [How memory layout works](31-memory-layout.md). For explicit inline multi-word POD value types, use `#[repr(value)]` (optionally combined with `C`, `align(N)`, or `packed(N)`).
 
 # C layout: field order, padding, and alignment
 
@@ -571,30 +571,17 @@ Note that a boxed field inside a `#[repr(C)]` record crosses as a single pointer
 
 # Runtime headers, constructor tags, and pointer maps
 
-Every heap-allocated and static native block places an 8-byte header word at byte offset **-8** from its payload pointer:
+Every heap-allocated, stack-frame, and static native block places an 8-byte self-describing header word at byte offset **-8** from its payload pointer (ABI 10; see [How memory layout works](31-memory-layout.md#heap-block-layout-and-self-describing-headers-abi-10)):
 
 | Bit range | Width | Field | Meaning |
 | --- | --- | --- | --- |
-| `0..40` | 40 bits | `refcount` | Signed reference count (`0` = immortal/static; negative = shared across tasks, updated atomically) |
-| `40..48` | 8 bits | `kind` | Block kind (constructor, closure, bytes, bignum, dictionary, etc.) |
-| `48..64` | 16 bits | `layout_id` | Layout descriptor index (low 6 bits carry the constructor tag for ADTs) |
+| `0..35` | 35 bits | `rc` | Signed reference count (`0` = immortal/static; `> 0` = single-threaded; `-n` = atomic shared count; `2^34 - 1` / `2^34 - 2` = live/released stack-frame block) |
+| `35..40` | 5 bits | `kind` | Block kind (constructor, closure, dictionary, bytes, bignum, array, concurrency cell, etc.) |
+| `40..64` | 24 bits | `layout` | Self-describing shape for constructors/closures/dictionaries (`8`-bit tag `0..254` + `16`-bit counted field mask, or `255` escaped to a static descriptor at offset `-16`), or word count for unshaped kinds |
 
-Payloads of 65,535 words or more store the escape sentinel in `layout_id` and place the extended size/descriptor one word earlier at offset **-16**.
+Shaped blocks whose tag is `>= 255`, whose counted field sits at index `>= 16`, or whose payload exceeds 31 words store `255` (`SHAPE_ESCAPED`) in the tag bits and place a pointer to a static descriptor one word earlier at offset **-16**.
 
-Constructor tags live in the header's `layout_id` rather than in a leading payload word. Pattern matching reads the header atomically and masks the tag bits:
-
-```text
-  %t6 = inttoptr i64 %t5 to ptr
-  %t8 = getelementptr inbounds i8, ptr %t6, i64 -8
-  %t9 = load atomic i64, ptr %t8 monotonic, align 8
-  %t10 = lshr i64 %t9, 48
-  %t11 = and i64 %t10, 63
-  switch i64 %t11, label %bb2 [
-    i64 0, label %bb3
-  ]
-```
-
-Each layout descriptor carries a pointer map telling reclamation which payload slots hold `Obj`/`TObj` pointers versus `Raw` scalars. Runtime headers and layout IDs are internal ABI details; user and foreign code must never inspect or persist them directly.
+Constructor tags live in bits `40..48` of the header rather than in a leading payload word, and counted fields are described directly by the header's mask (or static descriptor) with no global layout table. Runtime headers and descriptors are internal ABI details; user and foreign code must never inspect or persist them directly.
 
 # Unboxed wrappers
 
@@ -657,9 +644,7 @@ record Sample where
 
 | Planned facility | Intended behaviour | Current status |
 | --- | --- | --- |
-| Multi-field inline value types | Store admitted multi-field products inline wherever used | Single-field `#[repr(unboxed)]` and `#[unpack]` fields are supported |
-| Compiler-chosen default multiword layouts | Deterministic field reordering recorded in interfaces | Unannotated types use `uniform-word` |
-| Expanding-edge boxing | Bound full-layout specialization on layout-growing recursive types | Finite `Raw`/`Obj`/`TObj` class specialization |
+| Expanding-edge boxing | Bound full-layout specialization on layout-growing recursive types | Finite `Raw`/`Obj`/`TObj`/`Wide`/`Val`/`PolyNiche` class specialization |
 | Representation instances (`Represent t carrier`) | Custom carriers with builder/view adapters | Not implemented |
 | Named representation selection (`List Bool via Dense`) | Explicit type-indexed alternative carriers | Not implemented |
 

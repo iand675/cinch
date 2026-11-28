@@ -38,8 +38,9 @@ This manual documents the Cinch language, compiler CLI, type and effect systems,
 - [14 · Staging, quotation, and macros](14-staging-and-macros.md) — Compile-time `stage`, `[|...|]`, macros, and `data` imports
 - [15 · FFI, representation, and inline primitives](15-ffi-layout-and-attributes.md) — `foreign import`/`export`, `#[byval]`/`#[sret]`, and `prim` bodies
 - [23 · Attributes and pragmas](23-attributes-and-pragmas.md) — Complete index of compiler-owned `#[...]` attributes
-- [24 · Type layout and runtime representation](24-type-layout.md) — C layout, alignment, packing, unpacking, and object headers
+- [24 · Type layout and runtime representation](24-type-layout.md) — C layout, alignment, packing, transparent wrappers, and FFI boundaries
 - [25 · Allocators and heap tuning](25-allocators.md) — Runtime memory variables, leak checking, heap caps, and planned allocators
+- [31 · How memory layout works](31-memory-layout.md) — Representation classes, automatic niche fusion, bit-packing, pointer tagging, `#[repr(value)]`, auto-unpacking, CPR/CSR/WW, and ABI 10 block headers
 
 ## Status
 - [16 · Current support and roadmap](16-support-and-roadmap.md) — Feature-by-feature status matrix across language, runtime, and tooling

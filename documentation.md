@@ -21,7 +21,7 @@ Twenty-four chapters taking you from a first native binary through functions, al
 
 [**Compiler user's guide →**](reference/00-guide.md)
 
-The complete reference manual in 30 chapters: CLI commands, lexical and expression syntax, types and kinds, primitives, refinements, modules, dependent proofs, effects, ownership, laziness, optimization, concurrency, staging, FFI, attributes, memory layout, allocators, REPL, LSP, documentation tools, package management, and a TLA+ guide with checkable value domains.
+The complete reference manual in 31 chapters: CLI commands, lexical and expression syntax, types and kinds, primitives, refinements, modules, dependent proofs, effects, ownership, laziness, optimization, concurrency, staging, FFI, attributes, C/FFI type layout, native memory layout and niche optimization, allocators, REPL, LSP, documentation tools, package management, and a TLA+ guide with checkable value domains.
 
 | If you need to… | Open |
 | --- | --- |
@@ -29,7 +29,7 @@ The complete reference manual in 30 chapters: CLI commands, lexical and expressi
 | Check syntax, precedence, or type rules | [Expressions and patterns](reference/03-expressions-and-patterns.md), [Types and kinds](reference/04-types-and-kinds.md) |
 | Discharge a refinement or proof obligation | [Refinements](reference/06-refinements.md), [Dependent types and proofs](reference/08-dependent-types-and-proofs.md) |
 | Work with effects, tasks, or memory limits | [Effects and capabilities](reference/09-effects-and-capabilities.md), [Ownership and memory](reference/10-ownership-and-memory.md), [Concurrency and runtime](reference/13-concurrency-and-runtime.md) |
-| Look up a `#[...]` attribute or memory layout | [Attributes and pragmas](reference/23-attributes-and-pragmas.md), [Type layout](reference/24-type-layout.md), [Allocators](reference/25-allocators.md) |
+| Look up a `#[...]` attribute or memory layout | [Attributes and pragmas](reference/23-attributes-and-pragmas.md), [Type layout](reference/24-type-layout.md), [How memory layout works](reference/31-memory-layout.md), [Allocators](reference/25-allocators.md) |
 | Find compiler-installed built-ins | [Compiler vocabulary](reference/20-compiler-vocabulary.md) |
 | Use the REPL, LSP, docs, or packages | [REPL](reference/26-repl.md), [Language server](reference/27-language-server.md), [Documentation tools](reference/28-documentation.md), [Package management](reference/29-package-management.md) |
 | Check feature support status | [Support matrix](reference/16-support-and-roadmap.md) |

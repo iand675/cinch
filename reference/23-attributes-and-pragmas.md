@@ -312,6 +312,8 @@ Hint argument and placement rejections:
 | Variant | Admitted target & constraints | Effect |
 | --- | --- | --- |
 | `unboxed` | Single-constructor type with one supported runtime field | Construction and matching operate directly on the payload word |
+| `niche` | Closed monomorphic `data` declaration whose constructors fit a single-word niche/bit-packed/tagged-pointer plan | Requires single-word niche fusion (also applied automatically by default when eligible); see [How memory layout works](31-memory-layout.md#automatic-niche-fusion-and-reprniche) |
+| `value` | Single-constructor `record` whose fields are all POD (scalars, pointers, `#[repr(value)]`, `FixedArray`) | Inline non-refcounted multi-word value layout (`i64`, `{ i64, i64 }`, or indirect/`sret`); combines with `C`, `align(N)`, and `packed(N)` |
 | `C` | Single-constructor `data` or `record`; no arguments | Source-order represented fields with C alignment and padding |
 | `transparent` | Single-constructor type with exactly one represented non-erased field; combines with no other `repr` choice or field modifier | Identical size, alignment, and ABI layout to that field |
 | `align(N)` | Nonzero power-of-two `u64`; cannot lower natural alignment | Raises aggregate alignment or field alignment (on `repr(C)` records) |
