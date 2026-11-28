@@ -1,0 +1,1107 @@
+-- | Zero-allocation (`#[no-alloc]`) HTTP/1.1 connection state machine,
+-- pipelined keep-alive / `Expect: 100-continue` / `Upgrade` handler, and
+-- coalesced DMA + `iovec` scatter-gather response serializer.
+--
+-- Connection states (`H1ConnState`):
+--   * `ReadingHead`, `ReadingFixedBody`, `ReadingChunkSize`, `ReadingChunkData`,
+--     `ReadingChunkCrlf`, `ReadingTrailers`, `Upgraded`, `Closing`, `ProtocolError`.
+--
+-- Response serialization writes directly into caller-owned DMA output buffers
+-- (and/or 16-byte POSIX `struct iovec` scatter lists for single-syscall
+-- `darwin-writev-dma` / `writev(2)`), reusing the cached 29-byte RFC 9110
+-- `Date:` buffer from `Engine.Timer.CoarseClockCache` with zero heap
+-- allocations and zero atomic RC traffic.
+module Net.Http.V1.Conn where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Timer
+  import Engine.Types
+  import Net.Http.Types
+  import Net.Http.V1.Parser
+  import Prim.Atomic
+
+  -- Connection state codes & auto-niched enum
+  export h1-state-reading-head, h1-state-reading-fixed-body
+  export h1-state-reading-chunk-size, h1-state-reading-chunk-data
+  export h1-state-reading-chunk-crlf, h1-state-reading-trailers
+  export h1-state-upgraded, h1-state-closing, h1-state-protocol-error
+  export H1ConnState, ReadingHead, ReadingFixedBody, ReadingChunkSize
+  export ReadingChunkData, ReadingChunkCrlf, ReadingTrailers
+  export Upgraded, Closing, ProtocolError
+  export h1-conn-state-to-u8, h1-conn-state-from-u8, h1-conn-state-eq
+
+  -- Step event codes & flags
+  export h1-ev-need-more, h1-ev-request-head, h1-ev-body-chunk
+  export h1-ev-request-complete, h1-ev-upgraded, h1-ev-closed, h1-ev-error
+  export h1-ev-flag-keep-alive, h1-ev-flag-expect-continue
+  export h1-ev-flag-upgrade, h1-ev-flag-req-complete
+
+  -- POD H1Conn & H1StepEvent records + pure/value transitions
+  export H1Conn, H1StepEvent, h1-conn-slot-stride, h1-req-view-slot-stride
+  export h1-conn-init, h1-conn-state-of, h1-conn-is-keep-alive
+  export h1-conn-needs-continue, h1-conn-clear-continue
+  export h1-conn-upgrade-requested, h1-conn-accept-upgrade
+  export h1-conn-on-head, h1-conn-on-fixed-body, h1-conn-on-chunk-size
+  export h1-conn-on-chunk-data, h1-conn-on-chunk-crlf, h1-conn-on-trailers
+  export h1-conn-on-response-sent, h1-conn-on-eof, h1-conn-can-close
+
+  -- In-place DMA connection slot & incremental step driver
+  export h1-conn-store-dma, h1-conn-load-dma, h1-conn-slot-init
+  export h1-store-request-view-dma, h1-load-request-view-dma
+  export h1-conn-step-dma
+
+  -- Zero-alloc DMA response serializer & iovec scatter-gather builder
+  export h1-write-status-line-dma, h1-write-date-header-dma
+  export h1-write-content-length-dma, h1-write-chunked-header-dma
+  export h1-write-connection-header-dma, h1-write-content-type-dma
+  export h1-write-header-raw-dma, h1-write-crlf-dma, h1-write-bytes-dma
+  export h1-write-continue-dma, h1-write-upgrade-dma
+  export h1-write-chunk-frame-dma, h1-write-chunk-eof-dma
+  export h1-serialize-response-dma, h1-serialize-response-head-dma
+  export h1-iovec-set, h1-build-response-iovec
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA byte helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  put1 base pos b0 =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  put2 base pos b0 b1 =
+    let p1 = put1 base pos b0 in
+    put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  put3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} U32
+  put3 base pos b0 b1 b2 =
+    let p2 = put2 base pos b0 b1 in
+    put1 base p2 b2
+
+  #[inline(always)]
+  #[no-alloc]
+  put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put4 base pos b0 b1 b2 b3 =
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put8 base pos b0 b1 b2 b3 b4 b5 b6 b7 =
+    let _ = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 b0 b1 b2 b3 b4 b5 b6 b7) in
+    wrapping-add-u32 pos 8
+
+  #[no-alloc]
+  dma-copy-raw :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-raw dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- =========================================================================
+  -- 1. H1ConnState Vocabulary & Step Event Codes
+  -- =========================================================================
+
+  #[no-alloc]
+  h1-state-reading-head :: U8
+  h1-state-reading-head = 0
+
+  #[no-alloc]
+  h1-state-reading-fixed-body :: U8
+  h1-state-reading-fixed-body = 1
+
+  #[no-alloc]
+  h1-state-reading-chunk-size :: U8
+  h1-state-reading-chunk-size = 2
+
+  #[no-alloc]
+  h1-state-reading-chunk-data :: U8
+  h1-state-reading-chunk-data = 3
+
+  #[no-alloc]
+  h1-state-reading-chunk-crlf :: U8
+  h1-state-reading-chunk-crlf = 4
+
+  #[no-alloc]
+  h1-state-reading-trailers :: U8
+  h1-state-reading-trailers = 5
+
+  #[no-alloc]
+  h1-state-upgraded :: U8
+  h1-state-upgraded = 6
+
+  #[no-alloc]
+  h1-state-closing :: U8
+  h1-state-closing = 7
+
+  #[no-alloc]
+  h1-state-protocol-error :: U8
+  h1-state-protocol-error = 8
+
+  -- | HTTP/1.1 connection state machine phases (auto-niched single-word enum).
+  data H1ConnState where
+    ReadingHead :: H1ConnState
+    ReadingFixedBody :: H1ConnState
+    ReadingChunkSize :: H1ConnState
+    ReadingChunkData :: H1ConnState
+    ReadingChunkCrlf :: H1ConnState
+    ReadingTrailers :: H1ConnState
+    Upgraded :: H1ConnState
+    Closing :: H1ConnState
+    ProtocolError :: H1ConnState
+
+  #[no-alloc]
+  h1-conn-state-to-u8 :: H1ConnState -> U8
+  h1-conn-state-to-u8 st = case st of
+    ReadingHead -> h1-state-reading-head
+    ReadingFixedBody -> h1-state-reading-fixed-body
+    ReadingChunkSize -> h1-state-reading-chunk-size
+    ReadingChunkData -> h1-state-reading-chunk-data
+    ReadingChunkCrlf -> h1-state-reading-chunk-crlf
+    ReadingTrailers -> h1-state-reading-trailers
+    Upgraded -> h1-state-upgraded
+    Closing -> h1-state-closing
+    ProtocolError -> h1-state-protocol-error
+
+  h1-conn-state-from-u8 :: U8 -> H1ConnState
+  h1-conn-state-from-u8 c =
+    if eq-u8 c 0 then ReadingHead
+    else if eq-u8 c 1 then ReadingFixedBody
+    else if eq-u8 c 2 then ReadingChunkSize
+    else if eq-u8 c 3 then ReadingChunkData
+    else if eq-u8 c 4 then ReadingChunkCrlf
+    else if eq-u8 c 5 then ReadingTrailers
+    else if eq-u8 c 6 then Upgraded
+    else if eq-u8 c 7 then Closing
+    else ProtocolError
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-state-eq :: H1ConnState -> H1ConnState -> Bool
+  h1-conn-state-eq a b = eq-u8 (h1-conn-state-to-u8 a) (h1-conn-state-to-u8 b)
+
+  #[no-alloc]
+  h1-ev-need-more :: U8
+  h1-ev-need-more = 0
+
+  #[no-alloc]
+  h1-ev-request-head :: U8
+  h1-ev-request-head = 1
+
+  #[no-alloc]
+  h1-ev-body-chunk :: U8
+  h1-ev-body-chunk = 2
+
+  #[no-alloc]
+  h1-ev-request-complete :: U8
+  h1-ev-request-complete = 3
+
+  #[no-alloc]
+  h1-ev-upgraded :: U8
+  h1-ev-upgraded = 4
+
+  #[no-alloc]
+  h1-ev-closed :: U8
+  h1-ev-closed = 5
+
+  #[no-alloc]
+  h1-ev-error :: U8
+  h1-ev-error = 6
+
+  #[no-alloc]
+  h1-ev-flag-keep-alive :: U8
+  h1-ev-flag-keep-alive = 1
+
+  #[no-alloc]
+  h1-ev-flag-expect-continue :: U8
+  h1-ev-flag-expect-continue = 2
+
+  #[no-alloc]
+  h1-ev-flag-upgrade :: U8
+  h1-ev-flag-upgrade = 4
+
+  #[no-alloc]
+  h1-ev-flag-req-complete :: U8
+  h1-ev-flag-req-complete = 8
+
+  #[no-alloc]
+  h1-conn-slot-stride :: U32
+  h1-conn-slot-stride = 64
+
+  #[no-alloc]
+  h1-req-view-slot-stride :: U32
+  h1-req-view-slot-stride = 80
+
+  -- =========================================================================
+  -- 2. POD Connection State (`H1Conn`) & Pure State Transitions (#[no-alloc])
+  -- =========================================================================
+
+  -- | 40-byte `#[repr(C, value)]` POD HTTP/1.1 connection state.
+  #[repr(C, value)]
+  record H1Conn where
+    conn-state :: U8
+    conn-last-err :: U8
+    conn-keep-alive :: U8
+    conn-expect-continue :: U8
+    conn-upgrade-req :: U8
+    conn-pad0 :: U8
+    conn-in-flight :: U16
+    conn-max-pipeline :: U16
+    conn-pad1 :: U16
+    conn-requests-parsed :: U32
+    conn-responses-sent :: U32
+    conn-body-remaining :: U64
+    conn-total-body-read :: U64
+
+  -- | 20-byte `#[repr(C, value)]` POD event returned by `h1-conn-step-dma`.
+  #[repr(C, value)]
+  record H1StepEvent where
+    ev-kind :: U8
+    ev-error :: U8
+    ev-next-state :: U8
+    ev-flags :: U8
+    ev-consumed :: U32
+    ev-data-off :: U32
+    ev-data-len :: U32
+    ev-pad :: U32
+
+  -- | Initialize a fresh HTTP/1.1 connection in `ReadingHead` with keep-alive
+  -- enabled and pipeline depth capped at `max-pipeline` (default 16 if 0).
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-init :: U16 -> H1Conn
+  h1-conn-init max-pipeline =
+    let cap = if eq-u16 max-pipeline 0 then 16 else max-pipeline in
+    H1Conn h1-state-reading-head h1-ok 1 0 0 0 0 cap 0 0 0 0 0
+
+  h1-conn-state-of :: H1Conn -> H1ConnState
+  h1-conn-state-of c = h1-conn-state-from-u8 c.conn-state
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-is-keep-alive :: H1Conn -> Bool
+  h1-conn-is-keep-alive c = ne-u8 c.conn-keep-alive 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-needs-continue :: H1Conn -> Bool
+  h1-conn-needs-continue c = ne-u8 c.conn-expect-continue 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-clear-continue :: H1Conn -> H1Conn
+  h1-conn-clear-continue c =
+    H1Conn c.conn-state c.conn-last-err c.conn-keep-alive 0 c.conn-upgrade-req 0
+      c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent
+      c.conn-body-remaining c.conn-total-body-read
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-upgrade-requested :: H1Conn -> Bool
+  h1-conn-upgrade-requested c = ne-u8 c.conn-upgrade-req 0
+
+  -- | Accept a pending protocol upgrade (`Connection: upgrade` + `Upgrade:`),
+  -- transitioning the connection into `Upgraded` so the caller can hand off the fd.
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-accept-upgrade :: H1Conn -> H1Conn
+  h1-conn-accept-upgrade c =
+    if both (ne-u8 c.conn-upgrade-req 0)
+         (both (ne-u8 c.conn-state h1-state-protocol-error) (ne-u8 c.conn-state h1-state-closing)) then
+      H1Conn h1-state-upgraded c.conn-last-err 0 0 1 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 0
+    else c
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-enter-error :: H1Conn -> U8 -> H1Conn
+  conn-enter-error c err =
+    H1Conn h1-state-protocol-error err 0 0 0 0
+      c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 0
+
+  -- | Apply a parsed `RequestView` to `c` in `ReadingHead`.
+  -- Absorbing states (`ProtocolError`, `Closing`, `Upgraded`) never accept new requests.
+  #[no-alloc]
+  h1-conn-on-head :: H1Conn -> RequestView -> H1Conn
+  h1-conn-on-head c rv =
+    if ne-u8 c.conn-state h1-state-reading-head then c
+    else if eq-u8 rv.rv-status h1-need-more then c
+    else if ne-u8 rv.rv-status h1-ok then conn-enter-error c rv.rv-status
+    else if ge-u16 c.conn-in-flight c.conn-max-pipeline then c
+    else
+      let ka = if request-view-has-flag rv req-flag-keep-alive then (1 :: U8) else 0 in
+      let exp100 = if request-view-has-flag rv req-flag-expect-continue then (1 :: U8) else 0 in
+      let upg = if request-view-has-flag rv req-flag-upgrade then (1 :: U8) else 0 in
+      let is-chunked = request-view-has-flag rv req-flag-chunked in
+      let has-cl = request-view-has-flag rv req-flag-has-cl in
+      let next-if = wrapping-add-u16 c.conn-in-flight 1 in
+      let next-reqs = wrapping-add-u32 c.conn-requests-parsed 1 in
+      if is-chunked then
+        H1Conn h1-state-reading-chunk-size h1-ok ka exp100 upg 0
+          next-if c.conn-max-pipeline 0 next-reqs c.conn-responses-sent 0 0
+      else if both has-cl (gt-u64 rv.rv-body-len 0) then
+        H1Conn h1-state-reading-fixed-body h1-ok ka exp100 upg 0
+          next-if c.conn-max-pipeline 0 next-reqs c.conn-responses-sent rv.rv-body-len 0
+      else
+        let next-st = if both (eq-u8 ka 0) (eq-u8 upg 0) then h1-state-closing else h1-state-reading-head in
+        H1Conn next-st h1-ok ka exp100 upg 0
+          next-if c.conn-max-pipeline 0 next-reqs c.conn-responses-sent 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  min-u64 :: U64 -> U64 -> U64
+  min-u64 a b = if lt-u64 a b then a else b
+
+  #[inline(always)]
+  #[no-alloc]
+  clamp-u32-to-u64 :: U32 -> U64 -> U32
+  clamp-u32-to-u64 a b =
+    if lt-u64 (u32-to-u64 a) b then a else wrapping-u64-to-u32 b
+
+  -- | Advance `ReadingFixedBody` by `avail` bytes (clamped to `conn-body-remaining`).
+  #[no-alloc]
+  h1-conn-on-fixed-body :: H1Conn -> U32 -> H1Conn
+  h1-conn-on-fixed-body c avail =
+    if ne-u8 c.conn-state h1-state-reading-fixed-body then c
+    else
+      let take = min-u64 (u32-to-u64 avail) c.conn-body-remaining in
+      let rem = wrapping-sub-u64 c.conn-body-remaining take in
+      let tot = wrapping-add-u64 c.conn-total-body-read take in
+      if eq-u64 rem 0 then
+        let next-st = if both (eq-u8 c.conn-keep-alive 0) (eq-u8 c.conn-upgrade-req 0) then h1-state-closing else h1-state-reading-head in
+        H1Conn next-st h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+          c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 tot
+      else
+        H1Conn h1-state-reading-fixed-body h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+          c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent rem tot
+
+  -- | Apply a `ChunkSizeResult` in `ReadingChunkSize`.
+  #[no-alloc]
+  h1-conn-on-chunk-size :: H1Conn -> ChunkSizeResult -> H1Conn
+  h1-conn-on-chunk-size c cs =
+    if ne-u8 c.conn-state h1-state-reading-chunk-size then c
+    else if eq-u8 cs.cs-status h1-need-more then c
+    else if ne-u8 cs.cs-status h1-ok then conn-enter-error c cs.cs-status
+    else if eq-u64 cs.cs-size 0 then
+      H1Conn h1-state-reading-trailers h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 c.conn-total-body-read
+    else
+      H1Conn h1-state-reading-chunk-data h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent cs.cs-size c.conn-total-body-read
+
+  -- | Advance `ReadingChunkData` by `avail` bytes (clamped to current chunk size).
+  #[no-alloc]
+  h1-conn-on-chunk-data :: H1Conn -> U32 -> H1Conn
+  h1-conn-on-chunk-data c avail =
+    if ne-u8 c.conn-state h1-state-reading-chunk-data then c
+    else
+      let take = min-u64 (u32-to-u64 avail) c.conn-body-remaining in
+      let rem = wrapping-sub-u64 c.conn-body-remaining take in
+      let tot = wrapping-add-u64 c.conn-total-body-read take in
+      let next-st = if eq-u64 rem 0 then h1-state-reading-chunk-crlf else h1-state-reading-chunk-data in
+      H1Conn next-st h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent rem tot
+
+  -- | Apply `h1-parse-chunk-crlf` status in `ReadingChunkCrlf`.
+  #[no-alloc]
+  h1-conn-on-chunk-crlf :: H1Conn -> U8 -> H1Conn
+  h1-conn-on-chunk-crlf c st =
+    if ne-u8 c.conn-state h1-state-reading-chunk-crlf then c
+    else if eq-u8 st h1-need-more then c
+    else if ne-u8 st h1-ok then conn-enter-error c st
+    else
+      H1Conn h1-state-reading-chunk-size h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 c.conn-total-body-read
+
+  -- | Apply `TrailersResult` in `ReadingTrailers`.
+  #[no-alloc]
+  h1-conn-on-trailers :: H1Conn -> TrailersResult -> H1Conn
+  h1-conn-on-trailers c tr =
+    if ne-u8 c.conn-state h1-state-reading-trailers then c
+    else if eq-u8 tr.tr-status h1-need-more then c
+    else if ne-u8 tr.tr-status h1-ok then conn-enter-error c tr.tr-status
+    else
+      let next-st = if both (eq-u8 c.conn-keep-alive 0) (eq-u8 c.conn-upgrade-req 0) then h1-state-closing else h1-state-reading-head in
+      H1Conn next-st h1-ok c.conn-keep-alive 0 c.conn-upgrade-req 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 c.conn-total-body-read
+
+  -- | Record completion of one FIFO response for an in-flight request.
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-on-response-sent :: H1Conn -> H1Conn
+  h1-conn-on-response-sent c =
+    if eq-u16 c.conn-in-flight 0 then c
+    else
+      H1Conn c.conn-state c.conn-last-err c.conn-keep-alive c.conn-expect-continue c.conn-upgrade-req 0
+        (wrapping-sub-u16 c.conn-in-flight 1) c.conn-max-pipeline 0
+        c.conn-requests-parsed (wrapping-add-u32 c.conn-responses-sent 1)
+        c.conn-body-remaining c.conn-total-body-read
+
+  -- | Handle peer TCP EOF: clean close from `ReadingHead`/`Closing`, or
+  -- `ProtocolError` if EOF arrives mid-body/chunk.
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-on-eof :: H1Conn -> H1Conn
+  h1-conn-on-eof c =
+    if eq-u8 c.conn-state h1-state-protocol-error then c
+    else if either (eq-u8 c.conn-state h1-state-reading-head) (eq-u8 c.conn-state h1-state-closing) then
+      H1Conn h1-state-closing c.conn-last-err 0 0 0 0
+        c.conn-in-flight c.conn-max-pipeline 0 c.conn-requests-parsed c.conn-responses-sent 0 c.conn-total-body-read
+    else if eq-u8 c.conn-state h1-state-upgraded then c
+    else conn-enter-error c h1-err-bad-chunk-crlf
+
+  -- | True when the connection has no pending responses to flush and should be closed.
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-can-close :: H1Conn -> Bool
+  h1-conn-can-close c =
+    either
+      (eq-u8 c.conn-state h1-state-protocol-error)
+      (both (eq-u8 c.conn-state h1-state-closing) (eq-u16 c.conn-in-flight 0))
+
+  -- =========================================================================
+  -- 3. In-Place DMA Slot Storage & Single-Call Incremental Driver (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-store-dma :: I64 -> H1Conn ->{MVar} Unit
+  h1-conn-store-dma p c =
+    let w0 = pack-le4 c.conn-state c.conn-last-err c.conn-keep-alive c.conn-expect-continue in
+    let w1 = bit-or-u32 (u8-to-u32 c.conn-upgrade-req) (wrapping-shl-u32 (u16-to-u32 c.conn-in-flight) 16) in
+    let _0 = raw-store-u32 p w0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 p 4) w1 in
+    let _2 = raw-store-u32 (wrapping-add-i64 p 8) (u16-to-u32 c.conn-max-pipeline) in
+    let _3 = raw-store-u32 (wrapping-add-i64 p 12) c.conn-requests-parsed in
+    let _4 = raw-store-u32 (wrapping-add-i64 p 16) c.conn-responses-sent in
+    let _5 = raw-store-u64 (wrapping-add-i64 p 24) c.conn-body-remaining in
+    raw-store-u64 (wrapping-add-i64 p 32) c.conn-total-body-read
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-load-dma :: I64 ->{MVar} H1Conn
+  h1-conn-load-dma p =
+    let w0 = raw-load-u32 p in
+    let w1 = raw-load-u32 (wrapping-add-i64 p 4) in
+    let st = wrapping-u32-to-u8 w0 in
+    let err = wrapping-u32-to-u8 (wrapping-shr-u32 w0 8) in
+    let ka = wrapping-u32-to-u8 (wrapping-shr-u32 w0 16) in
+    let exp100 = wrapping-u32-to-u8 (wrapping-shr-u32 w0 24) in
+    let upg = wrapping-u32-to-u8 w1 in
+    let inflight = wrapping-u32-to-u16 (wrapping-shr-u32 w1 16) in
+    let maxp = wrapping-u32-to-u16 (raw-load-u32 (wrapping-add-i64 p 8)) in
+    let reqs = raw-load-u32 (wrapping-add-i64 p 12) in
+    let resps = raw-load-u32 (wrapping-add-i64 p 16) in
+    let brem = raw-load-u64 (wrapping-add-i64 p 24) in
+    let btot = raw-load-u64 (wrapping-add-i64 p 32) in
+    H1Conn st err ka exp100 upg 0 inflight maxp 0 reqs resps brem btot
+
+  #[inline(always)]
+  #[no-alloc]
+  h1-conn-slot-init :: I64 -> U16 ->{MVar} Unit
+  h1-conn-slot-init conn-addr max-pipeline =
+    h1-conn-store-dma conn-addr (h1-conn-init max-pipeline)
+
+  -- | Store a `RequestView` into an 80-byte DMA slot at `p`.
+  #[inline(always)]
+  #[no-alloc]
+  h1-store-request-view-dma :: I64 -> RequestView ->{MVar} Unit
+  h1-store-request-view-dma p rv =
+    let w0 = pack-le4 rv.rv-status rv.rv-method rv.rv-version 0 in
+    let _0 = raw-store-u32 p w0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 p 4) (u16-to-u32 rv.rv-header-count) in
+    let _2 = raw-store-u32 (wrapping-add-i64 p 8) rv.rv-flags in
+    let _3 = raw-store-u32 (wrapping-add-i64 p 12) rv.rv-buf-id in
+    let _4 = raw-store-u32 (wrapping-add-i64 p 16) rv.rv-consumed in
+    let _5 = raw-store-u32 (wrapping-add-i64 p 20) rv.rv-method-off in
+    let _6 = raw-store-u32 (wrapping-add-i64 p 24) rv.rv-method-len in
+    let _7 = raw-store-u32 (wrapping-add-i64 p 28) rv.rv-path-off in
+    let _8 = raw-store-u32 (wrapping-add-i64 p 32) rv.rv-path-len in
+    let _9 = raw-store-u32 (wrapping-add-i64 p 36) rv.rv-query-off in
+    let _10 = raw-store-u32 (wrapping-add-i64 p 40) rv.rv-query-len in
+    let _11 = raw-store-u32 (wrapping-add-i64 p 44) rv.rv-body-off in
+    let _12 = raw-store-u64 (wrapping-add-i64 p 48) rv.rv-body-len in
+    let _13 = raw-store-u64 (wrapping-add-i64 p 56) rv.rv-known-mask in
+    raw-store-i64 (wrapping-add-i64 p 64) rv.rv-headers-addr
+
+  -- | Load a `RequestView` from an 80-byte DMA slot at `p`.
+  #[inline(always)]
+  #[no-alloc]
+  h1-load-request-view-dma :: I64 ->{MVar} RequestView
+  h1-load-request-view-dma p =
+    let w0 = raw-load-u32 p in
+    let st = wrapping-u32-to-u8 w0 in
+    let m = wrapping-u32-to-u8 (wrapping-shr-u32 w0 8) in
+    let v = wrapping-u32-to-u8 (wrapping-shr-u32 w0 16) in
+    let hc = wrapping-u32-to-u16 (raw-load-u32 (wrapping-add-i64 p 4)) in
+    let fl = raw-load-u32 (wrapping-add-i64 p 8) in
+    let bid = raw-load-u32 (wrapping-add-i64 p 12) in
+    let cons = raw-load-u32 (wrapping-add-i64 p 16) in
+    let moff = raw-load-u32 (wrapping-add-i64 p 20) in
+    let mlen = raw-load-u32 (wrapping-add-i64 p 24) in
+    let poff = raw-load-u32 (wrapping-add-i64 p 28) in
+    let plen = raw-load-u32 (wrapping-add-i64 p 32) in
+    let qoff = raw-load-u32 (wrapping-add-i64 p 36) in
+    let qlen = raw-load-u32 (wrapping-add-i64 p 40) in
+    let boff = raw-load-u32 (wrapping-add-i64 p 44) in
+    let blen = raw-load-u64 (wrapping-add-i64 p 48) in
+    let km = raw-load-u64 (wrapping-add-i64 p 56) in
+    let ha = raw-load-i64 (wrapping-add-i64 p 64) in
+    RequestView st m v 0 hc 0 fl bid cons moff mlen poff plen qoff qlen boff blen km ha
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-event-flags :: H1Conn -> Bool -> U8
+  conn-event-flags c req-done =
+    let f0 = if ne-u8 c.conn-keep-alive 0 then h1-ev-flag-keep-alive else 0 in
+    let f1 = if ne-u8 c.conn-expect-continue 0 then bit-or-u8 f0 h1-ev-flag-expect-continue else f0 in
+    let f2 = if ne-u8 c.conn-upgrade-req 0 then bit-or-u8 f1 h1-ev-flag-upgrade else f1 in
+    if req-done then bit-or-u8 f2 h1-ev-flag-req-complete else f2
+
+  -- | Drive one zero-allocation step of the HTTP/1.1 connection state machine
+  -- stored at `conn-addr` against DMA receive slice `[rx-base + rx-off, rx-base + rx-end)`.
+  --
+  -- Caller advances `rx-off := rx-off + ev.ev-consumed` on every step to process
+  -- pipelined requests and chunked bodies in place without copying.
+  #[no-alloc]
+  h1-conn-step-dma :: I64 -> I64 -> U32 -> U32 -> U32 -> I64 -> I64 ->{MVar} H1StepEvent
+  h1-conn-step-dma conn-addr rx-base rx-off rx-end buf-id hdrs-out req-out =
+    let c = h1-conn-load-dma conn-addr in
+    if eq-u8 c.conn-state h1-state-protocol-error then
+      H1StepEvent h1-ev-error c.conn-last-err h1-state-protocol-error 0 0 0 0 0
+    else if eq-u8 c.conn-state h1-state-closing then
+      H1StepEvent h1-ev-closed h1-ok h1-state-closing 0 0 0 0 0
+    else if eq-u8 c.conn-state h1-state-upgraded then
+      H1StepEvent h1-ev-upgraded h1-ok h1-state-upgraded h1-ev-flag-upgrade 0 0 0 0
+    else if eq-u8 c.conn-state h1-state-reading-head then
+      if ge-u16 c.conn-in-flight c.conn-max-pipeline then
+        H1StepEvent h1-ev-need-more h1-ok h1-state-reading-head (conn-event-flags c b-false) 0 0 0 0
+      else
+        let rv = h1-parse-request-dma rx-base rx-off rx-end buf-id hdrs-out in
+        if eq-u8 rv.rv-status h1-need-more then
+          H1StepEvent h1-ev-need-more h1-ok h1-state-reading-head (conn-event-flags c b-false) 0 0 0 0
+        else if ne-u8 rv.rv-status h1-ok then
+          let c2 = conn-enter-error c rv.rv-status in
+          let _s = h1-conn-store-dma conn-addr c2 in
+          H1StepEvent h1-ev-error rv.rv-status h1-state-protocol-error 0 0 0 0 0
+        else
+          let c2 = h1-conn-on-head c rv in
+          let _s = h1-conn-store-dma conn-addr c2 in
+          let _r = if ne-i64 req-out 0 then h1-store-request-view-dma req-out rv else () in
+          let done-inline = either (eq-u8 c2.conn-state h1-state-reading-head) (eq-u8 c2.conn-state h1-state-closing) in
+          H1StepEvent h1-ev-request-head h1-ok c2.conn-state (conn-event-flags c2 done-inline) rv.rv-consumed 0 0 0
+    else if eq-u8 c.conn-state h1-state-reading-fixed-body then
+      let avail = saturating-sub-u32 rx-end rx-off in
+      if eq-u32 avail 0 then
+        H1StepEvent h1-ev-need-more h1-ok h1-state-reading-fixed-body (conn-event-flags c b-false) 0 0 0 0
+      else
+        let take = clamp-u32-to-u64 avail c.conn-body-remaining in
+        let c2 = h1-conn-on-fixed-body c take in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        let done = ne-u8 c2.conn-state h1-state-reading-fixed-body in
+        H1StepEvent h1-ev-body-chunk h1-ok c2.conn-state (conn-event-flags c2 done) take rx-off take 0
+    else if eq-u8 c.conn-state h1-state-reading-chunk-size then
+      let cs = h1-parse-chunk-size rx-base rx-off rx-end in
+      if eq-u8 cs.cs-status h1-need-more then
+        H1StepEvent h1-ev-need-more h1-ok h1-state-reading-chunk-size (conn-event-flags c b-false) 0 0 0 0
+      else if ne-u8 cs.cs-status h1-ok then
+        let c2 = conn-enter-error c cs.cs-status in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-error cs.cs-status h1-state-protocol-error 0 0 0 0 0
+      else
+        let c2 = h1-conn-on-chunk-size c cs in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-body-chunk h1-ok c2.conn-state (conn-event-flags c2 b-false) cs.cs-consumed rx-off 0 0
+    else if eq-u8 c.conn-state h1-state-reading-chunk-data then
+      let avail = saturating-sub-u32 rx-end rx-off in
+      if eq-u32 avail 0 then
+        H1StepEvent h1-ev-need-more h1-ok h1-state-reading-chunk-data (conn-event-flags c b-false) 0 0 0 0
+      else
+        let take = clamp-u32-to-u64 avail c.conn-body-remaining in
+        let c2 = h1-conn-on-chunk-data c take in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-body-chunk h1-ok c2.conn-state (conn-event-flags c2 b-false) take rx-off take 0
+    else if eq-u8 c.conn-state h1-state-reading-chunk-crlf then
+      let st = h1-parse-chunk-crlf rx-base rx-off rx-end in
+      if eq-u8 st h1-need-more then
+        H1StepEvent h1-ev-need-more h1-ok h1-state-reading-chunk-crlf (conn-event-flags c b-false) 0 0 0 0
+      else if ne-u8 st h1-ok then
+        let c2 = conn-enter-error c st in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-error st h1-state-protocol-error 0 0 0 0 0
+      else
+        let c2 = h1-conn-on-chunk-crlf c st in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-body-chunk h1-ok c2.conn-state (conn-event-flags c2 b-false) 2 rx-off 0 0
+    else
+      -- `h1-state-reading-trailers`
+      let tr = h1-parse-trailers rx-base rx-off rx-end 32 in
+      if eq-u8 tr.tr-status h1-need-more then
+        H1StepEvent h1-ev-need-more h1-ok h1-state-reading-trailers (conn-event-flags c b-false) 0 0 0 0
+      else if ne-u8 tr.tr-status h1-ok then
+        let c2 = conn-enter-error c tr.tr-status in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-error tr.tr-status h1-state-protocol-error 0 0 0 0 0
+      else
+        let c2 = h1-conn-on-trailers c tr in
+        let _s = h1-conn-store-dma conn-addr c2 in
+        H1StepEvent h1-ev-request-complete h1-ok c2.conn-state (conn-event-flags c2 b-true) tr.tr-consumed 0 0 0
+
+  -- =========================================================================
+  -- 4. Zero-Alloc DMA Response Writer & Scatter-Gather `iovec` Serializer
+  -- =========================================================================
+
+  #[no-alloc]
+  h1-status-line-len :: U16 -> U32
+  h1-status-line-len c =
+    if eq-u16 c 200 then 17
+    else if eq-u16 c 201 then 22
+    else if eq-u16 c 204 then 25
+    else if eq-u16 c 206 then 30
+    else if eq-u16 c 301 then 32
+    else if eq-u16 c 304 then 27
+    else if eq-u16 c 400 then 26
+    else if eq-u16 c 401 then 27
+    else if eq-u16 c 403 then 24
+    else if eq-u16 c 404 then 24
+    else if eq-u16 c 405 then 33
+    else if eq-u16 c 413 then 32
+    else if eq-u16 c 429 then 32
+    else if eq-u16 c 500 then 36
+    else if eq-u16 c 502 then 26
+    else if eq-u16 c 503 then 34
+    else if eq-u16 c 101 then 34
+    else 15
+
+  -- | Write an HTTP/1.1 status line matching `Net.Http.Types.http-status-line`
+  -- directly into DMA buffer `[base + pos, base + cap)`. Returns updated `pos`,
+  -- or `cap + 1` on buffer overflow. Zero heap allocations.
+  #[no-alloc]
+  h1-write-status-line-dma :: I64 -> U32 -> U32 -> HttpStatus ->{MVar} U32
+  h1-write-status-line-dma base pos cap st =
+    let c = st.status-code in
+    let need = h1-status-line-len c in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p8 = put8 base pos 72 84 84 80 47 49 46 49 in -- "HTTP/1.1"
+      let d0 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 (div-u16 c 100) 10)) in
+      let d1 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 (div-u16 c 10) 10)) in
+      let d2 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 c 10)) in
+      let p12 = put4 base p8 32 d0 d1 d2 in
+      let p = put1 base p12 32 in
+      if eq-u16 c 200 then
+        put4 base p 79 75 13 10 -- "OK\r\n"
+      else if eq-u16 c 201 then
+        let p1 = put8 base p 67 114 101 97 116 101 100 13 in
+        put1 base p1 10
+      else if eq-u16 c 204 then
+        let p1 = put8 base p 78 111 32 67 111 110 116 101 in
+        put4 base p1 110 116 13 10
+      else if eq-u16 c 206 then
+        let p1 = put8 base p 80 97 114 116 105 97 108 32 in
+        let p2 = put8 base p1 67 111 110 116 101 110 116 13 in
+        put1 base p2 10
+      else if eq-u16 c 301 then
+        let p1 = put8 base p 77 111 118 101 100 32 80 101 in
+        let p2 = put8 base p1 114 109 97 110 101 110 116 108 in
+        put3 base p2 121 13 10
+      else if eq-u16 c 304 then
+        let p1 = put8 base p 78 111 116 32 77 111 100 105 in
+        let p2 = put4 base p1 102 105 101 100 in
+        put2 base p2 13 10
+      else if eq-u16 c 400 then
+        let p1 = put8 base p 66 97 100 32 82 101 113 117 in
+        let p2 = put4 base p1 101 115 116 13 in
+        put1 base p2 10
+      else if eq-u16 c 401 then
+        let p1 = put8 base p 85 110 97 117 116 104 111 114 in
+        let p2 = put4 base p1 105 122 101 100 in
+        put2 base p2 13 10
+      else if eq-u16 c 403 then
+        let p1 = put8 base p 70 111 114 98 105 100 100 101 in
+        put3 base p1 110 13 10
+      else if eq-u16 c 404 then
+        let p1 = put8 base p 78 111 116 32 70 111 117 110 in
+        put3 base p1 100 13 10
+      else if eq-u16 c 405 then
+        let p1 = put8 base p 77 101 116 104 111 100 32 78 in
+        let p2 = put8 base p1 111 116 32 65 108 108 111 119 in
+        put4 base p2 101 100 13 10
+      else if eq-u16 c 413 then
+        let p1 = put8 base p 80 97 121 108 111 97 100 32 in
+        let p2 = put8 base p1 84 111 111 32 76 97 114 103 in
+        put3 base p2 101 13 10
+      else if eq-u16 c 429 then
+        let p1 = put8 base p 84 111 111 32 77 97 110 121 in
+        let p2 = put8 base p1 32 82 101 113 117 101 115 116 in
+        put3 base p2 115 13 10
+      else if eq-u16 c 500 then
+        let p1 = put8 base p 73 110 116 101 114 110 97 108 in
+        let p2 = put8 base p1 32 83 101 114 118 101 114 32 in
+        let p3 = put4 base p2 69 114 114 111 in
+        put3 base p3 114 13 10
+      else if eq-u16 c 502 then
+        let p1 = put8 base p 66 97 100 32 71 97 116 101 in
+        let p2 = put4 base p1 119 97 121 13 in
+        put1 base p2 10
+      else if eq-u16 c 503 then
+        let p1 = put8 base p 83 101 114 118 105 99 101 32 in
+        let p2 = put8 base p1 85 110 97 118 97 105 108 97 in
+        let p3 = put4 base p2 98 108 101 13 in
+        put1 base p3 10
+      else if eq-u16 c 101 then
+        let p1 = put8 base p 83 119 105 116 99 104 105 110 in
+        let p2 = put8 base p1 103 32 80 114 111 116 111 99 in
+        let p3 = put4 base p2 111 108 115 13 in
+        put1 base p3 10
+      else
+        put2 base p 13 10
+
+  -- | Append `"Date: <29-byte RFC 9110 IMF-fixdate>\r\n"` (37 bytes) from
+  -- `Engine.Timer.CoarseClockCache` directly into DMA memory. Zero allocs.
+  #[no-alloc]
+  h1-write-date-header-dma :: I64 -> U32 -> U32 -> CoarseClockCache ->{MVar} U32
+  h1-write-date-header-dma base pos cap clock =
+    if gt-u32 37 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 68 97 116 101 in -- "Date"
+      let p2 = put2 base p1 58 32 in          -- ": "
+      let src = wrapping-u64-to-i64 (coarse-date-addr clock) in
+      let dst = wrapping-add-i64 base (u32-to-i64 p2) in
+      let _c = dma-copy-raw dst src 29 in
+      put2 base (wrapping-add-u32 p2 29) 13 10
+
+  #[no-alloc]
+  u64-dec-digits :: U64 -> U32
+  u64-dec-digits v =
+    if lt-u64 v 10 then 1
+    else if lt-u64 v 100 then 2
+    else if lt-u64 v 1000 then 3
+    else if lt-u64 v 10000 then 4
+    else if lt-u64 v 100000 then 5
+    else if lt-u64 v 1000000 then 6
+    else if lt-u64 v 10000000 then 7
+    else if lt-u64 v 100000000 then 8
+    else if lt-u64 v 1000000000 then 9
+    else if lt-u64 v 10000000000 then 10
+    else if lt-u64 v 100000000000 then 11
+    else if lt-u64 v 1000000000000 then 12
+    else if lt-u64 v 10000000000000 then 13
+    else if lt-u64 v 100000000000000 then 14
+    else if lt-u64 v 1000000000000000 then 15
+    else if lt-u64 v 10000000000000000 then 16
+    else if lt-u64 v 100000000000000000 then 17
+    else if lt-u64 v 1000000000000000000 then 18
+    else if lt-u64 v 10000000000000000000 then 19
+    else 20
+
+  #[no-alloc]
+  write-u64-dec-back :: I64 -> U32 -> U64 -> U32 ->{MVar} Unit
+  write-u64-dec-back base end-pos v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let dst-pos = wrapping-sub-u32 end-pos 1 in
+      let d = wrapping-add-u8 48 (wrapping-u64-to-u8 (rem-u64 v 10)) in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 dst-pos)) d in
+      write-u64-dec-back base dst-pos (div-u64 v 10) (wrapping-sub-u32 rem 1)
+
+  -- | Append `"Content-Length: <n>\r\n"` into DMA buffer. Zero allocations.
+  #[no-alloc]
+  h1-write-content-length-dma :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  h1-write-content-length-dma base pos cap len =
+    let nd = u64-dec-digits len in
+    let need = wrapping-add-u32 18 nd in -- "Content-Length: " (16) + digits + "\r\n" (2)
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 116 101 110 116 45 in  -- "Content-"
+      let p2 = put8 base p1 76 101 110 103 116 104 58 32 in    -- "Length: "
+      let end-d = wrapping-add-u32 p2 nd in
+      let _d = write-u64-dec-back base end-d len nd in
+      put2 base end-d 13 10
+
+  -- | Append `"Transfer-Encoding: chunked\r\n"` (28 bytes) into DMA buffer.
+  #[no-alloc]
+  h1-write-chunked-header-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  h1-write-chunked-header-dma base pos cap =
+    if gt-u32 28 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 84 114 97 110 115 102 101 114 in  -- "Transfer"
+      let p2 = put8 base p1 45 69 110 99 111 100 105 110 in    -- "-Encodin"
+      let p3 = put8 base p2 103 58 32 99 104 117 110 107 in    -- "g: chunk"
+      put4 base p3 101 100 13 10                               -- "ed\r\n"
+
+  -- | Append `"Connection: keep-alive\r\n"` (24B) or `"Connection: close\r\n"` (19B).
+  #[no-alloc]
+  h1-write-connection-header-dma :: I64 -> U32 -> U32 -> Bool ->{MVar} U32
+  h1-write-connection-header-dma base pos cap keep-alive =
+    let need = if keep-alive then (24 :: U32) else 19 in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 110 101 99 116 105 in  -- "Connecti"
+      let p2 = put4 base p1 111 110 58 32 in                   -- "on: "
+      if keep-alive then
+        let p3 = put8 base p2 107 101 101 112 45 97 108 105 in -- "keep-ali"
+        put4 base p3 118 101 13 10                             -- "ve\r\n"
+      else
+        let p3 = put4 base p2 99 108 111 115 in                -- "clos"
+        put3 base p3 101 13 10                                 -- "e\r\n"
+
+  -- | Append `"Content-Type: <val>\r\n"` into DMA buffer. Zero allocations.
+  #[no-alloc]
+  h1-write-content-type-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-write-content-type-dma base pos cap val-addr val-len =
+    let rem = saturating-sub-u32 cap pos in
+    if gt-u32 16 rem then wrapping-add-u32 cap 1
+    else if gt-u32 val-len (wrapping-sub-u32 rem 16) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 116 101 110 116 45 in -- "Content-"
+      let p2 = put4 base p1 84 121 112 101 in                 -- "Type"
+      let p3 = put2 base p2 58 32 in                          -- ": "
+      let _c = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p3)) val-addr val-len in
+      put2 base (wrapping-add-u32 p3 val-len) 13 10
+
+  -- | Append arbitrary `"<name>: <val>\r\n"` into DMA buffer. Zero allocations.
+  #[no-alloc]
+  h1-write-header-raw-dma :: I64 -> U32 -> U32 -> I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-write-header-raw-dma base pos cap name-addr name-len val-addr val-len =
+    let rem = saturating-sub-u32 cap pos in
+    if gt-u32 4 rem then wrapping-add-u32 cap 1
+    else
+      let rem1 = wrapping-sub-u32 rem 4 in
+      if gt-u32 name-len rem1 then wrapping-add-u32 cap 1
+      else if gt-u32 val-len (wrapping-sub-u32 rem1 name-len) then wrapping-add-u32 cap 1
+      else
+        let _c1 = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 pos)) name-addr name-len in
+        let p1 = wrapping-add-u32 pos name-len in
+        let p2 = put2 base p1 58 32 in
+        let _c2 = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p2)) val-addr val-len in
+        put2 base (wrapping-add-u32 p2 val-len) 13 10
+
+  -- | Append terminating `"\r\n"` into DMA buffer.
+  #[inline(always)]
+  #[no-alloc]
+  h1-write-crlf-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  h1-write-crlf-dma base pos cap =
+    if gt-u32 2 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else put2 base pos 13 10
+
+  -- | Copy raw bytes `[src-addr, src-addr + len)` into DMA buffer `[base + pos, base + cap)`.
+  #[inline(always)]
+  #[no-alloc]
+  h1-write-bytes-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-write-bytes-dma base pos cap src-addr len =
+    if gt-u32 len (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let _ = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 pos)) src-addr len in
+      wrapping-add-u32 pos len
+
+  -- | Emit interim `"HTTP/1.1 100 Continue\r\n\r\n"` (25 bytes) for `Expect: 100-continue`.
+  #[no-alloc]
+  h1-write-continue-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  h1-write-continue-dma base pos cap =
+    if gt-u32 25 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 72 84 84 80 47 49 46 49 in -- "HTTP/1.1"
+      let p2 = put8 base p1 32 49 48 48 32 67 111 110 in -- " 100 Con"
+      let p3 = put8 base p2 116 105 110 117 101 13 10 13 in -- "tinue\r\n\r"
+      put1 base p3 10
+
+  -- | Emit `"HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: <proto>\r\n\r\n"`.
+  #[no-alloc]
+  h1-write-upgrade-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-write-upgrade-dma base pos cap proto-addr proto-len =
+    let p1 = h1-write-status-line-dma base pos cap (status-switching-protocols ()) in
+    if gt-u32 p1 cap then wrapping-add-u32 cap 1
+    else
+      let rem = saturating-sub-u32 cap p1 in
+      -- "Connection: Upgrade\r\n" (21) + "Upgrade: " (9) + proto-len + "\r\n\r\n" (4) = 34 + proto-len
+      if gt-u32 34 rem then wrapping-add-u32 cap 1
+      else if gt-u32 proto-len (wrapping-sub-u32 rem 34) then wrapping-add-u32 cap 1
+      else
+        let p2 = put8 base p1 67 111 110 110 101 99 116 105 in -- "Connecti"
+        let p3 = put8 base p2 111 110 58 32 85 112 103 114 in  -- "on: Upgr"
+        let p4 = put4 base p3 97 100 101 13 in                 -- "ade\r"
+        let p5 = put1 base p4 10 in                            -- "\n"
+        let p6 = put8 base p5 85 112 103 114 97 100 101 58 in  -- "Upgrade:"
+        let p7 = put1 base p6 32 in                            -- " "
+        let _c = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p7)) proto-addr proto-len in
+        put4 base (wrapping-add-u32 p7 proto-len) 13 10 13 10
+
+  #[no-alloc]
+  u32-hex-digits :: U32 -> U32
+  u32-hex-digits v =
+    if lt-u32 v 16 then 1
+    else if lt-u32 v 256 then 2
+    else if lt-u32 v 4096 then 3
+    else if lt-u32 v 65536 then 4
+    else if lt-u32 v 1048576 then 5
+    else if lt-u32 v 16777216 then 6
+    else if lt-u32 v 268435456 then 7
+    else 8
+
+  #[no-alloc]
+  hex-nibble-char :: U8 -> U8
+  hex-nibble-char n =
+    if lt-u8 n 10 then wrapping-add-u8 48 n
+    else wrapping-add-u8 87 n -- 'a' - 10
+
+  #[no-alloc]
+  write-u32-hex-back :: I64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  write-u32-hex-back base end-pos v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let dst-pos = wrapping-sub-u32 end-pos 1 in
+      let nib = wrapping-u32-to-u8 (bit-and-u32 v 15) in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 dst-pos)) (hex-nibble-char nib) in
+      write-u32-hex-back base dst-pos (wrapping-shr-u32 v 4) (wrapping-sub-u32 rem 1)
+
+  -- | Format one HTTP/1.1 chunked body frame `<hex-len>\r\n<data>\r\n` into DMA memory.
+  #[no-alloc]
+  h1-write-chunk-frame-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-write-chunk-frame-dma base pos cap data-addr data-len =
+    if eq-u32 data-len 0 then pos
+    else
+      let nd = u32-hex-digits data-len in
+      let overhead = wrapping-add-u32 nd 4 in
+      let rem = saturating-sub-u32 cap pos in
+      if gt-u32 overhead rem then wrapping-add-u32 cap 1
+      else if gt-u32 data-len (wrapping-sub-u32 rem overhead) then wrapping-add-u32 cap 1
+      else
+        let end-hex = wrapping-add-u32 pos nd in
+        let _h = write-u32-hex-back base end-hex data-len nd in
+        let p1 = put2 base end-hex 13 10 in
+        let _c = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p1)) data-addr data-len in
+        put2 base (wrapping-add-u32 p1 data-len) 13 10
+
+  -- | Append terminating zero chunk `"0\r\n\r\n"` (5 bytes) into DMA memory.
+  #[no-alloc]
+  h1-write-chunk-eof-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  h1-write-chunk-eof-dma base pos cap =
+    if gt-u32 5 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 48 13 10 13 in
+      put1 base p1 10
+
+  -- | Format HTTP/1.1 response head only (status + cached `Date:` + optional
+  -- `Content-Type:` + `Content-Length:` or `Transfer-Encoding: chunked` +
+  -- `Connection:` + `\r\n`) into DMA buffer `[base + pos, base + cap)`.
+  -- Pair with `h1-build-response-iovec` for zero-copy scatter-gather `writev`.
+  #[no-alloc]
+  h1-serialize-response-head-dma
+    :: I64 -> U32 -> U32 -> HttpStatus -> CoarseClockCache -> Bool -> Bool -> U64 -> I64 -> U32 ->{MVar} U32
+  h1-serialize-response-head-dma base pos cap status clock keep-alive chunked body-len ct-addr ct-len =
+    let p1 = h1-write-status-line-dma base pos cap status in
+    if gt-u32 p1 cap then wrapping-add-u32 cap 1
+    else
+      let p2 = h1-write-date-header-dma base p1 cap clock in
+      if gt-u32 p2 cap then wrapping-add-u32 cap 1
+      else
+        let p3 = (
+          if gt-u32 ct-len 0 then h1-write-content-type-dma base p2 cap ct-addr ct-len
+          else p2) in
+        if gt-u32 p3 cap then wrapping-add-u32 cap 1
+        else
+          let p4 = (
+            if chunked then h1-write-chunked-header-dma base p3 cap
+            else h1-write-content-length-dma base p3 cap body-len) in
+          if gt-u32 p4 cap then wrapping-add-u32 cap 1
+          else
+            let p5 = h1-write-connection-header-dma base p4 cap keep-alive in
+            if gt-u32 p5 cap then wrapping-add-u32 cap 1
+            else h1-write-crlf-dma base p5 cap
+
+  -- | Coalesced pipelined response serializer: appends a complete HTTP/1.1
+  -- response (status line + cached `Date:` + optional `Content-Type:` +
+  -- `Content-Length:` + `Connection:` + `\r\n` + body) into `[base + pos, base + cap)`.
+  -- Repeated calls coalesce multiple pipelined responses into a single buffer
+  -- for one `send`/`writev` syscall. 100% `#[no-alloc]`.
+  #[no-alloc]
+  h1-serialize-response-dma
+    :: I64 -> U32 -> U32 -> HttpStatus -> CoarseClockCache -> Bool -> I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-serialize-response-dma base pos cap status clock keep-alive ct-addr ct-len body-addr body-len =
+    let p-head = h1-serialize-response-head-dma base pos cap status clock keep-alive b-false (u32-to-u64 body-len) ct-addr ct-len in
+    if gt-u32 p-head cap then wrapping-add-u32 cap 1
+    else if eq-u32 body-len 0 then p-head
+    else h1-write-bytes-dma base p-head cap body-addr body-len
+
+  -- | Write one 16-byte POSIX `struct iovec` `{ iov_base, iov_len }` at slot `idx`
+  -- of a DMA iovec array at `iov-base` (directly compatible with `darwin-writev-dma`).
+  #[inline(always)]
+  #[no-alloc]
+  h1-iovec-set :: I64 -> U32 -> I64 -> U64 ->{MVar} Unit
+  h1-iovec-set iov-base idx buf-addr buf-len =
+    let slot = wrapping-add-i64 iov-base (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+    let _0 = raw-store-u64 slot (wrapping-i64-to-u64 buf-addr) in
+    raw-store-u64 (wrapping-add-i64 slot 8) buf-len
+
+  -- | Populate 1 or 2 `struct iovec` entries starting at `start-idx` for a
+  -- zero-copy header + body scatter-gather response, returning the next `iov` count.
+  #[inline(always)]
+  #[no-alloc]
+  h1-build-response-iovec :: I64 -> U32 -> I64 -> U32 -> I64 -> U32 ->{MVar} U32
+  h1-build-response-iovec iov-base start-idx hdr-addr hdr-len body-addr body-len =
+    let idx1 = (
+      if gt-u32 hdr-len 0 then
+        let _ = h1-iovec-set iov-base start-idx hdr-addr (u32-to-u64 hdr-len) in
+        wrapping-add-u32 start-idx 1
+      else start-idx) in
+    if gt-u32 body-len 0 then
+      let _ = h1-iovec-set iov-base idx1 body-addr (u32-to-u64 body-len) in
+      wrapping-add-u32 idx1 1
+    else idx1

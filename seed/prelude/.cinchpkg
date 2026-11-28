@@ -1455,6 +1455,18 @@
     {
       "name": "Net.Tls.Fast.Spec",
       "path": "Net/Tls/Fast/Spec.cinch"
+    },
+    {
+      "name": "Net.Http.V1.Parser",
+      "path": "Net/Http/V1/Parser.cinch"
+    },
+    {
+      "name": "Net.Http.V1.Conn",
+      "path": "Net/Http/V1/Conn.cinch"
+    },
+    {
+      "name": "Net.Http.V1.Spec",
+      "path": "Net/Http/V1/Spec.cinch"
     }
   ],
   "order": [
@@ -1820,6 +1832,9 @@
     "Net.Tls.Fast",
     "Net.Tls.Ktls",
     "Net.Tls.QuicBridge",
-    "Net.Tls.Fast.Spec"
+    "Net.Tls.Fast.Spec",
+    "Net.Http.V1.Parser",
+    "Net.Http.V1.Conn",
+    "Net.Http.V1.Spec"
   ]
 }
