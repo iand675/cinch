@@ -1479,6 +1479,14 @@
     {
       "name": "Net.Http.V1.Spec",
       "path": "Net/Http/V1/Spec.cinch"
+    },
+    {
+      "name": "Net.Http.Qpack.StaticTable",
+      "path": "Net/Http/Qpack/StaticTable.cinch"
+    },
+    {
+      "name": "Net.Http.Qpack.Codec",
+      "path": "Net/Http/Qpack/Codec.cinch"
     }
   ],
   "order": [
@@ -1850,6 +1858,8 @@
     "Net.Tls.Fast.Spec",
     "Net.Http.V1.Parser",
     "Net.Http.V1.Conn",
-    "Net.Http.V1.Spec"
+    "Net.Http.V1.Spec",
+    "Net.Http.Qpack.StaticTable",
+    "Net.Http.Qpack.Codec"
   ]
 }
