@@ -630,6 +630,16 @@ record Sample where
 
 `#[unpack]` requires a monomorphic `data` or `record` field with one ordinary constructor and at least one runtime field. Explicit C boundary layouts and products that themselves contain unpacked fields are not supported targets for `#[unpack]`.
 
+## Constructed Sum Results (CSR)
+
+Eligible two-variant sums whose variants each carry zero or one uniform-word payload (`Option a`, `Result e a`, and user-defined two-constructor `data` types) are returned unboxed in a `{ i64, i64 }` register pair (`{ tag, payload }`) across direct `case`-scrutinized calls and recursive loops, avoiding heap allocation on every step.
+
+- **Exact reference counting:** when a caller matches an unboxed CSR return—including wildcard branches that discard a counted payload—the compiler inserts exact Perceus retain/release operations on the payload register without boxing the outer constructor.
+- **Escaping and higher-order uses:** when a CSR-eligible function is passed as a first-class closure or its result escapes into a heap container, its standard C-ABI wrapper boxes the `{ tag, payload }` pair transparently.
+- **Inspecting the ABI:** `cinch emit-ir` shows `{ i64, i64 }` worker signatures (`#cc` in the Rust seed, `#csr` in the self-hosted compiler) alongside the boxed wrapper.
+
+See [rewrites and optimization](12-rewrites-and-optimization.md#constructed-product-and-sum-results) for how CSR complements Constructed Product Results (CPR) and fusion.
+
 # Summary of rejected combinations
 
 | Form | Diagnostic |

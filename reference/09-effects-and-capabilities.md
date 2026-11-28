@@ -3,7 +3,7 @@
 Cinch separates four orthogonal mechanisms that other languages frequently conflate:
 
 - **Effect rows** declare *what* a computation may do on its function arrows.
-- **Capabilities** (`Io r`) grant lexical *access* to a specific runtime identity.
+- **Capabilities** (`Io r` and `#[capability]` types such as `Effect.Reader.Read a`) grant lexical *access* to runtime identities or scoped environments.
 - **Effect handlers** interpret user-defined algebraic operations and discharge their labels from a row.
 - **Sequencing providers** choose the meaning of `do` notation (`bind` and `pure`) lexically for a definition.
 
@@ -119,7 +119,7 @@ Effect labels may be indexed by a region-like identity `r` that binds operations
 
 A `foreign import` must declare every foreign behavior it can exhibit (`Blocking`, `Global`, `Fail`, `Reentrant`, `ThreadAffine`). In particular, calling a `Blocking` foreign function inside a spawned task propagates `Blocking` to the enclosing task scope's effect row.
 
-Among `using` constraints, `Io r` is treated specially as a **lexical runtime capability**: it is resolved exclusively from an enclosing `with` binding or an explicit call-site `@{...}` argument, never from type-class instances or global state. All other `using` heads are ordinary compile-time class constraints.
+Among `using` constraints, `Io r` and any `data` or `record` type annotated with `#[capability]` are **lexical capabilities**: they are resolved exclusively from an enclosing `with` binding, an enclosing `using` parameter, or an explicit call-site `@{...}` argument, never from type-class instances or global state. All other `using` heads are compile-time class constraints or proof obligations.
 
 ## `using`, `with`, and `@{...}`
 
@@ -153,6 +153,81 @@ module Main where
 ```
 
 Supplying a non-capability value in `with` or naming a nonexistent capability parameter in `@{...}` is likewise rejected at check time.
+
+## User-defined lexical capabilities and `Effect.Reader`
+
+Annotating a `data` or `record` declaration with `#[capability]` promotes it to a first-class lexical capability that can appear in `using` clauses, `with (...) in ...` scopes, and `@{...}` explicit arguments. Ordinary types without `#[capability]` are rejected by `with`:
+
+<!-- cinch:reject contains="checked signature" -->
+```cinch
+module Main where
+  data Plain where
+    Plain :: Int -> Plain
+
+  main :: Int
+  main = with (p = Plain 1) in 0
+```
+
+Capability constraints may also appear in **higher-rank argument positions** such as `(using (inner :: Read a) => Unit ->{|e} b)`, allowing scoping combinators to introduce or rebind a capability for the dynamic extent of a callback. Because a lexical capability is passed as an ordinary value rather than an algebraic effect, functions taking `using (r :: Read a) =>` remain pure (`->{}`), retain LLVM pure-function attributes, and compose freely with `parMap`, `STM`, and `Prop` proofs. Combining `#[capability]` with `#[repr(transparent)]` eliminates the wrapper representation entirely.
+
+The standard library module [Effect.Reader](../library/Effect.Reader.md) builds zero-overhead reader environments on top of `#[capability]`:
+
+| Declaration | Role |
+| --- | --- |
+| `Read a` | Lexical read-only environment capability carrying a value of type `a`. |
+| `TaggedRead tag a` | Tag-indexed reader capability for carrying multiple environments of the same payload type simultaneously. |
+| `ask`, `asks` | Read or project from the active `Read a` capability. |
+| `local` | Run a callback with a lexically transformed environment of the same type (`a -> a`), restoring the outer binding on exit. |
+| `with-reader` | Run a callback with a lexically transformed environment of a new type (`a -> b`). |
+| `run-reader` | Introduce an initial `Read a` scope for a callback. |
+| `ask-tagged`, `asks-tagged`, `local-tagged`, `with-tagged-reader`, `run-tagged-reader` | Tagged counterparts operating on `TaggedRead tag a`. |
+
+Multiple readers of distinct types (or distinct tags) coexist in one `using` clause, and nested `local` / `with-reader` scopes restore the outer environment automatically:
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  import Effect.Reader
+
+  record AppConfig where
+    base :: Int
+    db-port :: Int
+
+  record DbConfig where
+    port :: Int
+
+  data Primary where
+    Primary :: Primary
+
+  data Secondary where
+    Secondary :: Secondary
+
+  read-db :: using (db :: Read DbConfig) => Int
+  read-db = asks (\d -> d.port)
+
+  read-primary :: using (p :: TaggedRead Primary Int) => Int
+  read-primary = ask-tagged
+
+  read-secondary :: using (s :: TaggedRead Secondary Int) => Int
+  read-secondary = ask-tagged
+
+  compute :: using (cfg :: Read AppConfig, p :: TaggedRead Primary Int, s :: TaggedRead Secondary Int) => Int
+  compute =
+    let base0 = asks (\c -> c.base) in
+    let inner = local (\c -> AppConfig { base = c.base + 10, db-port = c.db-port }) (\() -> asks (\c -> c.base)) in
+    let port = with-reader (\c -> DbConfig { port = c.db-port }) (\() -> read-db) in
+    let tagged = local-tagged (\n -> n + 3) (\() -> read-primary + read-secondary) in
+    base0 + inner + port + tagged + 3
+
+  main :: Int
+  main =
+    run-reader (AppConfig { base = 2, db-port = 5 }) (\() ->
+      with (p = (TaggedRead 7 :: TaggedRead Primary Int)) in
+      with (s = (TaggedRead 10 :: TaggedRead Secondary Int)) in
+        compute)
+```
+
+Borrowed references (`Ref r a`) may be stored inside `Read (Ref r a)` and remain subject to region-escape checking: returning a borrow obtained via `ask` past the lifetime of its region is rejected statically.
 
 ## Runtime identity isolation
 
@@ -220,12 +295,12 @@ Handlers are first-class values: `let h = (handler Poke where ...) in handle e w
 | Case | Behavior |
 | --- | --- |
 | Direct operation in handled expression or `do` block | Dispatched to its matching handler clause. |
+| Operation performed inside a called helper function | Supported across arbitrary call depths and higher-order combinators for tail-resumptive (`k expr`) and abortive (non-resuming) clauses via evidence passing and cooperative bubbling. |
 | Operation passed as a value without calling it | Accepted; referencing `poke` performs no effect. |
 | Clause resumes once (`k v`) | Runs the remainder of the handled computation, then the `return` clause. |
-| Clause does not resume | Short-circuits immediately; neither the remainder nor `return` runs. |
+| Clause does not resume (abortive, `op args -> ...` or dropping `k`) | Short-circuits immediately; unwinds cooperatively with exact Perceus reference-count cleanup on every popped frame; neither the remainder nor `return` runs. |
 | Clause resumes more than once | Rejected (`k` is one-shot). |
 | Clause performs other effects | Those effects join the `handle` expression's output row. |
-| Operation performed inside a called helper function | Rejected at `handle` (see [handler boundaries](#handler-boundaries)). |
 
 Resuming once runs the rest of `poke () + 10` (yielding `15`) and then `return x -> x * 2` (yielding `30`):
 
@@ -331,29 +406,111 @@ module Main where
     mark u resume k -> k 9)
 ```
 
-Omitting `r` in the handler header or annotating an effect parameter with a kind other than `Region` is rejected.
+Omitting `r` in the handler header is rejected.
+
+## Type-parameterized effects, cross-call handlers, and `Effect.Throw`
+
+User effects may also take a type parameter `(e :: Type)` (the kind defaults to `Type` when omitted and inferred from operation signatures). Each concrete instantiation carries a distinct canonical label hash, so multiple instantiations such as `Throw ParseErr` and `Throw IoErr` compose cleanly under nested handlers.
+
+Cross-call handlers whose clauses are **tail-resumptive** (`op args resume k -> k expr`) or **abortive** (`op args -> expr`, or dropping `k`) dispatch across arbitrary call depths, recursion, and row-polymorphic higher-order combinators (`map`, `fold`) via Koka-style evidence passing and cooperative bubbling:
+
+- **Zero overhead on pure functions.** Pure (`->{}`) functions never emit cooperative yield checks and keep full LLVM pure-function attributes (`nounwind`, `willreturn`).
+- **Exact Perceus reference counting.** When an abortive operation unwinds through intermediate frames, every popped frame drops its live counted locals deterministically before returning to the handler prompt.
+- **Polymorphic effect monomorphization.** Functions polymorphic in a type-parameterized effect (such as `ensure :: forall e. Bool -> e ->{Throw e} Unit` or `catch`) specialize their evidence label per concrete call-site error type.
+
+The standard library module [Effect.Throw](../library/Effect.Throw.md) defines the typed short-circuiting error effect:
+
+```cinch
+effect Throw (e :: Type) where
+  throw :: forall a. e ->{Throw e} a
+
+catch     :: forall e a (r :: Row). (Unit ->{Throw e | r} a) ->{|r} Result e a
+try-throw :: forall e a. Result e a ->{Throw e} a
+```
+
+Nested `catch` prompts dispatch distinct error types independently while short-circuiting deep recursion cleanly:
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  import Data.Result
+  import Effect.Throw
+
+  data ParseErr where
+    BadSyntax :: Int -> ParseErr
+
+  data IoErr where
+    Disconnected :: Int -> IoErr
+
+  ensure :: forall e. Bool -> e ->{Throw e} Unit
+  ensure ok err = if ok then () else throw err
+
+  work :: Bool -> Bool ->{Throw ParseErr, Throw IoErr} Int
+  work ok-parse ok-io =
+    let _ = ensure ok-parse (BadSyntax 4) in
+    let _ = ensure ok-io (Disconnected 9) in
+    29
+
+  run-both :: Bool -> Bool -> Result IoErr (Result ParseErr Int)
+  run-both ok-parse ok-io =
+    catch (\() -> catch (\() -> work ok-parse ok-io))
+
+  main :: Int
+  main =
+    let a = case run-both False True of
+              Ok (Err (BadSyntax code)) -> code
+              _ -> 0 in
+    let b = case run-both True False of
+              Err (Disconnected code) -> code
+              _ -> 0 in
+    let c = case run-both True True of
+              Ok (Ok v) -> v
+              _ -> 0 in
+    a + b + c
+```
+
+Aborting guards also participate in flow-sensitive refinement narrowing: after `let _ = if n <= 0 then throw 99 else () in ...`, the continuation knows `0 < n` (see [control-flow facts](06-refinements.md#control-flow-facts)).
+
+For pure sub-computations that want `O(1)` prompt escape without frame-by-frame bubbling—or a typed byte-budget boundary—see [region-delimited arenas (`Effect.Arena`)](25-allocators.md#region-delimited-arenas-and-budgets-effectarena).
 
 ## Handler boundaries
 
 - **Polymorphic operations.** Type parameters on an operation are universally quantified inside the handler clause, so a clause cannot resume with an arbitrary concrete type or allow an operation-local type variable to escape into the handler's result. (A clause that never resumes can return any answer type.)
-- <span class="support-tag support-tag--planned">Coming soon</span> **Cross-call operation dispatch.** Handlers currently dispatch operations performed directly within the handled expression (including direct statements inside a `do` block), not operations invoked transitively through a separate function call:
+- **Linear (`%1`) values across abort.** A `%1` binding cannot remain live across an aborting operation (`throw`) or an abortive handler clause, because unwinding would skip its consumption:
+
+<!-- cinch:reject contains="must be used exactly once" -->
+```cinch
+module Main where
+  import Effect.Throw
+
+  consume :: Int %1 -> Int
+  consume x = x
+
+  bad :: Int %1 ->{Throw Int} Int
+  bad lin =
+    let _ = throw 1 in
+    consume lin
+
+  main :: Int
+  main = 0
+```
+
+- <span class="support-tag support-tag--planned">Coming soon</span> **Non-tail-resumptive cross-call handlers.** Cross-call dispatch supports tail-resumptive (`k expr`) and abortive clauses. A handler clause that performs additional work around a continuation (`k 10 + 1`) works on direct operations within the `handle` expression, but is rejected when the operation is performed through a separate called function:
 
 <!-- cinch:reject contains="performed through a called computation" -->
 ```cinch
 module Main where
-  effect Poke where
-    poke :: Unit ->{Poke} Int
+  effect Shift where
+    shift :: Unit ->{Shift} Int
 
-  fired :: Unit ->{Poke} Int
-  fired u = poke ()
+  helper :: Unit ->{Shift} Int
+  helper u = shift ()
 
   main :: Int
-  main = handle fired () with (handler Poke where
+  main = handle helper () with (handler Shift where
     return x -> x
-    poke u resume k -> k 1)
+    shift u resume k -> k 10 + 1)
 ```
-
-Until answer-passing elaboration lands, keep handled operations direct within the `handle` body rather than behind helper calls.
 
 # Sequencing providers (`do` notation)
 

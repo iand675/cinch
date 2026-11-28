@@ -1,0 +1,51 @@
+-- Effect.Arena: region-delimited O(1) fast escape and typed heap budget boundary.
+--
+-- `with-arena` and `with-arena-budget` execute a pure computation inside a
+-- dedicated bump arena scoped to an unforgeable region `r`. Calling
+-- `arena-abort tok err` (or exceeding the byte cap in `with-arena-budget`)
+-- jumps straight back to the prompt in O(1), reclaiming every arena chunk and
+-- tracked allocation without leaking.
+--
+-- Static safety invariants enforced by the compiler:
+--   1. Region `r` is Rank-2 universally quantified, so `ArenaToken r e` cannot
+--      escape the arena scope.
+--   2. Return type `a` and error type `e` must be arena-escape-safe (scalars,
+--      `Bool`, `Unit`, `Int`, `Nat`, or nullary enums) so no arena pointer can
+--      outlive the arena.
+--   3. The callback closure cannot capture any linear (`%1`) binder.
+--   4. The callback arrow is pure (`->{}`), forbidding `Async`/`Spawn`/`IO`
+--      inside the O(1) jump extent.
+module Effect.Arena where
+  import Data.Core (Result, Ok, Err)
+  export ArenaToken, BudgetError, Exhausted
+  export with-arena, with-arena-budget, arena-abort
+
+  -- | Typed error returned when an arena exceeds its byte budget.
+  data BudgetError where
+    Exhausted :: BudgetError
+
+  -- | Unforgeable region-indexed escape prompt token.
+  data ArenaToken (r :: Region) e where
+    MkArenaToken :: I64 -> ArenaToken r e
+
+  foreign import ccall "cinch.runtime.arenaEscapeRun" prim-arena-escape-run
+    :: forall e a r. I64 -> (I64 -> a) -> (a -> r) -> (e -> r) -> (Unit -> r) -> r
+
+  foreign import ccall "cinch.runtime.arenaEscapeAbort" prim-arena-escape-abort
+    :: forall e a. I64 -> e -> a
+
+  -- | Run a pure computation in a fresh bump arena with O(1) `arena-abort`.
+  with-arena :: forall e a. (forall (r :: Region). ArenaToken r e -> a) -> Result e a
+  with-arena body =
+    prim-arena-escape-run 0 (\h -> body (MkArenaToken h)) (\v -> Ok v) (\err -> Err err) (\u -> prim-arena-escape-abort 0 0)
+
+  -- | Run a pure computation in a bump arena capped at `budget-bytes` bytes.
+  -- Exceeding the budget escapes in O(1) with `Err Exhausted`.
+  with-arena-budget :: forall a. I64 -> (forall (r :: Region). ArenaToken r BudgetError -> a) -> Result BudgetError a
+  with-arena-budget budget-bytes body =
+    prim-arena-escape-run budget-bytes (\h -> body (MkArenaToken h)) (\v -> Ok v) (\err -> Err err) (\u -> Err Exhausted)
+
+  -- | Escape in O(1) to the prompt owning `tok` with error value `err`.
+  arena-abort :: forall (r :: Region) e a. ArenaToken r e -> e -> a
+  arena-abort tok err = case tok of
+    MkArenaToken h -> prim-arena-escape-abort h err

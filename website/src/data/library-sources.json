@@ -2,8 +2,8 @@
   "format": 3,
   "package": "cinch/stdlib",
   "version": "0.1.0",
-  "stdlib_manifest_sha256": "d09740fb14bd738e3169b28c71a4107715a7bbb96d347a4a46c9feddd4656886",
-  "search_entry_count": 10928,
+  "stdlib_manifest_sha256": "3dd6f3301fda41eefef8f2368dbed9e16494878176ca1ea1f3dcad1ec47fe81b",
+  "search_entry_count": 11020,
   "modules": [
     {
       "module": "Algebra.Arithmetic",
@@ -1196,6 +1196,25 @@
       "instances": 0
     },
     {
+      "module": "Data.Finite",
+      "family": "Data",
+      "description": "Exact finite domain enumeration for algebraic data, records, and compile-time state-machine action parameters.",
+      "path": "seed/prelude/Data/Finite.cinch",
+      "sha256": "ede01b649b45f4235f9e9f5f9282ef6fa2512a417ebb31c3b46ca6540788db4b",
+      "imports": [
+        "Data.Bool",
+        "Data.List",
+        "Data.Nat",
+        "Data.Option",
+        "Data.Result"
+      ],
+      "types": 0,
+      "signatures": 1,
+      "values": 6,
+      "public_methods": 1,
+      "instances": 6
+    },
+    {
       "module": "Data.Float",
       "family": "Data",
       "description": "Binary64 mathematics: roundings, roots, exponentials, logarithms, powers, trigonometric, hyperbolic and special functions (erf, Gamma, Bessel) and FMA as branch-free kernels, bit-identical on every target.",
@@ -1348,7 +1367,7 @@
       "family": "Data",
       "description": "Finite strict lists: construction, transformation, filtering, splitting, searching, folds, and collection instances.",
       "path": "seed/prelude/Data/List.cinch",
-      "sha256": "f765133818f3970e81d9b8838a80afd539fc852b9041945ecff2f4a171282f8d",
+      "sha256": "9fb14c93a483389ef89397e29ccb8161605dfd4328d0953a8dffab42b5de65a1",
       "imports": [
         "Algebra.Arithmetic",
         "Algebra.Monoid",
@@ -1367,7 +1386,7 @@
       ],
       "types": 1,
       "signatures": 0,
-      "values": 41,
+      "values": 42,
       "public_methods": 0,
       "instances": 9
     },
@@ -1400,7 +1419,7 @@
       "family": "Data",
       "description": "Fixed-width and target-sized scalar operations. Names make checked, wrapping, or saturating overflow policy explicit.",
       "path": "seed/prelude/Data/Machine.cinch",
-      "sha256": "293acccf524ed4b1eb17684edcfda4114181b8670fcce5c0ff0a0449b9c6342c",
+      "sha256": "72aa29c911ecf861d8859021e199d36b1309ecbc28a50dccd42e4766dd69c086",
       "imports": [
         "Algebra.Arithmetic",
         "Data.Option",
@@ -2865,7 +2884,7 @@
       "family": "Data",
       "description": "Unboxed 128-bit integers with checked, wrapping and saturating arithmetic, bit operations, numeric conversions and explicit overflow policies.",
       "path": "seed/prelude/Data/Wide.cinch",
-      "sha256": "53bf486efc9f780532a0a152ebfe06f072242a9c984f5becd4bb1bb9ad34f2fa",
+      "sha256": "4de778524624de6889e3830b0041014131948d8e18c9aaf1c1940b7bd8b6d5db",
       "imports": [
         "Algebra.Bits",
         "Data.Int",
@@ -2915,6 +2934,21 @@
         "Text.Adler32"
       ],
       "types": 0,
+      "signatures": 0,
+      "values": 3,
+      "public_methods": 0,
+      "instances": 0
+    },
+    {
+      "module": "Effect.Arena",
+      "family": "Effect",
+      "description": "Region-delimited bump arenas with O(1) fast escape (with-arena, arena-abort) and typed byte-budget boundaries (with-arena-budget, BudgetError).",
+      "path": "seed/prelude/Effect/Arena.cinch",
+      "sha256": "ae66de649024c8d898cb98075b60072491db9c2800dd9bf158c565f2422d40c7",
+      "imports": [
+        "Data.Core"
+      ],
+      "types": 2,
       "signatures": 0,
       "values": 3,
       "public_methods": 0,
@@ -3879,6 +3913,19 @@
       "instances": 0
     },
     {
+      "module": "Effect.Reader",
+      "family": "Effect",
+      "description": "Zero-overhead lexical reader capabilities (Read and TaggedRead), with ask, asks, local, and type-changing with-reader scoping that preserve purity.",
+      "path": "seed/prelude/Effect/Reader.cinch",
+      "sha256": "8258734d8b1562789da0d85d828c37ed266b6be26f21066e527c7d94bfcb1278",
+      "imports": [],
+      "types": 2,
+      "signatures": 0,
+      "values": 10,
+      "public_methods": 0,
+      "instances": 0
+    },
+    {
       "module": "Effect.Resolv",
       "family": "Effect",
       "description": "Hostname/address resolution through the runtime, with named failure results.",
@@ -4346,6 +4393,28 @@
       "instances": 0
     },
     {
+      "module": "Effect.Test.Hegel",
+      "family": "Effect",
+      "description": "Choice-stream property testing and native-speed state-machine simulation with automatic integrated shrinking (Hegel / Hypothesis / Hedgehog style).",
+      "path": "seed/prelude/Effect/Test/Hegel.cinch",
+      "sha256": "9cbf6c5054f9c86135af689d4e2a16d4a99f1c257f09b4b1b95312712a2cfe30",
+      "imports": [
+        "Data.Bool",
+        "Data.Finite",
+        "Data.List",
+        "Data.Nat",
+        "Data.NonZero",
+        "Data.Option",
+        "Data.Result",
+        "Data.String"
+      ],
+      "types": 7,
+      "signatures": 0,
+      "values": 40,
+      "public_methods": 0,
+      "instances": 0
+    },
+    {
       "module": "Effect.Test.Io",
       "family": "Effect",
       "description": "Stream fault-injection, logging and conformance-testing adapters over Effect.Stream.",
@@ -4412,6 +4481,21 @@
       "types": 5,
       "signatures": 0,
       "values": 19,
+      "public_methods": 0,
+      "instances": 0
+    },
+    {
+      "module": "Effect.Throw",
+      "family": "Effect",
+      "description": "Typed short-circuiting algebraic error effect (Throw e) with cross-call cooperative bubbling, throw, catch, and try-throw.",
+      "path": "seed/prelude/Effect/Throw.cinch",
+      "sha256": "a78cac13e9eeea308157c533ab3434e5bc9af86e7da13140f898d00b1f05cf8a",
+      "imports": [
+        "Data.Core"
+      ],
+      "types": 1,
+      "signatures": 0,
+      "values": 3,
       "public_methods": 0,
       "instances": 0
     },
@@ -4769,7 +4853,7 @@
       ],
       "types": 23,
       "signatures": 17,
-      "values": 1086,
+      "values": 1087,
       "public_methods": 41,
       "instances": 0
     },
@@ -4778,7 +4862,7 @@
       "family": "Prim",
       "description": "Leaf inline-LLVM scalar machine primitives (fixed-width wrapping/saturating/overflow/bitwise/shift/rotate/bitscan/comparison/conversion operations and word-size bridges), re-exported through Data.Machine and shared directly by Data.Char, Data.Bytes, and Data.String.",
       "path": "seed/prelude/Prim/Machine.cinch",
-      "sha256": "3f9376fc67e58890b4d2e62fe992055f5b4461b31fa96427e3cbb7badcad85d2",
+      "sha256": "4807645534bdb3bfe9e07e78365c766e4d1b979185a32c353e48207628861c04",
       "imports": [
         "Algebra.Arithmetic"
       ],
@@ -4870,7 +4954,7 @@
       "family": "Prim",
       "description": "Leaf inline-LLVM 128-bit SIMD lane primitives and target-guarded hardware AES/CLMUL instructions (AES-NI, ARMv8 AES, PCLMULQDQ, PMULL) with portable fallbacks, re-exported through Data.Wide and shared directly by Data.String.",
       "path": "seed/prelude/Prim/Wide.cinch",
-      "sha256": "62564558455adc4c274b06b6a87e56244c488bb922ecc72a349f5a52725f1988",
+      "sha256": "a3c4f38a4cb77a6a9ebdede5226735e411b2927d65f6cf2d43a70244ce8ff945",
       "imports": [],
       "types": 0,
       "signatures": 1,
@@ -5732,7 +5816,7 @@
       "family": "Text",
       "description": "Lexer toolkit: tokens, spans, and lexical errors for grammar and parser clients.",
       "path": "seed/prelude/Text/Lex.cinch",
-      "sha256": "508d75917d6276c6436a6954e66353680a66b0af9653b6fd8cc6b0e1662147f3",
+      "sha256": "d372b070c2939c6ee607927c833633a60961b72c6cfeedfd87efbe5b19601d7d",
       "imports": [
         "Data.Bool",
         "Data.Bytes",
@@ -5745,7 +5829,7 @@
       ],
       "types": 6,
       "signatures": 0,
-      "values": 18,
+      "values": 20,
       "public_methods": 0,
       "instances": 0
     },

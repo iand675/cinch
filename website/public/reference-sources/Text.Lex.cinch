@@ -71,7 +71,7 @@ module Text.Lex where
 
   export Span, span-start, span-end, span-line, span-col
   export Token, TVar, TCon, TOp, TInt, TFloat, TStr, TChar, TWord, TPunct, TAttr, TPrimFrag, TTickName, TTickType, TEOF
-  export LToken, lt-span, lt-virtual, lt-token
+  export LToken, mk-ltoken, lt-span, lt-virtual, lt-token
   export LexErrorKind, TabInIndentation, UnterminatedComment, UnterminatedString,
     UnterminatedChar, BadEscape, MalformedUnicodeEscape, NonScalarEscape, MalformedNumber, UnexpectedChar, MalformedTick,
     LayoutTooShallow, MismatchedDelimiter, UnclosedDelimiter, InWithoutLet,
@@ -79,7 +79,7 @@ module Text.Lex where
   export LexError, lex-error-span, lex-error-kind, lex-error-message
   export Lexed, LexedTokens, LexedFail
   export eq-token, token-kind-name, render-token, chars-bytes, bytes-slice
-  export lex-source, lex-tokens, layout-tokens
+  export lex-source, lex-source-slice, lex-tokens, layout-tokens
 
 
   -- ---------------------------------------------------------------------------
@@ -178,6 +178,9 @@ module Text.Lex where
   -- the layout pass (the compiler's `Token.virtual_`).
   data LToken where
     LTok :: Span -> Bool -> Token -> LToken
+
+  mk-ltoken :: Span -> Bool -> Token -> LToken
+  mk-ltoken sp v t = LTok sp v t
 
   lt-span :: LToken -> Span
   lt-span t = case t of
@@ -862,9 +865,26 @@ module Text.Lex where
           if eq-char c '_' then scan-dec-digits (skip-char s) acc rev
           else NumScan s acc rev
 
-  -- The float fraction and exponent when present: `.` immediately
-  -- followed by a digit. The scanned text keeps the digits, the dot
-  -- and the exponent spelled out (underscores dropped).
+  -- The float fraction and/or exponent when present: `.` immediately
+  -- followed by a digit, OR `e`/`E` followed by optional `+`/`-` and a digit.
+  -- The scanned text keeps the digits, the dot and the exponent spelled out
+  -- (underscores dropped).
+  scan-float-exp :: Scan -> List Char -> Option PairScan
+  scan-float-exp s rev = case peek-char s of
+    Some e | eq-char e 'e' || eq-char e 'E' ->
+      case peek-at s 1 of
+        Some f | eq-char f '+' || eq-char f '-' ->
+          case peek-at s 2 of
+            Some d | is-ascii-digit d ->
+              case scan-decimals-rev (skip-char (skip-char s)) (Cons f (Cons e rev)) of
+                Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
+            _ -> None
+        Some d | is-ascii-digit d ->
+          case scan-decimals-rev (skip-char s) (Cons e rev) of
+            Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
+        _ -> None
+    _ -> None
+
   scan-float-frac :: Scan -> List Char -> Option PairScan
   scan-float-frac s rev = case peek-char s of
     Some c | eq-char c '.' ->
@@ -872,18 +892,11 @@ module Text.Lex where
         Some d | is-ascii-digit d ->
           case scan-decimals-rev (skip-char s) (Cons '.' rev) of
             Pair s2 cs ->
-              case peek-char s2 of
-                Some e | eq-char e 'e' || eq-char e 'E' ->
-                  case peek-at s2 1 of
-                    Some f | eq-char f '+' || eq-char f '-' ->
-                      case scan-decimals-rev (skip-char (skip-char s2)) (Cons f (Cons e cs)) of
-                        Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
-                    _ ->
-                      case scan-decimals-rev (skip-char s2) (Cons e cs) of
-                        Pair s3 cs2 -> Some (Pair s3 (reverse cs2))
-                _ -> Some (Pair s2 (reverse cs))
+              case scan-float-exp s2 cs of
+                Some p -> Some p
+                None -> Some (Pair s2 (reverse cs))
         _ -> None
-    _ -> None
+    _ -> scan-float-exp s rev
 
   scan-decimals-rev :: Scan -> List Char -> PairScan
   scan-decimals-rev s acc = case peek-char s of
@@ -1334,6 +1347,25 @@ module Text.Lex where
   lex-source b = case lex-tokens b of
     LexedFail sp k -> LexedFail sp k
     LexedTokens toks -> layout-tokens toks
+
+  shift-span :: Nat -> Nat -> Span -> Span
+  shift-span byte-off line-delta sp = case sp of
+    Span a z l c -> Span (a + byte-off) (z + byte-off) (l + line-delta) c
+
+  shift-ltokens :: Nat -> Nat -> List LToken -> List LToken -> List LToken
+  shift-ltokens byte-off line-delta toks acc = case toks of
+    Nil -> reverse acc
+    Cons (LTok sp v t) rest -> shift-ltokens byte-off line-delta rest (Cons (LTok (shift-span byte-off line-delta sp) v t) acc)
+
+  lex-source-slice :: Bytes -> Nat -> Nat -> Nat -> Lexed
+  lex-source-slice b start end start-line =
+    case decide (end <= bytes-len b) of
+      No w -> LexedTokens Nil
+      Yes w ->
+        let line-delta = saturating-sub start-line 1 in
+        case lex-source (bytes-slice b start end) of
+          LexedFail sp k -> LexedFail (shift-span start line-delta sp) k
+          LexedTokens toks -> LexedTokens (shift-ltokens start line-delta toks Nil)
 
   -- ---------------------------------------------------------------------------
   -- The layout pass (the compiler's `layout`).

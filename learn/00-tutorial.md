@@ -43,13 +43,13 @@ Start at [chapter 2](02-values-and-layout.md) for literal, layout, and applicati
 | [7. Numbers, text, and bytes](07-numbers-text-and-bytes.md) | Mathematical and machine integers, Unicode text and `Bytes` buffers, and formatting as a conversion. |
 | [8. Split a program into modules](08-modules.md) | A two-module project, name lookup and collisions, the implicit Prelude, and explicit library imports. |
 | [9. Signatures, instances, and reusable operations](09-signatures-and-instances.md) | Declare a `signature`, write instances, use library constraints, pass module parameters, and read a law's status. |
-| [10. Effects, capabilities, and a program that prints](10-effects-and-io.md) | Print a value, sequence steps with `do`, and state the effects a definition performs. |
+| [10. Effects, capabilities, and a program that prints](10-effects-and-io.md) | Print a value, sequence steps with `do`, state effects on arrows, and share pure lexical config with `Effect.Reader`. |
 
 # Part II: effects, resources, and evidence
 
 | Chapter | What it covers |
 | --- | --- |
-| [11. Handle effects and select sequencing](11-handlers-and-sequencing.md) | Declare an operation, write its handler, read the current handler boundary, and select a `Result` do provider. |
+| [11. Handle effects and select sequencing](11-handlers-and-sequencing.md) | Declare an operation, write direct and cross-call handlers (`Effect.Throw`), read the handler boundary, and select a `Result` do provider. |
 | [12. Ownership, borrowing, and regions](12-ownership-and-regions.md) | Read a multiplicity annotation, borrow for inspection, and see why mutation invalidates evidence. |
 | [13. Refine values and make unsafe cases explicit](13-refinements-and-safe-operations.md) | Build a bounded refinement, divide by a `NonZero` divisor, and use the refinements the compiler ships. |
 | [14. Dependent types, finite indices, and proofs](14-dependent-types-and-proofs.md) | Check an index before constructing it, keep a vector's length, package an unknown length, and compute with proofs. |

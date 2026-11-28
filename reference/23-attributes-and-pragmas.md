@@ -24,6 +24,7 @@ Every compiler-owned attribute accepted today is listed here. Variant arguments 
 | `#[noinline]` | Function declaration | Equivalent to `#[inline(never)]` | No | Current |
 | `#[unroll(N\|disable\|0)]` | Function declaration | Loop-unrolling hint (`N` in `1..=2147483647`, or `disable`/`0`) | No | Current |
 | `#[repr(...)]` | `data` and `record` declarations; fields of a `repr(C)` record | Explicit layout contract | Yes | Current |
+| `#[capability]` | `data` and `record` declarations | Marks the type as a first-class lexical capability usable in `using`, `with`, and `@{...}` | Yes | Current |
 | `#[unpack]` | Native record field | Unpacks a monomorphic single-constructor product inline | Yes | Current |
 | `#[nounpack]` | Native record field | Retains ordinary boxed/word field representation | Yes | Current |
 | `#[recursion("...")]` | Function declaration | Verifies `"none"`, `"tail"`, or `"bounded(b)"` recursion | Yes | Current |
@@ -79,7 +80,7 @@ Attributes may sit on the line immediately above their target; layout separators
 | Position | Placement | Admitted compiler-owned names |
 | --- | --- | --- |
 | Module header | Before `module` | `meta`, `profile`, `deny-warnings` |
-| Declaration | Before signature or declaration | `meta` (any); `repr` (`data`/`record`); `inline`, `noinline`, `unroll`, `cold`, safety assertions (functions); `byval`, `sret` (`foreign`) |
+| Declaration | Before signature or declaration | `meta` (any); `repr`, `capability` (`data`/`record`); `inline`, `noinline`, `unroll`, `cold`, safety assertions (functions); `byval`, `sret` (`foreign`) |
 | Constructor | Before a `data` constructor | `meta` |
 | Record field | Before the field name or before its type | `meta`, `unpack`, `nounpack`; `repr(align(N))`, `repr(packed)`, `repr(packed(N))` (on `repr(C)` records only) |
 | Function clause | Between function name and patterns | `meta`, `weight`, `likely`, `unlikely`, `cold` |
@@ -554,9 +555,34 @@ Repeating an attribute name on one construct is an error (unless a macro explici
 - Repeating any safety assertion, `#[cold]`, `#[inline]`, `#[noinline]`, or `#[unroll]` across signature and equations.
 - Mixing two hints from the same family: `#[inline(never)]` with `#[noinline]`, `#[unroll(4)]` with `#[unroll(disable)]`, or `#[likely]` with `#[weight(2000)]` on one decision arm.
 
+## Lexical capabilities (`#[capability]`)
+
+`#[capability]` marks a `data` or `record` declaration as a first-class lexical capability that may be demanded in `using` clauses, introduced lexically with `with (name = value) in body`, and passed explicitly with `f @{name = value}` (see [user-defined lexical capabilities and `Effect.Reader`](09-effects-and-capabilities.md#user-defined-lexical-capabilities-and-effectreader)).
+
+- Takes no arguments (`#[capability(1)]` is rejected).
+- Attaches only to `data` and `record` declarations.
+- Combines freely with `#[repr(transparent)]` (or other valid `#[repr(...)]` layouts) for zero-wrapper lexical capabilities.
+- Recorded in `.cinchif` and hashed into `iface_hash`.
+
+<!-- cinch:run exit=42 -->
+```cinch
+module Main where
+  #[capability]
+  #[repr(transparent)]
+  data TokenCap where
+    TokenCap :: Int -> TokenCap
+
+  reveal :: using (s :: TokenCap) => Int
+  reveal = case s of
+    TokenCap n -> n
+
+  main :: Int
+  main = with (s = TokenCap 42) in reveal
+```
+
 ## Contract identity
 
-Layout contracts (`#[repr]`, `#[unpack]`/`#[nounpack]`), foreign ABI contracts (`#[byval]`, `#[sret]`), and verified safety assertions enter the module's interface and `iface_hash`; changing them invalidates dependents. Optimization hints (`#[inline]`, `#[noinline]`, `#[unroll]`, `#[cold]`, branch weights) and `#[meta(...)]` never alter `iface_hash`.
+Layout contracts (`#[repr]`, `#[unpack]`/`#[nounpack]`), capability markers (`#[capability]`), foreign ABI contracts (`#[byval]`, `#[sret]`), and verified safety assertions enter the module's interface and `iface_hash`; changing them invalidates dependents. Optimization hints (`#[inline]`, `#[noinline]`, `#[unroll]`, `#[cold]`, branch weights) and `#[meta(...)]` never alter `iface_hash`.
 
 ## Forms that are not attributes
 
