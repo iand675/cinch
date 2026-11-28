@@ -1,9 +1,9 @@
 {
-  "commit": "367865abc1284a544bcaeba64dbb511522b236c3",
-  "description": "ABI 10 packed library provider with direct-apply, Tier 1 PE, and raw bit-packing WordOp RC fix.",
-  "revision": "367865abc1284a544bcaeba64dbb511522b236c3",
+  "commit": "6458ae1b8c4d135ca0572f88f61c9eab430093cf",
+  "description": "ABI 10 packed library provider with Wave 0A (model fair_each, prim_verify BvShuffle16/BvCrc32c, pinned OS workers, DMA mmap, #[alloc(bounded)]/#[fip]).",
+  "revision": "6458ae1b8c4d135ca0572f88f61c9eab430093cf",
   "runtime_abi": 10,
   "schema": 1,
-  "source_hash": "d4d61999b01855db43a57cc945152f9a11d64cb139a4255829af5d389c73dd36",
-  "source_sha256": "d4d61999b01855db43a57cc945152f9a11d64cb139a4255829af5d389c73dd36"
+  "source_hash": "59a3281f49a5afc45ed0d4f2cb784f037eb29abe89287ab95c6bc25c7892520e",
+  "source_sha256": "59a3281f49a5afc45ed0d4f2cb784f037eb29abe89287ab95c6bc25c7892520e"
 }
