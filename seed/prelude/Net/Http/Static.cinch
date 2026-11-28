@@ -1,0 +1,2349 @@
+-- | High-speed static file serving engine (`Net.Http.Static`) with strict
+-- lexical path confinement, `#[no-alloc]` MIME detection, pre-compressed
+-- variant negotiation (`.zst` > `.br` > `.gz` > identity), deterministic
+-- zero-alloc `ETag` + `If-None-Match` (`304 Not Modified`), RFC 9110 `Range`
+-- (`206 Partial Content` / `416 Range Not Satisfiable`), a flat DMA-backed
+-- per-core FD + stat + ETag + MIME LRU cache with TTL refresh and clean FD
+-- eviction, zero-alloc DMA header serialization, and zero-copy Darwin
+-- `sendfile(2)` delivery.
+--
+-- Allocation contract:
+--   * `StaticFileCache` is allocated once via a single 4 KiB-aligned anonymous
+--     DMA slab (`engine-dma-alloc`).
+--   * Steady-state path resolution, MIME detection, `Accept-Encoding` parsing,
+--     `ETag` formatting, `If-None-Match` matching, `Range` parsing, cache-hit
+--     lookup (`static-cache-get-hit-dma` and `static-cache-lookup-dma`),
+--     response planning (`static-plan-response-dma`), and HTTP/1.1 header
+--     serialization (`static-format-headers-dma`) execute with ZERO heap
+--     allocations and ZERO atomic reference-counting traffic.
+module Net.Http.Static where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Engine.Reactor.Darwin
+  import Engine.Timer
+  import Engine.Types
+  import Net.Http.Types
+  import Net.Http.V1.Conn
+  import Prim.Atomic
+  import Prim.Sys.Io.Darwin
+
+  -- Path confinement constants, POD result, and resolvers
+  export static-max-path-len
+  export static-path-ok, static-path-err-empty, static-path-err-no-leading-slash
+  export static-path-err-too-long, static-path-err-bad-escape, static-path-err-nul-byte
+  export static-path-err-encoded-sep, static-path-err-backslash, static-path-err-traversal
+  export static-path-err-double-encoded, static-path-err-control-char
+  export static-path-err-buf-too-small, static-path-err-bad-index
+  export StaticPathResult
+  export static-resolve-path-dma, static-resolve-full-path-dma, static-resolve-path
+
+  -- MIME codes & #[no-alloc] extension detection
+  export mime-octet-stream, mime-html, mime-css, mime-js, mime-json
+  export mime-svg, mime-png, mime-jpeg, mime-webp, mime-avif
+  export mime-woff2, mime-wasm, mime-txt, mime-xml, mime-pdf, mime-ico
+  export static-mime-id-for-path-dma, static-mime-id-for-bytes
+  export static-mime-string, static-mime-for-path, static-write-mime-header-dma
+
+  -- Pre-compressed variant negotiation (`Accept-Encoding`)
+  export static-enc-identity, static-enc-gzip, static-enc-br, static-enc-zstd
+  export accept-enc-gzip, accept-enc-br, accept-enc-zstd, accept-enc-any
+  export static-parse-accept-encoding-dma, static-negotiate-encoding
+  export static-encoding-name, static-write-content-encoding-dma
+
+  -- Deterministic ETag, `If-None-Match`, and RFC 9110 `Range`
+  export static-format-etag-dma, static-if-none-match-dma
+  export static-range-none, static-range-ok, static-range-unsatisfiable
+  export StaticRangeResult, static-parse-range-dma
+
+  -- Per-core DMA-backed FD + stat + ETag + MIME LRU cache
+  export static-lookup-ok, static-lookup-not-found, static-lookup-bad-path
+  export static-lookup-forbidden, static-lookup-io-error
+  export StaticFileCache, StaticFileView
+  export static-cache-new, static-cache-destroy, static-cache-set-precompressed
+  export static-cache-capacity, static-cache-count
+  export static-cache-hits, static-cache-misses, static-cache-evictions
+  export static-cache-get-hit-dma, static-cache-lookup-dma, static-cache-len-scratch-addr
+
+  -- Response planning, zero-alloc DMA header serialization, and Darwin sendfile
+  export StaticResponsePlan
+  export static-plan-response-dma, static-format-headers-dma
+  export static-send-response-darwin, static-send-file-darwin
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean, byte, hex, decimal & DMA helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  not-b :: Bool -> Bool
+  not-b a = if a then b-false else b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  b2u8 :: Bool -> U8
+  b2u8 a = if a then 1 else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)]
+  #[no-alloc]
+  ascii-lower-u8 :: U8 -> U8
+  ascii-lower-u8 b =
+    if lt-u8 (wrapping-sub-u8 b 65) 26 then bit-or-u8 b 32 else b
+
+  #[inline(always)]
+  #[no-alloc]
+  is-ows :: U8 -> Bool
+  is-ows b = either (eq-u8 b 32) (eq-u8 b 9)
+
+  #[inline(always)]
+  #[no-alloc]
+  hex-nibble-val :: U8 -> U8
+  hex-nibble-val b =
+    if lt-u8 (wrapping-sub-u8 b 48) 10 then wrapping-sub-u8 b 48
+    else if lt-u8 (wrapping-sub-u8 b 65) 6 then wrapping-add-u8 (wrapping-sub-u8 b 65) 10
+    else if lt-u8 (wrapping-sub-u8 b 97) 6 then wrapping-add-u8 (wrapping-sub-u8 b 97) 10
+    else 255
+
+  #[inline(always)]
+  #[no-alloc]
+  hex-digit-lower :: U8 -> U8
+  hex-digit-lower n =
+    if lt-u8 n 10 then wrapping-add-u8 48 n
+    else wrapping-add-u8 87 n
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  put1 base pos b0 =
+    let _0 = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b0 in
+    wrapping-add-u32 pos 1
+
+  #[inline(always)]
+  #[no-alloc]
+  put2 :: I64 -> U32 -> U8 -> U8 ->{MVar} U32
+  put2 base pos b0 b1 =
+    let p1 = put1 base pos b0 in
+    put1 base p1 b1
+
+  #[inline(always)]
+  #[no-alloc]
+  put3 :: I64 -> U32 -> U8 -> U8 -> U8 ->{MVar} U32
+  put3 base pos b0 b1 b2 =
+    let p2 = put2 base pos b0 b1 in
+    put1 base p2 b2
+
+  #[inline(always)]
+  #[no-alloc]
+  put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put4 base pos b0 b1 b2 b3 =
+    let _0 = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le4 b0 b1 b2 b3) in
+    wrapping-add-u32 pos 4
+
+  #[inline(always)]
+  #[no-alloc]
+  put8 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  put8 base pos b0 b1 b2 b3 b4 b5 b6 b7 =
+    let _0 = raw-store-u64 (wrapping-add-i64 base (u32-to-i64 pos)) (pack-le8 b0 b1 b2 b3 b4 b5 b6 b7) in
+    wrapping-add-u32 pos 8
+
+  #[no-alloc]
+  dma-copy-raw :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy-raw dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _0 = raw-store-u128 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _0 = raw-store-u64 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _0 = raw-store-u8 dst v in
+      dma-copy-raw (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  #[no-alloc]
+  dma-eq-raw :: I64 -> I64 -> U32 ->{MVar} Bool
+  dma-eq-raw a b rem =
+    if ge-u32 rem 8 then
+      if ne-u64 (raw-load-u64 a) (raw-load-u64 b) then b-false
+      else dma-eq-raw (wrapping-add-i64 a 8) (wrapping-add-i64 b 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      if ne-u8 (raw-load-u8 a) (raw-load-u8 b) then b-false
+      else dma-eq-raw (wrapping-add-i64 a 1) (wrapping-add-i64 b 1) (wrapping-sub-u32 rem 1)
+    else b-true
+
+  #[no-alloc]
+  u64-hex-digits :: U64 -> U32
+  u64-hex-digits v =
+    if eq-u64 v 0 then 1
+    else u64-hex-digits-loop v 0
+
+  #[no-alloc]
+  u64-hex-digits-loop :: U64 -> U32 -> U32
+  u64-hex-digits-loop v acc =
+    if eq-u64 v 0 then acc
+    else u64-hex-digits-loop (wrapping-shr-u64 v 4) (wrapping-add-u32 acc 1)
+
+  #[no-alloc]
+  write-u64-hex-back :: I64 -> U32 -> U64 -> U32 ->{MVar} Unit
+  write-u64-hex-back base end-pos v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let dst-pos = wrapping-sub-u32 end-pos 1 in
+      let nib = wrapping-u64-to-u8 (bit-and-u64 v 15) in
+      let _0 = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 dst-pos)) (hex-digit-lower nib) in
+      write-u64-hex-back base dst-pos (wrapping-shr-u64 v 4) (wrapping-sub-u32 rem 1)
+
+  #[no-alloc]
+  u64-dec-digits :: U64 -> U32
+  u64-dec-digits v =
+    if lt-u64 v 10 then 1
+    else if lt-u64 v 100 then 2
+    else if lt-u64 v 1000 then 3
+    else if lt-u64 v 10000 then 4
+    else if lt-u64 v 100000 then 5
+    else if lt-u64 v 1000000 then 6
+    else if lt-u64 v 10000000 then 7
+    else if lt-u64 v 100000000 then 8
+    else if lt-u64 v 1000000000 then 9
+    else if lt-u64 v 10000000000 then 10
+    else if lt-u64 v 100000000000 then 11
+    else if lt-u64 v 1000000000000 then 12
+    else if lt-u64 v 10000000000000 then 13
+    else if lt-u64 v 100000000000000 then 14
+    else if lt-u64 v 1000000000000000 then 15
+    else if lt-u64 v 10000000000000000 then 16
+    else if lt-u64 v 100000000000000000 then 17
+    else if lt-u64 v 1000000000000000000 then 18
+    else if lt-u64 v 10000000000000000000 then 19
+    else 20
+
+  #[no-alloc]
+  write-u64-dec-back :: I64 -> U32 -> U64 -> U32 ->{MVar} Unit
+  write-u64-dec-back base end-pos v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let dst-pos = wrapping-sub-u32 end-pos 1 in
+      let d = wrapping-add-u8 48 (wrapping-u64-to-u8 (rem-u64 v 10)) in
+      let _0 = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 dst-pos)) d in
+      write-u64-dec-back base dst-pos (div-u64 v 10) (wrapping-sub-u32 rem 1)
+
+  -- Direct libSystem FFI for opening, fstat'ing, and closing cached regular files.
+  foreign import ccall "__open" static-c-open :: I64 -> I32 -> I32 ->{IO} I32
+  foreign import ccall "fstat" static-c-fstat :: I32 -> I64 ->{IO} I32
+  foreign import ccall "close" static-c-close :: I32 ->{IO} I32
+
+  -- Darwin `struct stat` (arm64 64-bit inode ABI, 144 bytes):
+  --   +4  : st_mode :: U16 (`S_IFMT = 0xF000`, `S_IFREG = 0x8000`)
+  --   +48 : st_mtimespec.tv_sec :: U64
+  --   +96 : st_size :: U64
+  #[no-alloc]
+  darwin-stat-off-mode :: I64
+  darwin-stat-off-mode = 4
+
+  #[no-alloc]
+  darwin-stat-off-mtime-sec :: I64
+  darwin-stat-off-mtime-sec = 48
+
+  #[no-alloc]
+  darwin-stat-off-size :: I64
+  darwin-stat-off-size = 96
+
+  #[no-alloc]
+  darwin-s-ifmt :: U32
+  darwin-s-ifmt = 0xF000
+
+  #[no-alloc]
+  darwin-s-ifreg :: U32
+  darwin-s-ifreg = 0x8000
+
+  -- =========================================================================
+  -- 1. Strict Lexical Path Confinement (`static-resolve-path*`)
+  -- =========================================================================
+
+  #[no-alloc]
+  static-max-path-len :: U32
+  static-max-path-len = 1024
+
+  #[no-alloc]
+  static-path-ok :: U8
+  static-path-ok = 0
+
+  #[no-alloc]
+  static-path-err-empty :: U8
+  static-path-err-empty = 1
+
+  #[no-alloc]
+  static-path-err-no-leading-slash :: U8
+  static-path-err-no-leading-slash = 2
+
+  #[no-alloc]
+  static-path-err-too-long :: U8
+  static-path-err-too-long = 3
+
+  #[no-alloc]
+  static-path-err-bad-escape :: U8
+  static-path-err-bad-escape = 4
+
+  #[no-alloc]
+  static-path-err-nul-byte :: U8
+  static-path-err-nul-byte = 5
+
+  #[no-alloc]
+  static-path-err-encoded-sep :: U8
+  static-path-err-encoded-sep = 6
+
+  #[no-alloc]
+  static-path-err-backslash :: U8
+  static-path-err-backslash = 7
+
+  #[no-alloc]
+  static-path-err-traversal :: U8
+  static-path-err-traversal = 8
+
+  #[no-alloc]
+  static-path-err-double-encoded :: U8
+  static-path-err-double-encoded = 9
+
+  #[no-alloc]
+  static-path-err-control-char :: U8
+  static-path-err-control-char = 10
+
+  #[no-alloc]
+  static-path-err-buf-too-small :: U8
+  static-path-err-buf-too-small = 11
+
+  #[no-alloc]
+  static-path-err-bad-index :: U8
+  static-path-err-bad-index = 12
+
+  -- | 8-byte POD result returned by `static-resolve-path-dma` and
+  -- `static-resolve-full-path-dma`.
+  #[repr(C, value)]
+  record StaticPathResult where
+    sp-status :: U8
+    sp-pad0 :: U8
+    sp-pad1 :: U16
+    sp-len :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  sp-err :: U8 -> StaticPathResult
+  sp-err code = StaticPathResult code 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  sp-ok :: U32 -> StaticPathResult
+  sp-ok len = StaticPathResult static-path-ok 0 0 len
+
+  #[inline(always)]
+  #[no-alloc]
+  is-bad-byte :: U8 -> Bool
+  is-bad-byte b =
+    either (lt-u8 b 32)
+      (either (eq-u8 b 127)
+        (either (eq-u8 b 0xC0)
+          (either (eq-u8 b 0xC1) (ge-u8 b 0xF5))))
+
+  -- Validate a caller-configured index filename (single safe path component).
+  #[no-alloc]
+  validate-index-loop :: I64 -> U32 -> U32 -> Bool ->{MVar} Bool
+  validate-index-loop addr len i all-dots =
+    if ge-u32 i len then
+      if both all-dots (either (eq-u32 len 1) (eq-u32 len 2)) then b-false
+      else b-true
+    else
+      let b = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i)) in
+      if either (eq-u8 b 47) (either (eq-u8 b 92) (either (eq-u8 b 37) (is-bad-byte b))) then b-false
+      else
+        let next-dots = both all-dots (eq-u8 b 46) in
+        validate-index-loop addr len (wrapping-add-u32 i 1) next-dots
+
+  #[no-alloc]
+  is-valid-index-name :: I64 -> U32 ->{MVar} Bool
+  is-valid-index-name addr len =
+    if eq-u32 len 0 then b-true
+    else if gt-u32 len 255 then b-false
+    else if eq-i64 addr 0 then b-false
+    else validate-index-loop addr len 0 b-true
+
+  -- Find effective length of request path stopping at '?' (query string).
+  #[no-alloc]
+  find-query-pos :: I64 -> U32 -> U32 ->{MVar} U32
+  find-query-pos addr i len =
+    if ge-u32 i len then len
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) 63 then i
+    else find-query-pos addr (wrapping-add-u32 i 1) len
+
+  -- Write default `"index.html"` (10 bytes) into `out-addr[pos..cap)`.
+  #[no-alloc]
+  write-default-index :: I64 -> U32 -> U32 ->{MVar} StaticPathResult
+  write-default-index out-addr pos cap =
+    if gt-u32 10 (saturating-sub-u32 cap pos) then sp-err static-path-err-buf-too-small
+    else
+      let p1 = put8 out-addr pos 105 110 100 101 120 46 104 116 in -- "index.ht"
+      let p2 = put2 out-addr p1 109 108 in                        -- "ml"
+      let _z = if lt-u32 p2 cap then raw-store-u8 (wrapping-add-i64 out-addr (u32-to-i64 p2)) 0 else () in
+      sp-ok p2
+
+  #[no-alloc]
+  append-index-name :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} StaticPathResult
+  append-index-name out-addr pos cap idx-addr idx-len =
+    let p-sep = (
+      if gt-u32 pos 0 then
+        if ge-u32 pos cap then wrapping-add-u32 cap 1
+        else put1 out-addr pos 47
+      else pos) in
+    if gt-u32 p-sep cap then sp-err static-path-err-buf-too-small
+    else if eq-u32 idx-len 0 then write-default-index out-addr p-sep cap
+    else if gt-u32 idx-len (saturating-sub-u32 cap p-sep) then sp-err static-path-err-buf-too-small
+    else
+      let _c = dma-copy-raw (wrapping-add-i64 out-addr (u32-to-i64 p-sep)) idx-addr idx-len in
+      let end-pos = wrapping-add-u32 p-sep idx-len in
+      let _z = if lt-u32 end-pos cap then raw-store-u8 (wrapping-add-i64 out-addr (u32-to-i64 end-pos)) 0 else () in
+      sp-ok end-pos
+
+  -- Single-pass zero-alloc lexical path decoder & confinement loop.
+  -- `seg-pre-pos` records `out-pos` BEFORE the separator `'/'` of the current
+  -- segment so single `"."` segments collapse cleanly in O(1), while ANY `".."`
+  -- segment (raw or percent-decoded) is strictly rejected.
+  #[no-alloc]
+  resolve-scan-loop
+    :: I64 -> U32 -> U32 -> I64 -> U32 -> I64 -> U32 -> U32 -> U32 -> U32 -> Bool -> Bool ->{MVar} StaticPathResult
+  resolve-scan-loop req i eff-len idx-addr idx-len out-addr out-cap out-pos seg-pre-pos seg-len seg-all-dots ends-slash =
+    if ge-u32 i eff-len then
+      -- Finalize trailing segment
+      if both seg-all-dots (eq-u32 seg-len 2) then sp-err static-path-err-traversal
+      else
+        let final-pos = if both seg-all-dots (eq-u32 seg-len 1) then seg-pre-pos else out-pos in
+        let final-slash = if both seg-all-dots (eq-u32 seg-len 1) then b-true else ends-slash in
+        if either (eq-u32 final-pos 0) final-slash then
+          append-index-name out-addr final-pos out-cap idx-addr idx-len
+        else
+          let _z = if lt-u32 final-pos out-cap then raw-store-u8 (wrapping-add-i64 out-addr (u32-to-i64 final-pos)) 0 else () in
+          sp-ok final-pos
+    else
+      let raw-b = raw-load-u8 (wrapping-add-i64 req (u32-to-i64 i)) in
+      if eq-u8 raw-b 0 then sp-err static-path-err-nul-byte
+      else if eq-u8 raw-b 92 then sp-err static-path-err-backslash
+      else if is-bad-byte raw-b then sp-err static-path-err-control-char
+      else if eq-u8 raw-b 47 then
+        -- Raw '/' segment boundary; collapse duplicate slashes & '.' segments; reject '..'
+        if eq-u32 seg-len 0 then
+          resolve-scan-loop req (wrapping-add-u32 i 1) eff-len idx-addr idx-len out-addr out-cap out-pos out-pos 0 b-true b-true
+        else if both seg-all-dots (eq-u32 seg-len 2) then
+          sp-err static-path-err-traversal
+        else if both seg-all-dots (eq-u32 seg-len 1) then
+          resolve-scan-loop req (wrapping-add-u32 i 1) eff-len idx-addr idx-len out-addr out-cap seg-pre-pos seg-pre-pos 0 b-true b-true
+        else
+          resolve-scan-loop req (wrapping-add-u32 i 1) eff-len idx-addr idx-len out-addr out-cap out-pos out-pos 0 b-true b-true
+      else if eq-u8 raw-b 37 then
+        -- Percent-encoded `%XX` byte
+        if lt-u32 (saturating-sub-u32 eff-len i) 3 then sp-err static-path-err-bad-escape
+        else
+          let hi = hex-nibble-val (raw-load-u8 (wrapping-add-i64 req (u32-to-i64 (wrapping-add-u32 i 1)))) in
+          let lo = hex-nibble-val (raw-load-u8 (wrapping-add-i64 req (u32-to-i64 (wrapping-add-u32 i 2)))) in
+          if either (ge-u8 hi 16) (ge-u8 lo 16) then sp-err static-path-err-bad-escape
+          else
+            let dec = bit-or-u8 (wrapping-shl-u8 hi 4) lo in
+            if eq-u8 dec 0 then sp-err static-path-err-nul-byte
+            else if either (eq-u8 dec 47) (eq-u8 dec 92) then sp-err static-path-err-encoded-sep
+            else if eq-u8 dec 37 then sp-err static-path-err-double-encoded
+            else if is-bad-byte dec then sp-err static-path-err-control-char
+            else
+              let pre-pos = if eq-u32 seg-len 0 then out-pos else seg-pre-pos in
+              let p1 = (
+                if both (eq-u32 seg-len 0) (gt-u32 out-pos 0) then
+                  if ge-u32 out-pos out-cap then wrapping-add-u32 out-cap 1
+                  else put1 out-addr out-pos 47
+                else out-pos) in
+              if ge-u32 p1 out-cap then sp-err static-path-err-buf-too-small
+              else
+                let p2 = put1 out-addr p1 dec in
+                let next-dots = both seg-all-dots (eq-u8 dec 46) in
+                resolve-scan-loop req (wrapping-add-u32 i 3) eff-len idx-addr idx-len out-addr out-cap p2 pre-pos (wrapping-add-u32 seg-len 1) next-dots b-false
+      else
+        -- Ordinary segment byte
+        let pre-pos = if eq-u32 seg-len 0 then out-pos else seg-pre-pos in
+        let p1 = (
+          if both (eq-u32 seg-len 0) (gt-u32 out-pos 0) then
+            if ge-u32 out-pos out-cap then wrapping-add-u32 out-cap 1
+            else put1 out-addr out-pos 47
+          else out-pos) in
+        if ge-u32 p1 out-cap then sp-err static-path-err-buf-too-small
+        else
+          let p2 = put1 out-addr p1 raw-b in
+          let next-dots = both seg-all-dots (eq-u8 raw-b 46) in
+          resolve-scan-loop req (wrapping-add-u32 i 1) eff-len idx-addr idx-len out-addr out-cap p2 pre-pos (wrapping-add-u32 seg-len 1) next-dots b-false
+
+  -- | Zero-allocation strict lexical path confinement into DMA buffer `out-addr`.
+  --
+  -- Enforces:
+  --   * Non-empty path starting with `'/'` and `len <= 1024`.
+  --   * Strict `%XX` decoding rejecting malformed `%`, `%00`/raw NUL,
+  --     `%2f`/`%5c` encoded separators, `%25` double-encoding, raw `\`,
+  --     control chars `< 0x20`/`0x7F`, overlong UTF-8 leads, and ANY `..`
+  --     segment (raw or percent-decoded).
+  --   * Normalizes duplicate slashes (`//`) and `.` segments cleanly.
+  --   * Maps `/` and trailing `/` to `idx-addr[0..idx-len)` (default `"index.html"`).
+  --   * Writes a strictly confined relative path (no leading `/`) into `out-addr`.
+  #[no-alloc]
+  static-resolve-path-dma :: I64 -> U32 -> I64 -> U32 -> I64 -> U32 ->{MVar} StaticPathResult
+  static-resolve-path-dma req-addr req-len idx-addr idx-len out-addr out-cap =
+    if eq-u32 req-len 0 then sp-err static-path-err-empty
+    else if gt-u32 req-len static-max-path-len then sp-err static-path-err-too-long
+    else if either (eq-i64 req-addr 0) (eq-i64 out-addr 0) then sp-err static-path-err-buf-too-small
+    else if ne-u8 (raw-load-u8 req-addr) 47 then sp-err static-path-err-no-leading-slash
+    else if not-b (is-valid-index-name idx-addr idx-len) then sp-err static-path-err-bad-index
+    else
+      let eff-len = find-query-pos req-addr 0 req-len in
+      resolve-scan-loop req-addr 0 eff-len idx-addr idx-len out-addr out-cap 0 0 0 b-true b-true
+
+  -- Strip trailing '/' characters from `root-addr` (leaving 1 byte if root is "/").
+  #[no-alloc]
+  trim-root-slashes :: I64 -> U32 ->{MVar} U32
+  trim-root-slashes root-addr rlen =
+    if le-u32 rlen 1 then rlen
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 root-addr (u32-to-i64 (wrapping-sub-u32 rlen 1)))) 47 then
+      trim-root-slashes root-addr (wrapping-sub-u32 rlen 1)
+    else rlen
+
+  -- | Zero-allocation confined full filesystem path resolver: writes
+  -- `<root>/<confined_rel_path>\0` into `out-addr[0..out-cap)`.
+  #[no-alloc]
+  static-resolve-full-path-dma
+    :: I64 -> U32 -> I64 -> U32 -> I64 -> U32 -> I64 -> U32 ->{MVar} StaticPathResult
+  static-resolve-full-path-dma root-addr root-len req-addr req-len idx-addr idx-len out-addr out-cap =
+    if either (eq-u32 root-len 0) (eq-i64 root-addr 0) then sp-err static-path-err-empty
+    else
+      let clean-root = trim-root-slashes root-addr root-len in
+      let is-slash-root = both (eq-u32 clean-root 1) (eq-u8 (raw-load-u8 root-addr) 47) in
+      let prefix-len = if is-slash-root then (1 :: U32) else wrapping-add-u32 clean-root 1 in
+      if ge-u32 prefix-len out-cap then sp-err static-path-err-buf-too-small
+      else
+        let _c = dma-copy-raw out-addr root-addr clean-root in
+        let _s = if not-b is-slash-root then raw-store-u8 (wrapping-add-i64 out-addr (u32-to-i64 clean-root)) 47 else () in
+        let rel-dst = wrapping-add-i64 out-addr (u32-to-i64 prefix-len) in
+        let rel-cap = wrapping-sub-u32 out-cap prefix-len in
+        let res = static-resolve-path-dma req-addr req-len idx-addr idx-len rel-dst rel-cap in
+        if ne-u8 res.sp-status static-path-ok then res
+        else
+          let total = wrapping-add-u32 prefix-len res.sp-len in
+          let _z = if lt-u32 total out-cap then raw-store-u8 (wrapping-add-i64 out-addr (u32-to-i64 total)) 0 else () in
+          sp-ok total
+
+  copy-dma-to-bytes :: I64 -> Bytes -> Nat -> Nat ->{MVar} Unit
+  copy-dma-to-bytes src dst i n =
+    if i >= n then ()
+    else if i < bytes-len dst then
+      let _0 = bytes-set-u8 dst i (raw-load-u8 (wrapping-add-i64 src (nat-to-i64 i))) in
+      copy-dma-to-bytes src dst (i + 1) n
+    else ()
+
+  -- | High-level strict lexical path confinement returning `Ok "<root>/<rel>"`
+  -- or `Err status-code` for any traversal/malformed path.
+  static-resolve-path :: String -> String -> String ->{MVar} Result U8 String
+  static-resolve-path root-dir req-path index-name =
+    let rb = string-to-bytes root-dir in
+    let pb = string-to-bytes req-path in
+    let ib = string-to-bytes index-name in
+    let rlen = wrapping-i64-to-u32 (bytes-len-i64 rb) in
+    let plen = wrapping-i64-to-u32 (bytes-len-i64 pb) in
+    let ilen = wrapping-i64-to-u32 (bytes-len-i64 ib) in
+    let out-cap-nat = bytes-len rb + bytes-len pb + bytes-len ib + 32 in
+    let out-buf = bytes-new out-cap-nat in
+    let out-cap = wrapping-i64-to-u32 (bytes-len-i64 out-buf) in
+    let res = sys-held rb (sys-held pb (sys-held ib (sys-held out-buf (
+      static-resolve-full-path-dma (bytes-data rb) rlen (bytes-data pb) plen (bytes-data ib) ilen (bytes-data out-buf) out-cap)))) in
+    if ne-u8 res.sp-status static-path-ok then Err res.sp-status
+    else
+      let n = u32-to-nat res.sp-len in
+      let exact = bytes-new n in
+      let _c = sys-held out-buf (copy-dma-to-bytes (bytes-data out-buf) exact 0 n) in
+      case string-from-bytes exact of
+        Some s -> Ok s
+        None -> Err static-path-err-control-char
+
+  -- =========================================================================
+  -- 2. #[no-alloc] Content-Type / MIME Detection Table
+  -- =========================================================================
+
+  #[no-alloc]
+  mime-octet-stream :: U8
+  mime-octet-stream = 0
+
+  #[no-alloc]
+  mime-html :: U8
+  mime-html = 1
+
+  #[no-alloc]
+  mime-css :: U8
+  mime-css = 2
+
+  #[no-alloc]
+  mime-js :: U8
+  mime-js = 3
+
+  #[no-alloc]
+  mime-json :: U8
+  mime-json = 4
+
+  #[no-alloc]
+  mime-svg :: U8
+  mime-svg = 5
+
+  #[no-alloc]
+  mime-png :: U8
+  mime-png = 6
+
+  #[no-alloc]
+  mime-jpeg :: U8
+  mime-jpeg = 7
+
+  #[no-alloc]
+  mime-webp :: U8
+  mime-webp = 8
+
+  #[no-alloc]
+  mime-avif :: U8
+  mime-avif = 9
+
+  #[no-alloc]
+  mime-woff2 :: U8
+  mime-woff2 = 10
+
+  #[no-alloc]
+  mime-wasm :: U8
+  mime-wasm = 11
+
+  #[no-alloc]
+  mime-txt :: U8
+  mime-txt = 12
+
+  #[no-alloc]
+  mime-xml :: U8
+  mime-xml = 13
+
+  #[no-alloc]
+  mime-pdf :: U8
+  mime-pdf = 14
+
+  #[no-alloc]
+  mime-ico :: U8
+  mime-ico = 15
+
+  -- Pack up to 5 lowercase extension ASCII bytes in little-endian U64 and
+  -- match in O(1) register comparisons.
+  #[no-alloc]
+  mime-id-from-ext-packed :: U32 -> U64 -> U8
+  mime-id-from-ext-packed elen packed =
+    if eq-u32 elen 2 then
+      -- "js" = 0x736A
+      if eq-u64 packed (pack-le8 106 115 0 0 0 0 0 0) then mime-js
+      else mime-octet-stream
+    else if eq-u32 elen 3 then
+      if eq-u64 packed (pack-le8 104 116 109 0 0 0 0 0) then mime-html        -- htm
+      else if eq-u64 packed (pack-le8 99 115 115 0 0 0 0 0) then mime-css     -- css
+      else if eq-u64 packed (pack-le8 109 106 115 0 0 0 0 0) then mime-js     -- mjs
+      else if eq-u64 packed (pack-le8 115 118 103 0 0 0 0 0) then mime-svg    -- svg
+      else if eq-u64 packed (pack-le8 112 110 103 0 0 0 0 0) then mime-png    -- png
+      else if eq-u64 packed (pack-le8 106 112 103 0 0 0 0 0) then mime-jpeg   -- jpg
+      else if eq-u64 packed (pack-le8 116 120 116 0 0 0 0 0) then mime-txt    -- txt
+      else if eq-u64 packed (pack-le8 120 109 108 0 0 0 0 0) then mime-xml    -- xml
+      else if eq-u64 packed (pack-le8 112 100 102 0 0 0 0 0) then mime-pdf    -- pdf
+      else if eq-u64 packed (pack-le8 105 99 111 0 0 0 0 0) then mime-ico     -- ico
+      else if eq-u64 packed (pack-le8 109 97 112 0 0 0 0 0) then mime-json    -- map
+      else mime-octet-stream
+    else if eq-u32 elen 4 then
+      if eq-u64 packed (pack-le8 104 116 109 108 0 0 0 0) then mime-html      -- html
+      else if eq-u64 packed (pack-le8 106 115 111 110 0 0 0 0) then mime-json -- json
+      else if eq-u64 packed (pack-le8 106 112 101 103 0 0 0 0) then mime-jpeg -- jpeg
+      else if eq-u64 packed (pack-le8 119 101 98 112 0 0 0 0) then mime-webp  -- webp
+      else if eq-u64 packed (pack-le8 97 118 105 102 0 0 0 0) then mime-avif  -- avif
+      else if eq-u64 packed (pack-le8 119 97 115 109 0 0 0 0) then mime-wasm  -- wasm
+      else mime-octet-stream
+    else if eq-u32 elen 5 then
+      if eq-u64 packed (pack-le8 119 111 102 102 50 0 0 0) then mime-woff2    -- woff2
+      else mime-octet-stream
+    else mime-octet-stream
+
+  #[no-alloc]
+  find-last-dot-dma :: I64 -> U32 ->{MVar} U32
+  find-last-dot-dma addr i =
+    if eq-u32 i 0 then 4294967295
+    else
+      let idx = wrapping-sub-u32 i 1 in
+      let b = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 idx)) in
+      if eq-u8 b 46 then idx
+      else if either (eq-u8 b 47) (eq-u8 b 92) then 4294967295
+      else find-last-dot-dma addr idx
+
+  #[no-alloc]
+  pack-ext-dma :: I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} U64
+  pack-ext-dma addr pos end-pos shift acc =
+    if ge-u32 pos end-pos then acc
+    else
+      let b = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 pos))) in
+      let acc1 = bit-or-u64 acc (wrapping-shl-u64 (u8-to-u64 b) shift) in
+      pack-ext-dma addr (wrapping-add-u32 pos 1) end-pos (wrapping-add-u32 shift 8) acc1
+
+  -- | Zero-allocation MIME ID lookup for a path in DMA memory `[addr, addr + len)`.
+  #[no-alloc]
+  static-mime-id-for-path-dma :: I64 -> U32 ->{MVar} U8
+  static-mime-id-for-path-dma addr len =
+    if either (eq-u32 len 0) (eq-i64 addr 0) then mime-octet-stream
+    else
+      let dot = find-last-dot-dma addr len in
+      if eq-u32 dot 4294967295 then mime-octet-stream
+      else
+        let ext-start = wrapping-add-u32 dot 1 in
+        let elen = wrapping-sub-u32 len ext-start in
+        if either (lt-u32 elen 2) (gt-u32 elen 5) then mime-octet-stream
+        else
+          let packed = pack-ext-dma addr ext-start len 0 0 in
+          mime-id-from-ext-packed elen packed
+
+  find-last-dot-bytes :: Bytes -> I64 -> I64
+  find-last-dot-bytes b i =
+    if le-i64 i 0 then -1
+    else
+      let idx = wrapping-sub-i64 i 1 in
+      if 0 <= idx && idx < bytes-len-i64 b then
+        let c = bytes-get-u8-at b idx in
+        if eq-u8 c 46 then idx
+        else if either (eq-u8 c 47) (eq-u8 c 92) then -1
+        else find-last-dot-bytes b idx
+      else -1
+
+  pack-ext-bytes :: Bytes -> I64 -> I64 -> U32 -> U64 -> U64
+  pack-ext-bytes b pos end-pos shift acc =
+    if ge-i64 pos end-pos then acc
+    else if 0 <= pos && pos < bytes-len-i64 b then
+      let c = ascii-lower-u8 (bytes-get-u8-at b pos) in
+      let acc1 = bit-or-u64 acc (wrapping-shl-u64 (u8-to-u64 c) shift) in
+      pack-ext-bytes b (wrapping-add-i64 pos 1) end-pos (wrapping-add-u32 shift 8) acc1
+    else acc
+
+  -- | Pure MIME ID lookup from a `Bytes` path.
+  static-mime-id-for-bytes :: Bytes -> U8
+  static-mime-id-for-bytes b =
+    let len = bytes-len-i64 b in
+    if le-i64 len 0 then mime-octet-stream
+    else
+      let dot = find-last-dot-bytes b len in
+      if lt-i64 dot 0 then mime-octet-stream
+      else
+        let ext-start = wrapping-add-i64 dot 1 in
+        let elen = wrapping-sub-i64 len ext-start in
+        if either (lt-i64 elen 2) (gt-i64 elen 5) then mime-octet-stream
+        else
+          let packed = pack-ext-bytes b ext-start len 0 0 in
+          mime-id-from-ext-packed (wrapping-i64-to-u32 elen) packed
+
+  -- | Return the canonical immortal (`rc == 0`) MIME `Content-Type` string for `mime-id`.
+  #[no-alloc]
+  static-mime-string :: U8 -> String
+  static-mime-string mid =
+    if eq-u8 mid mime-html then "text/html; charset=utf-8"
+    else if eq-u8 mid mime-css then "text/css; charset=utf-8"
+    else if eq-u8 mid mime-js then "text/javascript; charset=utf-8"
+    else if eq-u8 mid mime-json then "application/json; charset=utf-8"
+    else if eq-u8 mid mime-svg then "image/svg+xml"
+    else if eq-u8 mid mime-png then "image/png"
+    else if eq-u8 mid mime-jpeg then "image/jpeg"
+    else if eq-u8 mid mime-webp then "image/webp"
+    else if eq-u8 mid mime-avif then "image/avif"
+    else if eq-u8 mid mime-woff2 then "font/woff2"
+    else if eq-u8 mid mime-wasm then "application/wasm"
+    else if eq-u8 mid mime-txt then "text/plain; charset=utf-8"
+    else if eq-u8 mid mime-xml then "application/xml; charset=utf-8"
+    else if eq-u8 mid mime-pdf then "application/pdf"
+    else if eq-u8 mid mime-ico then "image/x-icon"
+    else "application/octet-stream"
+
+  -- | Pure MIME `Content-Type` lookup for a file path `String`.
+  static-mime-for-path :: String -> String
+  static-mime-for-path path =
+    static-mime-string (static-mime-id-for-bytes (string-to-bytes path))
+
+  -- | Zero-allocation writer appending `"Content-Type: <mime>\r\n"` into DMA buffer.
+  #[no-alloc]
+  static-write-mime-header-dma :: I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  static-write-mime-header-dma base pos cap mid =
+    let rem = saturating-sub-u32 cap pos in
+    if lt-u32 rem 48 then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 116 101 110 116 45 in -- "Content-"
+      let p2 = put4 base p1 84 121 112 101 in                 -- "Type"
+      let p = put2 base p2 58 32 in                           -- ": "
+      if eq-u8 mid mime-html then
+        -- "text/html; charset=utf-8\r\n" (26B)
+        let q1 = put8 base p 116 101 120 116 47 104 116 109 in
+        let q2 = put8 base q1 108 59 32 99 104 97 114 115 in
+        let q3 = put8 base q2 101 116 61 117 116 102 45 56 in
+        put2 base q3 13 10
+      else if eq-u8 mid mime-css then
+        -- "text/css; charset=utf-8\r\n" (25B)
+        let q1 = put8 base p 116 101 120 116 47 99 115 115 in
+        let q2 = put8 base q1 59 32 99 104 97 114 115 101 in
+        let q3 = put8 base q2 116 61 117 116 102 45 56 13 in
+        put1 base q3 10
+      else if eq-u8 mid mime-js then
+        -- "text/javascript; charset=utf-8\r\n" (32B)
+        let q1 = put8 base p 116 101 120 116 47 106 97 118 in
+        let q2 = put8 base q1 97 115 99 114 105 112 116 59 in
+        let q3 = put8 base q2 32 99 104 97 114 115 101 116 in
+        let q4 = put8 base q3 61 117 116 102 45 56 13 10 in
+        q4
+      else if eq-u8 mid mime-json then
+        -- "application/json; charset=utf-8\r\n" (33B)
+        let q1 = put8 base p 97 112 112 108 105 99 97 116 in
+        let q2 = put8 base q1 105 111 110 47 106 115 111 110 in
+        let q3 = put8 base q2 59 32 99 104 97 114 115 101 in
+        let q4 = put8 base q3 116 61 117 116 102 45 56 13 in
+        put1 base q4 10
+      else if eq-u8 mid mime-svg then
+        -- "image/svg+xml\r\n" (15B)
+        let q1 = put8 base p 105 109 97 103 101 47 115 118 in
+        let q2 = put4 base q1 103 43 120 109 in
+        put3 base q2 108 13 10
+      else if eq-u8 mid mime-png then
+        -- "image/png\r\n" (11B)
+        let q1 = put8 base p 105 109 97 103 101 47 112 110 in
+        put3 base q1 103 13 10
+      else if eq-u8 mid mime-jpeg then
+        -- "image/jpeg\r\n" (12B)
+        let q1 = put8 base p 105 109 97 103 101 47 106 112 in
+        put4 base q1 101 103 13 10
+      else if eq-u8 mid mime-webp then
+        -- "image/webp\r\n" (12B)
+        let q1 = put8 base p 105 109 97 103 101 47 119 101 in
+        put4 base q1 98 112 13 10
+      else if eq-u8 mid mime-avif then
+        -- "image/avif\r\n" (12B)
+        let q1 = put8 base p 105 109 97 103 101 47 97 118 in
+        put4 base q1 105 102 13 10
+      else if eq-u8 mid mime-woff2 then
+        -- "font/woff2\r\n" (12B)
+        let q1 = put8 base p 102 111 110 116 47 119 111 102 in
+        put4 base q1 102 50 13 10
+      else if eq-u8 mid mime-wasm then
+        -- "application/wasm\r\n" (18B)
+        let q1 = put8 base p 97 112 112 108 105 99 97 116 in
+        let q2 = put8 base q1 105 111 110 47 119 97 115 109 in
+        put2 base q2 13 10
+      else if eq-u8 mid mime-txt then
+        -- "text/plain; charset=utf-8\r\n" (27B)
+        let q1 = put8 base p 116 101 120 116 47 112 108 97 in
+        let q2 = put8 base q1 105 110 59 32 99 104 97 114 in
+        let q3 = put8 base q2 115 101 116 61 117 116 102 45 in
+        put3 base q3 56 13 10
+      else if eq-u8 mid mime-xml then
+        -- "application/xml; charset=utf-8\r\n" (32B)
+        let q1 = put8 base p 97 112 112 108 105 99 97 116 in
+        let q2 = put8 base q1 105 111 110 47 120 109 108 59 in
+        let q3 = put8 base q2 32 99 104 97 114 115 101 116 in
+        put8 base q3 61 117 116 102 45 56 13 10
+      else if eq-u8 mid mime-pdf then
+        -- "application/pdf\r\n" (17B)
+        let q1 = put8 base p 97 112 112 108 105 99 97 116 in
+        let q2 = put8 base q1 105 111 110 47 112 100 102 13 in
+        put1 base q2 10
+      else if eq-u8 mid mime-ico then
+        -- "image/x-icon\r\n" (14B)
+        let q1 = put8 base p 105 109 97 103 101 47 120 45 in
+        let q2 = put4 base q1 105 99 111 110 in
+        put2 base q2 13 10
+      else
+        -- "application/octet-stream\r\n" (26B)
+        let q1 = put8 base p 97 112 112 108 105 99 97 116 in
+        let q2 = put8 base q1 105 111 110 47 111 99 116 101 in
+        let q3 = put8 base q2 116 45 115 116 114 101 97 109 in
+        put2 base q3 13 10
+
+  -- =========================================================================
+  -- 3. Pre-Compressed Variant Negotiation (`Accept-Encoding`)
+  -- =========================================================================
+
+  #[no-alloc]
+  static-enc-identity :: U8
+  static-enc-identity = 0
+
+  #[no-alloc]
+  static-enc-gzip :: U8
+  static-enc-gzip = 1
+
+  #[no-alloc]
+  static-enc-br :: U8
+  static-enc-br = 2
+
+  #[no-alloc]
+  static-enc-zstd :: U8
+  static-enc-zstd = 3
+
+  #[no-alloc]
+  accept-enc-gzip :: U8
+  accept-enc-gzip = 1
+
+  #[no-alloc]
+  accept-enc-br :: U8
+  accept-enc-br = 2
+
+  #[no-alloc]
+  accept-enc-zstd :: U8
+  accept-enc-zstd = 4
+
+  #[no-alloc]
+  accept-enc-any :: U8
+  accept-enc-any = 7
+
+  #[no-alloc]
+  skip-ows-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  skip-ows-dma addr i end-pos =
+    if ge-u32 i end-pos then end-pos
+    else if is-ows (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) then
+      skip-ows-dma addr (wrapping-add-u32 i 1) end-pos
+    else i
+
+  #[no-alloc]
+  find-comma-or-end :: I64 -> U32 -> U32 ->{MVar} U32
+  find-comma-or-end addr i end-pos =
+    if ge-u32 i end-pos then end-pos
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) 44 then i
+    else find-comma-or-end addr (wrapping-add-u32 i 1) end-pos
+
+  #[no-alloc]
+  find-semi-or-end :: I64 -> U32 -> U32 ->{MVar} U32
+  find-semi-or-end addr i end-pos =
+    if ge-u32 i end-pos then end-pos
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) 59 then i
+    else find-semi-or-end addr (wrapping-add-u32 i 1) end-pos
+
+  #[no-alloc]
+  trim-right-ows :: I64 -> U32 -> U32 ->{MVar} U32
+  trim-right-ows addr start-pos end-pos =
+    if le-u32 end-pos start-pos then start-pos
+    else if is-ows (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 (wrapping-sub-u32 end-pos 1)))) then
+      trim-right-ows addr start-pos (wrapping-sub-u32 end-pos 1)
+    else end-pos
+
+  -- Check whether q-value digits in `[i..end-pos)` are nonzero (any digit '1'..'9').
+  #[no-alloc]
+  qval-is-nonzero :: I64 -> U32 -> U32 -> Bool ->{MVar} Bool
+  qval-is-nonzero addr i end-pos saw-nonzero =
+    if ge-u32 i end-pos then saw-nonzero
+    else
+      let b = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i)) in
+      if both (ge-u8 b 49) (le-u8 b 57) then b-true
+      else if either (eq-u8 b 48) (eq-u8 b 46) then qval-is-nonzero addr (wrapping-add-u32 i 1) end-pos saw-nonzero
+      else saw-nonzero
+
+  -- Inspect `;q=...` parameter inside `[semi-pos..item-end)`; returns True iff q > 0.
+  #[no-alloc]
+  check-q-params :: I64 -> U32 -> U32 ->{MVar} Bool
+  check-q-params addr pos item-end =
+    if ge-u32 pos item-end then b-true
+    else
+      let p0 = skip-ows-dma addr (wrapping-add-u32 pos 1) item-end in
+      let next-semi = find-semi-or-end addr p0 item-end in
+      if lt-u32 (wrapping-sub-u32 next-semi p0) 3 then check-q-params addr next-semi item-end
+      else
+        let c0 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 p0))) in
+        let p1 = skip-ows-dma addr (wrapping-add-u32 p0 1) next-semi in
+        if both (eq-u8 c0 113) (both (lt-u32 p1 next-semi) (eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 p1))) 61)) then
+          let qstart = skip-ows-dma addr (wrapping-add-u32 p1 1) next-semi in
+          qval-is-nonzero addr qstart next-semi b-false
+        else check-q-params addr next-semi item-end
+
+  -- Match token `[tstart..tend)` against gzip/br/zstd/* (case-insensitive).
+  -- Returns bit: 1=gzip, 2=br, 4=zstd, 8=*, 0=unknown.
+  #[no-alloc]
+  match-encoding-token :: I64 -> U32 -> U32 ->{MVar} U8
+  match-encoding-token addr tstart tend =
+    let tlen = saturating-sub-u32 tend tstart in
+    if eq-u32 tlen 1 then
+      if eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 tstart))) 42 then 8 else 0
+    else if eq-u32 tlen 2 then
+      let b0 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 tstart))) in
+      let b1 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 (wrapping-add-u32 tstart 1)))) in
+      if both (eq-u8 b0 98) (eq-u8 b1 114) then accept-enc-br else 0
+    else if eq-u32 tlen 4 then
+      let b0 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 tstart))) in
+      let b1 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 (wrapping-add-u32 tstart 1)))) in
+      let b2 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 (wrapping-add-u32 tstart 2)))) in
+      let b3 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 (wrapping-add-u32 tstart 3)))) in
+      let w = pack-le4 b0 b1 b2 b3 in
+      if eq-u32 w (pack-le4 103 122 105 112) then accept-enc-gzip      -- "gzip"
+      else if eq-u32 w (pack-le4 122 115 116 100) then accept-enc-zstd -- "zstd"
+      else 0
+    else 0
+
+  #[no-alloc]
+  parse-ae-loop :: I64 -> U32 -> U32 -> U8 -> U8 -> Bool ->{MVar} U8
+  parse-ae-loop addr pos end-pos acc-mask rej-mask star-acc =
+    if ge-u32 pos end-pos then
+      let base = if star-acc then bit-or-u8 acc-mask 7 else acc-mask in
+      bit-and-u8 (bit-and-u8 base (bit-not-u8 rej-mask)) 7
+    else
+      let item-end = find-comma-or-end addr pos end-pos in
+      let t0 = skip-ows-dma addr pos item-end in
+      let semi = find-semi-or-end addr t0 item-end in
+      let t1 = trim-right-ows addr t0 semi in
+      let tok-bit = match-encoding-token addr t0 t1 in
+      let q-ok = if lt-u32 semi item-end then check-q-params addr semi item-end else b-true in
+      let next-pos = if lt-u32 item-end end-pos then wrapping-add-u32 item-end 1 else end-pos in
+      if eq-u8 tok-bit 0 then
+        parse-ae-loop addr next-pos end-pos acc-mask rej-mask star-acc
+      else if eq-u8 tok-bit 8 then
+        parse-ae-loop addr next-pos end-pos acc-mask rej-mask q-ok
+      else if q-ok then
+        parse-ae-loop addr next-pos end-pos (bit-or-u8 acc-mask tok-bit) rej-mask star-acc
+      else
+        parse-ae-loop addr next-pos end-pos acc-mask (bit-or-u8 rej-mask tok-bit) star-acc
+
+  -- | Parse an HTTP `Accept-Encoding` header value in DMA memory into a 3-bit
+  -- bitmask (`accept-enc-gzip | accept-enc-br | accept-enc-zstd`), honoring
+  -- `;q=0` exclusions and `*` wildcards with zero heap allocation.
+  #[no-alloc]
+  static-parse-accept-encoding-dma :: I64 -> U32 ->{MVar} U8
+  static-parse-accept-encoding-dma addr len =
+    if either (eq-u32 len 0) (eq-i64 addr 0) then 0
+    else parse-ae-loop addr 0 len 0 0 b-false
+
+  -- | Negotiate highest-priority encoding given `(accept-mask, available-mask)`:
+  -- `.zst` (`zstd`) > `.br` (`br`) > `.gz` (`gzip`) > identity.
+  #[inline(always)]
+  #[no-alloc]
+  static-negotiate-encoding :: U8 -> U8 -> U8
+  static-negotiate-encoding accept-mask avail-mask =
+    let common = bit-and-u8 accept-mask avail-mask in
+    if ne-u8 (bit-and-u8 common accept-enc-zstd) 0 then static-enc-zstd
+    else if ne-u8 (bit-and-u8 common accept-enc-br) 0 then static-enc-br
+    else if ne-u8 (bit-and-u8 common accept-enc-gzip) 0 then static-enc-gzip
+    else static-enc-identity
+
+  -- | Return the canonical immortal (`rc == 0`) `Content-Encoding` token string.
+  #[no-alloc]
+  static-encoding-name :: U8 -> String
+  static-encoding-name enc =
+    if eq-u8 enc static-enc-zstd then "zstd"
+    else if eq-u8 enc static-enc-br then "br"
+    else if eq-u8 enc static-enc-gzip then "gzip"
+    else "identity"
+
+  -- | Append `"Content-Encoding: zstd|br|gzip\r\n"` for non-identity encodings.
+  #[no-alloc]
+  static-write-content-encoding-dma :: I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  static-write-content-encoding-dma base pos cap enc =
+    if eq-u8 enc static-enc-identity then pos
+    else if lt-u32 (saturating-sub-u32 cap pos) 24 then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 116 101 110 116 45 in -- "Content-"
+      let p2 = put8 base p1 69 110 99 111 100 105 110 103 in  -- "Encoding"
+      let p3 = put2 base p2 58 32 in                          -- ": "
+      if eq-u8 enc static-enc-zstd then
+        let p4 = put4 base p3 122 115 116 100 in
+        put2 base p4 13 10
+      else if eq-u8 enc static-enc-br then
+        put4 base p3 98 114 13 10
+      else
+        let p4 = put4 base p3 103 122 105 112 in
+        put2 base p4 13 10
+
+  -- =========================================================================
+  -- 4. Deterministic ETag, `If-None-Match`, and RFC 9110 `Range` Parser
+  -- =========================================================================
+
+  -- | Format deterministic `ETag` directly into DMA scratch:
+  --   * strong (`weak == False`): `"<size_hex>-<mtime_hex>"`
+  --   * weak   (`weak == True`):  `W/"<size_hex>-<mtime_hex>"`
+  -- Returns number of bytes written (`0` on insufficient capacity). Zero alloc.
+  #[no-alloc]
+  static-format-etag-dma :: I64 -> U32 -> U64 -> U64 -> Bool ->{MVar} U32
+  static-format-etag-dma out-addr out-cap size mtime-sec weak =
+    let sd = u64-hex-digits size in
+    let md = u64-hex-digits mtime-sec in
+    let prefix-len = if weak then (3 :: U32) else 1 in -- W/" vs "
+    let total = wrapping-add-u32 (wrapping-add-u32 prefix-len sd) (wrapping-add-u32 md 2) in -- + '-' + '"'
+    if either (eq-i64 out-addr 0) (gt-u32 total out-cap) then 0
+    else
+      let p0 = (
+        if weak then put3 out-addr 0 87 47 34 -- W/"
+        else put1 out-addr 0 34) in            -- "
+      let p1 = wrapping-add-u32 p0 sd in
+      let _s = write-u64-hex-back out-addr p1 size sd in
+      let p2 = put1 out-addr p1 45 in          -- '-'
+      let p3 = wrapping-add-u32 p2 md in
+      let _m = write-u64-hex-back out-addr p3 mtime-sec md in
+      put1 out-addr p3 34                      -- '"'
+
+  -- Find end of quoted ETag starting at `pos` (pointing to opening `"`).
+  #[no-alloc]
+  scan-etag-quote-end :: I64 -> U32 -> U32 ->{MVar} U32
+  scan-etag-quote-end addr i end-pos =
+    if ge-u32 i end-pos then end-pos
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) 34 then wrapping-add-u32 i 1
+    else scan-etag-quote-end addr (wrapping-add-u32 i 1) end-pos
+
+  -- Skip to the byte after the next comma (or `end-pos`).
+  #[no-alloc]
+  advance-past-comma :: I64 -> U32 -> U32 ->{MVar} U32
+  advance-past-comma addr i end-pos =
+    if ge-u32 i end-pos then end-pos
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) 44 then wrapping-add-u32 i 1
+    else advance-past-comma addr (wrapping-add-u32 i 1) end-pos
+
+  #[no-alloc]
+  inm-loop :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} Bool
+  inm-loop inm-addr pos inm-len etag-addr etag-len =
+    let p0 = skip-ows-dma inm-addr pos inm-len in
+    if ge-u32 p0 inm-len then b-false
+    else
+      let b0 = raw-load-u8 (wrapping-add-i64 inm-addr (u32-to-i64 p0)) in
+      if eq-u8 b0 42 then
+        -- Wildcard `*`
+        let p1 = skip-ows-dma inm-addr (wrapping-add-u32 p0 1) inm-len in
+        if either (ge-u32 p1 inm-len) (eq-u8 (raw-load-u8 (wrapping-add-i64 inm-addr (u32-to-i64 p1))) 44) then b-true
+        else inm-loop inm-addr (advance-past-comma inm-addr p1 inm-len) inm-len etag-addr etag-len
+      else
+        -- Strip optional `W/` weak indicator for RFC 9110 §8.8.3.2 weak comparison
+        let p1 = (
+          if both (ge-u32 (saturating-sub-u32 inm-len p0) 2)
+               (both (eq-u8 b0 87) (eq-u8 (raw-load-u8 (wrapping-add-i64 inm-addr (u32-to-i64 (wrapping-add-u32 p0 1)))) 47)) then
+            wrapping-add-u32 p0 2
+          else p0) in
+        if ge-u32 p1 inm-len then b-false
+        else if eq-u8 (raw-load-u8 (wrapping-add-i64 inm-addr (u32-to-i64 p1))) 34 then
+          let qend = scan-etag-quote-end inm-addr (wrapping-add-u32 p1 1) inm-len in
+          let qlen = wrapping-sub-u32 qend p1 in
+          if both (eq-u32 qlen etag-len) (dma-eq-raw (wrapping-add-i64 inm-addr (u32-to-i64 p1)) etag-addr etag-len) then
+            b-true
+          else
+            inm-loop inm-addr (advance-past-comma inm-addr qend inm-len) inm-len etag-addr etag-len
+        else
+          inm-loop inm-addr (advance-past-comma inm-addr p1 inm-len) inm-len etag-addr etag-len
+
+  -- | RFC 9110 §13.1.2 `If-None-Match` weak comparison against `etag-addr[0..etag-len)`.
+  -- Supports `*`, single ETags, weak `W/"..."`, and comma-separated lists. Zero alloc.
+  #[no-alloc]
+  static-if-none-match-dma :: I64 -> U32 -> I64 -> U32 ->{MVar} Bool
+  static-if-none-match-dma inm-addr inm-len etag-addr etag-len =
+    if either (eq-u32 inm-len 0) (either (eq-u32 etag-len 0) (either (eq-i64 inm-addr 0) (eq-i64 etag-addr 0))) then
+      b-false
+    else
+      -- Strip optional `W/` prefix from target ETag
+      let has-w = (
+        both (ge-u32 etag-len 2)
+          (both (eq-u8 (raw-load-u8 etag-addr) 87) (eq-u8 (raw-load-u8 (wrapping-add-i64 etag-addr 1)) 47))) in
+      let ea = if has-w then wrapping-add-i64 etag-addr 2 else etag-addr in
+      let el = if has-w then wrapping-sub-u32 etag-len 2 else etag-len in
+      inm-loop inm-addr 0 inm-len ea el
+
+  #[no-alloc]
+  static-range-none :: U8
+  static-range-none = 0
+
+  #[no-alloc]
+  static-range-ok :: U8
+  static-range-ok = 1
+
+  #[no-alloc]
+  static-range-unsatisfiable :: U8
+  static-range-unsatisfiable = 2
+
+  -- | 32-byte POD result of RFC 9110 `Range` header parsing.
+  #[repr(C, value)]
+  record StaticRangeResult where
+    sr-status :: U8
+    sr-pad0 :: U8
+    sr-pad1 :: U16
+    sr-pad2 :: U32
+    sr-start :: U64
+    sr-end :: U64
+    sr-len :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  range-res-none :: Unit -> StaticRangeResult
+  range-res-none _ = StaticRangeResult static-range-none 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  range-res-unsat :: Unit -> StaticRangeResult
+  range-res-unsat _ = StaticRangeResult static-range-unsatisfiable 0 0 0 0 0 0
+
+  -- Internal POD for decimal U64 parse result.
+  #[repr(C, value)]
+  record DecParseResult where
+    dp-ok :: U8
+    dp-pad0 :: U8
+    dp-pad1 :: U16
+    dp-next :: U32
+    dp-val :: U64
+
+  #[no-alloc]
+  parse-u64-dec-loop :: I64 -> U32 -> U32 -> U64 -> U32 ->{MVar} DecParseResult
+  parse-u64-dec-loop addr i end-pos acc digits =
+    if ge-u32 i end-pos then
+      if eq-u32 digits 0 then DecParseResult 0 0 0 i 0
+      else DecParseResult 1 0 0 i acc
+    else
+      let b = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i)) in
+      if both (ge-u8 b 48) (le-u8 b 57) then
+        let d = wrapping-sub-u8 b 48 in
+        if either (gt-u64 acc 1844674407370955161) (both (eq-u64 acc 1844674407370955161) (gt-u8 d 5)) then
+          DecParseResult 0 0 0 i 0
+        else
+          let acc1 = wrapping-add-u64 (wrapping-mul-u64 acc 10) (u8-to-u64 d) in
+          parse-u64-dec-loop addr (wrapping-add-u32 i 1) end-pos acc1 (wrapping-add-u32 digits 1)
+      else
+        if eq-u32 digits 0 then DecParseResult 0 0 0 i 0
+        else DecParseResult 1 0 0 i acc
+
+  -- | Zero-allocation RFC 9110 `Range` header parser supporting:
+  --   * `bytes=start-end`
+  --   * `bytes=start-`
+  --   * `bytes=-suffix`
+  -- Returns `static-range-none` when header is empty, `static-range-ok` with
+  -- clamped inclusive `(sr-start, sr-end)` and `sr-len = end - start + 1`, or
+  -- `static-range-unsatisfiable` (416) on invalid/out-of-bounds ranges.
+  #[no-alloc]
+  static-parse-range-dma :: I64 -> U32 -> U64 ->{MVar} StaticRangeResult
+  static-parse-range-dma hdr-addr hdr-len file-size =
+    if either (eq-u32 hdr-len 0) (eq-i64 hdr-addr 0) then range-res-none ()
+    else
+      let s0 = skip-ows-dma hdr-addr 0 hdr-len in
+      let e0 = trim-right-ows hdr-addr s0 hdr-len in
+      if ge-u32 s0 e0 then range-res-none ()
+      else if lt-u32 (wrapping-sub-u32 e0 s0) 7 then range-res-unsat ()
+      else
+        let c0 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 s0))) in
+        let c1 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 (wrapping-add-u32 s0 1)))) in
+        let c2 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 (wrapping-add-u32 s0 2)))) in
+        let c3 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 (wrapping-add-u32 s0 3)))) in
+        let c4 = ascii-lower-u8 (raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 (wrapping-add-u32 s0 4)))) in
+        let c5 = raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 (wrapping-add-u32 s0 5))) in
+        if not-b (both (eq-u32 (pack-le4 c0 c1 c2 c3) (pack-le4 98 121 116 101)) (both (eq-u8 c4 115) (eq-u8 c5 61))) then
+          range-res-unsat ()
+        else
+          let p0 = wrapping-add-u32 s0 6 in
+          let first-b = raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 p0)) in
+          if eq-u8 first-b 45 then
+            -- Suffix range: `bytes=-suffix`
+            let suf = parse-u64-dec-loop hdr-addr (wrapping-add-u32 p0 1) e0 0 0 in
+            if either (eq-u8 suf.dp-ok 0) (ne-u32 suf.dp-next e0) then range-res-unsat ()
+            else if either (eq-u64 suf.dp-val 0) (eq-u64 file-size 0) then range-res-unsat ()
+            else
+              let last = wrapping-sub-u64 file-size 1 in
+              if ge-u64 suf.dp-val file-size then
+                StaticRangeResult static-range-ok 0 0 0 0 last file-size
+              else
+                let st = wrapping-sub-u64 file-size suf.dp-val in
+                StaticRangeResult static-range-ok 0 0 0 st last suf.dp-val
+          else
+            -- `bytes=start-` or `bytes=start-end`
+            let st-res = parse-u64-dec-loop hdr-addr p0 e0 0 0 in
+            if either (eq-u8 st-res.dp-ok 0) (ge-u32 st-res.dp-next e0) then range-res-unsat ()
+            else if ne-u8 (raw-load-u8 (wrapping-add-i64 hdr-addr (u32-to-i64 st-res.dp-next))) 45 then range-res-unsat ()
+            else
+              let after-dash = wrapping-add-u32 st-res.dp-next 1 in
+              if eq-u32 after-dash e0 then
+                -- Open-ended: `bytes=start-`
+                if either (eq-u64 file-size 0) (ge-u64 st-res.dp-val file-size) then range-res-unsat ()
+                else
+                  let last = wrapping-sub-u64 file-size 1 in
+                  let rlen = wrapping-sub-u64 file-size st-res.dp-val in
+                  StaticRangeResult static-range-ok 0 0 0 st-res.dp-val last rlen
+              else
+                -- Closed: `bytes=start-end`
+                let en-res = parse-u64-dec-loop hdr-addr after-dash e0 0 0 in
+                if either (eq-u8 en-res.dp-ok 0) (ne-u32 en-res.dp-next e0) then range-res-unsat ()
+                else if either (eq-u64 file-size 0) (either (gt-u64 st-res.dp-val en-res.dp-val) (ge-u64 st-res.dp-val file-size)) then
+                  range-res-unsat ()
+                else
+                  let last-possible = wrapping-sub-u64 file-size 1 in
+                  let clamped-end = if gt-u64 en-res.dp-val last-possible then last-possible else en-res.dp-val in
+                  let rlen = wrapping-add-u64 (wrapping-sub-u64 clamped-end st-res.dp-val) 1 in
+                  StaticRangeResult static-range-ok 0 0 0 st-res.dp-val clamped-end rlen
+
+  -- =========================================================================
+  -- 5. Per-Core DMA-Backed FD + Stat + ETag + MIME LRU Cache (`StaticFileCache`)
+  -- =========================================================================
+
+  #[no-alloc]
+  static-lookup-ok :: U8
+  static-lookup-ok = 0
+
+  #[no-alloc]
+  static-lookup-not-found :: U8
+  static-lookup-not-found = 1
+
+  #[no-alloc]
+  static-lookup-bad-path :: U8
+  static-lookup-bad-path = 2
+
+  #[no-alloc]
+  static-lookup-forbidden :: U8
+  static-lookup-forbidden = 3
+
+  #[no-alloc]
+  static-lookup-io-error :: U8
+  static-lookup-io-error = 4
+
+  -- | Handle to a per-core DMA-backed static file FD + stat + ETag + MIME LRU cache.
+  record StaticFileCache where
+    sfc-base :: U64
+
+  -- | 48-byte `#[repr(C, value)]` POD metadata view returned by cache lookup
+  -- with zero heap allocations.
+  #[repr(C, value)]
+  record StaticFileView where
+    sfv-status :: U8
+    sfv-mime :: U8
+    sfv-encoding :: U8
+    sfv-etag-len :: U8
+    sfv-fd :: I32
+    sfv-slot :: U32
+    sfv-cache-hit :: U8
+    sfv-vary :: U8
+    sfv-pad :: U16
+    sfv-size :: U64
+    sfv-mtime-sec :: U64
+    sfv-etag-addr :: I64
+
+  #[inline(always)]
+  #[no-alloc]
+  sfv-err :: U8 -> StaticFileView
+  sfv-err st = StaticFileView st 0 0 0 (-1) 4294967295 0 0 0 0 0 0
+
+  -- DMA Slab Header Offsets:
+  #[no-alloc]
+  nil-slot :: U32
+  nil-slot = 4294967295
+
+  #[no-alloc]
+  sfc-off-slab-bytes :: U64
+  sfc-off-slab-bytes = 0
+
+  #[no-alloc]
+  sfc-off-capacity :: U64
+  sfc-off-capacity = 8
+
+  #[no-alloc]
+  sfc-off-bucket-mask :: U64
+  sfc-off-bucket-mask = 12
+
+  #[no-alloc]
+  sfc-off-count :: U64
+  sfc-off-count = 16
+
+  #[no-alloc]
+  sfc-off-lru-head :: U64
+  sfc-off-lru-head = 20
+
+  #[no-alloc]
+  sfc-off-lru-tail :: U64
+  sfc-off-lru-tail = 24
+
+  #[no-alloc]
+  sfc-off-free-head :: U64
+  sfc-off-free-head = 28
+
+  #[no-alloc]
+  sfc-off-ttl-ns :: U64
+  sfc-off-ttl-ns = 32
+
+  #[no-alloc]
+  sfc-off-root-len :: U64
+  sfc-off-root-len = 40
+
+  #[no-alloc]
+  sfc-off-index-len :: U64
+  sfc-off-index-len = 44
+
+  #[no-alloc]
+  sfc-off-hits :: U64
+  sfc-off-hits = 48
+
+  #[no-alloc]
+  sfc-off-misses :: U64
+  sfc-off-misses = 56
+
+  #[no-alloc]
+  sfc-off-evictions :: U64
+  sfc-off-evictions = 64
+
+  #[no-alloc]
+  sfc-off-buckets-off :: U64
+  sfc-off-buckets-off = 72
+
+  #[no-alloc]
+  sfc-off-slots-off :: U64
+  sfc-off-slots-off = 80
+
+  #[no-alloc]
+  sfc-off-destroyed :: U64
+  sfc-off-destroyed = 88
+
+  #[no-alloc]
+  sfc-off-precomp :: U64
+  sfc-off-precomp = 92
+
+  #[no-alloc]
+  sfc-off-root-buf :: U64
+  sfc-off-root-buf = 128
+
+  #[no-alloc]
+  sfc-off-index-buf :: U64
+  sfc-off-index-buf = 640
+
+  #[no-alloc]
+  sfc-off-stat-scratch :: U64
+  sfc-off-stat-scratch = 768
+
+  #[no-alloc]
+  sfc-off-len-scratch :: U64
+  sfc-off-len-scratch = 960
+
+  #[no-alloc]
+  sfc-off-path-scratch :: U64
+  sfc-off-path-scratch = 1024
+
+  #[no-alloc]
+  sfc-off-rel-scratch :: U64
+  sfc-off-rel-scratch = 3072
+
+  #[no-alloc]
+  sfc-buckets-start :: U64
+  sfc-buckets-start = 4352
+
+  -- Per-slot layout (1280 bytes = 20 cache lines):
+  --   +0   lru-prev    :: U32
+  --   +4   lru-next    :: U32
+  --   +8   hash-next   :: U32
+  --   +12  hash-bucket :: U32
+  --   +16  hash-val    :: U64
+  --   +24  fd          :: I32
+  --   +28  key-len     :: U32
+  --   +32  size        :: U64
+  --   +40  mtime-sec   :: U64
+  --   +48  loaded-ns   :: U64
+  --   +56  accept-mask :: U8
+  --   +57  encoding    :: U8
+  --   +58  mime        :: U8
+  --   +59  etag-len    :: U8
+  --   +60  occupied    :: U8
+  --   +61  vary        :: U8
+  --   +62  pad         :: U16
+  --   +64  etag-buf[48]
+  --   +112 key-buf[1168]
+  #[no-alloc]
+  sfc-slot-stride :: U64
+  sfc-slot-stride = 1280
+
+  #[no-alloc]
+  sfc-slot-max-key :: U32
+  sfc-slot-max-key = 1168
+
+  #[inline(always)]
+  #[no-alloc]
+  slot-base :: U64 -> U32 ->{MVar} U64
+  slot-base base idx =
+    let off = raw-load-u64 (addr-at base sfc-off-slots-off) in
+    wrapping-add-u64 (wrapping-add-u64 base off) (wrapping-mul-u64 (u32-to-u64 idx) sfc-slot-stride)
+
+  #[inline(always)]
+  #[no-alloc]
+  bucket-addr :: U64 -> U32 ->{MVar} I64
+  bucket-addr base b =
+    let off = raw-load-u64 (addr-at base sfc-off-buckets-off) in
+    addr-at base (wrapping-add-u64 off (wrapping-shl-u64 (u32-to-u64 b) 2))
+
+  #[no-alloc]
+  next-pow2-u32 :: U32 -> U32 -> U32
+  next-pow2-u32 cur goal =
+    if ge-u32 cur goal then cur
+    else if ge-u32 cur 1073741824 then cur
+    else next-pow2-u32 (wrapping-shl-u32 cur 1) goal
+
+  -- 64-bit FNV-1a hash of `(key-addr[0..key-len), accept-mask)`.
+  #[no-alloc]
+  fnv1a-key-loop :: I64 -> U32 -> U32 -> U64 ->{MVar} U64
+  fnv1a-key-loop addr i len h =
+    if ge-u32 i len then h
+    else
+      let b = u8-to-u64 (raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i))) in
+      let h1 = wrapping-mul-u64 (bit-xor-u64 h b) 1099511628211 in
+      fnv1a-key-loop addr (wrapping-add-u32 i 1) len h1
+
+  #[inline(always)]
+  #[no-alloc]
+  hash-cache-key :: I64 -> U32 -> U8 ->{MVar} U64
+  hash-cache-key key-addr key-len accept-mask =
+    let h0 = bit-xor-u64 14695981039346656037 (u8-to-u64 accept-mask) in
+    let h1 = wrapping-mul-u64 h0 1099511628211 in
+    fnv1a-key-loop key-addr 0 key-len h1
+
+  -- Intrusive LRU doubly-linked list helpers (all #[no-alloc])
+  #[no-alloc]
+  lru-unlink :: U64 -> U32 ->{MVar} Unit
+  lru-unlink base idx =
+    let sb = slot-base base idx in
+    let prev = raw-load-u32 (addr-at sb 0) in
+    let nxt = raw-load-u32 (addr-at sb 4) in
+    let _0 = (
+      if eq-u32 prev nil-slot then raw-store-u32 (addr-at base sfc-off-lru-head) nxt
+      else raw-store-u32 (addr-at (slot-base base prev) 4) nxt) in
+    let _1 = (
+      if eq-u32 nxt nil-slot then raw-store-u32 (addr-at base sfc-off-lru-tail) prev
+      else raw-store-u32 (addr-at (slot-base base nxt) 0) prev) in
+    let _2 = raw-store-u32 (addr-at sb 0) nil-slot in
+    raw-store-u32 (addr-at sb 4) nil-slot
+
+  #[no-alloc]
+  lru-push-front :: U64 -> U32 ->{MVar} Unit
+  lru-push-front base idx =
+    let sb = slot-base base idx in
+    let old-head = raw-load-u32 (addr-at base sfc-off-lru-head) in
+    let _0 = raw-store-u32 (addr-at sb 0) nil-slot in
+    let _1 = raw-store-u32 (addr-at sb 4) old-head in
+    let _2 = raw-store-u32 (addr-at base sfc-off-lru-head) idx in
+    if eq-u32 old-head nil-slot then
+      raw-store-u32 (addr-at base sfc-off-lru-tail) idx
+    else
+      raw-store-u32 (addr-at (slot-base base old-head) 0) idx
+
+  #[inline(always)]
+  #[no-alloc]
+  lru-move-to-front :: U64 -> U32 ->{MVar} Unit
+  lru-move-to-front base idx =
+    let head = raw-load-u32 (addr-at base sfc-off-lru-head) in
+    if eq-u32 head idx then ()
+    else
+      let _0 = lru-unlink base idx in
+      lru-push-front base idx
+
+  -- Hash bucket chaining helpers (all #[no-alloc])
+  #[no-alloc]
+  bucket-link :: U64 -> U32 -> U32 ->{MVar} Unit
+  bucket-link base idx b =
+    let ba = bucket-addr base b in
+    let old-h = raw-load-u32 ba in
+    let sb = slot-base base idx in
+    let _0 = raw-store-u32 (addr-at sb 8) old-h in
+    let _1 = raw-store-u32 (addr-at sb 12) b in
+    raw-store-u32 ba idx
+
+  #[no-alloc]
+  bucket-unlink-walk :: U64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  bucket-unlink-walk base want prev cur =
+    if eq-u32 cur nil-slot then ()
+    else
+      let sb = slot-base base cur in
+      let nxt = raw-load-u32 (addr-at sb 8) in
+      if eq-u32 cur want then
+        let _0 = raw-store-u32 (addr-at (slot-base base prev) 8) nxt in
+        let _1 = raw-store-u32 (addr-at sb 8) nil-slot in
+        raw-store-u32 (addr-at sb 12) nil-slot
+      else
+        bucket-unlink-walk base want cur nxt
+
+  #[no-alloc]
+  bucket-unlink :: U64 -> U32 ->{MVar} Unit
+  bucket-unlink base idx =
+    let sb = slot-base base idx in
+    let b = raw-load-u32 (addr-at sb 12) in
+    if eq-u32 b nil-slot then ()
+    else
+      let ba = bucket-addr base b in
+      let head = raw-load-u32 ba in
+      if eq-u32 head idx then
+        let nxt = raw-load-u32 (addr-at sb 8) in
+        let _0 = raw-store-u32 ba nxt in
+        let _1 = raw-store-u32 (addr-at sb 8) nil-slot in
+        raw-store-u32 (addr-at sb 12) nil-slot
+      else
+        bucket-unlink-walk base idx head (raw-load-u32 (addr-at (slot-base base head) 8))
+
+  -- Lookup `(key-addr[0..key-len), accept-mask)` in hash chain; returns slot idx or `nil-slot`.
+  #[no-alloc]
+  bucket-find-loop :: U64 -> U32 -> U64 -> I64 -> U32 -> U8 ->{MVar} U32
+  bucket-find-loop base cur hv key-addr key-len accept-mask =
+    if eq-u32 cur nil-slot then nil-slot
+    else
+      let sb = slot-base base cur in
+      let shv = raw-load-u64 (addr-at sb 16) in
+      let sklen = raw-load-u32 (addr-at sb 28) in
+      let sam = raw-load-u8 (addr-at sb 56) in
+      if both (eq-u64 shv hv) (both (eq-u32 sklen key-len) (eq-u8 sam accept-mask)) then
+        if dma-eq-raw (addr-at sb 112) key-addr key-len then cur
+        else bucket-find-loop base (raw-load-u32 (addr-at sb 8)) hv key-addr key-len accept-mask
+      else
+        bucket-find-loop base (raw-load-u32 (addr-at sb 8)) hv key-addr key-len accept-mask
+
+  #[no-alloc]
+  slot-to-view :: U64 -> U32 -> U8 ->{MVar} StaticFileView
+  slot-to-view base idx hit-flag =
+    let sb = slot-base base idx in
+    let fd = wrapping-u32-to-i32 (raw-load-u32 (addr-at sb 24)) in
+    let sz = raw-load-u64 (addr-at sb 32) in
+    let mt = raw-load-u64 (addr-at sb 40) in
+    let enc = raw-load-u8 (addr-at sb 57) in
+    let mime = raw-load-u8 (addr-at sb 58) in
+    let elen = raw-load-u8 (addr-at sb 59) in
+    let vary = raw-load-u8 (addr-at sb 61) in
+    let eaddr = addr-at sb 64 in
+    StaticFileView static-lookup-ok mime enc elen fd idx hit-flag vary 0 sz mt eaddr
+
+  init-buckets-loop :: U64 -> U32 -> U32 ->{MVar} Unit
+  init-buckets-loop base i n =
+    if ge-u32 i n then ()
+    else
+      let _0 = raw-store-u32 (bucket-addr base i) nil-slot in
+      init-buckets-loop base (wrapping-add-u32 i 1) n
+
+  init-slots-loop :: U64 -> U32 -> U32 ->{MVar} Unit
+  init-slots-loop base i cap =
+    if ge-u32 i cap then ()
+    else
+      let sb = slot-base base i in
+      let nxt = if lt-u32 (wrapping-add-u32 i 1) cap then wrapping-add-u32 i 1 else nil-slot in
+      let _0 = raw-store-u32 (addr-at sb 0) nil-slot in
+      let _1 = raw-store-u32 (addr-at sb 4) nxt in
+      let _2 = raw-store-u32 (addr-at sb 8) nil-slot in
+      let _3 = raw-store-u32 (addr-at sb 12) nil-slot in
+      let _4 = raw-store-u32 (addr-at sb 24) (wrapping-i32-to-u32 (-1)) in
+      let _5 = raw-store-u8 (addr-at sb 60) 0 in
+      init-slots-loop base (wrapping-add-u32 i 1) cap
+
+  -- | Allocate a DMA-backed per-core static file LRU cache rooted at `root-dir`
+  -- with default directory index `index-file` (defaults to `"index.html"` if empty),
+  -- fixed entry capacity `cap` (`1..=65536`), and stat TTL `ttl-ns` (e.g. 5s =
+  -- `5000000000`; `0` disables TTL expiry).
+  static-cache-new :: Bytes -> Bytes -> U32 -> U64 ->{IO, MVar} Option StaticFileCache
+  static-cache-new root-dir index-file cap ttl-ns =
+    let rlen0 = bytes-len-i64 root-dir in
+    let ilen0 = bytes-len-i64 index-file in
+    if eq-u32 cap 0 || gt-u32 cap 65536 then None
+    else if le-i64 rlen0 0 || gt-i64 rlen0 512 then None
+    else if gt-i64 ilen0 128 then None
+    else
+      let nbuckets = next-pow2-u32 16 (wrapping-shl-u32 cap 1) in
+      let buckets-bytes = wrapping-shl-u64 (u32-to-u64 nbuckets) 2 in
+      let slots-off-raw = wrapping-add-u64 sfc-buckets-start buckets-bytes in
+      let slots-off = bit-and-u64 (wrapping-add-u64 slots-off-raw 63) (bit-not-u64 63) in
+      let total-raw = wrapping-add-u64 slots-off (wrapping-mul-u64 (u32-to-u64 cap) sfc-slot-stride) in
+      let total-aligned = bit-and-u64 (wrapping-add-u64 total-raw 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc total-aligned 4096 in
+      if eq-u64 base 0 then None
+      else
+        let rlen-u32 = wrapping-i64-to-u32 rlen0 in
+        let ilen-u32 = wrapping-i64-to-u32 ilen0 in
+        let _cr = sys-held root-dir (dma-copy-raw (addr-at base sfc-off-root-buf) (bytes-data root-dir) rlen-u32) in
+        let clean-rlen = trim-root-slashes (addr-at base sfc-off-root-buf) rlen-u32 in
+        let _ci = (
+          if gt-u32 ilen-u32 0 then
+            sys-held index-file (dma-copy-raw (addr-at base sfc-off-index-buf) (bytes-data index-file) ilen-u32)
+          else ()) in
+        let idx-ok = is-valid-index-name (addr-at base sfc-off-index-buf) ilen-u32 in
+        if not idx-ok then
+          let _f = engine-dma-free base total-aligned in
+          None
+        else
+          let _0 = raw-store-u64 (addr-at base sfc-off-slab-bytes) total-aligned in
+          let _1 = raw-store-u32 (addr-at base sfc-off-capacity) cap in
+          let _2 = raw-store-u32 (addr-at base sfc-off-bucket-mask) (wrapping-sub-u32 nbuckets 1) in
+          let _3 = raw-store-u32 (addr-at base sfc-off-count) 0 in
+          let _4 = raw-store-u32 (addr-at base sfc-off-lru-head) nil-slot in
+          let _5 = raw-store-u32 (addr-at base sfc-off-lru-tail) nil-slot in
+          let _6 = raw-store-u32 (addr-at base sfc-off-free-head) 0 in
+          let _7 = raw-store-u64 (addr-at base sfc-off-ttl-ns) ttl-ns in
+          let _8 = raw-store-u32 (addr-at base sfc-off-root-len) clean-rlen in
+          let _9 = raw-store-u32 (addr-at base sfc-off-index-len) ilen-u32 in
+          let _a = raw-store-u64 (addr-at base sfc-off-hits) 0 in
+          let _b = raw-store-u64 (addr-at base sfc-off-misses) 0 in
+          let _c = raw-store-u64 (addr-at base sfc-off-evictions) 0 in
+          let _d = raw-store-u64 (addr-at base sfc-off-buckets-off) sfc-buckets-start in
+          let _e = raw-store-u64 (addr-at base sfc-off-slots-off) slots-off in
+          let _f = raw-store-u32 (addr-at base sfc-off-destroyed) 0 in
+          let _g = raw-store-u32 (addr-at base sfc-off-precomp) 1 in
+          let _ib = init-buckets-loop base 0 nbuckets in
+          let _is = init-slots-loop base 0 cap in
+          Some (StaticFileCache base)
+
+  close-all-slots-loop :: U64 -> U32 -> U32 ->{IO, MVar} Unit
+  close-all-slots-loop base i cap =
+    if ge-u32 i cap then ()
+    else
+      let sb = slot-base base i in
+      let occ = raw-load-u8 (addr-at sb 60) in
+      let fd = wrapping-u32-to-i32 (raw-load-u32 (addr-at sb 24)) in
+      let _c = if ne-u8 occ 0 && ge-i32 fd 0 then static-c-close fd else 0 in
+      let _0 = raw-store-u32 (addr-at sb 24) (wrapping-i32-to-u32 (-1)) in
+      let _1 = raw-store-u8 (addr-at sb 60) 0 in
+      close-all-slots-loop base (wrapping-add-u32 i 1) cap
+
+  -- | Close every cached file descriptor cleanly and unmap the cache DMA slab.
+  -- Idempotent on already-destroyed caches.
+  static-cache-destroy :: StaticFileCache ->{IO, MVar} Unit
+  static-cache-destroy cache =
+    let base = cache.sfc-base in
+    if eq-u64 base 0 then ()
+    else
+      let dead = raw-load-u32 (addr-at base sfc-off-destroyed) in
+      if ne-u32 dead 0 then ()
+      else
+        let cap = raw-load-u32 (addr-at base sfc-off-capacity) in
+        let sz = raw-load-u64 (addr-at base sfc-off-slab-bytes) in
+        let _cl = close-all-slots-loop base 0 cap in
+        let _d = raw-store-u32 (addr-at base sfc-off-destroyed) 1 in
+        let _f = engine-dma-free base sz in
+        ()
+
+  -- | Enable (`True`) or disable (`False`) pre-compressed `.zst`/`.br`/`.gz` probing.
+  #[no-alloc]
+  static-cache-set-precompressed :: StaticFileCache -> Bool ->{MVar} Unit
+  static-cache-set-precompressed cache enabled =
+    let base = cache.sfc-base in
+    if eq-u64 base 0 then ()
+    else raw-store-u32 (addr-at base sfc-off-precomp) (if enabled then 1 else 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  static-cache-capacity :: StaticFileCache ->{MVar} U32
+  static-cache-capacity cache = raw-load-u32 (addr-at cache.sfc-base sfc-off-capacity)
+
+  #[inline(always)]
+  #[no-alloc]
+  static-cache-count :: StaticFileCache ->{MVar} U32
+  static-cache-count cache = raw-load-u32 (addr-at cache.sfc-base sfc-off-count)
+
+  #[inline(always)]
+  #[no-alloc]
+  static-cache-hits :: StaticFileCache ->{MVar} U64
+  static-cache-hits cache = raw-load-u64 (addr-at cache.sfc-base sfc-off-hits)
+
+  #[inline(always)]
+  #[no-alloc]
+  static-cache-misses :: StaticFileCache ->{MVar} U64
+  static-cache-misses cache = raw-load-u64 (addr-at cache.sfc-base sfc-off-misses)
+
+  #[inline(always)]
+  #[no-alloc]
+  static-cache-evictions :: StaticFileCache ->{MVar} U64
+  static-cache-evictions cache = raw-load-u64 (addr-at cache.sfc-base sfc-off-evictions)
+
+  -- | Return the 8-byte aligned DMA scratch address inside `cache` suitable for
+  -- passing as `len-scratch-addr` to `darwin-sendfile-dma`.
+  #[inline(always)]
+  #[no-alloc]
+  static-cache-len-scratch-addr :: StaticFileCache -> I64
+  static-cache-len-scratch-addr cache = addr-at cache.sfc-base sfc-off-len-scratch
+
+  -- | Pure `#[no-alloc]` cache-hit probe (zero syscalls, zero heap allocs).
+  -- Resolves `req-path` lexically, probes the LRU hash table for a live
+  -- non-expired entry matching `(rel-path, accept-mask)`, promotes it to MRU,
+  -- increments `hits`, and returns `sfv-status == static-lookup-ok`.
+  -- Returns `static-lookup-bad-path` on path traversal/malformed path, or
+  -- `static-lookup-not-found` on cache miss or TTL expiry.
+  #[no-alloc]
+  static-cache-get-hit-dma :: StaticFileCache -> I64 -> U32 -> U8 -> U64 ->{MVar} StaticFileView
+  static-cache-get-hit-dma cache req-addr req-len accept-mask now-ns =
+    let base = cache.sfc-base in
+    if eq-u64 base 0 then sfv-err static-lookup-io-error
+    else if ne-u32 (raw-load-u32 (addr-at base sfc-off-destroyed)) 0 then sfv-err static-lookup-io-error
+    else
+      let idx-addr = addr-at base sfc-off-index-buf in
+      let idx-len = raw-load-u32 (addr-at base sfc-off-index-len) in
+      let rel-addr = addr-at base sfc-off-rel-scratch in
+      let r = static-resolve-path-dma req-addr req-len idx-addr idx-len rel-addr sfc-slot-max-key in
+      if ne-u8 r.sp-status static-path-ok then sfv-err static-lookup-bad-path
+      else
+        let precomp = raw-load-u32 (addr-at base sfc-off-precomp) in
+        let eff-am = if ne-u32 precomp 0 then bit-and-u8 accept-mask 7 else 0 in
+        let hv = hash-cache-key rel-addr r.sp-len eff-am in
+        let bmask = raw-load-u32 (addr-at base sfc-off-bucket-mask) in
+        let b = bit-and-u32 (wrapping-u64-to-u32 hv) bmask in
+        let head = raw-load-u32 (bucket-addr base b) in
+        let slot = bucket-find-loop base head hv rel-addr r.sp-len eff-am in
+        if eq-u32 slot nil-slot then sfv-err static-lookup-not-found
+        else
+          let sb = slot-base base slot in
+          let ttl = raw-load-u64 (addr-at base sfc-off-ttl-ns) in
+          let loaded = raw-load-u64 (addr-at sb 48) in
+          let exp-u8 = if gt-u64 ttl 0 then (if ge-u64 (saturating-sub-u64 now-ns loaded) ttl then (1 :: U8) else 0) else 0 in
+          if ne-u8 exp-u8 0 then sfv-err static-lookup-not-found
+          else
+            let _mru = lru-move-to-front base slot in
+            let hits = raw-load-u64 (addr-at base sfc-off-hits) in
+            let _h = raw-store-u64 (addr-at base sfc-off-hits) (wrapping-add-u64 hits 1) in
+            slot-to-view base slot 1
+
+  -- Assemble `<root>/<rel_path>[.zst|.br|.gz]\0` into `path-scratch` (zero alloc).
+  #[no-alloc]
+  build-disk-path :: U64 -> U32 -> U8 ->{MVar} U32
+  build-disk-path base rel-len enc =
+    let root-addr = addr-at base sfc-off-root-buf in
+    let root-len = raw-load-u32 (addr-at base sfc-off-root-len) in
+    let rel-addr = addr-at base sfc-off-rel-scratch in
+    let dst = addr-at base sfc-off-path-scratch in
+    let is-slash-root = both (eq-u32 root-len 1) (eq-u8 (raw-load-u8 root-addr) 47) in
+    let _c0 = dma-copy-raw dst root-addr root-len in
+    let p1 = (
+      if is-slash-root then root-len
+      else put1 dst root-len 47) in
+    let _c1 = dma-copy-raw (wrapping-add-i64 dst (u32-to-i64 p1)) rel-addr rel-len in
+    let p2 = wrapping-add-u32 p1 rel-len in
+    let p3 = (
+      if eq-u8 enc static-enc-zstd then put4 dst p2 46 122 115 116      -- ".zst"
+      else if eq-u8 enc static-enc-br then put3 dst p2 46 98 114        -- ".br"
+      else if eq-u8 enc static-enc-gzip then put3 dst p2 46 103 122     -- ".gz"
+      else p2) in
+    let _z = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 p3)) 0 in
+    p3
+
+  -- Internal POD for disk open+fstat probe result.
+  #[repr(C, value)]
+  record DiskProbeResult where
+    dp-status :: U8
+    dp-encoding :: U8
+    dp-pad :: U16
+    dp-fd :: I32
+    dp-size :: U64
+    dp-mtime-sec :: U64
+
+  -- Try opening a single encoding variant on disk and `fstat`ing it.
+  probe-variant-disk :: U64 -> U32 -> U8 ->{IO, MVar} DiskProbeResult
+  probe-variant-disk base rel-len enc =
+    let _len = build-disk-path base rel-len enc in
+    let fd = static-c-open (addr-at base sfc-off-path-scratch) 0 0 in
+    if lt-i32 fd 0 then
+      DiskProbeResult static-lookup-not-found enc 0 (-1) 0 0
+    else
+      let st-addr = addr-at base sfc-off-stat-scratch in
+      let rc = static-c-fstat fd st-addr in
+      if ne-i32 rc 0 then
+        let _cl = static-c-close fd in
+        DiskProbeResult static-lookup-io-error enc 0 (-1) 0 0
+      else
+        let mode-u32 = bit-and-u32 (raw-load-u32 (wrapping-add-i64 st-addr darwin-stat-off-mode)) 65535 in
+        if ne-u32 (bit-and-u32 mode-u32 darwin-s-ifmt) darwin-s-ifreg then
+          let _cl = static-c-close fd in
+          DiskProbeResult static-lookup-forbidden enc 0 (-1) 0 0
+        else
+          let sz = raw-load-u64 (wrapping-add-i64 st-addr darwin-stat-off-size) in
+          let mt = raw-load-u64 (wrapping-add-i64 st-addr darwin-stat-off-mtime-sec) in
+          DiskProbeResult static-lookup-ok enc 0 fd sz mt
+
+  -- Probe `.zst` > `.br` > `.gz` > identity based on `eff-am`.
+  probe-negotiated-disk :: U64 -> U32 -> U8 ->{IO, MVar} DiskProbeResult
+  probe-negotiated-disk base rel-len eff-am =
+    let r-zst = (
+      if ne-u8 (bit-and-u8 eff-am accept-enc-zstd) 0 then probe-variant-disk base rel-len static-enc-zstd
+      else DiskProbeResult static-lookup-not-found static-enc-zstd 0 (-1) 0 0) in
+    if eq-u8 r-zst.dp-status static-lookup-ok then r-zst
+    else
+      let r-br = (
+        if ne-u8 (bit-and-u8 eff-am accept-enc-br) 0 then probe-variant-disk base rel-len static-enc-br
+        else DiskProbeResult static-lookup-not-found static-enc-br 0 (-1) 0 0) in
+      if eq-u8 r-br.dp-status static-lookup-ok then r-br
+      else
+        let r-gz = (
+          if ne-u8 (bit-and-u8 eff-am accept-enc-gzip) 0 then probe-variant-disk base rel-len static-enc-gzip
+          else DiskProbeResult static-lookup-not-found static-enc-gzip 0 (-1) 0 0) in
+        if eq-u8 r-gz.dp-status static-lookup-ok then r-gz
+        else probe-variant-disk base rel-len static-enc-identity
+
+  -- Evict slot `slot` completely, closing its FD and pushing it onto `free-head`.
+  release-slot-to-free :: U64 -> U32 ->{IO, MVar} Unit
+  release-slot-to-free base slot =
+    let sb = slot-base base slot in
+    let _u1 = bucket-unlink base slot in
+    let _u2 = lru-unlink base slot in
+    let fd = wrapping-u32-to-i32 (raw-load-u32 (addr-at sb 24)) in
+    let _cl = if ge-i32 fd 0 then static-c-close fd else 0 in
+    let _0 = raw-store-u32 (addr-at sb 24) (wrapping-i32-to-u32 (-1)) in
+    let _1 = raw-store-u8 (addr-at sb 60) 0 in
+    let old-free = raw-load-u32 (addr-at base sfc-off-free-head) in
+    let _2 = raw-store-u32 (addr-at sb 4) old-free in
+    let _3 = raw-store-u32 (addr-at base sfc-off-free-head) slot in
+    let cnt = raw-load-u32 (addr-at base sfc-off-count) in
+    raw-store-u32 (addr-at base sfc-off-count) (saturating-sub-u32 cnt 1)
+
+  -- Acquire a free slot or evict `lru-tail` (closing its old FD cleanly).
+  acquire-cache-slot :: U64 ->{IO, MVar} U32
+  acquire-cache-slot base =
+    let fhead = raw-load-u32 (addr-at base sfc-off-free-head) in
+    if ne-u32 fhead nil-slot then
+      let nxt = raw-load-u32 (addr-at (slot-base base fhead) 4) in
+      let _0 = raw-store-u32 (addr-at base sfc-off-free-head) nxt in
+      let cnt = raw-load-u32 (addr-at base sfc-off-count) in
+      let _1 = raw-store-u32 (addr-at base sfc-off-count) (wrapping-add-u32 cnt 1) in
+      fhead
+    else
+      let victim = raw-load-u32 (addr-at base sfc-off-lru-tail) in
+      if eq-u32 victim nil-slot then nil-slot
+      else
+        let sb = slot-base base victim in
+        let _u1 = bucket-unlink base victim in
+        let _u2 = lru-unlink base victim in
+        let old-fd = wrapping-u32-to-i32 (raw-load-u32 (addr-at sb 24)) in
+        let _cl = if ge-i32 old-fd 0 then static-c-close old-fd else 0 in
+        let _z = raw-store-u32 (addr-at sb 24) (wrapping-i32-to-u32 (-1)) in
+        let evs = raw-load-u64 (addr-at base sfc-off-evictions) in
+        let _ev = raw-store-u64 (addr-at base sfc-off-evictions) (wrapping-add-u64 evs 1) in
+        victim
+
+  -- Populate a slot's metadata, ETag, and key bytes.
+  #[no-alloc]
+  populate-slot :: U64 -> U32 -> U64 -> U32 -> U8 -> DiskProbeResult -> U64 -> U8 ->{MVar} Unit
+  populate-slot base slot hv rel-len eff-am pr now-ns vary-flag =
+    let sb = slot-base base slot in
+    let rel-addr = addr-at base sfc-off-rel-scratch in
+    let mime = static-mime-id-for-path-dma rel-addr rel-len in
+    let etag-len = static-format-etag-dma (addr-at sb 64) 48 pr.dp-size pr.dp-mtime-sec b-false in
+    let _0 = raw-store-u64 (addr-at sb 16) hv in
+    let _1 = raw-store-u32 (addr-at sb 24) (wrapping-i32-to-u32 pr.dp-fd) in
+    let _2 = raw-store-u32 (addr-at sb 28) rel-len in
+    let _3 = raw-store-u64 (addr-at sb 32) pr.dp-size in
+    let _4 = raw-store-u64 (addr-at sb 40) pr.dp-mtime-sec in
+    let _5 = raw-store-u64 (addr-at sb 48) now-ns in
+    let _6 = raw-store-u8 (addr-at sb 56) eff-am in
+    let _7 = raw-store-u8 (addr-at sb 57) pr.dp-encoding in
+    let _8 = raw-store-u8 (addr-at sb 58) mime in
+    let _9 = raw-store-u8 (addr-at sb 59) (wrapping-u32-to-u8 etag-len) in
+    let _a = raw-store-u8 (addr-at sb 60) 1 in
+    let _b = raw-store-u8 (addr-at sb 61) vary-flag in
+    dma-copy-raw (addr-at sb 112) rel-addr rel-len
+
+  -- | Look up `req-addr[0..req-len)` in `cache` with `accept-mask` and current
+  -- monotonic timestamp `now-ns`.
+  --
+  -- * On cache HIT (within TTL): 0 syscalls, 0 heap allocs, promotes to MRU,
+  --   returns `sfv-cache-hit == 1`.
+  -- * On TTL expiry: re-opens & re-stats on disk, closes old FD cleanly,
+  --   updates slot in place (or releases slot if deleted), returns `sfv-cache-hit == 0`.
+  -- * On cache MISS: negotiates `.zst` > `.br` > `.gz` > identity on disk,
+  --   opens & `fstat`s regular file, evicts LRU tail (closing its old FD) if
+  --   full, inserts into hash+LRU, returns `sfv-cache-hit == 0`.
+  static-cache-lookup-dma :: StaticFileCache -> I64 -> U32 -> U8 -> U64 ->{IO, MVar} StaticFileView
+  static-cache-lookup-dma cache req-addr req-len accept-mask now-ns =
+    let base = cache.sfc-base in
+    if eq-u64 base 0 then sfv-err static-lookup-io-error
+    else if ne-u32 (raw-load-u32 (addr-at base sfc-off-destroyed)) 0 then sfv-err static-lookup-io-error
+    else
+      let idx-addr = addr-at base sfc-off-index-buf in
+      let idx-len = raw-load-u32 (addr-at base sfc-off-index-len) in
+      let rel-addr = addr-at base sfc-off-rel-scratch in
+      let r = static-resolve-path-dma req-addr req-len idx-addr idx-len rel-addr sfc-slot-max-key in
+      if ne-u8 r.sp-status static-path-ok then sfv-err static-lookup-bad-path
+      else
+        let precomp = raw-load-u32 (addr-at base sfc-off-precomp) in
+        let eff-am = if ne-u32 precomp 0 then bit-and-u8 accept-mask 7 else 0 in
+        let vary-flag = if ne-u32 precomp 0 then (1 :: U8) else 0 in
+        let hv = hash-cache-key rel-addr r.sp-len eff-am in
+        let bmask = raw-load-u32 (addr-at base sfc-off-bucket-mask) in
+        let b = bit-and-u32 (wrapping-u64-to-u32 hv) bmask in
+        let head = raw-load-u32 (bucket-addr base b) in
+        let existing = bucket-find-loop base head hv rel-addr r.sp-len eff-am in
+        if ne-u32 existing nil-slot then
+          let sb = slot-base base existing in
+          let ttl = raw-load-u64 (addr-at base sfc-off-ttl-ns) in
+          let loaded = raw-load-u64 (addr-at sb 48) in
+          let exp-u8 = if gt-u64 ttl 0 then (if ge-u64 (saturating-sub-u64 now-ns loaded) ttl then (1 :: U8) else 0) else 0 in
+          if eq-u8 exp-u8 0 then
+            let _mru = lru-move-to-front base existing in
+            let hits = raw-load-u64 (addr-at base sfc-off-hits) in
+            let _h = raw-store-u64 (addr-at base sfc-off-hits) (wrapping-add-u64 hits 1) in
+            slot-to-view base existing 1
+          else
+            -- TTL expired: refresh in place, closing old FD cleanly
+            let misses = raw-load-u64 (addr-at base sfc-off-misses) in
+            let _m = raw-store-u64 (addr-at base sfc-off-misses) (wrapping-add-u64 misses 1) in
+            let pr = probe-negotiated-disk base r.sp-len eff-am in
+            if ne-u8 pr.dp-status static-lookup-ok then
+              let _rel = release-slot-to-free base existing in
+              sfv-err pr.dp-status
+            else
+              let old-fd = wrapping-u32-to-i32 (raw-load-u32 (addr-at sb 24)) in
+              let _cl = if ge-i32 old-fd 0 then static-c-close old-fd else 0 in
+              let _pop = populate-slot base existing hv r.sp-len eff-am pr now-ns vary-flag in
+              let _mru = lru-move-to-front base existing in
+              slot-to-view base existing 0
+        else
+          -- Cache miss: open on disk, acquire/evict slot, populate & link
+          let misses = raw-load-u64 (addr-at base sfc-off-misses) in
+          let _m = raw-store-u64 (addr-at base sfc-off-misses) (wrapping-add-u64 misses 1) in
+          let pr = probe-negotiated-disk base r.sp-len eff-am in
+          if ne-u8 pr.dp-status static-lookup-ok then sfv-err pr.dp-status
+          else
+            let slot = acquire-cache-slot base in
+            if eq-u32 slot nil-slot then
+              let _cl = if ge-i32 pr.dp-fd 0 then static-c-close pr.dp-fd else 0 in
+              sfv-err static-lookup-io-error
+            else
+              let _pop = populate-slot base slot hv r.sp-len eff-am pr now-ns vary-flag in
+              let _bl = bucket-link base slot b in
+              let _ll = lru-push-front base slot in
+              slot-to-view base slot 0
+
+  -- =========================================================================
+  -- 6. Response Planning, Zero-Alloc DMA Header Serialization & Darwin sendfile
+  -- =========================================================================
+
+  -- | 64-byte `#[repr(C, value)]` POD response execution plan covering
+  -- GET/HEAD, 200/206/304/400/403/404/405/416, Range slices, and ETag/Vary.
+  #[repr(C, value)]
+  record StaticResponsePlan where
+    srp-http-status :: U16
+    srp-mime :: U8
+    srp-encoding :: U8
+    srp-send-body :: U8
+    srp-vary :: U8
+    srp-etag-len :: U8
+    srp-has-range :: U8
+    srp-fd :: I32
+    srp-pad :: U32
+    srp-body-off :: U64
+    srp-body-len :: U64
+    srp-content-length :: U64
+    srp-total-size :: U64
+    srp-range-end :: U64
+    srp-etag-addr :: I64
+
+  #[inline(always)]
+  #[no-alloc]
+  plan-error :: U16 -> StaticResponsePlan
+  plan-error code = StaticResponsePlan code 0 0 0 0 0 0 (-1) 0 0 0 0 0 0 0
+
+  -- | Plan the complete static HTTP response (`200`, `206`, `304`, `400`, `403`,
+  -- `404`, `405`, `416`) from `method-code` (`method-code-get` / `method-code-head`),
+  -- a `StaticFileView`, optional `If-None-Match`, and optional `Range`.
+  -- 100% `#[no-alloc]`.
+  #[no-alloc]
+  static-plan-response-dma
+    :: U8 -> StaticFileView -> I64 -> U32 -> I64 -> U32 ->{MVar} StaticResponsePlan
+  static-plan-response-dma method-code view inm-addr inm-len range-addr range-len =
+    let method-ok = (
+      if eq-u8 method-code method-code-get then (1 :: U8)
+      else if eq-u8 method-code method-code-head then 1
+      else 0) in
+    if eq-u8 method-ok 0 then plan-error 405
+    else if eq-u8 view.sfv-status static-lookup-bad-path then plan-error 400
+    else if eq-u8 view.sfv-status static-lookup-forbidden then plan-error 403
+    else if eq-u8 view.sfv-status static-lookup-not-found then plan-error 404
+    else if ne-u8 view.sfv-status static-lookup-ok then plan-error 500
+    else
+      -- Check `If-None-Match` -> `304 Not Modified`
+      let inm-u8 = b2u8 (static-if-none-match-dma inm-addr inm-len view.sfv-etag-addr (u8-to-u32 view.sfv-etag-len)) in
+      if ne-u8 inm-u8 0 then
+        StaticResponsePlan 304 view.sfv-mime view.sfv-encoding 0 view.sfv-vary view.sfv-etag-len 0
+          view.sfv-fd 0 0 0 0 view.sfv-size 0 view.sfv-etag-addr
+      else
+        -- Check `Range` -> `206 Partial Content` or `416 Range Not Satisfiable`
+        let rr = static-parse-range-dma range-addr range-len view.sfv-size in
+        if eq-u8 rr.sr-status static-range-unsatisfiable then
+          StaticResponsePlan 416 view.sfv-mime view.sfv-encoding 0 view.sfv-vary view.sfv-etag-len 2
+            view.sfv-fd 0 0 0 0 view.sfv-size 0 view.sfv-etag-addr
+        else if eq-u8 rr.sr-status static-range-ok then
+          let send-b = if eq-u8 method-code method-code-head then (0 :: U8) else 1 in
+          let blen = if eq-u8 method-code method-code-head then (0 :: U64) else rr.sr-len in
+          StaticResponsePlan 206 view.sfv-mime view.sfv-encoding send-b view.sfv-vary view.sfv-etag-len 1
+            view.sfv-fd 0 rr.sr-start blen rr.sr-len view.sfv-size rr.sr-end view.sfv-etag-addr
+        else
+          let send-b = if eq-u8 method-code method-code-head then (0 :: U8) else 1 in
+          let blen = if eq-u8 method-code method-code-head then (0 :: U64) else view.sfv-size in
+          StaticResponsePlan 200 view.sfv-mime view.sfv-encoding send-b view.sfv-vary view.sfv-etag-len 0
+            view.sfv-fd 0 0 blen view.sfv-size view.sfv-size 0 view.sfv-etag-addr
+
+  -- Write `"HTTP/1.1 416 Range Not Satisfiable\r\n"` (36 bytes) or delegate to `h1-write-status-line-dma`.
+  #[no-alloc]
+  write-static-status-line-dma :: I64 -> U32 -> U32 -> U16 ->{MVar} U32
+  write-static-status-line-dma base pos cap code =
+    if eq-u16 code 416 then
+      if gt-u32 36 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+      else
+        let p1 = put8 base pos 72 84 84 80 47 49 46 49 in  -- "HTTP/1.1"
+        let p2 = put8 base p1 32 52 49 54 32 82 97 110 in  -- " 416 Ran"
+        let p3 = put8 base p2 103 101 32 78 111 116 32 83 in -- "ge Not S"
+        let p4 = put8 base p3 97 116 105 115 102 105 97 98 in -- "atisfiab"
+        put4 base p4 108 101 13 10                           -- "le\r\n"
+    else
+      h1-write-status-line-dma base pos cap (status-of code)
+
+  -- Append `"Accept-Ranges: bytes\r\n"` (22 bytes).
+  #[no-alloc]
+  write-accept-ranges-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  write-accept-ranges-dma base pos cap =
+    if gt-u32 22 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 65 99 99 101 112 116 45 82 in -- "Accept-R"
+      let p2 = put8 base p1 97 110 103 101 115 58 32 98 in -- "anges: b"
+      let p3 = put4 base p2 121 116 101 115 in             -- "ytes"
+      put2 base p3 13 10
+
+  -- Append `"Vary: Accept-Encoding\r\n"` (23 bytes).
+  #[no-alloc]
+  write-vary-ae-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  write-vary-ae-dma base pos cap =
+    if gt-u32 23 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 86 97 114 121 58 32 65 99 in  -- "Vary: Ac"
+      let p2 = put8 base p1 99 101 112 116 45 69 110 99 in -- "cept-Enc"
+      let p3 = put4 base p2 111 100 105 110 in             -- "odin"
+      put3 base p3 103 13 10                               -- "g\r\n"
+
+  -- Append `"ETag: <etag>\r\n"`.
+  #[no-alloc]
+  write-etag-header-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  write-etag-header-dma base pos cap etag-addr etag-len =
+    let need = wrapping-add-u32 etag-len 8 in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put4 base pos 69 84 97 103 in -- "ETag"
+      let p2 = put2 base p1 58 32 in         -- ": "
+      let _c = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p2)) etag-addr etag-len in
+      put2 base (wrapping-add-u32 p2 etag-len) 13 10
+
+  -- Append `"Cache-Control: <cc>\r\n"`.
+  #[no-alloc]
+  write-cache-control-dma :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  write-cache-control-dma base pos cap cc-addr cc-len =
+    let need = wrapping-add-u32 cc-len 17 in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 97 99 104 101 45 67 111 in -- "Cache-Co"
+      let p2 = put4 base p1 110 116 114 111 in             -- "ntro"
+      let p3 = put3 base p2 108 58 32 in                   -- "l: "
+      let _c = dma-copy-raw (wrapping-add-i64 base (u32-to-i64 p3)) cc-addr cc-len in
+      put2 base (wrapping-add-u32 p3 cc-len) 13 10
+
+  -- Append `"Allow: GET, HEAD\r\n"` (18 bytes).
+  #[no-alloc]
+  write-allow-get-head-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  write-allow-get-head-dma base pos cap =
+    if gt-u32 18 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 65 108 108 111 119 58 32 71 in -- "Allow: G"
+      let p2 = put8 base p1 69 84 44 32 72 69 65 68 in      -- "ET, HEAD"
+      put2 base p2 13 10
+
+  -- Append `"Content-Range: bytes <start>-<end>/<total>\r\n"`.
+  #[no-alloc]
+  write-content-range-partial-dma :: I64 -> U32 -> U32 -> U64 -> U64 -> U64 ->{MVar} U32
+  write-content-range-partial-dma base pos cap rstart rend rtotal =
+    let d0 = u64-dec-digits rstart in
+    let d1 = u64-dec-digits rend in
+    let d2 = u64-dec-digits rtotal in
+    -- "Content-Range: bytes " (21) + d0 + "-" (1) + d1 + "/" (1) + d2 + "\r\n" (2) = 25 + d0 + d1 + d2
+    let need = wrapping-add-u32 25 (wrapping-add-u32 d0 (wrapping-add-u32 d1 d2)) in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 116 101 110 116 45 in -- "Content-"
+      let p2 = put8 base p1 82 97 110 103 101 58 32 98 in     -- "Range: b"
+      let p3 = put4 base p2 121 116 101 115 in                -- "ytes"
+      let p4 = put1 base p3 32 in                             -- " "
+      let p5 = wrapping-add-u32 p4 d0 in
+      let _0 = write-u64-dec-back base p5 rstart d0 in
+      let p6 = put1 base p5 45 in                             -- "-"
+      let p7 = wrapping-add-u32 p6 d1 in
+      let _1 = write-u64-dec-back base p7 rend d1 in
+      let p8 = put1 base p7 47 in                             -- "/"
+      let p9 = wrapping-add-u32 p8 d2 in
+      let _2 = write-u64-dec-back base p9 rtotal d2 in
+      put2 base p9 13 10
+
+  -- Append `"Content-Range: bytes */<total>\r\n"`.
+  #[no-alloc]
+  write-content-range-unsat-dma :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  write-content-range-unsat-dma base pos cap rtotal =
+    let d2 = u64-dec-digits rtotal in
+    let need = wrapping-add-u32 25 d2 in
+    if gt-u32 need (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = put8 base pos 67 111 110 116 101 110 116 45 in -- "Content-"
+      let p2 = put8 base p1 82 97 110 103 101 58 32 98 in     -- "Range: b"
+      let p3 = put4 base p2 121 116 101 115 in                -- "ytes"
+      let p4 = put3 base p3 32 42 47 in                       -- " */"
+      let p5 = wrapping-add-u32 p4 d2 in
+      let _0 = write-u64-dec-back base p5 rtotal d2 in
+      put2 base p5 13 10
+
+  -- | Zero-allocation HTTP/1.1 static response header serializer directly into
+  -- DMA buffer `[out-base + out-pos, out-base + out-cap)`.
+  -- Returns the updated write cursor (`<= out-cap`) on success, or `out-cap + 1`
+  -- on buffer overflow. Zero heap allocations and zero atomic RC traffic.
+  #[no-alloc]
+  static-format-headers-dma
+    :: I64 -> U32 -> U32 -> StaticResponsePlan -> CoarseClockCache -> Bool -> I64 -> U32 ->{MVar} U32
+  static-format-headers-dma base pos cap plan clk keep-alive cc-addr cc-len =
+    let st = plan.srp-http-status in
+    let p1 = write-static-status-line-dma base pos cap st in
+    if gt-u32 p1 cap then wrapping-add-u32 cap 1
+    else
+      let p2 = h1-write-date-header-dma base p1 cap clk in
+      if gt-u32 p2 cap then wrapping-add-u32 cap 1
+      else if either (eq-u16 st 200) (eq-u16 st 206) then
+        let p3 = static-write-mime-header-dma base p2 cap plan.srp-mime in
+        if gt-u32 p3 cap then wrapping-add-u32 cap 1
+        else
+          let p4 = write-accept-ranges-dma base p3 cap in
+          if gt-u32 p4 cap then wrapping-add-u32 cap 1
+          else
+            let p5 = static-write-content-encoding-dma base p4 cap plan.srp-encoding in
+            if gt-u32 p5 cap then wrapping-add-u32 cap 1
+            else
+              let p6 = if ne-u8 plan.srp-vary 0 then write-vary-ae-dma base p5 cap else p5 in
+              if gt-u32 p6 cap then wrapping-add-u32 cap 1
+              else
+                let p7 = (
+                  if gt-u8 plan.srp-etag-len 0 then
+                    write-etag-header-dma base p6 cap plan.srp-etag-addr (u8-to-u32 plan.srp-etag-len)
+                  else p6) in
+                if gt-u32 p7 cap then wrapping-add-u32 cap 1
+                else
+                  let p8 = (
+                    if both (gt-u32 cc-len 0) (ne-i64 cc-addr 0) then
+                      write-cache-control-dma base p7 cap cc-addr cc-len
+                    else p7) in
+                  if gt-u32 p8 cap then wrapping-add-u32 cap 1
+                  else
+                    let p9 = (
+                      if eq-u8 plan.srp-has-range 1 then
+                        write-content-range-partial-dma base p8 cap plan.srp-body-off plan.srp-range-end plan.srp-total-size
+                      else p8) in
+                    if gt-u32 p9 cap then wrapping-add-u32 cap 1
+                    else
+                      let p10 = h1-write-content-length-dma base p9 cap plan.srp-content-length in
+                      if gt-u32 p10 cap then wrapping-add-u32 cap 1
+                      else
+                        let p11 = h1-write-connection-header-dma base p10 cap keep-alive in
+                        if gt-u32 p11 cap then wrapping-add-u32 cap 1
+                        else h1-write-crlf-dma base p11 cap
+      else if eq-u16 st 304 then
+        let p3 = if ne-u8 plan.srp-vary 0 then write-vary-ae-dma base p2 cap else p2 in
+        if gt-u32 p3 cap then wrapping-add-u32 cap 1
+        else
+          let p4 = (
+            if gt-u8 plan.srp-etag-len 0 then
+              write-etag-header-dma base p3 cap plan.srp-etag-addr (u8-to-u32 plan.srp-etag-len)
+            else p3) in
+          if gt-u32 p4 cap then wrapping-add-u32 cap 1
+          else
+            let p5 = (
+              if both (gt-u32 cc-len 0) (ne-i64 cc-addr 0) then
+                write-cache-control-dma base p4 cap cc-addr cc-len
+              else p4) in
+            if gt-u32 p5 cap then wrapping-add-u32 cap 1
+            else
+              let p6 = h1-write-connection-header-dma base p5 cap keep-alive in
+              if gt-u32 p6 cap then wrapping-add-u32 cap 1
+              else h1-write-crlf-dma base p6 cap
+      else if eq-u16 st 416 then
+        let p3 = write-content-range-unsat-dma base p2 cap plan.srp-total-size in
+        if gt-u32 p3 cap then wrapping-add-u32 cap 1
+        else
+          let p4 = h1-write-content-length-dma base p3 cap 0 in
+          if gt-u32 p4 cap then wrapping-add-u32 cap 1
+          else
+            let p5 = h1-write-connection-header-dma base p4 cap keep-alive in
+            if gt-u32 p5 cap then wrapping-add-u32 cap 1
+            else h1-write-crlf-dma base p5 cap
+      else if eq-u16 st 405 then
+        let p3 = write-allow-get-head-dma base p2 cap in
+        if gt-u32 p3 cap then wrapping-add-u32 cap 1
+        else
+          let p4 = h1-write-content-length-dma base p3 cap 0 in
+          if gt-u32 p4 cap then wrapping-add-u32 cap 1
+          else
+            let p5 = h1-write-connection-header-dma base p4 cap keep-alive in
+            if gt-u32 p5 cap then wrapping-add-u32 cap 1
+            else h1-write-crlf-dma base p5 cap
+      else
+        let p3 = h1-write-content-length-dma base p2 cap 0 in
+        if gt-u32 p3 cap then wrapping-add-u32 cap 1
+        else
+          let p4 = h1-write-connection-header-dma base p3 cap keep-alive in
+          if gt-u32 p4 cap then wrapping-add-u32 cap 1
+          else h1-write-crlf-dma base p4 cap
+
+  -- | Zero-copy Darwin `sendfile(2)` helper streaming `plan.srp-body-len` bytes
+  -- starting at `plan.srp-body-off` from the cached FD onto `sock-fd` via
+  -- `darwin-sendfile-fd`. Returns bytes sent (`>= 0`) or `-errno`.
+  static-send-file-darwin :: Fd -> StaticResponsePlan -> U64 ->{IO, MVar} I64
+  static-send-file-darwin sock-fd plan already-sent =
+    if eq-u8 plan.srp-send-body 0 then 0
+    else if ge-u64 already-sent plan.srp-body-len then 0
+    else
+      let off = wrapping-add-u64 plan.srp-body-off already-sent in
+      let rem = wrapping-sub-u64 plan.srp-body-len already-sent in
+      darwin-sendfile-fd (fd-of plan.srp-fd) sock-fd off rem
+
+  -- | Non-blocking one-step Darwin response delivery: sends serialized DMA
+  -- header bytes `[hdr-addr, hdr-addr + hdr-len)` and (if headers complete and
+  -- `plan.srp-send-body == 1`) streams file body bytes directly via
+  -- `darwin-sendfile-dma` with zero heap allocation.
+  -- Returns total bytes written (`>= 0`) or `-errno`.
+  static-send-response-darwin :: Fd -> I64 -> U32 -> StaticResponsePlan -> I64 ->{IO, MVar} I64
+  static-send-response-darwin sock-fd hdr-addr hdr-len plan len-scratch-addr =
+    let nw = darwin-send-dma sock-fd hdr-addr hdr-len in
+    if lt-i32 nw 0 then i32-to-i64 nw
+    else
+      let nw-u64 = u32-to-u64 (wrapping-i32-to-u32 nw) in
+      if lt-u32 (wrapping-i32-to-u32 nw) hdr-len then wrapping-u64-to-i64 nw-u64
+      else if eq-u8 plan.srp-send-body 0 || eq-u64 plan.srp-body-len 0 then wrapping-u64-to-i64 nw-u64
+      else
+        let sf = darwin-sendfile-dma (fd-of plan.srp-fd) sock-fd plan.srp-body-off plan.srp-body-len len-scratch-addr in
+        if lt-i64 sf 0 then
+          if eq-i64 sf -35 || eq-i64 sf -4 then wrapping-u64-to-i64 nw-u64
+          else sf
+        else wrapping-add-i64 (wrapping-u64-to-i64 nw-u64) sf

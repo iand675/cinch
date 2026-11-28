@@ -1551,6 +1551,10 @@
     {
       "name": "Net.Quic.Spec",
       "path": "Net/Quic/Spec.cinch"
+    },
+    {
+      "name": "Net.Http.Static",
+      "path": "Net/Http/Static.cinch"
     }
   ],
   "order": [
@@ -1940,6 +1944,7 @@
     "Net.Quic.Stream",
     "Net.Quic.Conn",
     "Net.Quic.Endpoint",
-    "Net.Quic.Spec"
+    "Net.Quic.Spec",
+    "Net.Http.Static"
   ]
 }
