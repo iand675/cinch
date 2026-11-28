@@ -46,8 +46,8 @@ module Net.Quic.Bbr where
 
   -- BBRv2 controller lifecycle & steady-state API
   export BbrState, bbr-new, bbr-init-at, bbr-destroy
-  export bbr-on-ack, bbr-on-ecn, bbr-on-persistent-congestion
-  export bbr-mode-u8, bbr-mode, bbr-cwnd, bbr-pacing-rate
+  export bbr-on-ack, bbr-on-ack-raw, bbr-on-ecn, bbr-on-persistent-congestion, bbr-on-persistent-congestion-raw
+  export bbr-mode-u8, bbr-mode, bbr-cwnd, bbr-cwnd-raw, bbr-pacing-rate, bbr-pacing-rate-raw
   export bbr-max-bw, bbr-min-rtt-ns, bbr-bdp
   export bbr-inflight-hi, bbr-inflight-lo, bbr-bw-hi, bbr-bw-lo
   export bbr-pacing-gain, bbr-cwnd-gain, bbr-round-count, bbr-filled-pipe
@@ -414,8 +414,14 @@ module Net.Quic.Bbr where
   bbr-mode :: BbrState ->{MVar} BbrMode
   bbr-mode st = bbr-mode-from-u8 (raw-load-u8 (addr-at st.bbr-base b-off-mode))
 
+  #[inline(always)] #[no-alloc] bbr-cwnd-raw :: U64 ->{MVar} U64
+  bbr-cwnd-raw base = raw-load-u64 (addr-at base b-off-cwnd)
+
   #[inline(always)] #[no-alloc] bbr-cwnd :: BbrState ->{MVar} U64
   bbr-cwnd st = raw-load-u64 (addr-at st.bbr-base b-off-cwnd)
+
+  #[inline(always)] #[no-alloc] bbr-pacing-rate-raw :: U64 ->{MVar} U64
+  bbr-pacing-rate-raw base = raw-load-u64 (addr-at base b-off-pacing)
 
   #[inline(always)] #[no-alloc] bbr-pacing-rate :: BbrState ->{MVar} U64
   bbr-pacing-rate st = raw-load-u64 (addr-at st.bbr-base b-off-pacing)
@@ -645,9 +651,8 @@ module Net.Quic.Bbr where
   -- | Handle RFC 9002 persistent congestion by collapsing cwnd to `4 * MSS`
   -- and restarting bandwidth discovery cleanly.
   #[no-alloc]
-  bbr-on-persistent-congestion :: BbrState -> U64 ->{MVar} Unit
-  bbr-on-persistent-congestion st now-ns =
-    let base = st.bbr-base in
+  bbr-on-persistent-congestion-raw :: U64 -> U64 ->{MVar} Unit
+  bbr-on-persistent-congestion-raw base now-ns =
     let mss = u32-to-u64 (raw-load-u32 (addr-at base b-off-mss)) in
     let min-cwnd = saturating-mul-u64 mss 4 in
     let _ = raw-store-u64 (addr-at base b-off-cwnd) min-cwnd in
@@ -658,16 +663,15 @@ module Net.Quic.Bbr where
     let _ = raw-store-u64 (addr-at base b-off-full-bw) 0 in
     set-mode-gains base bbr-mode-startup now-ns
 
-  -- | Main BBRv2 ACK + Loss feedback entry point (`#[no-alloc]`).
-  --
-  -- Parameters map directly from `Recovery.AckOutcome`:
-  --   `st`, `acked-bytes`, `lost-bytes`, `bytes-in-flight`,
-  --   `delivered-bytes`, `delivered-ns`, `prior-delivered-bytes`,
-  --   `prior-delivered-ns`, `latest-rtt-ns`, `is-app-limited`, `now-ns`.
+  #[inline(always)]
   #[no-alloc]
-  bbr-on-ack :: BbrState -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U8 -> U64 ->{MVar} Unit
-  bbr-on-ack st acked-bytes lost-bytes bytes-in-flight delivered-bytes delivered-ns prior-delivered-bytes prior-delivered-ns latest-rtt-ns is-app-limited now-ns =
-    let base = st.bbr-base in
+  bbr-on-persistent-congestion :: BbrState -> U64 ->{MVar} Unit
+  bbr-on-persistent-congestion st now-ns = bbr-on-persistent-congestion-raw st.bbr-base now-ns
+
+  -- | Main BBRv2 ACK + Loss feedback entry point (`#[no-alloc]`, raw DMA base).
+  #[no-alloc]
+  bbr-on-ack-raw :: U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U8 -> U64 ->{MVar} Unit
+  bbr-on-ack-raw base acked-bytes lost-bytes bytes-in-flight delivered-bytes delivered-ns prior-delivered-bytes prior-delivered-ns latest-rtt-ns is-app-limited now-ns =
     let mss = u32-to-u64 (raw-load-u32 (addr-at base b-off-mss)) in
     let min-cwnd = saturating-mul-u64 mss 4 in
     -- 1. Advance round-trip counter when prior_delivered >= next_round_delivered
@@ -857,6 +861,13 @@ module Net.Quic.Bbr where
           else ()) in
     -- 6. Recompute BDP, pacing rate, and cwnd
     bbr-recompute-outputs base acked-bytes bytes-in-flight
+
+  -- | Main BBRv2 ACK + Loss feedback entry point (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  bbr-on-ack :: BbrState -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U8 -> U64 ->{MVar} Unit
+  bbr-on-ack st acked-bytes lost-bytes bytes-in-flight delivered-bytes delivered-ns prior-delivered-bytes prior-delivered-ns latest-rtt-ns is-app-limited now-ns =
+    bbr-on-ack-raw st.bbr-base acked-bytes lost-bytes bytes-in-flight delivered-bytes delivered-ns prior-delivered-bytes prior-delivered-ns latest-rtt-ns is-app-limited now-ns
 
   -- =========================================================================
   -- 5. CUBIC (RFC 9438 + RFC 9406 HyStart++) Congestion Controller (#[no-alloc])

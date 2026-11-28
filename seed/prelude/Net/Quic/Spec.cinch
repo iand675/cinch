@@ -1,0 +1,737 @@
+-- | Formal Model M8 (`QuicMachine`): compile-time TLA+-style explicit-state
+-- model of the RFC 9000 / RFC 9001 / RFC 9002 QUIC connection state machine,
+-- strict 3x anti-amplification enforcement, NAT connection migration
+-- (`PATH_CHALLENGE` / `PATH_RESPONSE`), out-of-order stream reassembly with
+-- packet loss & retransmission, draining/closed absorption, and abstract
+-- ordered byte-stream refinement (`Net.Quic.Spec`).
+--
+-- Exhaustively verified at compile time (`max_states = 65536`, `capped: false`,
+-- `0 violations` under `CINCH_MODEL_FAIL_ON_CAPPED=1`):
+--   * `quicSafetyAll` (`always`):
+--       - 3x anti-amplification never violated before address validation
+--         (`s.validated || s.sent-units <= s.recv-units * 3`).
+--       - Migrated path never switches without valid `PATH_RESPONSE`
+--         (`s.active-path == 0 || mig-phase-eq s.mig-phase MigValidated`).
+--       - Stream delivered prefix is monotonic & never skips gaps
+--         (`s.prev-delivered <= s.delivered`,
+--          `s.delivered <= contiguous-prefix s.recv-mask`,
+--          `contiguous-prefix s.recv-mask <= s.stream-sent`).
+--       - No 1-RTT application data accepted before handshake keys ready
+--         (`not s.app-data-before-hs`).
+--   * `drainingAndClosedAbsorbing` & `closedAbsorbing` (`stable`):
+--       - Once `QDraining` or `QClosed` is entered, the connection never
+--         returns to active phases; once `QClosed` is entered, it stays
+--         `QClosed` forever.
+--   * `unvalidatedPeerResolves` (`leads_to`):
+--       - Under fairness, every unvalidated peer eventually validates its
+--         address or closes.
+--   * `sentStreamDeliversReliably` (`leads_to`):
+--       - Under fairness, every sent stream chunk eventually delivers in exact
+--         order despite packet loss & out-of-order arrival (unless closed).
+--   * `refines QuicMachine AbstractOrderedByteStream` (with strictly decreasing
+--     `measure = quic-measure`):
+--       - Checked stuttering simulation proving anti-amplification, handshake
+--         sub-steps, connection migration challenges, out-of-order reassembly,
+--         and packet loss/retransmission refine a pure ordered byte stream
+--         without infinite silent stuttering.
+module Net.Quic.Spec where
+
+  import Algebra.Arithmetic
+  import Data.Bool
+  import Data.Nat
+  import Data.Option
+
+  export QuicPhase, QInitial, QHandshake, QEstablished, QDraining, QClosed
+  export MigPhase, MigNone, MigChallenged, MigValidated
+  export QuicModelState, quic-model-init
+  export quic-phase-eq, mig-phase-eq, contiguous-prefix, quic-safety-ok
+  export quic-step-recv-initial, quic-step-send-unvalidated, quic-step-validate-and-handshake
+  export quic-step-complete-handshake, quic-step-early-app-fault
+  export quic-step-stream-send, quic-step-wire-deliver, quic-step-wire-loss
+  export quic-step-retransmit, quic-step-app-deliver
+  export quic-step-mig-challenge, quic-step-mig-response
+  export quic-step-drain, quic-step-close
+  export AbsStreamPhase, AbsConnecting, AbsOpen, AbsClosing, AbsClosed
+  export AbsStreamState, abs-stream-init
+  export abs-stream-open, abs-stream-send, abs-stream-deliver
+  export abs-stream-drain, abs-stream-close
+  export quic-view, quic-measure
+
+  -- =========================================================================
+  -- 1. Pure QUIC Connection, Migration & Stream Vocabulary
+  -- =========================================================================
+
+  data QuicPhase where
+    QInitial :: QuicPhase
+    QHandshake :: QuicPhase
+    QEstablished :: QuicPhase
+    QDraining :: QuicPhase
+    QClosed :: QuicPhase
+
+  data MigPhase where
+    MigNone :: MigPhase
+    MigChallenged :: MigPhase
+    MigValidated :: MigPhase
+
+  quic-phase-rank :: QuicPhase -> Nat
+  quic-phase-rank p = case p of
+    QInitial -> 0
+    QHandshake -> 1
+    QEstablished -> 2
+    QDraining -> 3
+    QClosed -> 4
+
+  quic-phase-eq :: QuicPhase -> QuicPhase -> Bool
+  quic-phase-eq a b = quic-phase-rank a == quic-phase-rank b
+
+  mig-phase-rank :: MigPhase -> Nat
+  mig-phase-rank m = case m of
+    MigNone -> 0
+    MigChallenged -> 1
+    MigValidated -> 2
+
+  mig-phase-eq :: MigPhase -> MigPhase -> Bool
+  mig-phase-eq a b = mig-phase-rank a == mig-phase-rank b
+
+  -- 2-bit bitmask helpers for stream chunks `{0, 1}` (allows out-of-order chunk 1 before chunk 0)
+  bit2-is-set :: Nat -> Nat -> Bool
+  bit2-is-set mask idx =
+    if idx == 0 then nat-rem mask 2 == 1
+    else nat-rem (nat-div mask 2) 2 == 1
+
+  bit2-set :: Nat -> Nat -> Nat
+  bit2-set mask idx =
+    if bit2-is-set mask idx then mask
+    else if idx == 0 then mask + 1
+    else mask + 2
+
+  bit2-clear :: Nat -> Nat -> Nat
+  bit2-clear mask idx =
+    if not (bit2-is-set mask idx) then mask
+    else if idx == 0 then saturating-sub mask 1
+    else saturating-sub mask 2
+
+  bit2-popcount :: Nat -> Nat
+  bit2-popcount mask =
+    (if bit2-is-set mask 0 then 1 else 0) + (if bit2-is-set mask 1 then 1 else 0)
+
+  -- Contiguous received prefix length over chunks `{0, 1}`:
+  --   mask = 0 (none) -> 0
+  --   mask = 1 ({0})  -> 1
+  --   mask = 2 ({1})  -> 0  (gap at chunk 0: MUST NOT deliver chunk 1!)
+  --   mask = 3 ({0,1})-> 2
+  contiguous-prefix :: Nat -> Nat
+  contiguous-prefix mask =
+    if bit2-is-set mask 0 then
+      if bit2-is-set mask 1 then 2 else 1
+    else 0
+
+  fin2-val :: Fin 2 -> Nat
+  fin2-val f = case f of
+    Fin x _ -> x
+
+  -- | Concrete QUIC connection state tracked by M8 `QuicMachine`.
+  record QuicModelState where
+    phase :: QuicPhase
+    validated :: Bool         -- True once Retry token or Handshake proves peer address
+    recv-units :: Nat         -- 0..2 unvalidated peer datagram units (reset to 0 when validated)
+    sent-units :: Nat         -- 0..6 unvalidated server datagram units (<= 3 * recv-units)
+    mig-phase :: MigPhase     -- Connection migration PATH_CHALLENGE / PATH_RESPONSE state
+    active-path :: Nat        -- 0 = initial path, 1 = migrated path (only 1 when MigValidated)
+    stream-sent :: Nat        -- 0..2 chunks queued by sender
+    in-flight-mask :: Nat     -- 0..3 bitmask of chunks currently on wire
+    recv-mask :: Nat          -- 0..3 bitmask of chunks received (supports out-of-order!)
+    delivered :: Nat          -- 0..2 contiguous prefix delivered to app
+    prev-delivered :: Nat     -- 0..2 ghost monotonicity monitor
+    losses-left :: Nat        -- 0..1 bounded wire packet loss budget
+    app-data-before-hs :: Bool
+    draining-entered :: Bool
+    closed-entered :: Bool
+
+  quic-model-init :: QuicModelState
+  quic-model-init = QuicModelState {
+    phase = QInitial,
+    validated = False,
+    recv-units = 0,
+    sent-units = 0,
+    mig-phase = MigNone,
+    active-path = 0,
+    stream-sent = 0,
+    in-flight-mask = 0,
+    recv-mask = 0,
+    delivered = 0,
+    prev-delivered = 0,
+    losses-left = 1,
+    app-data-before-hs = False,
+    draining-entered = False,
+    closed-entered = False
+  }
+
+  -- =========================================================================
+  -- 2. Concrete M8 Transition Actions
+  -- =========================================================================
+
+  -- | Receive an Initial datagram from an unvalidated peer (`recv-units: 0 -> 1 -> 2`).
+  quic-step-recv-initial :: QuicModelState -> Option QuicModelState
+  quic-step-recv-initial s = case s.phase of
+    QInitial ->
+      if not s.validated && s.recv-units < 2 then
+        Some (QuicModelState {
+          phase = QInitial,
+          validated = False,
+          recv-units = s.recv-units + 1,
+          sent-units = s.sent-units,
+          mig-phase = s.mig-phase,
+          active-path = s.active-path,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      else None
+    _ -> None
+
+  -- | Send a server Initial/Retry response unit while unvalidated, strictly
+  -- enforcing RFC 9000 §8.1 3x anti-amplification (`sent-units + 1 <= 3 * recv-units`).
+  quic-step-send-unvalidated :: QuicModelState -> Option QuicModelState
+  quic-step-send-unvalidated s = case s.phase of
+    QInitial ->
+      if not s.validated && s.sent-units + 1 <= s.recv-units * 3 then
+        Some (QuicModelState {
+          phase = QInitial,
+          validated = False,
+          recv-units = s.recv-units,
+          sent-units = s.sent-units + 1,
+          mig-phase = s.mig-phase,
+          active-path = s.active-path,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      else None
+    _ -> None
+
+  -- | Validate peer address (via Stateless Retry token or authenticated Handshake
+  -- packet once at least 1 Initial was received) and install Handshake keys.
+  quic-step-validate-and-handshake :: QuicModelState -> Option QuicModelState
+  quic-step-validate-and-handshake s = case s.phase of
+    QInitial ->
+      if s.recv-units >= 1 then
+        Some (QuicModelState {
+          phase = QHandshake,
+          validated = True,
+          recv-units = 0,
+          sent-units = 0,
+          mig-phase = s.mig-phase,
+          active-path = s.active-path,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      else None
+    _ -> None
+
+  -- | Complete TLS 1.3 Finished exchange, install 1-RTT AppData keys, and emit HANDSHAKE_DONE.
+  quic-step-complete-handshake :: QuicModelState -> Option QuicModelState
+  quic-step-complete-handshake s = case s.phase of
+    QHandshake ->
+      Some (QuicModelState {
+        phase = QEstablished,
+        validated = True,
+        recv-units = 0,
+        sent-units = 0,
+        mig-phase = s.mig-phase,
+        active-path = s.active-path,
+        stream-sent = s.stream-sent,
+        in-flight-mask = s.in-flight-mask,
+        recv-mask = s.recv-mask,
+        delivered = s.delivered,
+        prev-delivered = s.delivered,
+        losses-left = s.losses-left,
+        app-data-before-hs = s.app-data-before-hs,
+        draining-entered = s.draining-entered,
+        closed-entered = s.closed-entered
+      })
+    _ -> None
+
+  -- | Premature 1-RTT AppData before handshake completion is ALWAYS rejected -> QDraining.
+  quic-step-early-app-fault :: QuicModelState -> Option QuicModelState
+  quic-step-early-app-fault s = case s.phase of
+    QInitial ->
+      Some (QuicModelState {
+        phase = QDraining,
+        validated = s.validated,
+        recv-units = s.recv-units,
+        sent-units = s.sent-units,
+        mig-phase = s.mig-phase,
+        active-path = s.active-path,
+        stream-sent = s.stream-sent,
+        in-flight-mask = s.in-flight-mask,
+        recv-mask = s.recv-mask,
+        delivered = s.delivered,
+        prev-delivered = s.delivered,
+        losses-left = s.losses-left,
+        app-data-before-hs = False,
+        draining-entered = True,
+        closed-entered = s.closed-entered
+      })
+    QHandshake ->
+      Some (QuicModelState {
+        phase = QDraining,
+        validated = s.validated,
+        recv-units = s.recv-units,
+        sent-units = s.sent-units,
+        mig-phase = s.mig-phase,
+        active-path = s.active-path,
+        stream-sent = s.stream-sent,
+        in-flight-mask = s.in-flight-mask,
+        recv-mask = s.recv-mask,
+        delivered = s.delivered,
+        prev-delivered = s.delivered,
+        losses-left = s.losses-left,
+        app-data-before-hs = False,
+        draining-entered = True,
+        closed-entered = s.closed-entered
+      })
+    _ -> None
+
+  -- | Queue & transmit the next ordered stream chunk (`0` then `1`) in 1-RTT.
+  quic-step-stream-send :: QuicModelState -> Option QuicModelState
+  quic-step-stream-send s = case s.phase of
+    QEstablished ->
+      if s.stream-sent < 2 then
+        let idx = s.stream-sent in
+        Some (QuicModelState {
+          phase = QEstablished,
+          validated = s.validated,
+          recv-units = s.recv-units,
+          sent-units = s.sent-units,
+          mig-phase = s.mig-phase,
+          active-path = s.active-path,
+          stream-sent = s.stream-sent + 1,
+          in-flight-mask = bit2-set s.in-flight-mask idx,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      else None
+    _ -> None
+
+  -- | Network delivers in-flight stream chunk `cid` (possibly OUT OF ORDER:
+  -- chunk `1` may arrive before chunk `0`!).
+  quic-step-wire-deliver :: Fin 2 -> QuicModelState -> Option QuicModelState
+  quic-step-wire-deliver cid s =
+    let idx = fin2-val cid in
+    case s.phase of
+      QEstablished ->
+        if bit2-is-set s.in-flight-mask idx && not (bit2-is-set s.recv-mask idx) then
+          Some (QuicModelState {
+            phase = QEstablished,
+            validated = s.validated,
+            recv-units = s.recv-units,
+            sent-units = s.sent-units,
+            mig-phase = s.mig-phase,
+            active-path = s.active-path,
+            stream-sent = s.stream-sent,
+            in-flight-mask = bit2-clear s.in-flight-mask idx,
+            recv-mask = bit2-set s.recv-mask idx,
+            delivered = s.delivered,
+            prev-delivered = s.delivered,
+            losses-left = s.losses-left,
+            app-data-before-hs = s.app-data-before-hs,
+            draining-entered = s.draining-entered,
+            closed-entered = s.closed-entered
+          })
+        else None
+      _ -> None
+
+  -- | Network drops in-flight stream chunk `cid` (bounded by `losses-left`).
+  quic-step-wire-loss :: Fin 2 -> QuicModelState -> Option QuicModelState
+  quic-step-wire-loss cid s =
+    let idx = fin2-val cid in
+    case s.phase of
+      QEstablished ->
+        if s.losses-left > 0 && bit2-is-set s.in-flight-mask idx && not (bit2-is-set s.recv-mask idx) then
+          Some (QuicModelState {
+            phase = QEstablished,
+            validated = s.validated,
+            recv-units = s.recv-units,
+            sent-units = s.sent-units,
+            mig-phase = s.mig-phase,
+            active-path = s.active-path,
+            stream-sent = s.stream-sent,
+            in-flight-mask = bit2-clear s.in-flight-mask idx,
+            recv-mask = s.recv-mask,
+            delivered = s.delivered,
+            prev-delivered = s.delivered,
+            losses-left = saturating-sub s.losses-left 1,
+            app-data-before-hs = s.app-data-before-hs,
+            draining-entered = s.draining-entered,
+            closed-entered = s.closed-entered
+          })
+        else None
+      _ -> None
+
+  -- | RFC 9002 loss detection / PTO retransmits a lost unreceived chunk `cid`.
+  quic-step-retransmit :: Fin 2 -> QuicModelState -> Option QuicModelState
+  quic-step-retransmit cid s =
+    let idx = fin2-val cid in
+    case s.phase of
+      QEstablished ->
+        if idx < s.stream-sent && not (bit2-is-set s.recv-mask idx) && not (bit2-is-set s.in-flight-mask idx) then
+          Some (QuicModelState {
+            phase = QEstablished,
+            validated = s.validated,
+            recv-units = s.recv-units,
+            sent-units = s.sent-units,
+            mig-phase = s.mig-phase,
+            active-path = s.active-path,
+            stream-sent = s.stream-sent,
+            in-flight-mask = bit2-set s.in-flight-mask idx,
+            recv-mask = s.recv-mask,
+            delivered = s.delivered,
+            prev-delivered = s.delivered,
+            losses-left = s.losses-left,
+            app-data-before-hs = s.app-data-before-hs,
+            draining-entered = s.draining-entered,
+            closed-entered = s.closed-entered
+          })
+        else None
+      _ -> None
+
+  -- | Deliver the next contiguous in-order reassembled chunk to the application.
+  -- NEVER skips a gap (guarded by `s.delivered < contiguous-prefix s.recv-mask`).
+  quic-step-app-deliver :: QuicModelState -> Option QuicModelState
+  quic-step-app-deliver s = case s.phase of
+    QEstablished ->
+      if s.delivered < contiguous-prefix s.recv-mask then
+        Some (QuicModelState {
+          phase = QEstablished,
+          validated = s.validated,
+          recv-units = s.recv-units,
+          sent-units = s.sent-units,
+          mig-phase = s.mig-phase,
+          active-path = s.active-path,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered + 1,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      else None
+    _ -> None
+
+  -- | RFC 9000 §9 Connection Migration step 1: peer packet arrives from new
+  -- NAT address; emit `PATH_CHALLENGE` WITHOUT switching `active-path` yet!
+  quic-step-mig-challenge :: QuicModelState -> Option QuicModelState
+  quic-step-mig-challenge s = case s.phase of
+    QEstablished -> case s.mig-phase of
+      MigNone ->
+        Some (QuicModelState {
+          phase = QEstablished,
+          validated = s.validated,
+          recv-units = s.recv-units,
+          sent-units = s.sent-units,
+          mig-phase = MigChallenged,
+          active-path = 0,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      _ -> None
+    _ -> None
+
+  -- | RFC 9000 §9 Connection Migration step 2: valid matching `PATH_RESPONSE`
+  -- received from candidate path -> validate and switch `active-path = 1`.
+  quic-step-mig-response :: QuicModelState -> Option QuicModelState
+  quic-step-mig-response s = case s.phase of
+    QEstablished -> case s.mig-phase of
+      MigChallenged ->
+        Some (QuicModelState {
+          phase = QEstablished,
+          validated = s.validated,
+          recv-units = s.recv-units,
+          sent-units = s.sent-units,
+          mig-phase = MigValidated,
+          active-path = 1,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = s.draining-entered,
+          closed-entered = s.closed-entered
+        })
+      _ -> None
+    _ -> None
+
+  -- | Graceful CONNECTION_CLOSE transition into Draining once established stream
+  -- work is complete (or during idle timeout).
+  quic-step-drain :: QuicModelState -> Option QuicModelState
+  quic-step-drain s = case s.phase of
+    QEstablished ->
+      if s.delivered == s.stream-sent then
+        Some (QuicModelState {
+          phase = QDraining,
+          validated = s.validated,
+          recv-units = s.recv-units,
+          sent-units = s.sent-units,
+          mig-phase = s.mig-phase,
+          active-path = s.active-path,
+          stream-sent = s.stream-sent,
+          in-flight-mask = s.in-flight-mask,
+          recv-mask = s.recv-mask,
+          delivered = s.delivered,
+          prev-delivered = s.delivered,
+          losses-left = s.losses-left,
+          app-data-before-hs = s.app-data-before-hs,
+          draining-entered = True,
+          closed-entered = s.closed-entered
+        })
+      else None
+    _ -> None
+
+  -- | Transition from `QDraining` to absorbing `QClosed` after 3*PTO drain timer.
+  quic-step-close :: QuicModelState -> Option QuicModelState
+  quic-step-close s = case s.phase of
+    QDraining ->
+      Some (QuicModelState {
+        phase = QClosed,
+        validated = s.validated,
+        recv-units = s.recv-units,
+        sent-units = s.sent-units,
+        mig-phase = s.mig-phase,
+        active-path = s.active-path,
+        stream-sent = s.stream-sent,
+        in-flight-mask = s.in-flight-mask,
+        recv-mask = s.recv-mask,
+        delivered = s.delivered,
+        prev-delivered = s.delivered,
+        losses-left = s.losses-left,
+        app-data-before-hs = s.app-data-before-hs,
+        draining-entered = s.draining-entered,
+        closed-entered = True
+      })
+    _ -> None
+
+  -- =========================================================================
+  -- 3. Safety Invariants
+  -- =========================================================================
+
+  anti-amplification-ok :: QuicModelState -> Bool
+  anti-amplification-ok s =
+    s.validated || s.sent-units <= s.recv-units * 3
+
+  migration-safety-ok :: QuicModelState -> Bool
+  migration-safety-ok s =
+    (s.active-path == 0 && not (mig-phase-eq s.mig-phase MigValidated))
+      || (s.active-path == 1 && mig-phase-eq s.mig-phase MigValidated)
+
+  stream-order-ok :: QuicModelState -> Bool
+  stream-order-ok s =
+    let contig = contiguous-prefix s.recv-mask in
+    s.prev-delivered <= s.delivered
+      && s.delivered <= contig
+      && contig <= s.stream-sent
+      && s.stream-sent <= 2
+      && (not (bit2-is-set s.recv-mask 0) || s.stream-sent >= 1)
+      && (not (bit2-is-set s.recv-mask 1) || s.stream-sent >= 2)
+
+  handshake-order-ok :: QuicModelState -> Bool
+  handshake-order-ok s =
+    not s.app-data-before-hs
+      && (not (quic-phase-eq s.phase QInitial) || (s.stream-sent == 0 && s.delivered == 0))
+      && (not (quic-phase-eq s.phase QHandshake) || (s.validated && s.stream-sent == 0 && s.delivered == 0))
+      && (not (quic-phase-eq s.phase QEstablished) || s.validated)
+
+  quic-safety-ok :: QuicModelState -> Bool
+  quic-safety-ok s =
+    anti-amplification-ok s
+      && migration-safety-ok s
+      && stream-order-ok s
+      && handshake-order-ok s
+
+  -- =========================================================================
+  -- 4. Abstract Specification (`AbstractOrderedByteStream`) & Refinement
+  -- =========================================================================
+
+  data AbsStreamPhase where
+    AbsConnecting :: AbsStreamPhase
+    AbsOpen :: AbsStreamPhase
+    AbsClosing :: AbsStreamPhase
+    AbsClosed :: AbsStreamPhase
+
+  record AbsStreamState where
+    abs-phase :: AbsStreamPhase
+    abs-sent :: Nat
+    abs-delivered :: Nat
+
+  abs-stream-init :: AbsStreamState
+  abs-stream-init = AbsStreamState {
+    abs-phase = AbsConnecting,
+    abs-sent = 0,
+    abs-delivered = 0
+  }
+
+  abs-stream-open :: AbsStreamState -> Option AbsStreamState
+  abs-stream-open s = case s.abs-phase of
+    AbsConnecting ->
+      Some (AbsStreamState { abs-phase = AbsOpen, abs-sent = s.abs-sent, abs-delivered = s.abs-delivered })
+    _ -> None
+
+  abs-stream-send :: AbsStreamState -> Option AbsStreamState
+  abs-stream-send s = case s.abs-phase of
+    AbsOpen ->
+      if s.abs-sent < 2 then
+        Some (AbsStreamState { abs-phase = AbsOpen, abs-sent = s.abs-sent + 1, abs-delivered = s.abs-delivered })
+      else None
+    _ -> None
+
+  abs-stream-deliver :: AbsStreamState -> Option AbsStreamState
+  abs-stream-deliver s = case s.abs-phase of
+    AbsOpen ->
+      if s.abs-delivered < s.abs-sent then
+        Some (AbsStreamState { abs-phase = AbsOpen, abs-sent = s.abs-sent, abs-delivered = s.abs-delivered + 1 })
+      else None
+    _ -> None
+
+  abs-stream-drain :: AbsStreamState -> Option AbsStreamState
+  abs-stream-drain s = case s.abs-phase of
+    AbsConnecting ->
+      Some (AbsStreamState { abs-phase = AbsClosing, abs-sent = s.abs-sent, abs-delivered = s.abs-delivered })
+    AbsOpen ->
+      if s.abs-delivered == s.abs-sent then
+        Some (AbsStreamState { abs-phase = AbsClosing, abs-sent = s.abs-sent, abs-delivered = s.abs-delivered })
+      else None
+    _ -> None
+
+  abs-stream-close :: AbsStreamState -> Option AbsStreamState
+  abs-stream-close s = case s.abs-phase of
+    AbsClosing ->
+      Some (AbsStreamState { abs-phase = AbsClosed, abs-sent = s.abs-sent, abs-delivered = s.abs-delivered })
+    _ -> None
+
+  machine AbstractOrderedByteStream where
+    state = AbsStreamState
+    init = abs-stream-init
+    actions = [abs-stream-open, abs-stream-send, abs-stream-deliver, abs-stream-drain, abs-stream-close]
+    max_states = 256
+
+  -- | Abstraction map projecting `QuicModelState` onto `AbstractOrderedByteStream`.
+  quic-view :: QuicModelState -> AbsStreamState
+  quic-view s = case s.phase of
+    QInitial -> AbsStreamState { abs-phase = AbsConnecting, abs-sent = s.stream-sent, abs-delivered = s.delivered }
+    QHandshake -> AbsStreamState { abs-phase = AbsConnecting, abs-sent = s.stream-sent, abs-delivered = s.delivered }
+    QEstablished -> AbsStreamState { abs-phase = AbsOpen, abs-sent = s.stream-sent, abs-delivered = s.delivered }
+    QDraining -> AbsStreamState { abs-phase = AbsClosing, abs-sent = s.stream-sent, abs-delivered = s.delivered }
+    QClosed -> AbsStreamState { abs-phase = AbsClosed, abs-sent = s.stream-sent, abs-delivered = s.delivered }
+
+  -- Count chunks `< stream-sent` that are neither received nor currently in flight.
+  untransmitted-chunks :: QuicModelState -> Nat
+  untransmitted-chunks s =
+    let c0 = if s.stream-sent >= 1 && not (bit2-is-set s.recv-mask 0) && not (bit2-is-set s.in-flight-mask 0) then 1 else 0 in
+    let c1 = if s.stream-sent >= 2 && not (bit2-is-set s.recv-mask 1) && not (bit2-is-set s.in-flight-mask 1) then 1 else 0 in
+    c0 + c1
+
+  -- | Strictly decreasing stuttering measure proving no infinite silent loops
+  -- during anti-amplification, handshake, migration, loss, or retransmission.
+  quic-measure :: QuicModelState -> Nat
+  quic-measure s = case s.phase of
+    QInitial ->
+      let rem-recv = saturating-sub 2 s.recv-units in
+      let rem-send = saturating-sub (s.recv-units * 3) s.sent-units in
+      rem-recv * 7 + rem-send + 2
+    QHandshake -> 1
+    QEstablished ->
+      let unrecvd = saturating-sub 2 (bit2-popcount s.recv-mask) in
+      let mig-rem = saturating-sub 2 (mig-phase-rank s.mig-phase) in
+      unrecvd * 16 + s.losses-left * 4 + untransmitted-chunks s + mig-rem
+    _ -> 0
+
+  -- =========================================================================
+  -- 5. Formal Machine M8 (`QuicMachine`), Temporal Contracts & Refinement
+  -- =========================================================================
+
+  machine QuicMachine where
+    state = QuicModelState
+    init = quic-model-init
+    actions = [
+      quic-step-recv-initial,
+      quic-step-send-unvalidated,
+      quic-step-validate-and-handshake,
+      quic-step-complete-handshake,
+      quic-step-early-app-fault,
+      quic-step-stream-send,
+      quic-step-wire-deliver,
+      quic-step-wire-loss,
+      quic-step-retransmit,
+      quic-step-app-deliver,
+      quic-step-mig-challenge,
+      quic-step-mig-response,
+      quic-step-drain,
+      quic-step-close
+    ]
+    fair = [
+      quic-step-recv-initial,
+      quic-step-validate-and-handshake,
+      quic-step-complete-handshake,
+      quic-step-wire-deliver,
+      quic-step-retransmit,
+      quic-step-app-deliver,
+      quic-step-close
+    ]
+    max_states = 65536
+
+  contract safety quicSafetyAll for QuicMachine where
+    always = (\s -> quic-safety-ok s)
+
+  contract stability drainingAndClosedAbsorbing for QuicMachine where
+    stable = (\s -> not s.draining-entered || quic-phase-eq s.phase QDraining || quic-phase-eq s.phase QClosed)
+
+  contract stability closedAbsorbing for QuicMachine where
+    stable = (\s -> not s.closed-entered || quic-phase-eq s.phase QClosed)
+
+  contract liveness unvalidatedPeerResolves for QuicMachine where
+    leads_to = (\s -> not s.validated && not (quic-phase-eq s.phase QDraining) && not (quic-phase-eq s.phase QClosed)) ~> (\s -> s.validated || quic-phase-eq s.phase QDraining || quic-phase-eq s.phase QClosed)
+    fair = [quic-step-recv-initial, quic-step-validate-and-handshake, quic-step-close]
+
+  contract liveness sentStreamDeliversReliably for QuicMachine where
+    leads_to = (\s -> quic-phase-eq s.phase QEstablished && s.delivered < s.stream-sent) ~> (\s -> s.delivered == s.stream-sent || quic-phase-eq s.phase QDraining || quic-phase-eq s.phase QClosed)
+    fair = [quic-step-wire-deliver, quic-step-retransmit, quic-step-app-deliver]
+
+  refines QuicMachine AbstractOrderedByteStream where
+    view = quic-view
+    measure = quic-measure

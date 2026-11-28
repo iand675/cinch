@@ -1,0 +1,2172 @@
+-- | Zero-allocation (`#[no-alloc]` steady-state) RFC 9000 / RFC 9001 / RFC 9002 /
+-- RFC 9221 QUIC v1 connection state machine (`Net.Quic.Conn`).
+--
+-- Wires together:
+--   * `Net.Tls.QuicBridge` + `Net.Quic.Packet` + `Net.Quic.Frame`:
+--       - Initial / Handshake / 1-RTT key progression with real HKDF-SHA256
+--         secret derivation and AEAD + Header Protection on every packet
+--       - 1-RTT `KeyUpdate` (RFC 9001 §6 key-phase bit toggle with pre-staged
+--         next TX/RX keys for zero-allocation key rotation)
+--       - 0-RTT early data guarded by `AntiReplayFilter`
+--       - Stateless Retry token handling (RFC 9001 §5.8 Retry Integrity Tag
+--         verification + Initial re-keying)
+--       - Strict RFC 9000 §8.1 3x anti-amplification limit
+--         (`bytes_sent <= 3 * bytes_received` before address validation)
+--   * `Net.Quic.AckMap` + `Net.Quic.Recovery` + `Net.Quic.Bbr` + `Net.Quic.Pacer`:
+--       - Per-PN-space 256-bit ACK tracking & RFC 9000 ACK frame generation
+--       - RFC 9002 RTT estimation, packet/time-threshold loss detection, PTO
+--         tail-loss probing, BBRv2 cwnd & `SO_TXTIME` pacing
+--   * `Net.Quic.Stream` + RFC 9221 unreliable `DATAGRAM` TX/RX rings
+--   * RFC 9000 §9 Connection Migration:
+--       - Peer address change detection on authenticated 1-RTT packets
+--       - 8-byte `PATH_CHALLENGE` emission & `PATH_RESPONSE` verification
+--       - Per-path 3x anti-amplification enforcement prior to path validation
+--       - Active peer path switch strictly upon matching `PATH_RESPONSE`
+module Net.Quic.Conn where
+
+  import Crypto.Tls
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Engine.Types
+  import Net.Tls.Fast
+  import Net.Tls.QuicBridge
+  import Net.Quic.Types
+  import Net.Quic.Varint
+  import Net.Quic.Frame
+  import Net.Quic.Packet
+  import Net.Quic.AckMap
+  import Net.Quic.Recovery (RecoveryState, AckOutcome, RttEstimator, pkt-status-in-flight, pkt-status-acked, pkt-status-lost, quic-initial-rtt-ns, rtt-estimator-loss-delay-ns, rtt-estimator-pto-base-ns, recovery-new-raw, recovery-destroy-raw, recovery-set-handshake-confirmed-raw, recovery-on-packet-sent-raw, recovery-on-ack-ranges-received-raw, recovery-pto-duration-ns-raw, recovery-loss-time-ns-raw, recovery-next-timeout-ns-raw, recovery-on-loss-timeout-raw, recovery-rtt-raw, recovery-bytes-in-flight-raw, recovery-largest-acked-pn-raw)
+  import Net.Quic.Bbr
+  import Net.Quic.Pacer
+  import Net.Quic.Stream
+  import Prim.Atomic
+
+  -- Connection state codes
+  export conn-state-initial, conn-state-handshake, conn-state-established
+  export conn-state-draining, conn-state-closed
+
+  -- Ingress / timeout return codes
+  export quic-rx-ok, quic-rx-dropped, quic-rx-duplicate, quic-rx-proto-err, quic-rx-retry
+  export quic-timeout-none, quic-timeout-loss, quic-timeout-pto, quic-timeout-idle, quic-timeout-drained
+
+  -- Core POD handle & TX descriptor
+  export QuicConn, quic-conn-empty, quic-conn-is-valid
+  export QuicTxPacket, quic-tx-packet-empty, quic-tx-packet-ok
+
+  -- Lifecycle & cold-path handshake/key operations
+  export quic-conn-new-client, quic-conn-new-server, quic-conn-destroy
+  export quic-conn-set-anti-replay, quic-conn-set-zero-rtt-key
+  export quic-conn-set-addr-validated, quic-conn-set-retry-token
+  export quic-conn-step-crypto, quic-conn-needs-crypto-step
+  export quic-conn-key-update-refresh
+
+  -- Hot-path #[no-alloc] datagram I/O, timers, KeyUpdate, streams, DATAGRAM, migration
+  export quic-conn-on-datagram, quic-conn-poll-tx, quic-conn-poll-tx-capped, quic-conn-on-timeout
+  export quic-conn-next-timeout-ns
+  export quic-conn-initiate-key-update
+  export quic-conn-close
+  export quic-conn-open-stream, quic-conn-stream-find, quic-conn-stream-write, quic-conn-stream-read
+  export quic-conn-stream-reset, quic-conn-stream-readable-bytes, quic-conn-stream-fin-reached
+  export quic-conn-send-datagram, quic-conn-recv-datagram, quic-conn-datagram-rx-count
+
+  -- Inspection & telemetry (#[no-alloc])
+  export quic-conn-state, quic-conn-is-server, quic-conn-is-established, quic-conn-is-closed
+  export quic-conn-handshake-confirmed, quic-conn-addr-validated
+  export quic-conn-active-peer-addr, quic-conn-migrating-peer-addr, quic-conn-is-path-validating
+  export quic-conn-migration-count, quic-conn-local-scid, quic-conn-remote-dcid
+  export quic-conn-tx-key-phase, quic-conn-rx-key-phase, quic-conn-key-update-count
+  export quic-conn-zero-rtt-accepted, quic-conn-zero-rtt-rejected
+  export quic-conn-bytes-recv-unvalidated, quic-conn-bytes-sent-unvalidated, quic-conn-amp-blocks
+  export quic-conn-pkts-tx, quic-conn-pkts-rx, quic-conn-retransmits
+  export quic-conn-streams, quic-conn-recovery, quic-conn-bbr, quic-conn-mtu
+
+  -- =========================================================================
+  -- 0. Constants & #[no-alloc] helpers
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)] #[no-alloc] b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)] #[no-alloc] both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)] #[no-alloc] either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)] #[no-alloc] addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)] #[no-alloc] min-u64 :: U64 -> U64 -> U64
+  min-u64 a b = if lt-u64 a b then a else b
+
+  #[inline(always)] #[no-alloc] min-u32 :: U32 -> U32 -> U32
+  min-u32 a b = if lt-u32 a b then a else b
+
+  #[inline(always)] #[no-alloc] conn-state-initial :: U8
+  conn-state-initial = 0
+  #[inline(always)] #[no-alloc] conn-state-handshake :: U8
+  conn-state-handshake = 1
+  #[inline(always)] #[no-alloc] conn-state-established :: U8
+  conn-state-established = 2
+  #[inline(always)] #[no-alloc] conn-state-draining :: U8
+  conn-state-draining = 3
+  #[inline(always)] #[no-alloc] conn-state-closed :: U8
+  conn-state-closed = 4
+
+  #[inline(always)] #[no-alloc] quic-rx-ok :: U8
+  quic-rx-ok = 0
+  #[inline(always)] #[no-alloc] quic-rx-dropped :: U8
+  quic-rx-dropped = 1
+  #[inline(always)] #[no-alloc] quic-rx-duplicate :: U8
+  quic-rx-duplicate = 2
+  #[inline(always)] #[no-alloc] quic-rx-proto-err :: U8
+  quic-rx-proto-err = 3
+  #[inline(always)] #[no-alloc] quic-rx-retry :: U8
+  quic-rx-retry = 4
+
+  #[inline(always)] #[no-alloc] quic-timeout-none :: U8
+  quic-timeout-none = 0
+  #[inline(always)] #[no-alloc] quic-timeout-loss :: U8
+  quic-timeout-loss = 1
+  #[inline(always)] #[no-alloc] quic-timeout-pto :: U8
+  quic-timeout-pto = 2
+  #[inline(always)] #[no-alloc] quic-timeout-idle :: U8
+  quic-timeout-idle = 3
+  #[inline(always)] #[no-alloc] quic-timeout-drained :: U8
+  quic-timeout-drained = 4
+
+  #[inline(always)] #[no-alloc] mix64 :: U64 -> U64
+  mix64 x =
+    let z0 = wrapping-add-u64 x 0x9e3779b97f4a7c15 in
+    let z1 = wrapping-mul-u64 (bit-xor-u64 z0 (wrapping-shr-u64 z0 30)) 0xbf58476d1ce4e5b9 in
+    let z2 = wrapping-mul-u64 (bit-xor-u64 z1 (wrapping-shr-u64 z1 27)) 0x94d049bb133111eb in
+    bit-xor-u64 z2 (wrapping-shr-u64 z2 31)
+
+  #[no-alloc]
+  copy-raw :: I64 -> I64 -> U32 ->{MVar} Unit
+  copy-raw dst src rem =
+    if eq-u32 rem 0 then ()
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      copy-raw (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else
+      let b = raw-load-u8 src in
+      let _ = raw-store-u8 dst b in
+      copy-raw (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+
+  -- =========================================================================
+  -- 1. Core POD Handle (`QuicConn`) & Slab Layout (64 KiB DMA slab)
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record QuicConn where
+    qc-base :: U64
+
+  #[inline(always)] #[no-alloc] quic-conn-empty :: Unit -> QuicConn
+  quic-conn-empty _ = QuicConn 0
+
+  #[inline(always)] #[no-alloc] quic-conn-is-valid :: QuicConn -> Bool
+  quic-conn-is-valid c = ne-u64 c.qc-base 0
+
+  #[repr(C, value)]
+  record QuicTxPacket where
+    tx-peer-addr :: U64
+    tx-release-ns :: U64
+    tx-len :: U32
+    tx-pkt-type :: U8
+    tx-blocked-amp :: U8
+    tx-blocked-pace :: U8
+    tx-ok :: U8
+
+  #[inline(always)] #[no-alloc] quic-tx-packet-empty :: Unit -> QuicTxPacket
+  quic-tx-packet-empty _ = QuicTxPacket 0 0 0 pkt-type-code-invalid 0 0 0
+
+  #[inline(always)] #[no-alloc] quic-tx-packet-ok :: QuicTxPacket -> Bool
+  quic-tx-packet-ok p = ne-u8 p.tx-ok 0
+
+  #[inline(always)] #[no-alloc] qc-slab-size :: U64
+  qc-slab-size = 65536
+
+  -- Header offsets (0..1279)
+  #[inline(always)] #[no-alloc] c-off-slab :: U64
+  c-off-slab = 0
+  #[inline(always)] #[no-alloc] c-off-is-srv :: U64
+  c-off-is-srv = 8
+  #[inline(always)] #[no-alloc] c-off-state :: U64
+  c-off-state = 9
+  #[inline(always)] #[no-alloc] c-off-addr-val :: U64
+  c-off-addr-val = 10
+  #[inline(always)] #[no-alloc] c-off-hs-conf :: U64
+  c-off-hs-conf = 11
+  #[inline(always)] #[no-alloc] c-off-hs-done-pend :: U64
+  c-off-hs-done-pend = 12
+  #[inline(always)] #[no-alloc] c-off-hs-done-ack :: U64
+  c-off-hs-done-ack = 13
+  #[inline(always)] #[no-alloc] c-off-tx-kp :: U64
+  c-off-tx-kp = 14
+  #[inline(always)] #[no-alloc] c-off-rx-kp :: U64
+  c-off-rx-kp = 15
+  #[inline(always)] #[no-alloc] c-off-needs-kstep :: U64
+  c-off-needs-kstep = 16
+  #[inline(always)] #[no-alloc] c-off-has-zrtt :: U64
+  c-off-has-zrtt = 17
+  #[inline(always)] #[no-alloc] c-off-zrtt-acc :: U64
+  c-off-zrtt-acc = 18
+  #[inline(always)] #[no-alloc] c-off-zrtt-rej :: U64
+  c-off-zrtt-rej = 19
+  #[inline(always)] #[no-alloc] c-off-ku-cnt :: U64
+  c-off-ku-cnt = 20
+  #[inline(always)] #[no-alloc] c-off-peer-addr :: U64
+  c-off-peer-addr = 24
+  #[inline(always)] #[no-alloc] c-off-mig-addr :: U64
+  c-off-mig-addr = 32
+  #[inline(always)] #[no-alloc] c-off-path-val :: U64
+  c-off-path-val = 40
+  #[inline(always)] #[no-alloc] c-off-pc-pend :: U64
+  c-off-pc-pend = 41
+  #[inline(always)] #[no-alloc] c-off-pr-pend :: U64
+  c-off-pr-pend = 42
+  #[inline(always)] #[no-alloc] c-off-close-pend :: U64
+  c-off-close-pend = 43
+  #[inline(always)] #[no-alloc] c-off-pto-probes :: U64
+  c-off-pto-probes = 44
+  #[inline(always)] #[no-alloc] c-off-pc-nonce :: U64
+  c-off-pc-nonce = 48
+  #[inline(always)] #[no-alloc] c-off-pr-nonce :: U64
+  c-off-pr-nonce = 56
+  #[inline(always)] #[no-alloc] c-off-pr-addr :: U64
+  c-off-pr-addr = 64
+  #[inline(always)] #[no-alloc] c-off-mig-cnt :: U64
+  c-off-mig-cnt = 72
+  #[inline(always)] #[no-alloc] c-off-bytes-rx-unv :: U64
+  c-off-bytes-rx-unv = 80
+  #[inline(always)] #[no-alloc] c-off-bytes-tx-unv :: U64
+  c-off-bytes-tx-unv = 88
+  #[inline(always)] #[no-alloc] c-off-mig-rx :: U64
+  c-off-mig-rx = 96
+  #[inline(always)] #[no-alloc] c-off-mig-tx :: U64
+  c-off-mig-tx = 104
+  #[inline(always)] #[no-alloc] c-off-last-act :: U64
+  c-off-last-act = 112
+  #[inline(always)] #[no-alloc] c-off-idle-to :: U64
+  c-off-idle-to = 120
+  #[inline(always)] #[no-alloc] c-off-drain-dl :: U64
+  c-off-drain-dl = 128
+  #[inline(always)] #[no-alloc] c-off-close-err :: U64
+  c-off-close-err = 136
+  #[inline(always)] #[no-alloc] c-off-mtu :: U64
+  c-off-mtu = 144
+  #[inline(always)] #[no-alloc] c-off-rng :: U64
+  c-off-rng = 152
+  #[inline(always)] #[no-alloc] c-off-zrtt-nonce :: U64
+  c-off-zrtt-nonce = 160
+  #[inline(always)] #[no-alloc] c-off-streams :: U64
+  c-off-streams = 168
+  #[inline(always)] #[no-alloc] c-off-rec :: U64
+  c-off-rec = 176
+  #[inline(always)] #[no-alloc] c-off-bbr :: U64
+  c-off-bbr = 184
+  #[inline(always)] #[no-alloc] c-off-next-pn :: U64
+  c-off-next-pn = 192
+  #[inline(always)] #[no-alloc] c-off-largest-rx :: U64
+  c-off-largest-rx = 216
+  #[inline(always)] #[no-alloc] c-off-ackmaps :: U64
+  c-off-ackmaps = 240
+  #[inline(always)] #[no-alloc] c-off-pacer :: U64
+  c-off-pacer = 416
+  #[inline(always)] #[no-alloc] c-off-scid :: U64
+  c-off-scid = 464
+  #[inline(always)] #[no-alloc] c-off-dcid :: U64
+  c-off-dcid = 496
+  #[inline(always)] #[no-alloc] c-off-odcid :: U64
+  c-off-odcid = 528
+  #[inline(always)] #[no-alloc] c-off-ar :: U64
+  c-off-ar = 560
+  #[inline(always)] #[no-alloc] c-off-keys :: U64
+  c-off-keys = 592
+  #[inline(always)] #[no-alloc] c-off-retry-key :: U64
+  c-off-retry-key = 808
+  #[inline(always)] #[no-alloc] c-off-rtok-len :: U64
+  c-off-rtok-len = 824
+  #[inline(always)] #[no-alloc] c-off-rtok-buf :: U64
+  c-off-rtok-buf = 832
+  #[inline(always)] #[no-alloc] c-off-key-flags :: U64
+  c-off-key-flags = 960
+  #[inline(always)] #[no-alloc] c-off-cinit-tx-len :: U64
+  c-off-cinit-tx-len = 968
+  #[inline(always)] #[no-alloc] c-off-cinit-tx-sent :: U64
+  c-off-cinit-tx-sent = 972
+  #[inline(always)] #[no-alloc] c-off-cinit-tx-ack :: U64
+  c-off-cinit-tx-ack = 976
+  #[inline(always)] #[no-alloc] c-off-cinit-rx-len :: U64
+  c-off-cinit-rx-len = 980
+  #[inline(always)] #[no-alloc] c-off-chs-tx-len :: U64
+  c-off-chs-tx-len = 984
+  #[inline(always)] #[no-alloc] c-off-chs-tx-sent :: U64
+  c-off-chs-tx-sent = 988
+  #[inline(always)] #[no-alloc] c-off-chs-tx-ack :: U64
+  c-off-chs-tx-ack = 992
+  #[inline(always)] #[no-alloc] c-off-chs-rx-len :: U64
+  c-off-chs-rx-len = 996
+  #[inline(always)] #[no-alloc] c-off-meta-head :: U64
+  c-off-meta-head = 1000
+  #[inline(always)] #[no-alloc] c-off-meta-tail :: U64
+  c-off-meta-tail = 1008
+  #[inline(always)] #[no-alloc] c-off-dg-tx-h :: U64
+  c-off-dg-tx-h = 1016
+  #[inline(always)] #[no-alloc] c-off-dg-tx-t :: U64
+  c-off-dg-tx-t = 1020
+  #[inline(always)] #[no-alloc] c-off-dg-rx-h :: U64
+  c-off-dg-rx-h = 1024
+  #[inline(always)] #[no-alloc] c-off-dg-rx-t :: U64
+  c-off-dg-rx-t = 1028
+  #[inline(always)] #[no-alloc] c-off-amp-blocks :: U64
+  c-off-amp-blocks = 1032
+  #[inline(always)] #[no-alloc] c-off-pkts-tx :: U64
+  c-off-pkts-tx = 1040
+  #[inline(always)] #[no-alloc] c-off-pkts-rx :: U64
+  c-off-pkts-rx = 1048
+  #[inline(always)] #[no-alloc] c-off-retrans :: U64
+  c-off-retrans = 1056
+  #[inline(always)] #[no-alloc] c-off-cli-nonce :: U64
+  c-off-cli-nonce = 1064
+  #[inline(always)] #[no-alloc] c-off-srv-nonce :: U64
+  c-off-srv-nonce = 1096
+  #[inline(always)] #[no-alloc] c-off-tx-secret :: U64
+  c-off-tx-secret = 1128
+  #[inline(always)] #[no-alloc] c-off-rx-secret :: U64
+  c-off-rx-secret = 1160
+  #[inline(always)] #[no-alloc] c-off-hs-derived :: U64
+  c-off-hs-derived = 1192
+  #[inline(always)] #[no-alloc] c-off-app-derived :: U64
+  c-off-app-derived = 1193
+  #[inline(always)] #[no-alloc] c-off-ping-pend :: U64
+  c-off-ping-pend = 1194
+  #[inline(always)] #[no-alloc] c-off-zrtt-checked :: U64
+  c-off-zrtt-checked = 1195
+  #[inline(always)] #[no-alloc] c-off-ku-need-ref :: U64
+  c-off-ku-need-ref = 1196
+
+  -- Crypto buffers (512B each)
+  #[inline(always)] #[no-alloc] c-off-cinit-tx-buf :: U64
+  c-off-cinit-tx-buf = 1280
+  #[inline(always)] #[no-alloc] c-off-cinit-rx-buf :: U64
+  c-off-cinit-rx-buf = 1792
+  #[inline(always)] #[no-alloc] c-off-chs-tx-buf :: U64
+  c-off-chs-tx-buf = 2304
+  #[inline(always)] #[no-alloc] c-off-chs-rx-buf :: U64
+  c-off-chs-rx-buf = 2816
+
+  -- Scratchpads
+  #[inline(always)] #[no-alloc] c-off-ack-scratch :: U64
+  c-off-ack-scratch = 3328
+  #[inline(always)] #[no-alloc] c-off-retry-scratch :: U64
+  c-off-retry-scratch = 3584
+
+  -- SentFrameMeta ring: 256 entries * 64B at 4096..20479
+  #[inline(always)] #[no-alloc] c-off-meta-ring :: U64
+  c-off-meta-ring = 4096
+  #[inline(always)] #[no-alloc] meta-cap :: U64
+  meta-cap = 256
+  #[inline(always)] #[no-alloc] meta-mask :: U64
+  meta-mask = 255
+
+  -- Meta flags
+  #[inline(always)] #[no-alloc] mf-stream :: U32
+  mf-stream = 1
+  #[inline(always)] #[no-alloc] mf-stream-fin :: U32
+  mf-stream-fin = 2
+  #[inline(always)] #[no-alloc] mf-crypto :: U32
+  mf-crypto = 4
+  #[inline(always)] #[no-alloc] mf-hs-done :: U32
+  mf-hs-done = 8
+  #[inline(always)] #[no-alloc] mf-max-data :: U32
+  mf-max-data = 16
+  #[inline(always)] #[no-alloc] mf-max-stream-data :: U32
+  mf-max-stream-data = 32
+  #[inline(always)] #[no-alloc] mf-path-challenge :: U32
+  mf-path-challenge = 64
+  #[inline(always)] #[no-alloc] mf-reset-stream :: U32
+  mf-reset-stream = 128
+
+  -- RFC 9221 DATAGRAM rings: 8 slots * 1312B each
+  #[inline(always)] #[no-alloc] c-off-dg-tx :: U64
+  c-off-dg-tx = 20480
+  #[inline(always)] #[no-alloc] c-off-dg-rx :: U64
+  c-off-dg-rx = 30976
+  #[inline(always)] #[no-alloc] c-off-tx-hp :: U64
+  c-off-tx-hp = 50176
+  #[inline(always)] #[no-alloc] c-off-rx-hp :: U64
+  c-off-rx-hp = 50192
+  #[inline(always)] #[no-alloc] dg-slot-stride :: U64
+  dg-slot-stride = 1312
+  #[inline(always)] #[no-alloc] dg-max-payload :: U32
+  dg-max-payload = 1200
+
+  -- Crypto key slot indices (24B each at c-off-keys + slot*24)
+  #[inline(always)] #[no-alloc] kslot-tx-init :: U32
+  kslot-tx-init = 0
+  #[inline(always)] #[no-alloc] kslot-rx-init :: U32
+  kslot-rx-init = 1
+  #[inline(always)] #[no-alloc] kslot-tx-hs :: U32
+  kslot-tx-hs = 2
+  #[inline(always)] #[no-alloc] kslot-rx-hs :: U32
+  kslot-rx-hs = 3
+  #[inline(always)] #[no-alloc] kslot-tx-app :: U32
+  kslot-tx-app = 4
+  #[inline(always)] #[no-alloc] kslot-rx-app :: U32
+  kslot-rx-app = 5
+  #[inline(always)] #[no-alloc] kslot-rx-next :: U32
+  kslot-rx-next = 6
+  #[inline(always)] #[no-alloc] kslot-tx-next :: U32
+  kslot-tx-next = 7
+  #[inline(always)] #[no-alloc] kslot-zero-rtt :: U32
+  kslot-zero-rtt = 8
+
+  -- =========================================================================
+  -- 2. In-Slab POD Serialization Helpers (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] store-cid :: U64 -> U64 -> ConnId ->{MVar} Unit
+  store-cid base off cid =
+    let _0 = raw-store-u64 (addr-at base off) cid.cid-w0 in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 off 8)) cid.cid-w1 in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 off 16)) cid.cid-w2 in
+    let _3 = raw-store-u8 (addr-at base (wrapping-add-u64 off 24)) cid.cid-len in
+    ()
+
+  #[inline(always)] #[no-alloc] load-cid :: U64 -> U64 ->{MVar} ConnId
+  load-cid base off =
+    ConnId
+      (raw-load-u64 (addr-at base off))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 8)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 16)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 off 24)))
+      0 0 0
+
+  #[inline(always)] #[no-alloc] store-ackmap :: U64 -> U8 -> AckMap ->{MVar} Unit
+  store-ackmap base sp m =
+    let off = wrapping-add-u64 c-off-ackmaps (wrapping-mul-u64 (u8-to-u64 sp) 56) in
+    let _0 = raw-store-u64 (addr-at base off) m.ack-largest in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 off 8)) m.ack-largest-recv-ns in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 off 16)) m.ack-w0 in
+    let _3 = raw-store-u64 (addr-at base (wrapping-add-u64 off 24)) m.ack-w1 in
+    let _4 = raw-store-u64 (addr-at base (wrapping-add-u64 off 32)) m.ack-w2 in
+    let _5 = raw-store-u64 (addr-at base (wrapping-add-u64 off 40)) m.ack-w3 in
+    let _6 = raw-store-u32 (addr-at base (wrapping-add-u64 off 48)) m.ack-eliciting-pending in
+    raw-store-u8 (addr-at base (wrapping-add-u64 off 52)) m.ack-has-any
+
+  #[inline(always)] #[no-alloc] load-ackmap :: U64 -> U8 ->{MVar} AckMap
+  load-ackmap base sp =
+    let off = wrapping-add-u64 c-off-ackmaps (wrapping-mul-u64 (u8-to-u64 sp) 56) in
+    AckMap
+      (raw-load-u64 (addr-at base off))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 8)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 16)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 24)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 32)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 40)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 off 48)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 off 52)))
+      0 0
+
+  #[inline(always)] #[no-alloc] store-pacer :: U64 -> PacerState ->{MVar} Unit
+  store-pacer base p =
+    let _0 = raw-store-u64 (addr-at base c-off-pacer) p.pacer-next-release in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-pacer 8)) p.pacer-tokens in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-pacer 16)) p.pacer-frac-num in
+    let _3 = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-pacer 24)) p.pacer-last-update-ns in
+    let _4 = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-pacer 32)) p.pacer-max-ahead in
+    let _5 = raw-store-u32 (addr-at base (wrapping-add-u64 c-off-pacer 40)) p.pacer-mtu-val in
+    raw-store-u32 (addr-at base (wrapping-add-u64 c-off-pacer 44)) p.pacer-max-burst
+
+  #[inline(always)] #[no-alloc] load-pacer :: U64 ->{MVar} PacerState
+  load-pacer base =
+    PacerState
+      (raw-load-u64 (addr-at base c-off-pacer))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 c-off-pacer 8)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 c-off-pacer 16)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 c-off-pacer 24)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 c-off-pacer 32)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 c-off-pacer 40)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 c-off-pacer 44)))
+
+  #[inline(always)] #[no-alloc] key-slot-off :: U32 -> U64
+  key-slot-off kslot = wrapping-add-u64 c-off-keys (wrapping-mul-u64 (u32-to-u64 kslot) 24)
+
+  #[inline(always)] #[no-alloc] store-qkey :: U64 -> U32 -> QuicCryptoKey ->{MVar} Unit
+  store-qkey base kslot k =
+    let off = key-slot-off kslot in
+    let _0 = raw-store-u64 (addr-at base off) k.qck-aead-base in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 off 8)) k.qck-hp-base in
+    let _2 = raw-store-u8 (addr-at base (wrapping-add-u64 off 16)) k.qck-suite in
+    let _3 = raw-store-u8 (addr-at base (wrapping-add-u64 off 17)) k.qck-hw-aes in
+    let _4 = raw-store-u8 (addr-at base (wrapping-add-u64 off 18)) k.qck-hw-clmul in
+    raw-store-u32 (addr-at base (wrapping-add-u64 off 20)) k.qck-slab-size
+
+  #[inline(always)] #[no-alloc] load-qkey :: U64 -> U32 ->{MVar} QuicCryptoKey
+  load-qkey base kslot =
+    let off = key-slot-off kslot in
+    QuicCryptoKey
+      (raw-load-u64 (addr-at base off))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 off 8)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 off 16)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 off 17)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 off 18)))
+      0
+      (raw-load-u32 (addr-at base (wrapping-add-u64 off 20)))
+
+  #[inline(always)] #[no-alloc] has-key-flag :: U64 -> U32 ->{MVar} Bool
+  has-key-flag base kslot =
+    if lt-u32 kslot 8 then ne-u8 (raw-load-u8 (addr-at base (wrapping-add-u64 c-off-key-flags (u32-to-u64 kslot)))) 0
+    else ne-u8 (raw-load-u8 (addr-at base c-off-has-zrtt)) 0
+
+  #[inline(always)] #[no-alloc] set-key-flag :: U64 -> U32 -> U8 ->{MVar} Unit
+  set-key-flag base kslot v =
+    if lt-u32 kslot 8 then raw-store-u8 (addr-at base (wrapping-add-u64 c-off-key-flags (u32-to-u64 kslot))) v
+    else raw-store-u8 (addr-at base c-off-has-zrtt) v
+
+  #[inline(always)] #[no-alloc] store-retry-key :: U64 -> TlsAeadKey ->{MVar} Unit
+  store-retry-key base k =
+    let _0 = raw-store-u64 (addr-at base c-off-retry-key) k.aead-dma-base in
+    let _1 = raw-store-u8 (addr-at base (wrapping-add-u64 c-off-retry-key 8)) k.aead-suite in
+    let _2 = raw-store-u8 (addr-at base (wrapping-add-u64 c-off-retry-key 9)) k.aead-hw-aes in
+    let _3 = raw-store-u8 (addr-at base (wrapping-add-u64 c-off-retry-key 10)) k.aead-hw-clmul in
+    raw-store-u32 (addr-at base (wrapping-add-u64 c-off-retry-key 12)) k.aead-slab-size
+
+  #[inline(always)] #[no-alloc] load-retry-key :: U64 ->{MVar} TlsAeadKey
+  load-retry-key base =
+    TlsAeadKey
+      (raw-load-u64 (addr-at base c-off-retry-key))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 c-off-retry-key 8)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 c-off-retry-key 9)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 c-off-retry-key 10)))
+      0
+      (raw-load-u32 (addr-at base (wrapping-add-u64 c-off-retry-key 12)))
+
+  #[inline(always)] #[no-alloc] store-ar :: U64 -> AntiReplayFilter ->{MVar} Unit
+  store-ar base ar =
+    let _0 = raw-store-u64 (addr-at base c-off-ar) ar.ar-dma-base in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-ar 8)) ar.ar-total-bytes in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-ar 16)) ar.ar-window-ns in
+    let _3 = raw-store-u32 (addr-at base (wrapping-add-u64 c-off-ar 24)) ar.ar-words-per-gen in
+    raw-store-u32 (addr-at base (wrapping-add-u64 c-off-ar 28)) ar.ar-word-mask
+
+  #[inline(always)] #[no-alloc] load-ar :: U64 ->{MVar} AntiReplayFilter
+  load-ar base =
+    AntiReplayFilter
+      (raw-load-u64 (addr-at base c-off-ar))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 c-off-ar 8)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 c-off-ar 16)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 c-off-ar 24)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 c-off-ar 28)))
+
+  #[inline(always)] #[no-alloc] next-rng-u64 :: U64 ->{MVar} U64
+  next-rng-u64 base =
+    let s = raw-load-u64 (addr-at base c-off-rng) in
+    let n = mix64 s in
+    let _ = raw-store-u64 (addr-at base c-off-rng) n in
+    n
+
+  #[inline(always)] #[no-alloc] meta-entry-off :: U64 -> U64
+  meta-entry-off idx = wrapping-add-u64 c-off-meta-ring (wrapping-shl-u64 (bit-and-u64 idx meta-mask) 6)
+
+  -- =========================================================================
+  -- 3. Cold-Path Handshake & Crypto Helpers (`Bytes` <-> DMA + RFC 9001 HKDF)
+  -- =========================================================================
+
+  copy-bytes-to-slab :: Bytes -> Nat -> I64 -> Nat ->{MVar} Unit
+  copy-bytes-to-slab src i dst n =
+    if i >= n then ()
+    else if i < bytes-len src then
+      let _ = raw-store-u8 (wrapping-add-i64 dst (nat-to-i64 i)) (bytes-get-u8 src i) in
+      copy-bytes-to-slab src (i + 1) dst n
+    else ()
+
+  copy-slab-to-bytes :: I64 -> Bytes -> Nat -> Nat ->{MVar} Unit
+  copy-slab-to-bytes src dst i n =
+    if i >= n then ()
+    else if i < bytes-len dst then
+      let _ = bytes-set-u8 dst i (raw-load-u8 (wrapping-add-i64 src (nat-to-i64 i))) in
+      copy-slab-to-bytes src dst (i + 1) n
+    else ()
+
+  read-slab-bytes :: U64 -> U64 -> Nat ->{MVar} Bytes
+  read-slab-bytes base off n =
+    let out = bytes-new n in
+    let _ = copy-slab-to-bytes (addr-at base off) out 0 n in
+    out
+
+  write-slab-bytes :: U64 -> U64 -> Bytes ->{MVar} U32
+  write-slab-bytes base off src =
+    let n = bytes-len src in
+    let _ = copy-bytes-to-slab src 0 (addr-at base off) n in
+    wrapping-i64-to-u32 (nat-to-i64 n)
+
+  destroy-qkey-slot :: U64 -> U32 ->{IO, MVar} Unit
+  destroy-qkey-slot base kslot =
+    if has-key-flag base kslot then
+      let k = load-qkey base kslot in
+      let _ = quic-crypto-key-destroy k in
+      let _ = store-qkey base kslot (quic-crypto-key-empty ()) in
+      set-key-flag base kslot 0
+    else ()
+
+  install-qkey-slot :: U64 -> U32 -> QuicCryptoKey ->{IO, MVar} Unit
+  install-qkey-slot base kslot k =
+    let _ = destroy-qkey-slot base kslot in
+    let _ = store-qkey base kslot k in
+    set-key-flag base kslot (if quic-crypto-key-is-valid k then 1 else 0)
+
+  fill-nonce32 :: U64 -> U64 ->{MVar} Unit
+  fill-nonce32 base off =
+    let n0 = next-rng-u64 base in
+    let n1 = next-rng-u64 base in
+    let n2 = next-rng-u64 base in
+    let n3 = next-rng-u64 base in
+    let _0 = raw-store-u64 (addr-at base off) n0 in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 off 8)) n1 in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 off 16)) n2 in
+    raw-store-u64 (addr-at base (wrapping-add-u64 off 24)) n3
+
+  -- Build client Initial CRYPTO message:
+  --   [0..4]   "CHLO" (0x43484c4f)
+  --   [4..36]  client-hs-nonce (32B)
+  --   [36..44] zero-rtt-nonce (U64)
+  --   [44..48] tp-len (U32)
+  --   [48..]   encoded QuicTransportParams
+  build-client-hello-crypto :: U64 ->{MVar} Unit
+  build-client-hello-crypto base =
+    let tp = quic-transport-params-default in
+    let tp-bytes = quic-transport-params-encode tp in
+    let tp-len = wrapping-i64-to-u32 (nat-to-i64 (bytes-len tp-bytes)) in
+    let buf = c-off-cinit-tx-buf in
+    let _0 = raw-store-u32 (addr-at base buf) 0x43484c4f in
+    let _1 = copy-raw (addr-at base (wrapping-add-u64 buf 4)) (addr-at base c-off-cli-nonce) 32 in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 buf 36)) (raw-load-u64 (addr-at base c-off-zrtt-nonce)) in
+    let _3 = raw-store-u32 (addr-at base (wrapping-add-u64 buf 44)) tp-len in
+    let _4 = copy-bytes-to-slab tp-bytes 0 (addr-at base (wrapping-add-u64 buf 48)) (bytes-len tp-bytes) in
+    let total = wrapping-add-u32 48 tp-len in
+    let _5 = raw-store-u32 (addr-at base c-off-cinit-tx-len) total in
+    let _6 = raw-store-u32 (addr-at base c-off-cinit-tx-sent) 0 in
+    raw-store-u32 (addr-at base c-off-cinit-tx-ack) 0
+
+  -- Install Initial keys from `dcid` for client (`is-srv=0`) or server (`is-srv=1`).
+  install-initial-keys :: U64 -> U8 -> ConnId ->{IO, MVar} Unit
+  install-initial-keys base is-srv dcid =
+    let dcid-b = conn-id-to-bytes dcid in
+    case quic-derive-initial-secrets dcid-b of
+      (client-in, server-in) ->
+        let ck = quic-crypto-key-from-packet-keys TlsAes128GcmSha256 (quic-derive-packet-keys client-in) in
+        let sk = quic-crypto-key-from-packet-keys TlsAes128GcmSha256 (quic-derive-packet-keys server-in) in
+        if ne-u8 is-srv 0 then
+          let _0 = install-qkey-slot base kslot-tx-init sk in
+          install-qkey-slot base kslot-rx-init ck
+        else
+          let _0 = install-qkey-slot base kslot-tx-init ck in
+          install-qkey-slot base kslot-rx-init sk
+
+  -- Allocate & initialize a QUIC v1 connection (`is-srv = 0` client, `1` server).
+  conn-alloc-init :: U8 -> ConnId -> ConnId -> U64 -> U32 -> U64 -> U64 ->{IO, MVar} QuicConn
+  conn-alloc-init is-srv scid dcid peer-addr req-mtu now-ns seed =
+    let mtu = if lt-u32 req-mtu 1200 then (1200 :: U32) else req-mtu in
+    let base = engine-dma-alloc qc-slab-size 4096 in
+    if eq-u64 base 0 then quic-conn-empty ()
+    else
+      let stbl = quic-stream-table-new is-srv 16 16384 in
+      if eq-u64 stbl.qst-base 0 then
+        let _ = engine-dma-free base qc-slab-size in
+        quic-conn-empty ()
+      else
+        let rec-base = recovery-new-raw 256 0 in
+        if eq-u64 rec-base 0 then
+          let _0 = quic-stream-table-destroy stbl in
+          let _1 = engine-dma-free base qc-slab-size in
+          quic-conn-empty ()
+        else
+          let bbr = bbr-init-at (addr-at base 49152) mtu now-ns in
+          let rkey = quic-retry-key-v1-new () in
+          let _ = raw-store-u64 (addr-at base c-off-slab) qc-slab-size in
+          let _ = raw-store-u8 (addr-at base c-off-is-srv) is-srv in
+          let _ = raw-store-u8 (addr-at base c-off-state) conn-state-initial in
+          -- Client's peer address is validated by construction; server starts unvalidated!
+          let _ = raw-store-u8 (addr-at base c-off-addr-val) (if ne-u8 is-srv 0 then 0 else 1) in
+          let _ = raw-store-u64 (addr-at base c-off-peer-addr) peer-addr in
+          let _ = raw-store-u64 (addr-at base c-off-last-act) now-ns in
+          let _ = raw-store-u64 (addr-at base c-off-idle-to) 30000000000 in
+          let _ = raw-store-u32 (addr-at base c-off-mtu) mtu in
+          let _ = raw-store-u64 (addr-at base c-off-rng) (if eq-u64 seed 0 then 0x243f6a8885a308d3 else seed) in
+          let _ = raw-store-u64 (addr-at base c-off-streams) stbl.qst-base in
+          let _ = raw-store-u64 (addr-at base c-off-rec) rec-base in
+          let _ = raw-store-u64 (addr-at base c-off-bbr) bbr.bbr-base in
+          let _ = raw-store-u64 (addr-at base c-off-largest-rx) quic-pn-none in
+          let _ = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-largest-rx 8)) quic-pn-none in
+          let _ = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-largest-rx 16)) quic-pn-none in
+          let _ = store-ackmap base pn-space-code-initial (ack-map-empty ()) in
+          let _ = store-ackmap base pn-space-code-handshake (ack-map-empty ()) in
+          let _ = store-ackmap base pn-space-code-app-data (ack-map-empty ()) in
+          let _ = store-pacer base (pacer-init mtu now-ns) in
+          let _ = store-cid base c-off-scid scid in
+          let _ = store-cid base c-off-dcid dcid in
+          let _ = store-cid base c-off-odcid dcid in
+          let _ = store-retry-key base rkey in
+          let _ = install-initial-keys base is-srv dcid in
+          let _ = (if eq-u8 is-srv 0 then
+            let _n = fill-nonce32 base c-off-cli-nonce in
+            build-client-hello-crypto base
+          else fill-nonce32 base c-off-srv-nonce) in
+          QuicConn base
+
+  -- | Create a new client `QuicConn` ready to transmit its Initial flight.
+  quic-conn-new-client :: ConnId -> ConnId -> U64 -> U32 -> U64 -> U64 ->{IO, MVar} QuicConn
+  quic-conn-new-client scid dcid peer-addr mtu now-ns seed =
+    conn-alloc-init 0 scid dcid peer-addr mtu now-ns seed
+
+  -- | Create a new server `QuicConn` for incoming client Initial DCID `odcid`.
+  quic-conn-new-server :: ConnId -> ConnId -> ConnId -> U64 -> U32 -> U64 -> U64 ->{IO, MVar} QuicConn
+  quic-conn-new-server scid client-scid odcid peer-addr mtu now-ns seed =
+    let conn = conn-alloc-init 1 scid odcid peer-addr mtu now-ns seed in
+    if eq-u64 conn.qc-base 0 then conn
+    else
+      let _ = store-cid conn.qc-base c-off-dcid client-scid in
+      conn
+
+  -- | Release all DMA slabs and crypto keys owned by `conn`.
+  quic-conn-destroy :: QuicConn ->{IO, MVar} Unit
+  quic-conn-destroy conn =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then ()
+    else
+      let _0 = destroy-qkey-slot base kslot-tx-init in
+      let _1 = destroy-qkey-slot base kslot-rx-init in
+      let _2 = destroy-qkey-slot base kslot-tx-hs in
+      let _3 = destroy-qkey-slot base kslot-rx-hs in
+      let _4 = destroy-qkey-slot base kslot-tx-app in
+      let _5 = destroy-qkey-slot base kslot-rx-app in
+      let _6 = destroy-qkey-slot base kslot-rx-next in
+      let _7 = destroy-qkey-slot base kslot-tx-next in
+      let _8 = destroy-qkey-slot base kslot-zero-rtt in
+      let _rk = tls-aead-key-destroy (load-retry-key base) in
+      let _st = quic-stream-table-destroy (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams))) in
+      let _rc = recovery-destroy-raw (raw-load-u64 (addr-at base c-off-rec)) in
+      let _bb = bbr-destroy (BbrState (raw-load-u64 (addr-at base c-off-bbr))) in
+      let _fr = engine-dma-free base qc-slab-size in
+      ()
+
+  -- | Attach a borrowed `AntiReplayFilter` for 0-RTT early-data protection.
+  #[no-alloc]
+  quic-conn-set-anti-replay :: QuicConn -> AntiReplayFilter ->{MVar} Unit
+  quic-conn-set-anti-replay conn ar =
+    if eq-u64 conn.qc-base 0 then ()
+    else store-ar conn.qc-base ar
+
+  -- | Install a pre-shared 0-RTT early-data key (and ticket `nonce` on client).
+  quic-conn-set-zero-rtt-key :: QuicConn -> Bytes -> U64 ->{IO, MVar} Bool
+  quic-conn-set-zero-rtt-key conn secret ticket-nonce =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then False
+    else
+      let k = quic-crypto-key-from-secret TlsAes128GcmSha256 secret in
+      if not (quic-crypto-key-is-valid k) then False
+      else
+        let _0 = install-qkey-slot base kslot-zero-rtt k in
+        let _1 = raw-store-u64 (addr-at base c-off-zrtt-nonce) ticket-nonce in
+        let _2 = (if eq-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0 then
+          build-client-hello-crypto base
+        else ()) in
+        True
+
+  #[no-alloc]
+  quic-conn-set-addr-validated :: QuicConn -> U8 ->{MVar} Unit
+  quic-conn-set-addr-validated conn val =
+    if eq-u64 conn.qc-base 0 then ()
+    else raw-store-u8 (addr-at conn.qc-base c-off-addr-val) (if ne-u8 val 0 then 1 else 0)
+
+  #[no-alloc]
+  quic-conn-set-retry-token :: QuicConn -> I64 -> U32 ->{MVar} Unit
+  quic-conn-set-retry-token conn tok-addr tok-len =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then ()
+    else
+      let clamped = min-u32 tok-len 128 in
+      let _0 = raw-store-u32 (addr-at base c-off-rtok-len) clamped in
+      copy-raw (addr-at base c-off-rtok-buf) tok-addr clamped
+
+  -- | Cold-path HKDF helper: derive Handshake and 1-RTT traffic secrets and
+  -- pre-stage next 1-RTT TX/RX keys for zero-allocation `KeyUpdate`.
+  derive-hs-and-app-keys :: U64 ->{IO, MVar} Unit
+  derive-hs-and-app-keys base =
+    let is-srv = raw-load-u8 (addr-at base c-off-is-srv) in
+    let c-nonce = read-slab-bytes base c-off-cli-nonce 32 in
+    let s-nonce = read-slab-bytes base c-off-srv-nonce 32 in
+    let hs-master = tls-hkdf-extract TlsAes128GcmSha256 c-nonce s-nonce in
+    let empty = bytes-new 0 in
+    let c-hs-sec = (case tls-hkdf-expand-label TlsAes128GcmSha256 hs-master "c hs traffic" empty 32 of Ok b -> b; Err _ -> bytes-new 32) in
+    let s-hs-sec = (case tls-hkdf-expand-label TlsAes128GcmSha256 hs-master "s hs traffic" empty 32 of Ok b -> b; Err _ -> bytes-new 32) in
+    let c-ap-sec = (case tls-hkdf-expand-label TlsAes128GcmSha256 hs-master "c ap traffic" empty 32 of Ok b -> b; Err _ -> bytes-new 32) in
+    let s-ap-sec = (case tls-hkdf-expand-label TlsAes128GcmSha256 hs-master "s ap traffic" empty 32 of Ok b -> b; Err _ -> bytes-new 32) in
+    let c-ap-next = (case quic-update-secret TlsAes128GcmSha256 c-ap-sec of Ok b -> b; Err _ -> c-ap-sec) in
+    let s-ap-next = (case quic-update-secret TlsAes128GcmSha256 s-ap-sec of Ok b -> b; Err _ -> s-ap-sec) in
+    let tx-hs-s = if ne-u8 is-srv 0 then s-hs-sec else c-hs-sec in
+    let rx-hs-s = if ne-u8 is-srv 0 then c-hs-sec else s-hs-sec in
+    let tx-ap-s = if ne-u8 is-srv 0 then s-ap-sec else c-ap-sec in
+    let rx-ap-s = if ne-u8 is-srv 0 then c-ap-sec else s-ap-sec in
+    let tx-ap-n = if ne-u8 is-srv 0 then s-ap-next else c-ap-next in
+    let rx-ap-n = if ne-u8 is-srv 0 then c-ap-next else s-ap-next in
+    let tx-pk = quic-derive-packet-keys tx-ap-s in
+    let rx-pk = quic-derive-packet-keys rx-ap-s in
+    let tx-npk = quic-derive-packet-keys tx-ap-n in
+    let rx-npk = quic-derive-packet-keys rx-ap-n in
+    let _0 = install-qkey-slot base kslot-tx-hs (quic-crypto-key-from-secret TlsAes128GcmSha256 tx-hs-s) in
+    let _1 = install-qkey-slot base kslot-rx-hs (quic-crypto-key-from-secret TlsAes128GcmSha256 rx-hs-s) in
+    let _2 = install-qkey-slot base kslot-tx-app (quic-crypto-key-from-packet-keys TlsAes128GcmSha256 tx-pk) in
+    let _3 = install-qkey-slot base kslot-rx-app (quic-crypto-key-from-packet-keys TlsAes128GcmSha256 rx-pk) in
+    -- RFC 9001 §6.1: Header Protection keys remain unchanged across 1-RTT KeyUpdate!
+    let _4 = install-qkey-slot base kslot-tx-next (quic-crypto-key-new TlsAes128GcmSha256 tx-npk.qpk-key tx-npk.qpk-iv tx-pk.qpk-hp) in
+    let _5 = install-qkey-slot base kslot-rx-next (quic-crypto-key-new TlsAes128GcmSha256 rx-npk.qpk-key rx-npk.qpk-iv rx-pk.qpk-hp) in
+    let _6 = write-slab-bytes base c-off-tx-secret tx-ap-n in
+    let _7 = write-slab-bytes base c-off-rx-secret rx-ap-n in
+    let _7a = write-slab-bytes base c-off-tx-hp tx-pk.qpk-hp in
+    let _7b = write-slab-bytes base c-off-rx-hp rx-pk.qpk-hp in
+    let _8 = raw-store-u8 (addr-at base c-off-hs-derived) 1 in
+    let _9 = raw-store-u8 (addr-at base c-off-app-derived) 1 in
+    ()
+
+  -- Apply decoded peer transport parameters into the connection's stream table.
+  apply-peer-tp :: U64 -> Bytes ->{MVar} Unit
+  apply-peer-tp base tp-bytes =
+    case quic-transport-params-decode tp-bytes of
+      Err _ -> ()
+      Ok tp ->
+        let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+        quic-stream-table-set-peer-limits
+          stbl
+          tp.tp-initial-max-data
+          tp.tp-initial-max-stream-data-bidi-local
+          tp.tp-initial-max-stream-data-bidi-remote
+          tp.tp-initial-max-stream-data-uni
+          tp.tp-initial-max-streams-bidi
+          tp.tp-initial-max-streams-uni
+
+  #[inline(always)] #[no-alloc] quic-conn-needs-crypto-step :: QuicConn ->{MVar} Bool
+  quic-conn-needs-crypto-step conn =
+    if eq-u64 conn.qc-base 0 then b-false
+    else either (ne-u8 (raw-load-u8 (addr-at conn.qc-base c-off-needs-kstep)) 0)
+      (ne-u8 (raw-load-u8 (addr-at conn.qc-base c-off-ku-need-ref)) 0)
+
+  step-crypto-srv-init :: U64 -> U64 ->{IO, MVar} Bool
+  step-crypto-srv-init base now-ns =
+    let rx-len = raw-load-u32 (addr-at base c-off-cinit-rx-len) in
+    if lt-u32 rx-len 48 then False
+    else if ne-u32 (raw-load-u32 (addr-at base c-off-cinit-rx-buf)) 0x43484c4f then False
+    else
+      let _cn = copy-raw (addr-at base c-off-cli-nonce) (addr-at base (wrapping-add-u64 c-off-cinit-rx-buf 4)) 32 in
+      let z-nonce = raw-load-u64 (addr-at base (wrapping-add-u64 c-off-cinit-rx-buf 36)) in
+      let tp-len = raw-load-u32 (addr-at base (wrapping-add-u64 c-off-cinit-rx-buf 44)) in
+      let _tp = (if le-u32 (wrapping-add-u32 48 tp-len) rx-len then
+        apply-peer-tp base (read-slab-bytes base (wrapping-add-u64 c-off-cinit-rx-buf 48) (u32-to-nat tp-len))
+      else ()) in
+      let _ar = (if both (ne-u64 z-nonce 0) (eq-u8 (raw-load-u8 (addr-at base c-off-zrtt-checked)) 0) then
+        let _c = raw-store-u8 (addr-at base c-off-zrtt-checked) 1 in
+        let ar = load-ar base in
+        if both (has-key-flag base kslot-zero-rtt) (if anti-replay-is-valid ar then anti-replay-check-and-insert ar z-nonce now-ns else b-true) then
+          raw-store-u8 (addr-at base c-off-zrtt-acc) 1
+        else raw-store-u8 (addr-at base c-off-zrtt-rej) 1
+      else ()) in
+      let _dk = if eq-u8 (raw-load-u8 (addr-at base c-off-hs-derived)) 0 then derive-hs-and-app-keys base else () in
+      step-crypto-srv-build-flight base
+
+  step-crypto-srv-build-flight :: U64 ->{MVar} Bool
+  step-crypto-srv-build-flight base =
+    let ibuf = c-off-cinit-tx-buf in
+    let _0 = raw-store-u32 (addr-at base ibuf) 0x53484c4f in
+    let _1 = copy-raw (addr-at base (wrapping-add-u64 ibuf 4)) (addr-at base c-off-srv-nonce) 32 in
+    let _2 = raw-store-u32 (addr-at base (wrapping-add-u64 ibuf 36)) (u8-to-u32 (raw-load-u8 (addr-at base c-off-zrtt-acc))) in
+    let _3 = raw-store-u32 (addr-at base c-off-cinit-tx-len) 40 in
+    let tp-b = quic-transport-params-encode quic-transport-params-default in
+    let s-tp-len = wrapping-i64-to-u32 (nat-to-i64 (bytes-len tp-b)) in
+    let hbuf = c-off-chs-tx-buf in
+    let _4 = raw-store-u32 (addr-at base hbuf) 0x5346494e in
+    let _5 = copy-raw (addr-at base (wrapping-add-u64 hbuf 4)) (addr-at base c-off-srv-nonce) 32 in
+    let _6 = raw-store-u32 (addr-at base (wrapping-add-u64 hbuf 36)) s-tp-len in
+    let _7 = copy-bytes-to-slab tp-b 0 (addr-at base (wrapping-add-u64 hbuf 40)) (bytes-len tp-b) in
+    let _8 = raw-store-u32 (addr-at base c-off-chs-tx-len) (wrapping-add-u32 40 s-tp-len) in
+    let _9 = (if eq-u8 (raw-load-u8 (addr-at base c-off-state)) conn-state-initial then
+      raw-store-u8 (addr-at base c-off-state) conn-state-handshake
+    else ()) in
+    True
+
+  step-crypto-cli-init :: U64 ->{IO, MVar} Bool
+  step-crypto-cli-init base =
+    let rx-len = raw-load-u32 (addr-at base c-off-cinit-rx-len) in
+    if lt-u32 rx-len 40 then False
+    else if ne-u32 (raw-load-u32 (addr-at base c-off-cinit-rx-buf)) 0x53484c4f then False
+    else
+      let _sn = copy-raw (addr-at base c-off-srv-nonce) (addr-at base (wrapping-add-u64 c-off-cinit-rx-buf 4)) 32 in
+      let z-acc = raw-load-u32 (addr-at base (wrapping-add-u64 c-off-cinit-rx-buf 36)) in
+      let _za = if ne-u32 z-acc 0 then raw-store-u8 (addr-at base c-off-zrtt-acc) 1 else () in
+      let _dk = if eq-u8 (raw-load-u8 (addr-at base c-off-hs-derived)) 0 then derive-hs-and-app-keys base else () in
+      let _st = (if eq-u8 (raw-load-u8 (addr-at base c-off-state)) conn-state-initial then
+        raw-store-u8 (addr-at base c-off-state) conn-state-handshake
+      else ()) in
+      True
+
+  step-crypto-srv-hs :: U64 ->{MVar} Bool
+  step-crypto-srv-hs base =
+    let rx-len = raw-load-u32 (addr-at base c-off-chs-rx-len) in
+    if lt-u32 rx-len 36 then False
+    else if ne-u32 (raw-load-u32 (addr-at base c-off-chs-rx-buf)) 0x4346494e then False
+    else
+      let _v = raw-store-u8 (addr-at base c-off-addr-val) 1 in
+      let _c = raw-store-u8 (addr-at base c-off-hs-conf) 1 in
+      let _d = raw-store-u8 (addr-at base c-off-hs-done-pend) 1 in
+      let _s = raw-store-u8 (addr-at base c-off-state) conn-state-established in
+      let _r = recovery-set-handshake-confirmed-raw (raw-load-u64 (addr-at base c-off-rec)) 1 in
+      True
+
+  step-crypto-cli-hs :: U64 ->{MVar} Bool
+  step-crypto-cli-hs base =
+    let rx-len = raw-load-u32 (addr-at base c-off-chs-rx-len) in
+    if lt-u32 rx-len 40 then False
+    else if ne-u32 (raw-load-u32 (addr-at base c-off-chs-rx-buf)) 0x5346494e then False
+    else
+      let tp-len = raw-load-u32 (addr-at base (wrapping-add-u64 c-off-chs-rx-buf 36)) in
+      let _tp = (if le-u32 (wrapping-add-u32 40 tp-len) rx-len then
+        apply-peer-tp base (read-slab-bytes base (wrapping-add-u64 c-off-chs-rx-buf 40) (u32-to-nat tp-len))
+      else ()) in
+      let hbuf = c-off-chs-tx-buf in
+      let _0 = raw-store-u32 (addr-at base hbuf) 0x4346494e in
+      let _1 = copy-raw (addr-at base (wrapping-add-u64 hbuf 4)) (addr-at base c-off-cli-nonce) 32 in
+      let _2 = raw-store-u32 (addr-at base c-off-chs-tx-len) 36 in
+      let _3 = raw-store-u8 (addr-at base c-off-state) conn-state-established in
+      True
+
+  -- | Cold-path handshake key-schedule driver (runs once per handshake flight or
+  -- Retry re-keying; NOT called during steady-state 1-RTT packet processing).
+  quic-conn-step-crypto :: QuicConn -> U64 ->{IO, MVar} Bool
+  quic-conn-step-crypto conn now-ns =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then False
+    else
+      let step = raw-load-u8 (addr-at base c-off-needs-kstep) in
+      let is-srv = raw-load-u8 (addr-at base c-off-is-srv) in
+      if eq-u8 step 3 then
+        let _ = raw-store-u8 (addr-at base c-off-needs-kstep) 0 in
+        let _k = install-initial-keys base 0 (load-cid base c-off-dcid) in
+        let _r = raw-store-u32 (addr-at base c-off-cinit-tx-sent) 0 in
+        let _a = raw-store-u32 (addr-at base c-off-cinit-tx-ack) 0 in
+        True
+      else if eq-u8 step 1 then
+        let _ = raw-store-u8 (addr-at base c-off-needs-kstep) 0 in
+        if ne-u8 is-srv 0 then step-crypto-srv-init base now-ns else step-crypto-cli-init base
+      else if eq-u8 step 2 then
+        let _ = raw-store-u8 (addr-at base c-off-needs-kstep) 0 in
+        if ne-u8 is-srv 0 then step-crypto-srv-hs base else step-crypto-cli-hs base
+      else if ne-u8 (raw-load-u8 (addr-at base c-off-ku-need-ref)) 0 then
+        quic-conn-key-update-refresh conn
+      else False
+
+  -- | Cold-path helper: replenish pre-staged next 1-RTT TX/RX keys via `"quic ku"`
+  -- after a zero-allocation `KeyUpdate` toggle so subsequent rotations are ready.
+  quic-conn-key-update-refresh :: QuicConn ->{IO, MVar} Bool
+  quic-conn-key-update-refresh conn =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then False
+    else if eq-u8 (raw-load-u8 (addr-at base c-off-ku-need-ref)) 0 then False
+    else
+      let _ = raw-store-u8 (addr-at base c-off-ku-need-ref) 0 in
+      let tx-s = read-slab-bytes base c-off-tx-secret 32 in
+      let rx-s = read-slab-bytes base c-off-rx-secret 32 in
+      let tx-n = (case quic-update-secret TlsAes128GcmSha256 tx-s of Ok b -> b; Err _ -> tx-s) in
+      let rx-n = (case quic-update-secret TlsAes128GcmSha256 rx-s of Ok b -> b; Err _ -> rx-s) in
+      let tx-hp = read-slab-bytes base c-off-tx-hp 16 in
+      let rx-hp = read-slab-bytes base c-off-rx-hp 16 in
+      let tx-npk = quic-derive-packet-keys tx-n in
+      let rx-npk = quic-derive-packet-keys rx-n in
+      let _0 = install-qkey-slot base kslot-tx-next (quic-crypto-key-new TlsAes128GcmSha256 tx-npk.qpk-key tx-npk.qpk-iv tx-hp) in
+      let _1 = install-qkey-slot base kslot-rx-next (quic-crypto-key-new TlsAes128GcmSha256 rx-npk.qpk-key rx-npk.qpk-iv rx-hp) in
+      let _2 = write-slab-bytes base c-off-tx-secret tx-n in
+      let _3 = write-slab-bytes base c-off-rx-secret rx-n in
+      True
+
+  -- | Initiate an RFC 9001 §6 1-RTT `KeyUpdate` in O(1) with zero heap allocs
+  -- by promoting the pre-staged next 1-RTT TX key and toggling the key phase bit.
+  #[inline(always)]
+  #[no-alloc]
+  quic-conn-initiate-key-update :: QuicConn ->{MVar} Bool
+  quic-conn-initiate-key-update conn =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then b-false
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-state)) conn-state-established then b-false
+    else if has-key-flag base kslot-tx-next then
+      let cur = load-qkey base kslot-tx-app in
+      let nxt = load-qkey base kslot-tx-next in
+      let _0 = store-qkey base kslot-tx-app nxt in
+      let _1 = store-qkey base kslot-tx-next cur in
+      let kp = raw-load-u8 (addr-at base c-off-tx-kp) in
+      let _2 = raw-store-u8 (addr-at base c-off-tx-kp) (bit-xor-u8 kp 1) in
+      let cnt = raw-load-u32 (addr-at base c-off-ku-cnt) in
+      let _3 = raw-store-u32 (addr-at base c-off-ku-cnt) (wrapping-add-u32 cnt 1) in
+      b-true
+    else b-false
+
+  -- =========================================================================
+  -- 4. SentFrameMeta Ring & ACK / Loss Frame Disposition (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  record-sent-meta :: U64 -> U8 -> U64 -> U64 -> U32 -> U64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} Unit
+  record-sent-meta base sp pn sent-ns st-slot st-off st-len cr-off cr-len ctrl-slot flags =
+    let h = raw-load-u64 (addr-at base c-off-meta-head) in
+    let t = raw-load-u64 (addr-at base c-off-meta-tail) in
+    let _ = (if ge-u64 (wrapping-sub-u64 t h) meta-cap then
+      raw-store-u64 (addr-at base c-off-meta-head) (wrapping-add-u64 h 1)
+    else ()) in
+    let off = meta-entry-off t in
+    let _0 = raw-store-u64 (addr-at base off) pn in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 off 8)) sent-ns in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 off 16)) st-off in
+    let _3 = raw-store-u32 (addr-at base (wrapping-add-u64 off 24)) st-slot in
+    let _4 = raw-store-u32 (addr-at base (wrapping-add-u64 off 28)) st-len in
+    let _5 = raw-store-u32 (addr-at base (wrapping-add-u64 off 32)) cr-off in
+    let _6 = raw-store-u32 (addr-at base (wrapping-add-u64 off 36)) cr-len in
+    let _7 = raw-store-u32 (addr-at base (wrapping-add-u64 off 40)) ctrl-slot in
+    let _8 = raw-store-u32 (addr-at base (wrapping-add-u64 off 44)) flags in
+    let _9 = raw-store-u8 (addr-at base (wrapping-add-u64 off 48)) pkt-status-in-flight in
+    let _a = raw-store-u8 (addr-at base (wrapping-add-u64 off 49)) sp in
+    raw-store-u64 (addr-at base c-off-meta-tail) (wrapping-add-u64 t 1)
+
+  #[no-alloc]
+  meta-pn-in-extra :: U64 -> U64 -> I64 -> U32 -> U32 ->{MVar} Bool
+  meta-pn-in-extra pn prev-lo ranges-addr cnt i =
+    if ge-u32 i cnt then b-false
+    else
+      let roff = wrapping-shl-u64 (u32-to-u64 i) 4 in
+      let gap = raw-load-u64 (wrapping-add-i64 ranges-addr (wrapping-u64-to-i64 roff)) in
+      let rlen = raw-load-u64 (wrapping-add-i64 ranges-addr (wrapping-u64-to-i64 (wrapping-add-u64 roff 8))) in
+      let skip = saturating-add-u64 gap 2 in
+      if lt-u64 prev-lo skip then b-false
+      else
+        let hi = wrapping-sub-u64 prev-lo skip in
+        let lo = saturating-sub-u64 hi rlen in
+        if both (ge-u64 pn lo) (le-u64 pn hi) then b-true
+        else if gt-u64 pn hi then b-false
+        else meta-pn-in-extra pn lo ranges-addr cnt (wrapping-add-u32 i 1)
+
+  #[inline(always)] #[no-alloc] meta-pn-in-ack :: U64 -> U64 -> U64 -> I64 -> U32 ->{MVar} Bool
+  meta-pn-in-ack pn largest first-range ranges-addr cnt =
+    if gt-u64 pn largest then b-false
+    else
+      let lo = saturating-sub-u64 largest first-range in
+      if ge-u64 pn lo then b-true
+      else if eq-u32 cnt 0 then b-false
+      else meta-pn-in-extra pn lo ranges-addr cnt 0
+
+  #[no-alloc]
+  on-meta-acked :: U64 -> U64 ->{MVar} Unit
+  on-meta-acked base off =
+    let flags = raw-load-u32 (addr-at base (wrapping-add-u64 off 44)) in
+    let sp = raw-load-u8 (addr-at base (wrapping-add-u64 off 49)) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-stream) 0 then
+      let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+      let slot = raw-load-u32 (addr-at base (wrapping-add-u64 off 24)) in
+      let soff = raw-load-u64 (addr-at base (wrapping-add-u64 off 16)) in
+      let slen = raw-load-u32 (addr-at base (wrapping-add-u64 off 28)) in
+      let fin = if ne-u32 (bit-and-u32 flags mf-stream-fin) 0 then (1 :: U8) else 0 in
+      quic-stream-mark-acked stbl slot soff slen fin
+    else ()) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-crypto) 0 then
+      let coff = raw-load-u32 (addr-at base (wrapping-add-u64 off 32)) in
+      let clen = raw-load-u32 (addr-at base (wrapping-add-u64 off 36)) in
+      let cend = wrapping-add-u32 coff clen in
+      if eq-u8 sp pn-space-code-initial then
+        let cur = raw-load-u32 (addr-at base c-off-cinit-tx-ack) in
+        if gt-u32 cend cur then raw-store-u32 (addr-at base c-off-cinit-tx-ack) cend else ()
+      else if eq-u8 sp pn-space-code-handshake then
+        let cur = raw-load-u32 (addr-at base c-off-chs-tx-ack) in
+        if gt-u32 cend cur then raw-store-u32 (addr-at base c-off-chs-tx-ack) cend else ()
+      else ()
+    else ()) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-hs-done) 0 then
+      raw-store-u8 (addr-at base c-off-hs-done-ack) 1
+    else ()) in
+    raw-store-u8 (addr-at base (wrapping-add-u64 off 48)) pkt-status-acked
+
+  #[no-alloc]
+  on-meta-lost :: U64 -> U64 ->{MVar} Unit
+  on-meta-lost base off =
+    let flags = raw-load-u32 (addr-at base (wrapping-add-u64 off 44)) in
+    let sp = raw-load-u8 (addr-at base (wrapping-add-u64 off 49)) in
+    let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-stream) 0 then
+      let slot = raw-load-u32 (addr-at base (wrapping-add-u64 off 24)) in
+      let soff = raw-load-u64 (addr-at base (wrapping-add-u64 off 16)) in
+      let slen = raw-load-u32 (addr-at base (wrapping-add-u64 off 28)) in
+      let fin = if ne-u32 (bit-and-u32 flags mf-stream-fin) 0 then (1 :: U8) else 0 in
+      let _m = quic-stream-mark-lost stbl slot soff slen fin in
+      let rt = raw-load-u64 (addr-at base c-off-retrans) in
+      raw-store-u64 (addr-at base c-off-retrans) (wrapping-add-u64 rt 1)
+    else ()) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-crypto) 0 then
+      if eq-u8 sp pn-space-code-initial then
+        raw-store-u32 (addr-at base c-off-cinit-tx-sent) (raw-load-u32 (addr-at base c-off-cinit-tx-ack))
+      else if eq-u8 sp pn-space-code-handshake then
+        raw-store-u32 (addr-at base c-off-chs-tx-sent) (raw-load-u32 (addr-at base c-off-chs-tx-ack))
+      else ()
+    else ()) in
+    let _ = (if both (ne-u32 (bit-and-u32 flags mf-hs-done) 0) (eq-u8 (raw-load-u8 (addr-at base c-off-hs-done-ack)) 0) then
+      raw-store-u8 (addr-at base c-off-hs-done-pend) 1
+    else ()) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-max-data) 0 then
+      quic-stream-mark-max-data-dirty stbl
+    else ()) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-max-stream-data) 0 then
+      quic-stream-mark-stream-fc-dirty stbl (raw-load-u32 (addr-at base (wrapping-add-u64 off 40)))
+    else ()) in
+    let _ = (if ne-u32 (bit-and-u32 flags mf-reset-stream) 0 then
+      quic-stream-mark-reset-pending stbl (raw-load-u32 (addr-at base (wrapping-add-u64 off 40)))
+    else ()) in
+    let _ = (if both (ne-u32 (bit-and-u32 flags mf-path-challenge) 0) (ne-u8 (raw-load-u8 (addr-at base c-off-path-val)) 0) then
+      raw-store-u8 (addr-at base c-off-pc-pend) 1
+    else ()) in
+    raw-store-u8 (addr-at base (wrapping-add-u64 off 48)) pkt-status-lost
+
+  #[no-alloc]
+  compact-meta-head :: U64 -> U64 -> U64 ->{MVar} U64
+  compact-meta-head base idx tail =
+    if ge-u64 idx tail then idx
+    else
+      let st = raw-load-u8 (addr-at base (wrapping-add-u64 (meta-entry-off idx) 48)) in
+      if eq-u8 st pkt-status-in-flight then idx
+      else compact-meta-head base (wrapping-add-u64 idx 1) tail
+
+  #[no-alloc]
+  scan-meta-ack-loop :: U64 -> U64 -> U64 -> U8 -> U64 -> U64 -> U32 -> U64 ->{MVar} Unit
+  scan-meta-ack-loop base idx tail sp largest first-range rcnt lost-send-ns =
+    if ge-u64 idx tail then ()
+    else
+      let off = meta-entry-off idx in
+      let st = raw-load-u8 (addr-at base (wrapping-add-u64 off 48)) in
+      let psp = raw-load-u8 (addr-at base (wrapping-add-u64 off 49)) in
+      let _ = (if both (eq-u8 st pkt-status-in-flight) (eq-u8 psp sp) then
+        let pn = raw-load-u64 (addr-at base off) in
+        if meta-pn-in-ack pn largest first-range (addr-at base c-off-ack-scratch) rcnt then
+          on-meta-acked base off
+        else if le-u64 pn largest then
+          let by-pkt = le-u64 (saturating-add-u64 pn 3) largest in
+          let sent-ns = raw-load-u64 (addr-at base (wrapping-add-u64 off 8)) in
+          let by-time = le-u64 sent-ns lost-send-ns in
+          if either by-pkt by-time then on-meta-lost base off else ()
+        else ()
+      else ()) in
+      scan-meta-ack-loop base (wrapping-add-u64 idx 1) tail sp largest first-range rcnt lost-send-ns
+
+  #[no-alloc]
+  scan-meta-loss-timeout-loop :: U64 -> U64 -> U64 -> U64 ->{MVar} Unit
+  scan-meta-loss-timeout-loop base idx tail lost-send-ns =
+    if ge-u64 idx tail then ()
+    else
+      let off = meta-entry-off idx in
+      let st = raw-load-u8 (addr-at base (wrapping-add-u64 off 48)) in
+      let _ = (if eq-u8 st pkt-status-in-flight then
+        let sp = raw-load-u8 (addr-at base (wrapping-add-u64 off 49)) in
+        let rec = raw-load-u64 (addr-at base c-off-rec) in
+        let la = recovery-largest-acked-pn-raw rec sp in
+        let pn = raw-load-u64 (addr-at base off) in
+        let sent-ns = raw-load-u64 (addr-at base (wrapping-add-u64 off 8)) in
+        if both (le-u64 pn la) (le-u64 sent-ns lost-send-ns) then
+          on-meta-lost base off
+        else ()
+      else ()) in
+      scan-meta-loss-timeout-loop base (wrapping-add-u64 idx 1) tail lost-send-ns
+
+  -- =========================================================================
+  -- 5. Ingress Frame Decoding & Datagram Handler (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  decode-extra-ack-ranges :: I64 -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  decode-extra-ack-ranges buf-addr pos end rem out-addr written =
+    if either (eq-u64 rem 0) (ge-u32 written 16) then written
+    else
+      let ar = quic-ack-range-decode-raw buf-addr pos end in
+      if eq-u8 ar.ack-ok 0 then written
+      else
+        let eoff = wrapping-shl-u64 (u32-to-u64 written) 4 in
+        let _0 = raw-store-u64 (wrapping-add-i64 out-addr (wrapping-u64-to-i64 eoff)) ar.ack-gap in
+        let _1 = raw-store-u64 (wrapping-add-i64 out-addr (wrapping-u64-to-i64 (wrapping-add-u64 eoff 8))) ar.ack-range-len in
+        decode-extra-ack-ranges buf-addr (wrapping-add-u32 pos ar.ack-consumed) end (wrapping-sub-u64 rem 1) out-addr (wrapping-add-u32 written 1)
+
+  #[no-alloc]
+  enqueue-rx-datagram :: U64 -> I64 -> U32 ->{MVar} Unit
+  enqueue-rx-datagram base src-addr len =
+    let h = raw-load-u32 (addr-at base c-off-dg-rx-h) in
+    let t = raw-load-u32 (addr-at base c-off-dg-rx-t) in
+    if ge-u32 (wrapping-sub-u32 t h) 8 then ()
+    else if gt-u32 len dg-max-payload then ()
+    else
+      let slot = bit-and-u32 t 7 in
+      let off = wrapping-add-u64 c-off-dg-rx (wrapping-mul-u64 (u32-to-u64 slot) dg-slot-stride) in
+      let _0 = raw-store-u32 (addr-at base off) len in
+      let _1 = copy-raw (addr-at base (wrapping-add-u64 off 16)) src-addr len in
+      raw-store-u32 (addr-at base c-off-dg-rx-t) (wrapping-add-u32 t 1)
+
+  #[no-alloc]
+  handle-ack-frame :: U64 -> U8 -> I64 -> QuicFrameHeader -> U64 ->{MVar} Unit
+  handle-ack-frame base sp pay-addr f now-ns =
+    let scratch = addr-at base c-off-ack-scratch in
+    let rcnt = decode-extra-ack-ranges pay-addr f.qf-data-off (wrapping-add-u32 f.qf-data-off f.qf-data-len) f.qf-f2 scratch 0 in
+    let ack-delay-ns = wrapping-mul-u64 f.qf-f1 8000 in
+    let rec = raw-load-u64 (addr-at base c-off-rec) in
+    let bbr = raw-load-u64 (addr-at base c-off-bbr) in
+    let out = recovery-on-ack-ranges-received-raw rec sp f.qf-f0 f.qf-f3 scratch rcnt ack-delay-ns now-ns in
+    let _b = (if either (gt-u64 out.ack-out-acked-bytes 0) (gt-u64 out.ack-out-lost-bytes 0) then
+      bbr-on-ack-raw bbr out.ack-out-acked-bytes out.ack-out-lost-bytes (recovery-bytes-in-flight-raw rec) out.ack-out-delivered-bytes out.ack-out-delivered-ns out.ack-out-prior-delivered-bytes out.ack-out-prior-delivered-ns out.ack-out-latest-rtt-ns out.ack-out-is-app-limited now-ns
+    else ()) in
+    let _pc = if ne-u8 out.ack-out-persistent-congestion 0 then bbr-on-persistent-congestion-raw bbr now-ns else () in
+    let lsend = saturating-sub-u64 now-ns (rtt-estimator-loss-delay-ns (recovery-rtt-raw rec)) in
+    let mh = raw-load-u64 (addr-at base c-off-meta-head) in
+    let mt = raw-load-u64 (addr-at base c-off-meta-tail) in
+    let _m = scan-meta-ack-loop base mh mt sp f.qf-f0 f.qf-f3 rcnt lsend in
+    raw-store-u64 (addr-at base c-off-meta-head) (compact-meta-head base mh mt)
+
+  #[no-alloc]
+  handle-crypto-frame :: U64 -> U8 -> I64 -> QuicFrameHeader ->{MVar} Unit
+  handle-crypto-frame base sp pay-addr f =
+    let coff = wrapping-u64-to-u32 f.qf-f0 in
+    let clen = f.qf-data-len in
+    let cend = wrapping-add-u32 coff clen in
+    if both (eq-u8 sp pn-space-code-initial) (le-u32 cend 512) then
+      let _cp = copy-raw (addr-at base (wrapping-add-u64 c-off-cinit-rx-buf (u32-to-u64 coff))) (wrapping-add-i64 pay-addr (u32-to-i64 f.qf-data-off)) clen in
+      let prev = raw-load-u32 (addr-at base c-off-cinit-rx-len) in
+      let _l = if gt-u32 cend prev then raw-store-u32 (addr-at base c-off-cinit-rx-len) cend else () in
+      if eq-u8 (raw-load-u8 (addr-at base c-off-hs-derived)) 0 then raw-store-u8 (addr-at base c-off-needs-kstep) 1
+      else if both (ne-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0) (lt-u32 (raw-load-u32 (addr-at base c-off-cinit-tx-ack)) (raw-load-u32 (addr-at base c-off-cinit-tx-len))) then
+        raw-store-u32 (addr-at base c-off-cinit-tx-sent) (raw-load-u32 (addr-at base c-off-cinit-tx-ack))
+      else ()
+    else if both (eq-u8 sp pn-space-code-handshake) (le-u32 cend 512) then
+      let _cp = copy-raw (addr-at base (wrapping-add-u64 c-off-chs-rx-buf (u32-to-u64 coff))) (wrapping-add-i64 pay-addr (u32-to-i64 f.qf-data-off)) clen in
+      let prev = raw-load-u32 (addr-at base c-off-chs-rx-len) in
+      let _l = if gt-u32 cend prev then raw-store-u32 (addr-at base c-off-chs-rx-len) cend else () in
+      if lt-u8 (raw-load-u8 (addr-at base c-off-state)) conn-state-established then raw-store-u8 (addr-at base c-off-needs-kstep) 2 else ()
+    else ()
+
+  #[no-alloc]
+  handle-path-response :: U64 -> U64 -> U64 ->{MVar} Unit
+  handle-path-response base nonce src-addr =
+    let validating = ne-u8 (raw-load-u8 (addr-at base c-off-path-val)) 0 in
+    let exp-nonce = raw-load-u64 (addr-at base c-off-pc-nonce) in
+    let mig-addr = raw-load-u64 (addr-at base c-off-mig-addr) in
+    if both validating (both (eq-u64 nonce exp-nonce) (eq-u64 src-addr mig-addr)) then
+      let _0 = raw-store-u64 (addr-at base c-off-peer-addr) mig-addr in
+      let _1 = raw-store-u8 (addr-at base c-off-path-val) 0 in
+      let _2 = raw-store-u8 (addr-at base c-off-pc-pend) 0 in
+      let _3 = raw-store-u8 (addr-at base c-off-addr-val) 1 in
+      let mc = raw-load-u64 (addr-at base c-off-mig-cnt) in
+      raw-store-u64 (addr-at base c-off-mig-cnt) (wrapping-add-u64 mc 1)
+    else ()
+
+  -- Dispatch one decoded non-PADDING frame. Returns `0` (non-AE), `1` (AE), or `255` (error).
+  #[no-alloc]
+  handle-single-frame :: U64 -> U8 -> U8 -> I64 -> QuicFrameHeader -> U64 -> U64 ->{MVar} U8
+  handle-single-frame base sp pkt-type pay-addr f src-addr now-ns =
+    let ft = f.qf-type in
+    if eq-u64 ft frame-type-ping then 1
+    else if either (eq-u64 ft frame-type-ack) (eq-u64 ft frame-type-ack-ecn) then
+      let _ = handle-ack-frame base sp pay-addr f now-ns in
+      0
+    else if eq-u64 ft frame-type-crypto then
+      let _ = handle-crypto-frame base sp pay-addr f in
+      1
+    else if both (ge-u64 ft frame-type-stream-base) (le-u64 ft frame-type-stream-max) then
+      let allow = if eq-u8 pkt-type pkt-type-code-zero-rtt then ne-u8 (raw-load-u8 (addr-at base c-off-zrtt-acc)) 0 else b-true in
+      if allow then
+        let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+        let fin = if ne-u8 (bit-and-u8 f.qf-flags stream-flag-fin) 0 then (1 :: U8) else 0 in
+        let rx-st = quic-stream-on-recv-frame stbl (StreamId f.qf-f0) f.qf-f1 (wrapping-add-i64 pay-addr (u32-to-i64 f.qf-data-off)) f.qf-data-len fin in
+        if either (eq-u8 rx-st stream-rx-ok) (eq-u8 rx-st stream-rx-buf-full) then 1 else 255
+      else 1
+    else if eq-u64 ft frame-type-reset-stream then
+      let _ = quic-stream-on-reset-frame (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams))) (StreamId f.qf-f0) f.qf-f1 f.qf-f2 in
+      1
+    else if eq-u64 ft frame-type-stop-sending then
+      let _ = quic-stream-on-stop-sending (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams))) (StreamId f.qf-f0) f.qf-f1 in
+      1
+    else if eq-u64 ft frame-type-max-data then
+      let _ = quic-stream-table-on-max-data (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams))) f.qf-f0 in
+      1
+    else if eq-u64 ft frame-type-max-stream-data then
+      let _ = quic-stream-table-on-max-stream-data (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams))) (StreamId f.qf-f0) f.qf-f1 in
+      1
+    else if either (eq-u64 ft frame-type-max-streams-bidi) (eq-u64 ft frame-type-max-streams-uni) then
+      let _ = quic-stream-table-on-max-streams (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams))) f.qf-flags f.qf-f0 in
+      1
+    else if eq-u64 ft frame-type-path-challenge then
+      let _0 = raw-store-u64 (addr-at base c-off-pr-nonce) f.qf-f0 in
+      let _1 = raw-store-u64 (addr-at base c-off-pr-addr) src-addr in
+      let _2 = raw-store-u8 (addr-at base c-off-pr-pend) 1 in
+      1
+    else if eq-u64 ft frame-type-path-response then
+      let _ = handle-path-response base f.qf-f0 src-addr in
+      1
+    else if eq-u64 ft frame-type-handshake-done then
+      let _0 = raw-store-u8 (addr-at base c-off-hs-conf) 1 in
+      let _1 = recovery-set-handshake-confirmed-raw (raw-load-u64 (addr-at base c-off-rec)) 1 in
+      1
+    else if either (eq-u64 ft frame-type-datagram) (eq-u64 ft frame-type-datagram-len) then
+      let allow = if eq-u8 pkt-type pkt-type-code-zero-rtt then ne-u8 (raw-load-u8 (addr-at base c-off-zrtt-acc)) 0 else b-true in
+      let _ = if allow then enqueue-rx-datagram base (wrapping-add-i64 pay-addr (u32-to-i64 f.qf-data-off)) f.qf-data-len else () in
+      1
+    else if either (eq-u64 ft frame-type-connection-close-transport) (eq-u64 ft frame-type-connection-close-app) then
+      let _0 = raw-store-u64 (addr-at base c-off-close-err) f.qf-f0 in
+      let _1 = raw-store-u8 (addr-at base c-off-state) conn-state-draining in
+      let pto = recovery-pto-duration-ns-raw (raw-load-u64 (addr-at base c-off-rec)) in
+      let _2 = raw-store-u64 (addr-at base c-off-drain-dl) (saturating-add-u64 now-ns (saturating-mul-u64 pto 3)) in
+      0
+    else 1
+
+  -- Decode all frames inside a decrypted packet payload. Returns `ack-eliciting` (`0` or `1`), or `255` on protocol error.
+  #[no-alloc]
+  process-frames-loop :: U64 -> U8 -> U8 -> I64 -> U32 -> U32 -> U64 -> U64 -> U8 ->{MVar} U8
+  process-frames-loop base sp pkt-type pay-addr pos pay-len src-addr now-ns ae-acc =
+    if ge-u32 pos pay-len then ae-acc
+    else
+      let f = quic-frame-decode-raw pay-addr pos pay-len in
+      if eq-u8 f.qf-ok 0 then 255
+      else
+        let next-pos = wrapping-add-u32 pos f.qf-consumed in
+        if eq-u64 f.qf-type frame-type-padding then
+          let sk = quic-frame-skip-padding-raw pay-addr next-pos pay-len in
+          process-frames-loop base sp pkt-type pay-addr (wrapping-add-u32 next-pos sk) pay-len src-addr now-ns ae-acc
+        else
+          let r = handle-single-frame base sp pkt-type pay-addr f src-addr now-ns in
+          if eq-u8 r 255 then 255
+          else
+            let next-ae = if ne-u8 r 0 then (1 :: U8) else ae-acc in
+            process-frames-loop base sp pkt-type pay-addr next-pos pay-len src-addr now-ns next-ae
+
+  -- Non-destructively peek 1-RTT short-header key phase bit before unprotecting.
+  #[no-alloc]
+  peek-short-key-phase :: QuicCryptoKey -> I64 -> U32 -> U32 ->{MVar} U8
+  peek-short-key-phase key pkt-addr pkt-len dcid-len =
+    let pn-off = wrapping-add-u32 1 dcid-len in
+    if lt-u32 pkt-len (wrapping-add-u32 pn-off 20) then 255
+    else
+      let raw-b0 = raw-load-u8 pkt-addr in
+      let sample-off = wrapping-add-u32 pn-off 4 in
+      let mask = quic-hp-mask-raw key (wrapping-add-i64 pkt-addr (u32-to-i64 sample-off)) in
+      let b0 = bit-xor-u8 raw-b0 (bit-and-u8 (wrapping-u64-to-u8 mask) 0x1f) in
+      if ne-u8 (bit-and-u8 b0 0x04) 0 then 1 else 0
+
+  #[repr(C, value)]
+  record SinglePktRes where
+    spr-consumed :: U32
+    spr-status :: U8
+    spr-pad0 :: U8
+    spr-pad1 :: U16
+
+  #[inline(always)] #[no-alloc] spr-make :: U32 -> U8 -> SinglePktRes
+  spr-make n st = SinglePktRes n st 0 0
+
+  #[no-alloc]
+  on-retry-packet :: U64 -> I64 -> U32 ->{MVar} SinglePktRes
+  on-retry-packet base pkt-addr pkt-len =
+    if ne-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0 then spr-make pkt-len quic-rx-dropped
+    else
+      let rh = quic-decode-retry-header pkt-addr pkt-len in
+      if eq-u8 rh.qph-ok 0 then spr-make pkt-len quic-rx-dropped
+      else
+        let rkey = load-retry-key base in
+        let odcid = load-cid base c-off-odcid in
+        if quic-retry-tag-verify-raw rkey odcid pkt-addr pkt-len (addr-at base c-off-retry-scratch) then
+          let _0 = store-cid base c-off-dcid (quic-header-read-scid pkt-addr rh) in
+          let tlen = min-u32 rh.qph-token-len 128 in
+          let _1 = raw-store-u32 (addr-at base c-off-rtok-len) tlen in
+          let _2 = copy-raw (addr-at base c-off-rtok-buf) (wrapping-add-i64 pkt-addr (u32-to-i64 rh.qph-token-off)) tlen in
+          let _3 = raw-store-u8 (addr-at base c-off-needs-kstep) 3 in
+          spr-make pkt-len quic-rx-retry
+        else spr-make pkt-len quic-rx-dropped
+
+  #[no-alloc]
+  on-long-packet :: U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} SinglePktRes
+  on-long-packet base pkt-addr pkt-len src-addr now-ns =
+    if lt-u32 pkt-len 7 then spr-make 0 quic-rx-dropped
+    else
+      let b0 = raw-load-u8 pkt-addr in
+      let ver-raw = swap-bytes-u32 (raw-load-u32 (wrapping-add-i64 pkt-addr 1)) in
+      let pt = packet-type-from-long-bits (QuicVersion ver-raw) (wrapping-shr-u8 (bit-and-u8 b0 0x30) 4) in
+      if eq-u8 pt.packet-type-raw pkt-type-code-retry then on-retry-packet base pkt-addr pkt-len
+      else
+        let sp = (if eq-u8 pt.packet-type-raw pkt-type-code-initial then pn-space-code-initial
+          else if eq-u8 pt.packet-type-raw pkt-type-code-handshake then pn-space-code-handshake
+          else pn-space-code-app-data) in
+        let kslot = (if eq-u8 pt.packet-type-raw pkt-type-code-initial then kslot-rx-init
+          else if eq-u8 pt.packet-type-raw pkt-type-code-handshake then kslot-rx-hs
+          else kslot-zero-rtt) in
+        if has-key-flag base kslot then
+          let key = load-qkey base kslot in
+          let lpn = raw-load-u64 (addr-at base (wrapping-add-u64 c-off-largest-rx (wrapping-shl-u64 (u8-to-u64 sp) 3))) in
+          let hdr = quic-packet-unprotect-in-place key pkt-addr pkt-len 0 lpn in
+          if eq-u8 hdr.qph-ok 0 then spr-make pkt-len quic-rx-dropped
+          else
+            let _dc = (if both (eq-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0) (eq-u8 pt.packet-type-raw pkt-type-code-initial) then
+              store-cid base c-off-dcid (quic-header-read-scid pkt-addr hdr)
+            else ()) in
+            let _av = (if eq-u8 pt.packet-type-raw pkt-type-code-handshake then
+              raw-store-u8 (addr-at base c-off-addr-val) 1
+            else ()) in
+            let am = load-ackmap base sp in
+            if ack-map-is-duplicate am hdr.qph-full-pn then spr-make hdr.qph-packet-len quic-rx-duplicate
+            else
+              let pay-addr = wrapping-add-i64 pkt-addr (u32-to-i64 hdr.qph-hdr-len) in
+              let ae = process-frames-loop base sp hdr.qph-type pay-addr 0 hdr.qph-payload-len src-addr now-ns 0 in
+              if eq-u8 ae 255 then spr-make hdr.qph-packet-len quic-rx-proto-err
+              else
+                let _s1 = store-ackmap base sp (ack-map-on-recv am hdr.qph-full-pn now-ns ae) in
+                let _s2 = (if either (eq-u64 lpn quic-pn-none) (gt-u64 hdr.qph-full-pn lpn) then
+                  raw-store-u64 (addr-at base (wrapping-add-u64 c-off-largest-rx (wrapping-shl-u64 (u8-to-u64 sp) 3))) hdr.qph-full-pn
+                else ()) in
+                spr-make hdr.qph-packet-len quic-rx-ok
+        else spr-make pkt-len quic-rx-dropped
+
+  #[no-alloc]
+  commit-rx-key-update :: U64 -> QuicCryptoKey -> QuicCryptoKey -> U8 ->{MVar} Unit
+  commit-rx-key-update base cur-key use-key pkt-kp =
+    let _0 = store-qkey base kslot-rx-app use-key in
+    let _1 = store-qkey base kslot-rx-next cur-key in
+    let _2 = raw-store-u8 (addr-at base c-off-rx-kp) pkt-kp in
+    let _3 = raw-store-u8 (addr-at base c-off-ku-need-ref) 1 in
+    let kcnt = raw-load-u32 (addr-at base c-off-ku-cnt) in
+    let _4 = raw-store-u32 (addr-at base c-off-ku-cnt) (wrapping-add-u32 kcnt 1) in
+    if both (ne-u8 (raw-load-u8 (addr-at base c-off-tx-kp)) pkt-kp) (has-key-flag base kslot-tx-next) then
+      let tcur = load-qkey base kslot-tx-app in
+      let tnxt = load-qkey base kslot-tx-next in
+      let _5 = store-qkey base kslot-tx-app tnxt in
+      let _6 = store-qkey base kslot-tx-next tcur in
+      raw-store-u8 (addr-at base c-off-tx-kp) pkt-kp
+    else ()
+
+  #[no-alloc]
+  detect-migration :: U64 -> U64 -> U32 ->{MVar} Unit
+  detect-migration base src-addr pkt-len =
+    let active-addr = raw-load-u64 (addr-at base c-off-peer-addr) in
+    if eq-u64 src-addr active-addr then ()
+    else
+      let validating = ne-u8 (raw-load-u8 (addr-at base c-off-path-val)) 0 in
+      let cur-mig = raw-load-u64 (addr-at base c-off-mig-addr) in
+      if both validating (eq-u64 src-addr cur-mig) then
+        let mr = raw-load-u64 (addr-at base c-off-mig-rx) in
+        raw-store-u64 (addr-at base c-off-mig-rx) (saturating-add-u64 mr (u32-to-u64 pkt-len))
+      else
+        let challenge = next-rng-u64 base in
+        let _0 = raw-store-u64 (addr-at base c-off-mig-addr) src-addr in
+        let _1 = raw-store-u64 (addr-at base c-off-pc-nonce) challenge in
+        let _2 = raw-store-u8 (addr-at base c-off-path-val) 1 in
+        let _3 = raw-store-u8 (addr-at base c-off-pc-pend) 1 in
+        let _4 = raw-store-u64 (addr-at base c-off-mig-rx) (u32-to-u64 pkt-len) in
+        raw-store-u64 (addr-at base c-off-mig-tx) 0
+
+  #[no-alloc]
+  on-short-packet :: U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} SinglePktRes
+  on-short-packet base pkt-addr pkt-len src-addr now-ns =
+    if has-key-flag base kslot-rx-app then
+      let scid = load-cid base c-off-scid in
+      let dlen = u8-to-u32 scid.cid-len in
+      let cur-key = load-qkey base kslot-rx-app in
+      let cur-kp = raw-load-u8 (addr-at base c-off-rx-kp) in
+      let pkt-kp = peek-short-key-phase cur-key pkt-addr pkt-len dlen in
+      if eq-u8 pkt-kp 255 then spr-make pkt-len quic-rx-dropped
+      else
+        let switched = ne-u8 pkt-kp cur-kp in
+        let use-key = if switched then load-qkey base kslot-rx-next else cur-key in
+        if both switched (if has-key-flag base kslot-rx-next then b-false else b-true) then spr-make pkt-len quic-rx-dropped
+        else
+          let lpn = raw-load-u64 (addr-at base (wrapping-add-u64 c-off-largest-rx 16)) in
+          let hdr = quic-packet-unprotect-in-place use-key pkt-addr pkt-len dlen lpn in
+          if eq-u8 hdr.qph-ok 0 then spr-make pkt-len quic-rx-dropped
+          else
+            let _ku = if switched then commit-rx-key-update base cur-key use-key pkt-kp else () in
+            let am = load-ackmap base pn-space-code-app-data in
+            if ack-map-is-duplicate am hdr.qph-full-pn then spr-make pkt-len quic-rx-duplicate
+            else
+              let _mig = detect-migration base src-addr pkt-len in
+              let pay-addr = wrapping-add-i64 pkt-addr (u32-to-i64 hdr.qph-hdr-len) in
+              let ae = process-frames-loop base pn-space-code-app-data pkt-type-code-short pay-addr 0 hdr.qph-payload-len src-addr now-ns 0 in
+              if eq-u8 ae 255 then spr-make pkt-len quic-rx-proto-err
+              else
+                let _s1 = store-ackmap base pn-space-code-app-data (ack-map-on-recv am hdr.qph-full-pn now-ns ae) in
+                let _s2 = (if either (eq-u64 lpn quic-pn-none) (gt-u64 hdr.qph-full-pn lpn) then
+                  raw-store-u64 (addr-at base (wrapping-add-u64 c-off-largest-rx 16)) hdr.qph-full-pn
+                else ()) in
+                spr-make pkt-len quic-rx-ok
+    else spr-make pkt-len quic-rx-dropped
+
+  -- Handle one uncoalesced QUIC packet inside a received UDP datagram.
+  #[no-alloc]
+  on-single-packet :: U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} SinglePktRes
+  on-single-packet base pkt-addr pkt-len src-addr now-ns =
+    if eq-u32 pkt-len 0 then spr-make 0 quic-rx-dropped
+    else if ne-u8 (bit-and-u8 (raw-load-u8 pkt-addr) 0x80) 0 then
+      on-long-packet base pkt-addr pkt-len src-addr now-ns
+    else on-short-packet base pkt-addr pkt-len src-addr now-ns
+
+  -- Uncoalescing loop for UDP datagrams containing 1 or more QUIC packets.
+  #[no-alloc]
+  on-datagram-loop :: U64 -> I64 -> U32 -> U64 -> U64 -> U8 ->{MVar} U8
+  on-datagram-loop base cur-addr rem src-addr now-ns best-res =
+    if eq-u32 rem 0 then best-res
+    else
+      let r = on-single-packet base cur-addr rem src-addr now-ns in
+      let consumed = r.spr-consumed in
+      let st = r.spr-status in
+      let next-res = (if eq-u8 st quic-rx-retry then quic-rx-retry
+        else if eq-u8 st quic-rx-proto-err then quic-rx-proto-err
+        else if eq-u8 st quic-rx-ok then quic-rx-ok
+        else if eq-u8 best-res quic-rx-dropped then st
+        else best-res) in
+      if either (eq-u32 consumed 0) (ge-u32 consumed rem) then next-res
+      else on-datagram-loop base (wrapping-add-i64 cur-addr (u32-to-i64 consumed)) (wrapping-sub-u32 rem consumed) src-addr now-ns next-res
+
+  -- | Process an incoming UDP datagram in-place (`#[no-alloc]`).
+  -- Unprotects header & payload, handles coalesced packets, updates ACK maps,
+  -- recovery/BBRv2, streams, datagrams, KeyUpdate, and NAT migration.
+  #[no-alloc]
+  quic-conn-on-datagram :: QuicConn -> I64 -> U32 -> U64 -> U64 ->{MVar} U8
+  quic-conn-on-datagram conn pkt-addr pkt-len src-addr now-ns =
+    let base = conn.qc-base in
+    if either (eq-u64 base 0) (eq-u32 pkt-len 0) then quic-rx-dropped
+    else if eq-u8 (raw-load-u8 (addr-at base c-off-state)) conn-state-closed then quic-rx-dropped
+    else
+      let _la = raw-store-u64 (addr-at base c-off-last-act) now-ns in
+      let _rx = raw-store-u64 (addr-at base c-off-pkts-rx) (wrapping-add-u64 (raw-load-u64 (addr-at base c-off-pkts-rx)) 1) in
+      -- Credit anti-amplification budget for unvalidated peer bytes
+      let _aa = (if eq-u8 (raw-load-u8 (addr-at base c-off-addr-val)) 0 then
+        let prev = raw-load-u64 (addr-at base c-off-bytes-rx-unv) in
+        raw-store-u64 (addr-at base c-off-bytes-rx-unv) (saturating-add-u64 prev (u32-to-u64 pkt-len))
+      else ()) in
+      on-datagram-loop base pkt-addr pkt-len src-addr now-ns quic-rx-dropped
+
+  -- =========================================================================
+  -- 6. Egress Paced Packet Builder (`quic-conn-poll-tx`, #[no-alloc])
+  -- =========================================================================
+
+  -- Encode an ACK frame from `AckMap` into `buf-addr[off..cap]`. Returns bytes written.
+  #[no-alloc]
+  encode-ack-from-map :: U64 -> AckMap -> I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  encode-ack-from-map base am buf-addr off cap now-ns =
+    let scratch = addr-at base c-off-ack-scratch in
+    let rcnt = ack-map-extract-ranges-raw am scratch 8 in
+    let delay-us = wrapping-shr-u64 (div-u64 (ack-map-ack-delay-ns am now-ns) 1000) 3 in
+    let first-r = ack-map-first-range am in
+    let w0 = quic-frame-encode-ack-header buf-addr off cap b-false am.ack-largest delay-us (u32-to-u64 rcnt) first-r in
+    if eq-u32 w0 0 then 0
+    else encode-extra-ack-loop scratch 0 rcnt buf-addr (wrapping-add-u32 off w0) cap off
+
+  #[no-alloc]
+  encode-extra-ack-loop :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  encode-extra-ack-loop scratch i rcnt buf-addr pos cap start-off =
+    if ge-u32 i rcnt then wrapping-sub-u32 pos start-off
+    else
+      let eoff = wrapping-shl-u64 (u32-to-u64 i) 4 in
+      let gap = raw-load-u64 (wrapping-add-i64 scratch (wrapping-u64-to-i64 eoff)) in
+      let rlen = raw-load-u64 (wrapping-add-i64 scratch (wrapping-u64-to-i64 (wrapping-add-u64 eoff 8))) in
+      let w = quic-ack-range-encode-raw buf-addr pos cap gap rlen in
+      if eq-u32 w 0 then wrapping-sub-u32 pos start-off
+      else encode-extra-ack-loop scratch (wrapping-add-u32 i 1) rcnt buf-addr (wrapping-add-u32 pos w) cap start-off
+
+  -- Check 3x anti-amplification budget for sending `need-bytes` to `dst-addr`.
+  #[inline(always)] #[no-alloc] check-amp-budget :: U64 -> U64 -> U32 ->{MVar} Bool
+  check-amp-budget base dst-addr need-bytes =
+    let active = raw-load-u64 (addr-at base c-off-peer-addr) in
+    let validating = ne-u8 (raw-load-u8 (addr-at base c-off-path-val)) 0 in
+    let mig-addr = raw-load-u64 (addr-at base c-off-mig-addr) in
+    if both validating (both (ne-u64 dst-addr active) (eq-u64 dst-addr mig-addr)) then
+      let mrx = raw-load-u64 (addr-at base c-off-mig-rx) in
+      let mtx = raw-load-u64 (addr-at base c-off-mig-tx) in
+      le-u64 (saturating-add-u64 mtx (u32-to-u64 need-bytes)) (saturating-mul-u64 mrx 3)
+    else if eq-u8 (raw-load-u8 (addr-at base c-off-addr-val)) 0 then
+      let urx = raw-load-u64 (addr-at base c-off-bytes-rx-unv) in
+      let utx = raw-load-u64 (addr-at base c-off-bytes-tx-unv) in
+      le-u64 (saturating-add-u64 utx (u32-to-u64 need-bytes)) (saturating-mul-u64 urx 3)
+    else b-true
+
+  #[inline(always)] #[no-alloc] debit-amp-budget :: U64 -> U64 -> U32 ->{MVar} Unit
+  debit-amp-budget base dst-addr sent-bytes =
+    let active = raw-load-u64 (addr-at base c-off-peer-addr) in
+    let validating = ne-u8 (raw-load-u8 (addr-at base c-off-path-val)) 0 in
+    let mig-addr = raw-load-u64 (addr-at base c-off-mig-addr) in
+    if both validating (both (ne-u64 dst-addr active) (eq-u64 dst-addr mig-addr)) then
+      let mtx = raw-load-u64 (addr-at base c-off-mig-tx) in
+      raw-store-u64 (addr-at base c-off-mig-tx) (saturating-add-u64 mtx (u32-to-u64 sent-bytes))
+    else if eq-u8 (raw-load-u8 (addr-at base c-off-addr-val)) 0 then
+      let utx = raw-load-u64 (addr-at base c-off-bytes-tx-unv) in
+      raw-store-u64 (addr-at base c-off-bytes-tx-unv) (saturating-add-u64 utx (u32-to-u64 sent-bytes))
+    else ()
+
+  -- Seal & record a Long Header packet (`Initial` or `Handshake`).
+  #[no-alloc]
+  seal-long-packet :: U64 -> U8 -> U8 -> U32 -> I64 -> U32 -> U32 -> U32 -> U64 -> U32 -> U32 -> U64 ->{MVar} QuicTxPacket
+  seal-long-packet base sp pkt-type kslot out-addr max-pkt hdr-len pay-len full-pn csent cr-take now-ns =
+    let dst-addr = raw-load-u64 (addr-at base c-off-peer-addr) in
+    let pn-len = (2 :: U32) in
+    let pn-off = wrapping-sub-u32 hdr-len pn-len in
+    let len-off = wrapping-sub-u32 pn-off 2 in
+    let wire-len = wrapping-add-u32 (wrapping-add-u32 pn-len pay-len) 16 in
+    let _wl = quic-varint-encode2b out-addr len-off max-pkt (u32-to-u64 wire-len) in
+    let total = quic-packet-protect-in-place (load-qkey base kslot) out-addr pn-off hdr-len pay-len full-pn in
+    if eq-u32 total 0 then quic-tx-packet-empty ()
+    else
+      let pn-off-slot = wrapping-add-u64 c-off-next-pn (wrapping-shl-u64 (u8-to-u64 sp) 3) in
+      let _pn = raw-store-u64 (addr-at base pn-off-slot) (wrapping-add-u64 full-pn 1) in
+      let tx-sent-off = if eq-u8 sp pn-space-code-initial then c-off-cinit-tx-sent else c-off-chs-tx-sent in
+      let _cs = if gt-u32 cr-take 0 then raw-store-u32 (addr-at base tx-sent-off) (wrapping-add-u32 csent cr-take) else () in
+      let ae = if gt-u32 cr-take 0 then (1 :: U8) else 0 in
+      let rec = raw-load-u64 (addr-at base c-off-rec) in
+      let _rc = recovery-on-packet-sent-raw rec sp full-pn total now-ns ae ae in
+      let mflags = if gt-u32 cr-take 0 then mf-crypto else 0 in
+      let _rm = record-sent-meta base sp full-pn now-ns stream-slot-none 0 0 csent cr-take stream-slot-none mflags in
+      let _db = debit-amp-budget base dst-addr total in
+      let _tx = raw-store-u64 (addr-at base c-off-pkts-tx) (wrapping-add-u64 (raw-load-u64 (addr-at base c-off-pkts-tx)) 1) in
+      QuicTxPacket dst-addr now-ns total pkt-type 0 0 1
+
+  -- Build & protect a Long Header packet (`Initial` or `Handshake`) into `out-addr`.
+  #[no-alloc]
+  build-long-packet :: U64 -> U8 -> U8 -> I64 -> U32 -> U64 ->{MVar} QuicTxPacket
+  build-long-packet base sp pkt-type out-addr max-pkt now-ns =
+    let kslot = if eq-u8 sp pn-space-code-initial then kslot-tx-init else kslot-tx-hs in
+    if has-key-flag base kslot then
+      let am = load-ackmap base sp in
+      let need-ack = ack-map-needs-ack am in
+      let tx-len-off = if eq-u8 sp pn-space-code-initial then c-off-cinit-tx-len else c-off-chs-tx-len in
+      let tx-sent-off = if eq-u8 sp pn-space-code-initial then c-off-cinit-tx-sent else c-off-chs-tx-sent in
+      let tx-buf-off = if eq-u8 sp pn-space-code-initial then c-off-cinit-tx-buf else c-off-chs-tx-buf in
+      let clen-tot = raw-load-u32 (addr-at base tx-len-off) in
+      let csent = raw-load-u32 (addr-at base tx-sent-off) in
+      let has-crypto = gt-u32 clen-tot csent in
+      if both (if need-ack then b-false else b-true) (if has-crypto then b-false else b-true) then quic-tx-packet-empty ()
+      else
+        let full-pn = raw-load-u64 (addr-at base (wrapping-add-u64 c-off-next-pn (wrapping-shl-u64 (u8-to-u64 sp) 3))) in
+        let tok-len = if eq-u8 sp pn-space-code-initial then raw-load-u32 (addr-at base c-off-rtok-len) else 0 in
+        let hdr-len = quic-encode-long-header out-addr max-pkt (quic-version-v1 ()) (PacketType pkt-type) (load-cid base c-off-dcid) (load-cid base c-off-scid) (addr-at base c-off-rtok-buf) tok-len 20 2 full-pn 2 in
+        if either (eq-u32 hdr-len 0) (le-u32 max-pkt (wrapping-add-u32 hdr-len 20)) then quic-tx-packet-empty ()
+        else
+          let pay-cap = wrapping-sub-u32 (wrapping-sub-u32 max-pkt hdr-len) 16 in
+          let pay-addr = wrapping-add-i64 out-addr (u32-to-i64 hdr-len) in
+          let p1 = (if need-ack then
+            let wa = encode-ack-from-map base am pay-addr 0 pay-cap now-ns in
+            if gt-u32 wa 0 then
+              let _ma = store-ackmap base sp (ack-map-mark-acked am) in
+              wa
+            else 0
+          else 0) in
+          let cr-take = if has-crypto then min-u32 (saturating-sub-u32 clen-tot csent) (saturating-sub-u32 pay-cap (wrapping-add-u32 p1 8)) else 0 in
+          let p2 = (if gt-u32 cr-take 0 then
+            wrapping-add-u32 p1 (quic-frame-encode-crypto pay-addr p1 pay-cap (u32-to-u64 csent) (addr-at base (wrapping-add-u64 tx-buf-off (u32-to-u64 csent))) cr-take)
+          else p1) in
+          let is-cli-init = both (eq-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0) (eq-u8 sp pn-space-code-initial) in
+          let tgt0 = if lt-u32 p2 2 then (2 :: U32) else p2 in
+          let tgt1 = if both is-cli-init (ge-u32 max-pkt 1200) then wrapping-sub-u32 (wrapping-sub-u32 1200 hdr-len) 16 else tgt0 in
+          let tgt = if gt-u32 tgt1 tgt0 then tgt1 else tgt0 in
+          let pad-need = saturating-sub-u32 tgt p2 in
+          let p3 = if gt-u32 pad-need 0 then wrapping-add-u32 p2 (quic-frame-encode-padding pay-addr p2 pay-cap pad-need) else p2 in
+          let dst-addr = raw-load-u64 (addr-at base c-off-peer-addr) in
+          if check-amp-budget base dst-addr (wrapping-add-u32 (wrapping-add-u32 hdr-len p3) 16) then
+            seal-long-packet base sp pkt-type kslot out-addr max-pkt hdr-len p3 full-pn csent cr-take now-ns
+          else
+            let _ra = if need-ack then store-ackmap base sp am else () in
+            let _ab = raw-store-u64 (addr-at base c-off-amp-blocks) (wrapping-add-u64 (raw-load-u64 (addr-at base c-off-amp-blocks)) 1) in
+            QuicTxPacket dst-addr now-ns 0 pkt-type 1 0 0
+    else quic-tx-packet-empty ()
+
+  -- Helper: encode STREAM chunk header + payload bytes from send ring into `pay-addr[pos..pay-cap)`.
+  #[no-alloc]
+  encode-stream-chunk-raw :: QuicStreamTable -> QuicStreamTxChunk -> I64 -> U32 -> U32 ->{MVar} U32
+  encode-stream-chunk-raw stbl stx pay-addr pos pay-cap =
+    let has-off = gt-u64 stx.stx-offset 0 in
+    let fb0 = if has-off then stream-flag-off else (0 :: U8) in
+    let fb1 = bit-or-u8 fb0 stream-flag-len in
+    let fb2 = if ne-u8 stx.stx-fin 0 then bit-or-u8 fb1 stream-flag-fin else fb1 in
+    let _b = raw-store-u8 (wrapping-add-i64 pay-addr (u32-to-i64 pos)) (bit-or-u8 0x08 fb2) in
+    let q1 = wrapping-add-u32 pos 1 in
+    let w1 = quic-varint-encode-raw pay-addr q1 pay-cap stx.stx-stream-id in
+    let q2 = wrapping-add-u32 q1 w1 in
+    let w2 = if has-off then quic-varint-encode-raw pay-addr q2 pay-cap stx.stx-offset else 0 in
+    let q3 = wrapping-add-u32 q2 w2 in
+    let w3 = quic-varint-encode-raw pay-addr q3 pay-cap (u32-to-u64 stx.stx-len) in
+    let q4 = wrapping-add-u32 q3 w3 in
+    let _cp = quic-stream-copy-send-raw stbl stx.stx-slot stx.stx-offset (wrapping-add-i64 pay-addr (u32-to-i64 q4)) stx.stx-len in
+    wrapping-add-u32 q4 stx.stx-len
+
+  #[repr(C, value)]
+  record AppCtrlPack where
+    acp-pos :: U32
+    acp-ack-end :: U32
+    acp-flags :: U32
+    acp-ctrl-slot :: U32
+
+  -- Pack ACK, CLOSE, PATH_RESPONSE, PATH_CHALLENGE, HANDSHAKE_DONE, flow-control, and DATAGRAM frames.
+  #[no-alloc]
+  pack-app-ctrl-frames :: U64 -> U8 -> U8 -> U64 -> I64 -> U32 -> U64 ->{MVar} AppCtrlPack
+  pack-app-ctrl-frames base is-onertt is-mig-probe dst-addr pay-addr pay-cap now-ns =
+    let sp = pn-space-code-app-data in
+    let am = load-ackmap base sp in
+    let p1 = (if both (ne-u8 is-onertt 0) (both (eq-u8 is-mig-probe 0) (ack-map-needs-ack am)) then
+      let wa = encode-ack-from-map base am pay-addr 0 pay-cap now-ns in
+      if gt-u32 wa 0 then
+        let _ma = store-ackmap base sp (ack-map-mark-acked am) in
+        wa
+      else 0
+    else 0) in
+    let p2 = (if both (ne-u8 is-onertt 0) (ne-u8 (raw-load-u8 (addr-at base c-off-close-pend)) 0) then
+      let wc = quic-frame-encode-connection-close-transport pay-addr p1 pay-cap (QuicTransportError (raw-load-u64 (addr-at base c-off-close-err))) 0 0 0 in
+      let _c = if gt-u32 wc 0 then raw-store-u8 (addr-at base c-off-close-pend) 0 else () in
+      wrapping-add-u32 p1 wc
+    else p1) in
+    let p3 = (if both (ne-u8 is-onertt 0) (both (ne-u8 (raw-load-u8 (addr-at base c-off-pr-pend)) 0) (eq-u64 dst-addr (raw-load-u64 (addr-at base c-off-pr-addr)))) then
+      let wp = quic-frame-encode-path-response pay-addr p2 pay-cap (raw-load-u64 (addr-at base c-off-pr-nonce)) in
+      let _c = if gt-u32 wp 0 then raw-store-u8 (addr-at base c-off-pr-pend) 0 else () in
+      wrapping-add-u32 p2 wp
+    else p2) in
+    let pc-ok = both (ne-u8 is-onertt 0) (both (ne-u8 (raw-load-u8 (addr-at base c-off-pc-pend)) 0) (eq-u64 dst-addr (raw-load-u64 (addr-at base c-off-mig-addr)))) in
+    let p4 = (if pc-ok then
+      let wp = quic-frame-encode-path-challenge pay-addr p3 pay-cap (raw-load-u64 (addr-at base c-off-pc-nonce)) in
+      let _c = if gt-u32 wp 0 then raw-store-u8 (addr-at base c-off-pc-pend) 0 else () in
+      wrapping-add-u32 p3 wp
+    else p3) in
+    let hsd-ok = both (ne-u8 is-onertt 0) (both (eq-u8 is-mig-probe 0) (ne-u8 (raw-load-u8 (addr-at base c-off-hs-done-pend)) 0)) in
+    let p5 = (if hsd-ok then
+      let wh = quic-frame-encode-handshake-done pay-addr p4 pay-cap in
+      let _c = if gt-u32 wh 0 then raw-store-u8 (addr-at base c-off-hs-done-pend) 0 else () in
+      wrapping-add-u32 p4 wh
+    else p4) in
+    let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+    let fc = if both (ne-u8 is-onertt 0) (eq-u8 is-mig-probe 0) then quic-stream-poll-flow-control stbl else quic-flow-ctrl-none () in
+    let p6 = (if eq-u8 fc.qfc-kind fc-kind-max-data then wrapping-add-u32 p5 (quic-frame-encode-max-data pay-addr p5 pay-cap fc.qfc-limit)
+      else if eq-u8 fc.qfc-kind fc-kind-max-stream-data then wrapping-add-u32 p5 (quic-frame-encode-max-stream-data pay-addr p5 pay-cap (StreamId fc.qfc-stream-id) fc.qfc-limit)
+      else if eq-u8 fc.qfc-kind fc-kind-reset-stream then wrapping-add-u32 p5 (quic-frame-encode-reset-stream pay-addr p5 pay-cap (StreamId fc.qfc-stream-id) fc.qfc-limit (quic-stream-send-sent-off stbl fc.qfc-slot))
+      else p5) in
+    let f0 = if pc-ok then mf-path-challenge else (0 :: U32) in
+    let f1 = if hsd-ok then bit-or-u32 f0 mf-hs-done else f0 in
+    let f2 = (if eq-u8 fc.qfc-kind fc-kind-max-data then bit-or-u32 f1 mf-max-data
+      else if eq-u8 fc.qfc-kind fc-kind-max-stream-data then bit-or-u32 f1 mf-max-stream-data
+      else if eq-u8 fc.qfc-kind fc-kind-reset-stream then bit-or-u32 f1 mf-reset-stream
+      else f1) in
+    AppCtrlPack p6 p1 f2 fc.qfc-slot
+
+  #[no-alloc]
+  pack-app-datagram :: U64 -> I64 -> U32 -> U32 ->{MVar} U32
+  pack-app-datagram base pay-addr pos pay-cap =
+    let dg-h = raw-load-u32 (addr-at base c-off-dg-tx-h) in
+    let dg-t = raw-load-u32 (addr-at base c-off-dg-tx-t) in
+    if ge-u32 dg-h dg-t then pos
+    else
+      let dslot = bit-and-u32 dg-h 7 in
+      let doff = wrapping-add-u64 c-off-dg-tx (wrapping-mul-u64 (u32-to-u64 dslot) dg-slot-stride) in
+      let dlen = raw-load-u32 (addr-at base doff) in
+      if le-u32 (wrapping-add-u32 dlen 4) (saturating-sub-u32 pay-cap pos) then
+        let wd = quic-frame-encode-datagram pay-addr pos pay-cap b-true (addr-at base (wrapping-add-u64 doff 16)) dlen in
+        if gt-u32 wd 0 then
+          let _dh = raw-store-u32 (addr-at base c-off-dg-tx-h) (wrapping-add-u32 dg-h 1) in
+          wrapping-add-u32 pos wd
+        else pos
+      else pos
+
+  #[no-alloc]
+  seal-app-packet :: U64 -> U8 -> U64 -> I64 -> U32 -> U32 -> U32 -> U32 -> U64 -> QuicStreamTxChunk -> AppCtrlPack -> U64 ->{MVar} QuicTxPacket
+  seal-app-packet base is-zero-rtt dst-addr out-addr max-pkt hdr-len pay-len ack-end full-pn stx ctrl now-ns =
+    let pn-off = wrapping-sub-u32 hdr-len 2 in
+    let _wl = (if ne-u8 is-zero-rtt 0 then
+      let _ = quic-varint-encode2b out-addr (wrapping-sub-u32 pn-off 2) max-pkt (u32-to-u64 (wrapping-add-u32 (wrapping-add-u32 2 pay-len) 16)) in
+      ()
+    else ()) in
+    let key = load-qkey base (if ne-u8 is-zero-rtt 0 then kslot-zero-rtt else kslot-tx-app) in
+    let total = quic-packet-protect-in-place key out-addr pn-off hdr-len pay-len full-pn in
+    if eq-u32 total 0 then quic-tx-packet-empty ()
+    else
+      let _pn = raw-store-u64 (addr-at base (wrapping-add-u64 c-off-next-pn 16)) (wrapping-add-u64 full-pn 1) in
+      let pto-p = raw-load-u32 (addr-at base c-off-pto-probes) in
+      let _pr = if gt-u32 pto-p 0 then raw-store-u32 (addr-at base c-off-pto-probes) (wrapping-sub-u32 pto-p 1) else () in
+      let ae = if gt-u32 pay-len ack-end then (1 :: U8) else 0 in
+      let rec = raw-load-u64 (addr-at base c-off-rec) in
+      let _rc = recovery-on-packet-sent-raw rec pn-space-code-app-data full-pn total now-ns ae ae in
+      let sf0 = if ne-u8 stx.stx-ok 0 then bit-or-u32 ctrl.acp-flags mf-stream else ctrl.acp-flags in
+      let sf1 = if both (ne-u8 stx.stx-ok 0) (ne-u8 stx.stx-fin 0) then bit-or-u32 sf0 mf-stream-fin else sf0 in
+      let _rm = record-sent-meta base pn-space-code-app-data full-pn now-ns stx.stx-slot stx.stx-offset stx.stx-len 0 0 ctrl.acp-ctrl-slot sf1 in
+      let bbr = raw-load-u64 (addr-at base c-off-bbr) in
+      let rate = bbr-pacing-rate-raw bbr in
+      let pacer = load-pacer base in
+      let rel-ns = pacer-next-send-time-ns pacer now-ns rate in
+      let _pc2 = store-pacer base (pacer-on-packet-sent pacer now-ns rate total) in
+      let _db = debit-amp-budget base dst-addr total in
+      let _tx = raw-store-u64 (addr-at base c-off-pkts-tx) (wrapping-add-u64 (raw-load-u64 (addr-at base c-off-pkts-tx)) 1) in
+      let pt-code = if ne-u8 is-zero-rtt 0 then pkt-type-code-zero-rtt else pkt-type-code-short in
+      QuicTxPacket dst-addr rel-ns total pt-code 0 0 1
+
+  #[no-alloc]
+  has-app-tx-work :: U64 -> U8 ->{MVar} Bool
+  has-app-tx-work base is-onertt =
+    let dg-h = raw-load-u32 (addr-at base c-off-dg-tx-h) in
+    let dg-t = raw-load-u32 (addr-at base c-off-dg-tx-t) in
+    if lt-u32 dg-h dg-t then b-true
+    else if ne-u8 (quic-stream-has-pending-tx (QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)))) 0 then b-true
+    else if eq-u8 is-onertt 0 then b-false
+    else if ack-map-needs-ack (load-ackmap base pn-space-code-app-data) then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-hs-done-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-pr-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-pc-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-close-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-ping-pend)) 0 then b-true
+    else gt-u32 (raw-load-u32 (addr-at base c-off-pto-probes)) 0
+
+  #[no-alloc]
+  app-can-bypass-cc :: U64 -> U8 ->{MVar} Bool
+  app-can-bypass-cc base is-onertt =
+    if eq-u8 is-onertt 0 then b-false
+    else if ack-map-needs-ack (load-ackmap base pn-space-code-app-data) then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-pr-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-pc-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-close-pend)) 0 then b-true
+    else if ne-u8 (raw-load-u8 (addr-at base c-off-hs-done-pend)) 0 then b-true
+    else gt-u32 (raw-load-u32 (addr-at base c-off-pto-probes)) 0
+
+  -- Build & protect a 1-RTT Short Header packet (or 0-RTT early data) into `out-addr`.
+  #[no-alloc]
+  build-app-packet :: U64 -> I64 -> U32 -> U64 ->{MVar} QuicTxPacket
+  build-app-packet base out-addr max-pkt now-ns =
+    let st = raw-load-u8 (addr-at base c-off-state) in
+    let is-zero-rtt = if both (lt-u8 st conn-state-established) (both (eq-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0) (has-key-flag base kslot-zero-rtt)) then (1 :: U8) else 0 in
+    let is-onertt = if both (ge-u8 st conn-state-established) (has-key-flag base kslot-tx-app) then (1 :: U8) else 0 in
+    if both (eq-u8 is-onertt 0) (eq-u8 is-zero-rtt 0) then quic-tx-packet-empty ()
+    else if has-app-tx-work base is-onertt then
+      let need-pr = both (ne-u8 is-onertt 0) (ne-u8 (raw-load-u8 (addr-at base c-off-pr-pend)) 0) in
+      let need-pc = both (ne-u8 is-onertt 0) (ne-u8 (raw-load-u8 (addr-at base c-off-pc-pend)) 0) in
+      let dst-addr = (if need-pr then raw-load-u64 (addr-at base c-off-pr-addr)
+        else if need-pc then raw-load-u64 (addr-at base c-off-mig-addr)
+        else raw-load-u64 (addr-at base c-off-peer-addr)) in
+      let rec = raw-load-u64 (addr-at base c-off-rec) in
+      let bbr = raw-load-u64 (addr-at base c-off-bbr) in
+      let rate = bbr-pacing-rate-raw bbr in
+      let pacer = load-pacer base in
+      let cc-ok = either (app-can-bypass-cc base is-onertt) (both (lt-u64 (recovery-bytes-in-flight-raw rec) (bbr-cwnd-raw bbr)) (pacer-can-send-now pacer now-ns rate max-pkt)) in
+      if cc-ok then
+        let is-mig-probe = if both need-pc (ne-u64 dst-addr (raw-load-u64 (addr-at base c-off-peer-addr))) then (1 :: U8) else 0 in
+        let amp-need = if ne-u8 is-mig-probe 0 then (40 :: U32) else max-pkt in
+        if check-amp-budget base dst-addr amp-need then
+          let full-pn = raw-load-u64 (addr-at base (wrapping-add-u64 c-off-next-pn 16)) in
+          let hdr-len = (if ne-u8 is-zero-rtt 0 then
+            quic-encode-long-header out-addr max-pkt (quic-version-v1 ()) (packet-type-zero-rtt ()) (load-cid base c-off-dcid) (load-cid base c-off-scid) 0 0 20 2 full-pn 2
+          else quic-encode-short-header out-addr max-pkt (load-cid base c-off-dcid) 0 (raw-load-u8 (addr-at base c-off-tx-kp)) full-pn 2) in
+          if either (eq-u32 hdr-len 0) (le-u32 max-pkt (wrapping-add-u32 hdr-len 20)) then quic-tx-packet-empty ()
+          else
+            let pay-cap = wrapping-sub-u32 (wrapping-sub-u32 max-pkt hdr-len) 16 in
+            let pay-addr = wrapping-add-i64 out-addr (u32-to-i64 hdr-len) in
+            let ctrl = pack-app-ctrl-frames base is-onertt is-mig-probe dst-addr pay-addr pay-cap now-ns in
+            let p7 = if eq-u8 is-mig-probe 0 then pack-app-datagram base pay-addr ctrl.acp-pos pay-cap else ctrl.acp-pos in
+            let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+            let st-budget = saturating-sub-u32 pay-cap (wrapping-add-u32 p7 24) in
+            let stx = if both (eq-u8 is-mig-probe 0) (gt-u32 st-budget 0) then quic-stream-poll-tx stbl st-budget else quic-stream-tx-chunk-empty () in
+            let p8 = if ne-u8 stx.stx-ok 0 then encode-stream-chunk-raw stbl stx pay-addr p7 pay-cap else p7 in
+            let need-ping = both (ne-u8 is-onertt 0) (either (ne-u8 (raw-load-u8 (addr-at base c-off-ping-pend)) 0) (gt-u32 (raw-load-u32 (addr-at base c-off-pto-probes)) 0)) in
+            let p9 = (if both (eq-u32 p8 ctrl.acp-ack-end) need-ping then
+              let _cp = raw-store-u8 (addr-at base c-off-ping-pend) 0 in
+              wrapping-add-u32 p8 (quic-frame-encode-ping pay-addr p8 pay-cap)
+            else p8) in
+            if eq-u32 p9 0 then quic-tx-packet-empty ()
+            else
+              let pad-gso = both (ne-u8 stx.stx-ok 0) (both (eq-u8 stx.stx-fin 0) (ne-u8 (quic-stream-has-pending-tx stbl) 0)) in
+              let min-pay = if pad-gso then pay-cap else (2 :: U32) in
+              let p10 = if lt-u32 p9 min-pay then wrapping-add-u32 p9 (quic-frame-encode-padding pay-addr p9 pay-cap (wrapping-sub-u32 min-pay p9)) else p9 in
+              if check-amp-budget base dst-addr (wrapping-add-u32 (wrapping-add-u32 hdr-len p10) 16) then
+                seal-app-packet base is-zero-rtt dst-addr out-addr max-pkt hdr-len p10 ctrl.acp-ack-end full-pn stx ctrl now-ns
+              else
+                let _ab = raw-store-u64 (addr-at base c-off-amp-blocks) (wrapping-add-u64 (raw-load-u64 (addr-at base c-off-amp-blocks)) 1) in
+                QuicTxPacket dst-addr now-ns 0 pkt-type-code-short 1 0 0
+        else
+          let _ab = raw-store-u64 (addr-at base c-off-amp-blocks) (wrapping-add-u64 (raw-load-u64 (addr-at base c-off-amp-blocks)) 1) in
+          QuicTxPacket dst-addr now-ns 0 pkt-type-code-short 1 0 0
+      else
+        QuicTxPacket dst-addr (pacer-next-send-time-ns pacer now-ns rate) 0 pkt-type-code-short 0 1 0
+    else quic-tx-packet-empty ()
+
+  -- | Build the next outgoing paced QUIC packet capped to `max-pkt-len` bytes
+  -- directly into caller DMA buffer `out-addr` (`#[no-alloc]`).
+  #[no-alloc]
+  quic-conn-poll-tx-capped :: QuicConn -> I64 -> U32 -> U32 -> U64 ->{MVar} QuicTxPacket
+  quic-conn-poll-tx-capped conn out-addr out-cap max-pkt-len now-ns =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then quic-tx-packet-empty ()
+    else if ge-u8 (raw-load-u8 (addr-at base c-off-state)) conn-state-closed then quic-tx-packet-empty ()
+    else
+      let mtu = raw-load-u32 (addr-at base c-off-mtu) in
+      let lim0 = min-u32 out-cap mtu in
+      let lim = if gt-u32 max-pkt-len 0 then min-u32 lim0 max-pkt-len else lim0 in
+      -- Priority 1: Initial packets
+      let p-init = build-long-packet base pn-space-code-initial pkt-type-code-initial out-addr lim now-ns in
+      if either (ne-u8 p-init.tx-ok 0) (ne-u8 p-init.tx-blocked-amp 0) then p-init
+      else
+        -- Priority 2: Handshake packets
+        let p-hs = build-long-packet base pn-space-code-handshake pkt-type-code-handshake out-addr lim now-ns in
+        if either (ne-u8 p-hs.tx-ok 0) (ne-u8 p-hs.tx-blocked-amp 0) then p-hs
+        else
+          -- Priority 3: 1-RTT (or 0-RTT) packets
+          build-app-packet base out-addr lim now-ns
+
+  -- | Build the next outgoing paced QUIC packet (up to connection MTU) into
+  -- `out-addr[0..out-cap)` with `SO_TXTIME` release timestamp (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  quic-conn-poll-tx :: QuicConn -> I64 -> U32 -> U64 ->{MVar} QuicTxPacket
+  quic-conn-poll-tx conn out-addr out-cap now-ns =
+    quic-conn-poll-tx-capped conn out-addr out-cap 0 now-ns
+
+  -- =========================================================================
+  -- 7. Timeout Handler (Loss / PTO / Idle / Drain) & Graceful Close (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  quic-conn-next-timeout-ns :: QuicConn ->{MVar} U64
+  quic-conn-next-timeout-ns conn =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then 0
+    else
+      let st = raw-load-u8 (addr-at base c-off-state) in
+      if eq-u8 st conn-state-closed then 0
+      else if eq-u8 st conn-state-draining then raw-load-u64 (addr-at base c-off-drain-dl)
+      else
+        let rec = raw-load-u64 (addr-at base c-off-rec) in
+        let rto = recovery-next-timeout-ns-raw rec in
+        let idle = saturating-add-u64 (raw-load-u64 (addr-at base c-off-last-act)) (raw-load-u64 (addr-at base c-off-idle-to)) in
+        if eq-u64 rto 0 then idle else min-u64 rto idle
+
+  -- | Handle connection timer expiration at `now-ns` (`#[no-alloc]`):
+  -- RFC 9002 time-threshold loss detection, PTO probe generation & tail
+  -- retransmission, draining completion, and idle timeout.
+  #[no-alloc]
+  quic-conn-on-timeout :: QuicConn -> U64 ->{MVar} U8
+  quic-conn-on-timeout conn now-ns =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then quic-timeout-none
+    else
+      let st = raw-load-u8 (addr-at base c-off-state) in
+      if eq-u8 st conn-state-closed then quic-timeout-none
+      else if eq-u8 st conn-state-draining then
+        if ge-u64 now-ns (raw-load-u64 (addr-at base c-off-drain-dl)) then
+          let _ = raw-store-u8 (addr-at base c-off-state) conn-state-closed in
+          quic-timeout-drained
+        else quic-timeout-none
+      else
+        let idle-dl = saturating-add-u64 (raw-load-u64 (addr-at base c-off-last-act)) (raw-load-u64 (addr-at base c-off-idle-to)) in
+        if ge-u64 now-ns idle-dl then
+          let _ = raw-store-u8 (addr-at base c-off-state) conn-state-closed in
+          quic-timeout-idle
+        else
+          let rec = raw-load-u64 (addr-at base c-off-rec) in
+          let rto = recovery-next-timeout-ns-raw rec in
+          if both (ne-u64 rto 0) (ge-u64 now-ns rto) then
+            let out = recovery-on-loss-timeout-raw rec now-ns in
+            let bbr = raw-load-u64 (addr-at base c-off-bbr) in
+            let _b = (if gt-u64 out.ack-out-lost-bytes 0 then
+              bbr-on-ack-raw bbr 0 out.ack-out-lost-bytes (recovery-bytes-in-flight-raw rec) out.ack-out-delivered-bytes out.ack-out-delivered-ns 0 0 0 0 now-ns
+            else ()) in
+            let _pc = if ne-u8 out.ack-out-persistent-congestion 0 then bbr-on-persistent-congestion-raw bbr now-ns else () in
+            if ne-u8 out.ack-out-pto-fired 0 then
+              -- PTO fired: re-arm unacked CRYPTO, HANDSHAKE_DONE, PATH_CHALLENGE, or oldest STREAM chunk!
+              let _ci = (if lt-u32 (raw-load-u32 (addr-at base c-off-cinit-tx-ack)) (raw-load-u32 (addr-at base c-off-cinit-tx-len)) then
+                raw-store-u32 (addr-at base c-off-cinit-tx-sent) (raw-load-u32 (addr-at base c-off-cinit-tx-ack))
+              else ()) in
+              let _ch = (if lt-u32 (raw-load-u32 (addr-at base c-off-chs-tx-ack)) (raw-load-u32 (addr-at base c-off-chs-tx-len)) then
+                raw-store-u32 (addr-at base c-off-chs-tx-sent) (raw-load-u32 (addr-at base c-off-chs-tx-ack))
+              else ()) in
+              let _hd = (if both (ne-u8 (raw-load-u8 (addr-at base c-off-is-srv)) 0) (both (eq-u8 st conn-state-established) (eq-u8 (raw-load-u8 (addr-at base c-off-hs-done-ack)) 0)) then
+                raw-store-u8 (addr-at base c-off-hs-done-pend) 1
+              else ()) in
+              let _mv = (if ne-u8 (raw-load-u8 (addr-at base c-off-path-val)) 0 then
+                raw-store-u8 (addr-at base c-off-pc-pend) 1
+              else ()) in
+              let stbl = QuicStreamTable (raw-load-u64 (addr-at base c-off-streams)) in
+              let _rq = quic-stream-requeue-unacked-probe stbl in
+              let _pp = raw-store-u32 (addr-at base c-off-pto-probes) 2 in
+              let rt = raw-load-u64 (addr-at base c-off-retrans) in
+              let _rc = raw-store-u64 (addr-at base c-off-retrans) (wrapping-add-u64 rt 1) in
+              quic-timeout-pto
+            else
+              let rtt = recovery-rtt-raw rec in
+              let lsend = saturating-sub-u64 now-ns (rtt-estimator-loss-delay-ns rtt) in
+              let mh = raw-load-u64 (addr-at base c-off-meta-head) in
+              let mt = raw-load-u64 (addr-at base c-off-meta-tail) in
+              let _m = scan-meta-loss-timeout-loop base mh mt lsend in
+              let _c = raw-store-u64 (addr-at base c-off-meta-head) (compact-meta-head base mh mt) in
+              quic-timeout-loss
+          else quic-timeout-none
+
+  -- | Initiate graceful `CONNECTION_CLOSE` with transport error code `err-code`.
+  #[no-alloc]
+  quic-conn-close :: QuicConn -> U64 -> U64 ->{MVar} Unit
+  quic-conn-close conn err-code now-ns =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then ()
+    else
+      let _0 = raw-store-u64 (addr-at base c-off-close-err) err-code in
+      let _1 = raw-store-u8 (addr-at base c-off-close-pend) 1 in
+      let _2 = raw-store-u8 (addr-at base c-off-state) conn-state-draining in
+      let pto = recovery-pto-duration-ns-raw (raw-load-u64 (addr-at base c-off-rec)) in
+      raw-store-u64 (addr-at base c-off-drain-dl) (saturating-add-u64 now-ns (saturating-mul-u64 pto 3))
+
+  -- =========================================================================
+  -- 8. Stream & RFC 9221 DATAGRAM Wrappers + Telemetry (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] quic-conn-streams :: QuicConn ->{MVar} QuicStreamTable
+  quic-conn-streams conn = QuicStreamTable (raw-load-u64 (addr-at conn.qc-base c-off-streams))
+
+  #[inline(always)] quic-conn-recovery :: QuicConn ->{MVar} RecoveryState
+  quic-conn-recovery conn = RecoveryState (raw-load-u64 (addr-at conn.qc-base c-off-rec))
+
+  #[inline(always)] quic-conn-bbr :: QuicConn ->{MVar} BbrState
+  quic-conn-bbr conn = BbrState (raw-load-u64 (addr-at conn.qc-base c-off-bbr))
+
+  #[inline(always)] #[no-alloc] quic-conn-open-stream :: QuicConn -> U8 ->{MVar} U32
+  quic-conn-open-stream conn is-uni = quic-stream-open-local (quic-conn-streams conn) is-uni
+
+  #[inline(always)] #[no-alloc] quic-conn-stream-find :: QuicConn -> StreamId ->{MVar} U32
+  quic-conn-stream-find conn sid = quic-stream-find-slot (quic-conn-streams conn) sid
+
+  #[inline(always)] #[no-alloc] quic-conn-stream-write :: QuicConn -> U32 -> I64 -> U32 -> U8 ->{MVar} U32
+  quic-conn-stream-write conn slot src len fin = quic-stream-write-raw (quic-conn-streams conn) slot src len fin
+
+  #[inline(always)] #[no-alloc] quic-conn-stream-read :: QuicConn -> U32 -> I64 -> U32 ->{MVar} U32
+  quic-conn-stream-read conn slot out cap = quic-stream-read-raw (quic-conn-streams conn) slot out cap
+
+  #[inline(always)] #[no-alloc] quic-conn-stream-reset :: QuicConn -> U32 -> U64 ->{MVar} Bool
+  quic-conn-stream-reset conn slot err = quic-stream-reset (quic-conn-streams conn) slot err
+
+  #[inline(always)] #[no-alloc] quic-conn-stream-readable-bytes :: QuicConn -> U32 ->{MVar} U64
+  quic-conn-stream-readable-bytes conn slot = quic-stream-readable-bytes (quic-conn-streams conn) slot
+
+  #[inline(always)] #[no-alloc] quic-conn-stream-fin-reached :: QuicConn -> U32 ->{MVar} Bool
+  quic-conn-stream-fin-reached conn slot = quic-stream-recv-fin-reached (quic-conn-streams conn) slot
+
+  -- | Enqueue an RFC 9221 unreliable `DATAGRAM` frame for transmission (`#[no-alloc]`).
+  #[no-alloc]
+  quic-conn-send-datagram :: QuicConn -> I64 -> U32 ->{MVar} Bool
+  quic-conn-send-datagram conn data-addr len =
+    let base = conn.qc-base in
+    if either (eq-u64 base 0) (gt-u32 len dg-max-payload) then b-false
+    else
+      let h = raw-load-u32 (addr-at base c-off-dg-tx-h) in
+      let t = raw-load-u32 (addr-at base c-off-dg-tx-t) in
+      if ge-u32 (wrapping-sub-u32 t h) 8 then b-false
+      else
+        let slot = bit-and-u32 t 7 in
+        let off = wrapping-add-u64 c-off-dg-tx (wrapping-mul-u64 (u32-to-u64 slot) dg-slot-stride) in
+        let _0 = raw-store-u32 (addr-at base off) len in
+        let _1 = copy-raw (addr-at base (wrapping-add-u64 off 16)) data-addr len in
+        let _2 = raw-store-u32 (addr-at base c-off-dg-tx-t) (wrapping-add-u32 t 1) in
+        b-true
+
+  -- | Dequeue one received RFC 9221 `DATAGRAM` payload into `out-addr[0..out-cap)` (`#[no-alloc]`).
+  -- Returns bytes copied, or `0` if empty.
+  #[no-alloc]
+  quic-conn-recv-datagram :: QuicConn -> I64 -> U32 ->{MVar} U32
+  quic-conn-recv-datagram conn out-addr out-cap =
+    let base = conn.qc-base in
+    if eq-u64 base 0 then 0
+    else
+      let h = raw-load-u32 (addr-at base c-off-dg-rx-h) in
+      let t = raw-load-u32 (addr-at base c-off-dg-rx-t) in
+      if ge-u32 h t then 0
+      else
+        let slot = bit-and-u32 h 7 in
+        let off = wrapping-add-u64 c-off-dg-rx (wrapping-mul-u64 (u32-to-u64 slot) dg-slot-stride) in
+        let len = raw-load-u32 (addr-at base off) in
+        let take = min-u32 len out-cap in
+        let _0 = copy-raw out-addr (addr-at base (wrapping-add-u64 off 16)) take in
+        let _1 = raw-store-u32 (addr-at base c-off-dg-rx-h) (wrapping-add-u32 h 1) in
+        take
+
+  #[inline(always)] #[no-alloc] quic-conn-datagram-rx-count :: QuicConn ->{MVar} U32
+  quic-conn-datagram-rx-count conn =
+    let base = conn.qc-base in
+    wrapping-sub-u32 (raw-load-u32 (addr-at base c-off-dg-rx-t)) (raw-load-u32 (addr-at base c-off-dg-rx-h))
+
+  -- Accessors
+  #[inline(always)] #[no-alloc] quic-conn-state :: QuicConn ->{MVar} U8
+  quic-conn-state c = raw-load-u8 (addr-at c.qc-base c-off-state)
+
+  #[inline(always)] #[no-alloc] quic-conn-is-server :: QuicConn ->{MVar} Bool
+  quic-conn-is-server c = ne-u8 (raw-load-u8 (addr-at c.qc-base c-off-is-srv)) 0
+
+  #[inline(always)] #[no-alloc] quic-conn-is-established :: QuicConn ->{MVar} Bool
+  quic-conn-is-established c = eq-u8 (raw-load-u8 (addr-at c.qc-base c-off-state)) conn-state-established
+
+  #[inline(always)] #[no-alloc] quic-conn-is-closed :: QuicConn ->{MVar} Bool
+  quic-conn-is-closed c = eq-u8 (raw-load-u8 (addr-at c.qc-base c-off-state)) conn-state-closed
+
+  #[inline(always)] #[no-alloc] quic-conn-handshake-confirmed :: QuicConn ->{MVar} Bool
+  quic-conn-handshake-confirmed c = ne-u8 (raw-load-u8 (addr-at c.qc-base c-off-hs-conf)) 0
+
+  #[inline(always)] #[no-alloc] quic-conn-addr-validated :: QuicConn ->{MVar} Bool
+  quic-conn-addr-validated c = ne-u8 (raw-load-u8 (addr-at c.qc-base c-off-addr-val)) 0
+
+  #[inline(always)] #[no-alloc] quic-conn-active-peer-addr :: QuicConn ->{MVar} U64
+  quic-conn-active-peer-addr c = raw-load-u64 (addr-at c.qc-base c-off-peer-addr)
+
+  #[inline(always)] #[no-alloc] quic-conn-migrating-peer-addr :: QuicConn ->{MVar} U64
+  quic-conn-migrating-peer-addr c = raw-load-u64 (addr-at c.qc-base c-off-mig-addr)
+
+  #[inline(always)] #[no-alloc] quic-conn-is-path-validating :: QuicConn ->{MVar} Bool
+  quic-conn-is-path-validating c = ne-u8 (raw-load-u8 (addr-at c.qc-base c-off-path-val)) 0
+
+  #[inline(always)] #[no-alloc] quic-conn-migration-count :: QuicConn ->{MVar} U64
+  quic-conn-migration-count c = raw-load-u64 (addr-at c.qc-base c-off-mig-cnt)
+
+  #[inline(always)] #[no-alloc] quic-conn-local-scid :: QuicConn ->{MVar} ConnId
+  quic-conn-local-scid c = load-cid c.qc-base c-off-scid
+
+  #[inline(always)] #[no-alloc] quic-conn-remote-dcid :: QuicConn ->{MVar} ConnId
+  quic-conn-remote-dcid c = load-cid c.qc-base c-off-dcid
+
+  #[inline(always)] #[no-alloc] quic-conn-tx-key-phase :: QuicConn ->{MVar} U8
+  quic-conn-tx-key-phase c = raw-load-u8 (addr-at c.qc-base c-off-tx-kp)
+
+  #[inline(always)] #[no-alloc] quic-conn-rx-key-phase :: QuicConn ->{MVar} U8
+  quic-conn-rx-key-phase c = raw-load-u8 (addr-at c.qc-base c-off-rx-kp)
+
+  #[inline(always)] #[no-alloc] quic-conn-key-update-count :: QuicConn ->{MVar} U32
+  quic-conn-key-update-count c = raw-load-u32 (addr-at c.qc-base c-off-ku-cnt)
+
+  #[inline(always)] #[no-alloc] quic-conn-zero-rtt-accepted :: QuicConn ->{MVar} Bool
+  quic-conn-zero-rtt-accepted c = ne-u8 (raw-load-u8 (addr-at c.qc-base c-off-zrtt-acc)) 0
+
+  #[inline(always)] #[no-alloc] quic-conn-zero-rtt-rejected :: QuicConn ->{MVar} Bool
+  quic-conn-zero-rtt-rejected c = ne-u8 (raw-load-u8 (addr-at c.qc-base c-off-zrtt-rej)) 0
+
+  #[inline(always)] #[no-alloc] quic-conn-bytes-recv-unvalidated :: QuicConn ->{MVar} U64
+  quic-conn-bytes-recv-unvalidated c = raw-load-u64 (addr-at c.qc-base c-off-bytes-rx-unv)
+
+  #[inline(always)] #[no-alloc] quic-conn-bytes-sent-unvalidated :: QuicConn ->{MVar} U64
+  quic-conn-bytes-sent-unvalidated c = raw-load-u64 (addr-at c.qc-base c-off-bytes-tx-unv)
+
+  #[inline(always)] #[no-alloc] quic-conn-amp-blocks :: QuicConn ->{MVar} U64
+  quic-conn-amp-blocks c = raw-load-u64 (addr-at c.qc-base c-off-amp-blocks)
+
+  #[inline(always)] #[no-alloc] quic-conn-pkts-tx :: QuicConn ->{MVar} U64
+  quic-conn-pkts-tx c = raw-load-u64 (addr-at c.qc-base c-off-pkts-tx)
+
+  #[inline(always)] #[no-alloc] quic-conn-pkts-rx :: QuicConn ->{MVar} U64
+  quic-conn-pkts-rx c = raw-load-u64 (addr-at c.qc-base c-off-pkts-rx)
+
+  #[inline(always)] #[no-alloc] quic-conn-retransmits :: QuicConn ->{MVar} U64
+  quic-conn-retransmits c = raw-load-u64 (addr-at c.qc-base c-off-retrans)
+
+  #[inline(always)] #[no-alloc] quic-conn-mtu :: QuicConn ->{MVar} U32
+  quic-conn-mtu c = raw-load-u32 (addr-at c.qc-base c-off-mtu)

@@ -51,13 +51,14 @@ module Net.Quic.Recovery where
 
   -- RFC 9002 Recovery engine API
   export RecoveryState, recovery-new, recovery-new-with-max-ack-delay, recovery-destroy
-  export recovery-set-handshake-confirmed, recovery-set-max-ack-delay-ns, recovery-set-app-limited
-  export recovery-on-packet-sent, recovery-on-ack-received, recovery-on-ack-ranges-received
-  export recovery-pto-duration-ns, recovery-loss-time-ns, recovery-next-timeout-ns
-  export recovery-on-loss-timeout
-  export recovery-rtt, recovery-bytes-in-flight, recovery-pto-count
+  export recovery-new-raw, recovery-destroy-raw
+  export recovery-set-handshake-confirmed, recovery-set-handshake-confirmed-raw, recovery-set-max-ack-delay-ns, recovery-set-app-limited
+  export recovery-on-packet-sent, recovery-on-packet-sent-raw, recovery-on-ack-received, recovery-on-ack-ranges-received, recovery-on-ack-ranges-received-raw
+  export recovery-pto-duration-ns, recovery-pto-duration-ns-raw, recovery-loss-time-ns, recovery-loss-time-ns-raw, recovery-next-timeout-ns, recovery-next-timeout-ns-raw
+  export recovery-on-loss-timeout, recovery-on-loss-timeout-raw
+  export recovery-rtt, recovery-rtt-raw, recovery-bytes-in-flight, recovery-bytes-in-flight-raw, recovery-pto-count
   export recovery-delivered-bytes, recovery-delivered-ns, recovery-in-flight-count
-  export recovery-largest-acked-pn, recovery-is-app-limited
+  export recovery-largest-acked-pn, recovery-largest-acked-pn-raw, recovery-is-app-limited
 
   -- =========================================================================
   -- 0. Constants & internal #[no-alloc] helpers
@@ -650,17 +651,16 @@ module Net.Quic.Recovery where
   space-u8-off base-off sp =
     wrapping-add-u64 base-off (u8-to-u64 (clamp-space sp))
 
-  -- | Allocate a new RFC 9002 `RecoveryState` with a power-of-two
-  -- `SentPacketRing` of `ring-cap` entries (`>= 16`) and explicit
-  -- `max-ack-delay-ns` (defaults to `25ms` when `0`).
-  recovery-new-with-max-ack-delay :: U32 -> U64 ->{IO, MVar} Option RecoveryState
-  recovery-new-with-max-ack-delay ring-cap max-ack-delay-ns =
-    if not (is-pow2-u32 ring-cap) then None
+  -- | Allocate a new RFC 9002 recovery DMA slab directly (returning raw base
+  -- address `U64`, or `0` on invalid capacity / mmap error).
+  recovery-new-raw :: U32 -> U64 ->{IO, MVar} U64
+  recovery-new-raw ring-cap max-ack-delay-ns =
+    if not (is-pow2-u32 ring-cap) then 0
     else
       let raw-bytes = wrapping-add-u64 off-entries (wrapping-mul-u64 (u32-to-u64 ring-cap) 48) in
       let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
       let base = engine-dma-alloc aligned 4096 in
-      if eq-u64 base 0 then None
+      if eq-u64 base 0 then 0
       else
         let rtt = rtt-estimator-init max-ack-delay-ns in
         let _ = raw-store-u64 (addr-at base off-head) 0 in
@@ -683,20 +683,32 @@ module Net.Quic.Recovery where
         let _ = raw-store-u8 (addr-at base off-hs-conf) 0 in
         let _ = raw-store-u8 (addr-at base off-space-mask) 0 in
         let _ = raw-store-u64 (addr-at base off-inf-cnt) 0 in
-        Some (RecoveryState base)
+        base
+
+  -- | Allocate a new RFC 9002 `RecoveryState` with a power-of-two
+  -- `SentPacketRing` of `ring-cap` entries (`>= 16`) and explicit
+  -- `max-ack-delay-ns` (defaults to `25ms` when `0`).
+  recovery-new-with-max-ack-delay :: U32 -> U64 ->{IO, MVar} Option RecoveryState
+  recovery-new-with-max-ack-delay ring-cap max-ack-delay-ns =
+    let b = recovery-new-raw ring-cap max-ack-delay-ns in
+    if eq-u64 b 0 then None else Some (RecoveryState b)
 
   -- | Allocate a new RFC 9002 `RecoveryState` with default `max_ack_delay = 25ms`.
   recovery-new :: U32 ->{IO, MVar} Option RecoveryState
   recovery-new ring-cap = recovery-new-with-max-ack-delay ring-cap quic-default-max-ack-delay-ns
 
+  -- | Release a raw recovery DMA slab allocated by `recovery-new-raw`.
+  recovery-destroy-raw :: U64 ->{IO, MVar} Unit
+  recovery-destroy-raw base =
+    if eq-u64 base 0 then ()
+    else
+      let sz = raw-load-u64 (addr-at base off-slab) in
+      let _ = engine-dma-free base sz in
+      ()
+
   -- | Release the DMA slab owned by `rec`.
   recovery-destroy :: RecoveryState ->{IO, MVar} Unit
-  recovery-destroy rec =
-    if eq-u64 rec.rec-base 0 then ()
-    else
-      let sz = raw-load-u64 (addr-at rec.rec-base off-slab) in
-      let _ = engine-dma-free rec.rec-base sz in
-      ()
+  recovery-destroy rec = recovery-destroy-raw rec.rec-base
 
   -- =========================================================================
   -- 5. Accessors & configuration (#[no-alloc])
@@ -729,8 +741,18 @@ module Net.Quic.Recovery where
 
   #[inline(always)]
   #[no-alloc]
+  recovery-rtt-raw :: U64 ->{MVar} RttEstimator
+  recovery-rtt-raw base = load-rtt base
+
+  #[inline(always)]
+  #[no-alloc]
   recovery-rtt :: RecoveryState ->{MVar} RttEstimator
   recovery-rtt rec = load-rtt rec.rec-base
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-bytes-in-flight-raw :: U64 ->{MVar} U64
+  recovery-bytes-in-flight-raw base = raw-load-u64 (addr-at base off-bif)
 
   #[inline(always)]
   #[no-alloc]
@@ -759,9 +781,15 @@ module Net.Quic.Recovery where
 
   #[inline(always)]
   #[no-alloc]
+  recovery-largest-acked-pn-raw :: U64 -> U8 ->{MVar} U64
+  recovery-largest-acked-pn-raw base sp =
+    raw-load-u64 (addr-at base (space-u64-off off-largest-acked sp))
+
+  #[inline(always)]
+  #[no-alloc]
   recovery-largest-acked-pn :: RecoveryState -> U8 ->{MVar} U64
   recovery-largest-acked-pn rec sp =
-    raw-load-u64 (addr-at rec.rec-base (space-u64-off off-largest-acked sp))
+    recovery-largest-acked-pn-raw rec.rec-base sp
 
   #[inline(always)]
   #[no-alloc]
@@ -773,9 +801,15 @@ module Net.Quic.Recovery where
 
   #[inline(always)]
   #[no-alloc]
+  recovery-set-handshake-confirmed-raw :: U64 -> U8 ->{MVar} Unit
+  recovery-set-handshake-confirmed-raw base confirmed =
+    raw-store-u8 (addr-at base off-hs-conf) (if ne-u8 confirmed 0 then 1 else 0)
+
+  #[inline(always)]
+  #[no-alloc]
   recovery-set-handshake-confirmed :: RecoveryState -> U8 ->{MVar} Unit
   recovery-set-handshake-confirmed rec confirmed =
-    raw-store-u8 (addr-at rec.rec-base off-hs-conf) (if ne-u8 confirmed 0 then 1 else 0)
+    recovery-set-handshake-confirmed-raw rec.rec-base confirmed
 
   #[inline(always)]
   #[no-alloc]
@@ -803,9 +837,8 @@ module Net.Quic.Recovery where
   -- `1`=Handshake, `2`=AppData) of `nbytes` at `sent-ns`.
   -- Returns `True` on success, or `False` if the `SentPacketRing` is full.
   #[no-alloc]
-  recovery-on-packet-sent :: RecoveryState -> U8 -> U64 -> U32 -> U64 -> U8 -> U8 ->{MVar} Bool
-  recovery-on-packet-sent rec pn-space pn nbytes sent-ns ack-eliciting in-flight =
-    let base = rec.rec-base in
+  recovery-on-packet-sent-raw :: U64 -> U8 -> U64 -> U32 -> U64 -> U8 -> U8 ->{MVar} Bool
+  recovery-on-packet-sent-raw base pn-space pn nbytes sent-ns ack-eliciting in-flight =
     let sp = clamp-space pn-space in
     let h = raw-load-u64 (addr-at base off-head) in
     let t = raw-load-u64 (addr-at base off-tail) in
@@ -848,6 +881,12 @@ module Net.Quic.Recovery where
           raw-store-u32 (addr-at base (space-u32-off off-ae-inf sp)) (wrapping-add-u32 ae-c 1)
         else ()) in
       b-true
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-on-packet-sent :: RecoveryState -> U8 -> U64 -> U32 -> U64 -> U8 -> U8 ->{MVar} Bool
+  recovery-on-packet-sent rec pn-space pn nbytes sent-ns ack-eliciting in-flight =
+    recovery-on-packet-sent-raw rec.rec-base pn-space pn nbytes sent-ns ack-eliciting in-flight
 
   -- =========================================================================
   -- 7. Ring compaction, ACK range matching, & RFC 9002 Loss Detection
@@ -1104,9 +1143,8 @@ module Net.Quic.Recovery where
   -- Shared RFC 9002 ACK + Loss Detection entry point supporting both single-range
   -- and multi-range DMA ACK frames (`AckMap.ack-map-extract-ranges-raw` format).
   #[no-alloc]
-  recovery-on-ack-ranges-received :: RecoveryState -> U8 -> U64 -> U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} AckOutcome
-  recovery-on-ack-ranges-received rec pn-space largest-acked first-ack-range ranges-addr range-count ack-delay-ns now-ns =
-    let base = rec.rec-base in
+  recovery-on-ack-ranges-received-raw :: U64 -> U8 -> U64 -> U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} AckOutcome
+  recovery-on-ack-ranges-received-raw base pn-space largest-acked first-ack-range ranges-addr range-count ack-delay-ns now-ns =
     let sp = clamp-space pn-space in
     let h0 = raw-load-u64 (addr-at base off-head) in
     let t0 = raw-load-u64 (addr-at base off-tail) in
@@ -1209,13 +1247,19 @@ module Net.Quic.Recovery where
       rtt-updated
       0
 
+  #[inline(always)]
+  #[no-alloc]
+  recovery-on-ack-ranges-received :: RecoveryState -> U8 -> U64 -> U64 -> I64 -> U32 -> U64 -> U64 ->{MVar} AckOutcome
+  recovery-on-ack-ranges-received rec pn-space largest-acked first-ack-range ranges-addr range-count ack-delay-ns now-ns =
+    recovery-on-ack-ranges-received-raw rec.rec-base pn-space largest-acked first-ack-range ranges-addr range-count ack-delay-ns now-ns
+
   -- | Convenience RFC 9002 ACK handler for a contiguous ACK range
   -- `[largest-acked - first-ack-range .. largest-acked]`.
   #[inline(always)]
   #[no-alloc]
   recovery-on-ack-received :: RecoveryState -> U8 -> U64 -> U64 -> U64 -> U64 ->{MVar} AckOutcome
   recovery-on-ack-received rec pn-space largest-acked first-ack-range ack-delay-ns now-ns =
-    recovery-on-ack-ranges-received rec pn-space largest-acked first-ack-range 0 0 ack-delay-ns now-ns
+    recovery-on-ack-ranges-received-raw rec.rec-base pn-space largest-acked first-ack-range 0 0 ack-delay-ns now-ns
 
   -- =========================================================================
   -- 8. RFC 9002 Section 6.2 PTO & Loss Detection Timer
@@ -1224,9 +1268,8 @@ module Net.Quic.Recovery where
   -- | Current PTO duration in nanoseconds:
   -- `(smoothed_rtt + max(4 * rttvar, 1ms) + max_ack_delay) << min(pto_count, 16)`.
   #[no-alloc]
-  recovery-pto-duration-ns :: RecoveryState ->{MVar} U64
-  recovery-pto-duration-ns rec =
-    let base = rec.rec-base in
+  recovery-pto-duration-ns-raw :: U64 ->{MVar} U64
+  recovery-pto-duration-ns-raw base =
     let rtt = load-rtt base in
     let pto-base = rtt-estimator-pto-base-ns rtt in
     let cnt = raw-load-u32 (addr-at base off-pto-cnt) in
@@ -1234,36 +1277,49 @@ module Net.Quic.Recovery where
     let mul = wrapping-shl-u64 1 shift in
     saturating-mul-u64 pto-base mul
 
+  #[inline(always)]
+  #[no-alloc]
+  recovery-pto-duration-ns :: RecoveryState ->{MVar} U64
+  recovery-pto-duration-ns rec = recovery-pto-duration-ns-raw rec.rec-base
+
   -- | Return the earliest active time-threshold loss deadline across all three
   -- packet number spaces (in nanoseconds), or `0` if no loss timer is armed.
   #[no-alloc]
-  recovery-loss-time-ns :: RecoveryState ->{MVar} U64
-  recovery-loss-time-ns rec =
-    let base = rec.rec-base in
+  recovery-loss-time-ns-raw :: U64 ->{MVar} U64
+  recovery-loss-time-ns-raw base =
     let t0 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-initial)) in
     let t1 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-handshake)) in
     let t2 = raw-load-u64 (addr-at base (space-u64-off off-loss-time pn-space-app)) in
     let m01 = if eq-u64 t0 0 then t1 else if eq-u64 t1 0 then t0 else min-u64 t0 t1 in
     if eq-u64 m01 0 then t2 else if eq-u64 t2 0 then m01 else min-u64 m01 t2
 
+  #[inline(always)]
+  #[no-alloc]
+  recovery-loss-time-ns :: RecoveryState ->{MVar} U64
+  recovery-loss-time-ns rec = recovery-loss-time-ns-raw rec.rec-base
+
   -- | Return the earliest RFC 9002 loss-detection OR PTO timeout timestamp
   -- (nanoseconds), or `0` if no ack-eliciting packets are in flight.
   #[no-alloc]
-  recovery-next-timeout-ns :: RecoveryState ->{MVar} U64
-  recovery-next-timeout-ns rec =
-    let lt = recovery-loss-time-ns rec in
+  recovery-next-timeout-ns-raw :: U64 ->{MVar} U64
+  recovery-next-timeout-ns-raw base =
+    let lt = recovery-loss-time-ns-raw base in
     if ne-u64 lt 0 then lt
     else
-      let base = rec.rec-base in
       let ae0 = raw-load-u32 (addr-at base (space-u32-off off-ae-inf pn-space-initial)) in
       let ae1 = raw-load-u32 (addr-at base (space-u32-off off-ae-inf pn-space-handshake)) in
       let ae2 = raw-load-u32 (addr-at base (space-u32-off off-ae-inf pn-space-app)) in
-      let pto = recovery-pto-duration-ns rec in
+      let pto = recovery-pto-duration-ns-raw base in
       let d0 = if gt-u32 ae0 0 then saturating-add-u64 (raw-load-u64 (addr-at base (space-u64-off off-last-ae-ns pn-space-initial))) pto else 0 in
       let d1 = if gt-u32 ae1 0 then saturating-add-u64 (raw-load-u64 (addr-at base (space-u64-off off-last-ae-ns pn-space-handshake))) pto else 0 in
       let d2 = if gt-u32 ae2 0 then saturating-add-u64 (raw-load-u64 (addr-at base (space-u64-off off-last-ae-ns pn-space-app))) pto else 0 in
       let m01 = if eq-u64 d0 0 then d1 else if eq-u64 d1 0 then d0 else min-u64 d0 d1 in
       if eq-u64 m01 0 then d2 else if eq-u64 d2 0 then m01 else min-u64 m01 d2
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-next-timeout-ns :: RecoveryState ->{MVar} U64
+  recovery-next-timeout-ns rec = recovery-next-timeout-ns-raw rec.rec-base
 
   -- Pick which space has the earliest active loss time (`3` = none).
   #[inline(always)]
@@ -1289,9 +1345,8 @@ module Net.Quic.Recovery where
   -- * Otherwise (PTO fired), increments `pto_count` and sets
   --   `ack-out-pto-fired = 1` so the caller transmits 1-2 probe packets.
   #[no-alloc]
-  recovery-on-loss-timeout :: RecoveryState -> U64 ->{MVar} AckOutcome
-  recovery-on-loss-timeout rec now-ns =
-    let base = rec.rec-base in
+  recovery-on-loss-timeout-raw :: U64 -> U64 ->{MVar} AckOutcome
+  recovery-on-loss-timeout-raw base now-ns =
     let sp = earliest-loss-space base in
     if lt-u8 sp 3 then
       let rtt = load-rtt base in
@@ -1344,3 +1399,8 @@ module Net.Quic.Recovery where
         0 0 0 0
         1
         0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  recovery-on-loss-timeout :: RecoveryState -> U64 ->{MVar} AckOutcome
+  recovery-on-loss-timeout rec now-ns = recovery-on-loss-timeout-raw rec.rec-base now-ns

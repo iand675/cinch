@@ -1,0 +1,845 @@
+-- | Zero-allocation (`#[no-alloc]` steady-state) per-core QUIC `Endpoint`,
+-- flat DMA DCID hash-table demultiplexer, core-routable SCID allocator,
+-- Stateless Retry generator/validator, `UDP_GSO` burst packetizer, and
+-- `Engine.Sim` UDP driver (`Net.Quic.Endpoint`).
+--
+-- Features:
+--   * Flat open-addressed power-of-two DMA hash table mapping DCID -> slot
+--     index in O(1) with zero heap allocation (`#[no-alloc]`).
+--   * Core-routable SCID allocation via `Net.Quic.Types.quic-cid-encode-core`,
+--     aligning DCID bytes `0..1` with `Engine.Reactor.Linux`'s BPF steering.
+--   * Stateless Retry token issuance & verification (RFC 9001 §5.8 Retry
+--     Integrity Tag) without allocating connection state on unvalidated Initials.
+--   * `UDP_GSO` burst packetizer (`quic-endpoint-poll-gso-burst`) packing up
+--     to `K` same-peer, same-segment-size protected QUIC packets contiguously
+--     into a single DMA buffer for Linux `UDP_SEGMENT` / `sendmsg`.
+--   * `quic-endpoint-step` live `Engine.Sim` UDP driver bridging simulated UDP
+--     sockets (`sim-udp-recv` / `sim-udp-send`) to the per-core QUIC endpoint.
+module Net.Quic.Endpoint where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Engine.Types
+  import Engine.Sim
+  import Net.Tls.Fast
+  import Net.Tls.QuicBridge
+  import Net.Quic.Types
+  import Net.Quic.Varint
+  import Net.Quic.Packet
+  import Net.Quic.Conn
+  import Prim.Atomic
+
+  -- Dispatch status codes
+  export ep-rx-ok, ep-rx-new-conn, ep-rx-retry-sent, ep-rx-dropped, ep-rx-full
+  export ep-slot-none
+
+  -- Core POD handle & GSO burst descriptor
+  export QuicEndpoint, quic-endpoint-empty, quic-endpoint-is-valid
+  export QuicGsoBurst, quic-gso-burst-empty, quic-gso-burst-ok
+  export QuicEpRxOutcome, quic-ep-rx-empty
+
+  -- Lifecycle & configuration
+  export quic-endpoint-new, quic-endpoint-destroy
+  export quic-endpoint-set-require-retry, quic-endpoint-set-anti-replay
+  export quic-endpoint-alloc-scid, quic-endpoint-connect, quic-endpoint-register-conn
+
+  -- Hot-path #[no-alloc] demux, Retry, GSO burst packetizer, timeout
+  export quic-endpoint-lookup-dcid, quic-endpoint-conn-at, quic-endpoint-active-count
+  export quic-endpoint-retries-sent
+  export quic-endpoint-build-retry-raw, quic-endpoint-verify-retry-token-raw
+  export quic-endpoint-on-datagram-existing
+  export quic-endpoint-on-datagram
+  export quic-endpoint-poll-gso-burst, quic-endpoint-poll-tx
+  export quic-endpoint-on-timeout, quic-endpoint-step-crypto-all
+
+  -- Live Engine.Sim UDP driver helper
+  export quic-endpoint-step
+
+  -- =========================================================================
+  -- 0. Constants & #[no-alloc] helpers
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)] #[no-alloc] b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)] #[no-alloc] both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)] #[no-alloc] either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)] #[no-alloc] addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)] #[no-alloc] ep-slot-none :: U32
+  ep-slot-none = 4294967295
+
+  #[inline(always)] #[no-alloc] ep-rx-ok :: U8
+  ep-rx-ok = 0
+  #[inline(always)] #[no-alloc] ep-rx-new-conn :: U8
+  ep-rx-new-conn = 1
+  #[inline(always)] #[no-alloc] ep-rx-retry-sent :: U8
+  ep-rx-retry-sent = 2
+  #[inline(always)] #[no-alloc] ep-rx-dropped :: U8
+  ep-rx-dropped = 3
+  #[inline(always)] #[no-alloc] ep-rx-full :: U8
+  ep-rx-full = 4
+
+  #[inline(always)] #[no-alloc] mix64 :: U64 -> U64
+  mix64 x =
+    let z0 = wrapping-add-u64 x 0x9e3779b97f4a7c15 in
+    let z1 = wrapping-mul-u64 (bit-xor-u64 z0 (wrapping-shr-u64 z0 30)) 0xbf58476d1ce4e5b9 in
+    let z2 = wrapping-mul-u64 (bit-xor-u64 z1 (wrapping-shr-u64 z1 27)) 0x94d049bb133111eb in
+    bit-xor-u64 z2 (wrapping-shr-u64 z2 31)
+
+  #[inline(always)] #[no-alloc] hash-cid :: ConnId -> U64
+  hash-cid cid =
+    let h0 = mix64 (bit-xor-u64 cid.cid-w0 (u8-to-u64 cid.cid-len)) in
+    let h1 = mix64 (bit-xor-u64 h0 cid.cid-w1) in
+    mix64 (bit-xor-u64 h1 cid.cid-w2)
+
+  #[inline(always)] #[no-alloc] is-pow2-u32 :: U32 -> Bool
+  is-pow2-u32 n =
+    if eq-u32 n 0 then b-false
+    else eq-u32 (bit-and-u32 n (wrapping-sub-u32 n 1)) 0
+
+  -- =========================================================================
+  -- 1. Core POD Handle & Slab Layout
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record QuicEndpoint where
+    qep-base :: U64
+
+  #[inline(always)] #[no-alloc] quic-endpoint-empty :: Unit -> QuicEndpoint
+  quic-endpoint-empty _ = QuicEndpoint 0
+
+  #[inline(always)] #[no-alloc] quic-endpoint-is-valid :: QuicEndpoint -> Bool
+  quic-endpoint-is-valid ep = ne-u64 ep.qep-base 0
+
+  -- | Unboxed `UDP_GSO` burst descriptor (`32B` POD): packs `gso-pkt-count`
+  -- same-peer protected QUIC packets contiguously at segment size `gso-seg-size`.
+  #[repr(C, value)]
+  record QuicGsoBurst where
+    gso-peer-addr :: U64
+    gso-release-ns :: U64
+    gso-total-len :: U32
+    gso-seg-size :: U32
+    gso-pkt-count :: U32
+    gso-conn-slot :: U32
+
+  #[inline(always)] #[no-alloc] quic-gso-burst-empty :: Unit -> QuicGsoBurst
+  quic-gso-burst-empty _ = QuicGsoBurst 0 0 0 0 0 ep-slot-none
+
+  #[inline(always)] #[no-alloc] quic-gso-burst-ok :: QuicGsoBurst -> Bool
+  quic-gso-burst-ok b = gt-u32 b.gso-pkt-count 0
+
+  -- | Unboxed ingress dispatch result (`16B` POD).
+  #[repr(C, value)]
+  record QuicEpRxOutcome where
+    eprx-slot :: U32
+    eprx-retry-len :: U32
+    eprx-status :: U8
+    eprx-pad0 :: U8
+    eprx-pad1 :: U16
+    eprx-pad2 :: U32
+
+  #[inline(always)] #[no-alloc] quic-ep-rx-empty :: Unit -> QuicEpRxOutcome
+  quic-ep-rx-empty _ = QuicEpRxOutcome ep-slot-none 0 ep-rx-dropped 0 0 0
+
+  -- Slab layout (header 512B + scratch 1024B + conn handles + DCID hash table):
+  --   +0   slab-bytes       :: U64
+  --   +8   max-conns        :: U32
+  --   +12  ht-cap           :: U32  (2 * next_pow2(max_conns))
+  --   +16  ht-mask          :: U32
+  --   +20  active-conns     :: U32
+  --   +24  core-id          :: U16
+  --   +26  scid-len         :: U8   (default 8)
+  --   +27  require-retry    :: U8
+  --   +28  rr-cursor        :: U32
+  --   +32  cid-mask-key     :: U64
+  --   +40  retry-secret     :: U64
+  --   +48  scid-nonce       :: U64
+  --   +56  retries-sent     :: U64
+  --   +64  mtu              :: U32
+  --   +72  conns-off        :: U64  (1536)
+  --   +80  ht-off           :: U64  (1536 + max_conns * 8)
+  --   +88  retry-key        :: TlsAeadKey (16B: 88..103)
+  --   +112 anti-replay      :: AntiReplayFilter (32B: 112..143)
+  --   +512 retry-scratch    :: 1024B (512..1535)
+  --   +1536 conns[max_conns]:: [U64; max_conns] (QuicConn.qc-base, 0 = empty)
+  --   +ht-off ht[ht-cap]    :: 40B stride each:
+  --        +0..31 ConnId (32B)
+  --        +32    slot :: U32
+  --        +36    state :: U8 (0=empty, 1=occupied, 2=tombstone)
+  #[inline(always)] #[no-alloc] e-off-slab :: U64
+  e-off-slab = 0
+  #[inline(always)] #[no-alloc] e-off-max-conns :: U64
+  e-off-max-conns = 8
+  #[inline(always)] #[no-alloc] e-off-ht-cap :: U64
+  e-off-ht-cap = 12
+  #[inline(always)] #[no-alloc] e-off-ht-mask :: U64
+  e-off-ht-mask = 16
+  #[inline(always)] #[no-alloc] e-off-active :: U64
+  e-off-active = 20
+  #[inline(always)] #[no-alloc] e-off-core :: U64
+  e-off-core = 24
+  #[inline(always)] #[no-alloc] e-off-scid-len :: U64
+  e-off-scid-len = 26
+  #[inline(always)] #[no-alloc] e-off-req-retry :: U64
+  e-off-req-retry = 27
+  #[inline(always)] #[no-alloc] e-off-rr :: U64
+  e-off-rr = 28
+  #[inline(always)] #[no-alloc] e-off-cid-mask :: U64
+  e-off-cid-mask = 32
+  #[inline(always)] #[no-alloc] e-off-retry-sec :: U64
+  e-off-retry-sec = 40
+  #[inline(always)] #[no-alloc] e-off-nonce :: U64
+  e-off-nonce = 48
+  #[inline(always)] #[no-alloc] e-off-retries-sent :: U64
+  e-off-retries-sent = 56
+  #[inline(always)] #[no-alloc] e-off-mtu :: U64
+  e-off-mtu = 64
+  #[inline(always)] #[no-alloc] e-off-conns-off :: U64
+  e-off-conns-off = 72
+  #[inline(always)] #[no-alloc] e-off-ht-off :: U64
+  e-off-ht-off = 80
+  #[inline(always)] #[no-alloc] e-off-rkey :: U64
+  e-off-rkey = 88
+  #[inline(always)] #[no-alloc] e-off-ar :: U64
+  e-off-ar = 112
+  #[inline(always)] #[no-alloc] e-off-rscratch :: U64
+  e-off-rscratch = 512
+  #[inline(always)] #[no-alloc] e-off-conns :: U64
+  e-off-conns = 1536
+
+  #[inline(always)] #[no-alloc] ep-store-rkey :: U64 -> TlsAeadKey ->{MVar} Unit
+  ep-store-rkey base k =
+    let _0 = raw-store-u64 (addr-at base e-off-rkey) k.aead-dma-base in
+    let _1 = raw-store-u8 (addr-at base (wrapping-add-u64 e-off-rkey 8)) k.aead-suite in
+    let _2 = raw-store-u8 (addr-at base (wrapping-add-u64 e-off-rkey 9)) k.aead-hw-aes in
+    let _3 = raw-store-u8 (addr-at base (wrapping-add-u64 e-off-rkey 10)) k.aead-hw-clmul in
+    raw-store-u32 (addr-at base (wrapping-add-u64 e-off-rkey 12)) k.aead-slab-size
+
+  #[inline(always)] #[no-alloc] ep-load-rkey :: U64 ->{MVar} TlsAeadKey
+  ep-load-rkey base =
+    TlsAeadKey
+      (raw-load-u64 (addr-at base e-off-rkey))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 e-off-rkey 8)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 e-off-rkey 9)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 e-off-rkey 10)))
+      0
+      (raw-load-u32 (addr-at base (wrapping-add-u64 e-off-rkey 12)))
+
+  #[inline(always)] #[no-alloc] ep-store-ar :: U64 -> AntiReplayFilter ->{MVar} Unit
+  ep-store-ar base ar =
+    let _0 = raw-store-u64 (addr-at base e-off-ar) ar.ar-dma-base in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 e-off-ar 8)) ar.ar-total-bytes in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 e-off-ar 16)) ar.ar-window-ns in
+    let _3 = raw-store-u32 (addr-at base (wrapping-add-u64 e-off-ar 24)) ar.ar-words-per-gen in
+    raw-store-u32 (addr-at base (wrapping-add-u64 e-off-ar 28)) ar.ar-word-mask
+
+  #[inline(always)] #[no-alloc] ep-load-ar :: U64 ->{MVar} AntiReplayFilter
+  ep-load-ar base =
+    AntiReplayFilter
+      (raw-load-u64 (addr-at base e-off-ar))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 e-off-ar 8)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 e-off-ar 16)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 e-off-ar 24)))
+      (raw-load-u32 (addr-at base (wrapping-add-u64 e-off-ar 28)))
+
+  -- =========================================================================
+  -- 2. Lifecycle & Core-Routable SCID Allocation
+  -- =========================================================================
+
+  #[no-alloc]
+  next-pow2 :: U32 -> U32 -> U32
+  next-pow2 goal acc =
+    if either (ge-u32 acc goal) (ge-u32 acc 65536) then acc
+    else next-pow2 goal (wrapping-shl-u32 acc 1)
+
+  -- | Allocate a per-core `QuicEndpoint` managing up to `max-conns` concurrent
+  -- `QuicConn` slots with an O(1) flat DMA DCID hash table.
+  quic-endpoint-new :: CoreId -> U32 -> U32 -> U64 -> U64 ->{IO, MVar} QuicEndpoint
+  quic-endpoint-new core max-conns req-mtu cid-mask-key retry-secret =
+    if eq-u32 max-conns 0 || gt-u32 max-conns 4096 then quic-endpoint-empty ()
+    else
+      let mtu = if lt-u32 req-mtu 1200 then (1200 :: U32) else req-mtu in
+      let ht-cap = next-pow2 (wrapping-shl-u32 max-conns 1) 16 in
+      let conns-bytes = wrapping-shl-u64 (u32-to-u64 max-conns) 3 in
+      let ht-off = wrapping-add-u64 e-off-conns conns-bytes in
+      let ht-bytes = wrapping-mul-u64 (u32-to-u64 ht-cap) 40 in
+      let raw-bytes = wrapping-add-u64 ht-off ht-bytes in
+      let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc aligned 4096 in
+      if eq-u64 base 0 then quic-endpoint-empty ()
+      else
+        let rkey = quic-retry-key-v1-new () in
+        let _0 = raw-store-u64 (addr-at base e-off-slab) aligned in
+        let _1 = raw-store-u32 (addr-at base e-off-max-conns) max-conns in
+        let _2 = raw-store-u32 (addr-at base e-off-ht-cap) ht-cap in
+        let _3 = raw-store-u32 (addr-at base e-off-ht-mask) (wrapping-sub-u32 ht-cap 1) in
+        let _4 = raw-store-u32 (addr-at base e-off-active) 0 in
+        let _5a = raw-store-u8 (addr-at base e-off-core) (wrapping-u16-to-u8 core.core-id-raw) in
+        let _5b = raw-store-u8 (addr-at base (wrapping-add-u64 e-off-core 1)) (wrapping-u16-to-u8 (wrapping-shr-u16 core.core-id-raw 8)) in
+        let _6 = raw-store-u8 (addr-at base e-off-scid-len) 8 in
+        let _7 = raw-store-u8 (addr-at base e-off-req-retry) 0 in
+        let _8 = raw-store-u32 (addr-at base e-off-rr) 0 in
+        let _9 = raw-store-u64 (addr-at base e-off-cid-mask) cid-mask-key in
+        let _a = raw-store-u64 (addr-at base e-off-retry-sec) (if eq-u64 retry-secret 0 then 0x6a09e667f3bcc908 else retry-secret) in
+        let _b = raw-store-u64 (addr-at base e-off-nonce) (bit-xor-u64 0xbb67ae8584caa73b (u16-to-u64 core.core-id-raw)) in
+        let _c = raw-store-u64 (addr-at base e-off-retries-sent) 0 in
+        let _d = raw-store-u32 (addr-at base e-off-mtu) mtu in
+        let _e = raw-store-u64 (addr-at base e-off-conns-off) e-off-conns in
+        let _f = raw-store-u64 (addr-at base e-off-ht-off) ht-off in
+        let _g = ep-store-rkey base rkey in
+        QuicEndpoint base
+
+  destroy-conns-loop :: U64 -> U32 -> U32 ->{IO, MVar} Unit
+  destroy-conns-loop base i max-conns =
+    if ge-u32 i max-conns then ()
+    else
+      let cbase = raw-load-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 i) 3))) in
+      let _ = if ne-u64 cbase 0 then quic-conn-destroy (QuicConn cbase) else () in
+      destroy-conns-loop base (wrapping-add-u32 i 1) max-conns
+
+  quic-endpoint-destroy :: QuicEndpoint ->{IO, MVar} Unit
+  quic-endpoint-destroy ep =
+    let base = ep.qep-base in
+    if eq-u64 base 0 then ()
+    else
+      let max-c = raw-load-u32 (addr-at base e-off-max-conns) in
+      let _0 = destroy-conns-loop base 0 max-c in
+      let _1 = tls-aead-key-destroy (ep-load-rkey base) in
+      let sz = raw-load-u64 (addr-at base e-off-slab) in
+      let _2 = engine-dma-free base sz in
+      ()
+
+  #[no-alloc]
+  quic-endpoint-set-require-retry :: QuicEndpoint -> U8 ->{MVar} Unit
+  quic-endpoint-set-require-retry ep req =
+    if eq-u64 ep.qep-base 0 then ()
+    else raw-store-u8 (addr-at ep.qep-base e-off-req-retry) (if ne-u8 req 0 then 1 else 0)
+
+  #[no-alloc]
+  quic-endpoint-set-anti-replay :: QuicEndpoint -> AntiReplayFilter ->{MVar} Unit
+  quic-endpoint-set-anti-replay ep ar =
+    if eq-u64 ep.qep-base 0 then ()
+    else ep-store-ar ep.qep-base ar
+
+  -- | Allocate a core-routable SCID encoding this endpoint's `CoreId` at
+  -- DCID bytes `0..1` via `quic-cid-encode-core` (`#[no-alloc]`).
+  #[no-alloc]
+  quic-endpoint-alloc-scid :: QuicEndpoint ->{MVar} ConnId
+  quic-endpoint-alloc-scid ep =
+    let base = ep.qep-base in
+    let c-lo = u8-to-u16 (raw-load-u8 (addr-at base e-off-core)) in
+    let c-hi = wrapping-shl-u16 (u8-to-u16 (raw-load-u8 (addr-at base (wrapping-add-u64 e-off-core 1)))) 8 in
+    let core = CoreId (bit-or-u16 c-lo c-hi) in
+    let n0 = raw-load-u64 (addr-at base e-off-nonce) in
+    let n1 = wrapping-add-u64 n0 1 in
+    let _ = raw-store-u64 (addr-at base e-off-nonce) n1 in
+    let mkey = raw-load-u64 (addr-at base e-off-cid-mask) in
+    let slen = raw-load-u8 (addr-at base e-off-scid-len) in
+    quic-cid-encode-core core n1 mkey slen
+
+  -- =========================================================================
+  -- 3. Flat DMA Open-Addressed DCID Hash Table (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] ht-entry-off :: U64 -> U32 ->{MVar} U64
+  ht-entry-off base idx =
+    let htoff = raw-load-u64 (addr-at base e-off-ht-off) in
+    wrapping-add-u64 htoff (wrapping-mul-u64 (u32-to-u64 idx) 40)
+
+  #[inline(always)] #[no-alloc] ht-load-cid :: U64 -> U64 ->{MVar} ConnId
+  ht-load-cid base eoff =
+    ConnId
+      (raw-load-u64 (addr-at base eoff))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 eoff 8)))
+      (raw-load-u64 (addr-at base (wrapping-add-u64 eoff 16)))
+      (raw-load-u8 (addr-at base (wrapping-add-u64 eoff 24)))
+      0 0 0
+
+  #[inline(always)] #[no-alloc] ht-store-entry :: U64 -> U64 -> ConnId -> U32 ->{MVar} Unit
+  ht-store-entry base eoff cid slot =
+    let _0 = raw-store-u64 (addr-at base eoff) cid.cid-w0 in
+    let _1 = raw-store-u64 (addr-at base (wrapping-add-u64 eoff 8)) cid.cid-w1 in
+    let _2 = raw-store-u64 (addr-at base (wrapping-add-u64 eoff 16)) cid.cid-w2 in
+    let _3 = raw-store-u8 (addr-at base (wrapping-add-u64 eoff 24)) cid.cid-len in
+    let _4 = raw-store-u32 (addr-at base (wrapping-add-u64 eoff 32)) slot in
+    raw-store-u8 (addr-at base (wrapping-add-u64 eoff 36)) 1
+
+  #[no-alloc]
+  ht-lookup-loop :: U64 -> ConnId -> U32 -> U32 -> U32 ->{MVar} U32
+  ht-lookup-loop base cid idx mask probes =
+    if gt-u32 probes mask then ep-slot-none
+    else
+      let eoff = ht-entry-off base idx in
+      let st = raw-load-u8 (addr-at base (wrapping-add-u64 eoff 36)) in
+      if eq-u8 st 0 then ep-slot-none
+      else if both (eq-u8 st 1) (conn-id-eq (ht-load-cid base eoff) cid) then
+        raw-load-u32 (addr-at base (wrapping-add-u64 eoff 32))
+      else ht-lookup-loop base cid (bit-and-u32 (wrapping-add-u32 idx 1) mask) mask (wrapping-add-u32 probes 1)
+
+  #[no-alloc]
+  ht-insert-loop :: U64 -> ConnId -> U32 -> U32 -> U32 -> U32 ->{MVar} Bool
+  ht-insert-loop base cid slot idx mask probes =
+    if gt-u32 probes mask then b-false
+    else
+      let eoff = ht-entry-off base idx in
+      let st = raw-load-u8 (addr-at base (wrapping-add-u64 eoff 36)) in
+      if either (ne-u8 st 1) (conn-id-eq (ht-load-cid base eoff) cid) then
+        let _ = ht-store-entry base eoff cid slot in
+        b-true
+      else ht-insert-loop base cid slot (bit-and-u32 (wrapping-add-u32 idx 1) mask) mask (wrapping-add-u32 probes 1)
+
+  -- | Look up a connection slot by DCID in O(1) (`#[no-alloc]`).
+  #[no-alloc]
+  quic-endpoint-lookup-dcid :: QuicEndpoint -> ConnId ->{MVar} U32
+  quic-endpoint-lookup-dcid ep cid =
+    let base = ep.qep-base in
+    if eq-u64 base 0 then ep-slot-none
+    else
+      let mask = raw-load-u32 (addr-at base e-off-ht-mask) in
+      let idx = bit-and-u32 (wrapping-u64-to-u32 (hash-cid cid)) mask in
+      ht-lookup-loop base cid idx mask 0
+
+  #[no-alloc]
+  find-free-conn-slot :: U64 -> U32 -> U32 ->{MVar} U32
+  find-free-conn-slot base i max-c =
+    if ge-u32 i max-c then ep-slot-none
+    else if eq-u64 (raw-load-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 i) 3)))) 0 then i
+    else find-free-conn-slot base (wrapping-add-u32 i 1) max-c
+
+  -- | Register a `QuicConn` under its local SCID (and optional extra DCID) in the endpoint.
+  #[no-alloc]
+  quic-endpoint-register-conn :: QuicEndpoint -> QuicConn -> ConnId ->{MVar} U32
+  quic-endpoint-register-conn ep conn extra-dcid =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (eq-u64 conn.qc-base 0) then ep-slot-none
+    else
+      let max-c = raw-load-u32 (addr-at base e-off-max-conns) in
+      let slot = find-free-conn-slot base 0 max-c in
+      if eq-u32 slot ep-slot-none then ep-slot-none
+      else
+        let _0 = raw-store-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 slot) 3))) conn.qc-base in
+        let act = raw-load-u32 (addr-at base e-off-active) in
+        let _1 = raw-store-u32 (addr-at base e-off-active) (wrapping-add-u32 act 1) in
+        let mask = raw-load-u32 (addr-at base e-off-ht-mask) in
+        let scid = quic-conn-local-scid conn in
+        let _2 = ht-insert-loop base scid slot (bit-and-u32 (wrapping-u64-to-u32 (hash-cid scid)) mask) mask 0 in
+        let _3 = (if ne-u8 extra-dcid.cid-len 0 then
+          let _ = ht-insert-loop base extra-dcid slot (bit-and-u32 (wrapping-u64-to-u32 (hash-cid extra-dcid)) mask) mask 0 in
+          ()
+        else ()) in
+        slot
+
+  -- | Open a new outbound client `QuicConn` on this endpoint to `peer-addr`.
+  quic-endpoint-connect :: QuicEndpoint -> U64 -> U64 -> U64 ->{IO, MVar} U32
+  quic-endpoint-connect ep peer-addr now-ns seed =
+    let base = ep.qep-base in
+    if eq-u64 base 0 then ep-slot-none
+    else
+      let scid = quic-endpoint-alloc-scid ep in
+      let dcid = quic-cid-encode-core (core-id 0) (mix64 (bit-xor-u64 seed 0x517cc1b727220a95)) 0 8 in
+      let mtu = raw-load-u32 (addr-at base e-off-mtu) in
+      let conn = quic-conn-new-client scid dcid peer-addr mtu now-ns seed in
+      if eq-u64 conn.qc-base 0 then ep-slot-none
+      else
+        let slot = quic-endpoint-register-conn ep conn (conn-id-empty ()) in
+        if eq-u32 slot ep-slot-none then
+          let _ = quic-conn-destroy conn in
+          ep-slot-none
+        else slot
+
+  #[inline(always)] #[no-alloc] quic-endpoint-conn-at :: QuicEndpoint -> U32 ->{MVar} QuicConn
+  quic-endpoint-conn-at ep slot =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (ge-u32 slot (raw-load-u32 (addr-at base e-off-max-conns))) then quic-conn-empty ()
+    else QuicConn (raw-load-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 slot) 3))))
+
+  #[inline(always)] #[no-alloc] quic-endpoint-active-count :: QuicEndpoint ->{MVar} U32
+  quic-endpoint-active-count ep = raw-load-u32 (addr-at ep.qep-base e-off-active)
+
+  #[inline(always)] #[no-alloc] quic-endpoint-retries-sent :: QuicEndpoint ->{MVar} U64
+  quic-endpoint-retries-sent ep = raw-load-u64 (addr-at ep.qep-base e-off-retries-sent)
+
+  -- =========================================================================
+  -- 4. Stateless Retry Token Issuance, Verification & Packet Builder (#[no-alloc])
+  -- =========================================================================
+
+  -- Stateless Retry Token format (32 bytes):
+  --   +0  : peer-addr :: U64
+  --   +8  : odcid.w0  :: U64
+  --   +16 : odcid.len :: U8 | pad
+  --   +24 : mac64     :: U64 = mix64(secret ^ peer-addr ^ odcid.w0 ^ odcid.len)
+  #[inline(always)] #[no-alloc] compute-retry-mac :: U64 -> U64 -> ConnId -> U64
+  compute-retry-mac secret peer-addr odcid =
+    let h0 = mix64 (bit-xor-u64 secret peer-addr) in
+    let h1 = mix64 (bit-xor-u64 h0 odcid.cid-w0) in
+    let h2 = mix64 (bit-xor-u64 h1 odcid.cid-w1) in
+    mix64 (bit-xor-u64 h2 (u8-to-u64 odcid.cid-len))
+
+  -- | Verify a 32-byte Stateless Retry token from an incoming Initial packet (`#[no-alloc]`).
+  #[no-alloc]
+  quic-endpoint-verify-retry-token-raw :: QuicEndpoint -> U64 -> I64 -> U32 ->{MVar} Bool
+  quic-endpoint-verify-retry-token-raw ep peer-addr tok-addr tok-len =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (ne-u32 tok-len 32) then b-false
+    else
+      let secret = raw-load-u64 (addr-at base e-off-retry-sec) in
+      let t-peer = raw-load-u64 tok-addr in
+      if ne-u64 t-peer peer-addr then b-false
+      else
+        let w0 = raw-load-u64 (wrapping-add-i64 tok-addr 8) in
+        let w1 = raw-load-u64 (wrapping-add-i64 tok-addr 16) in
+        let len = raw-load-u8 (wrapping-add-i64 tok-addr 23) in
+        let tag = raw-load-u64 (wrapping-add-i64 tok-addr 24) in
+        let odcid = conn-id-make w0 (bit-and-u64 w1 0x00ffffffffffffff) 0 len in
+        let expected = compute-retry-mac secret peer-addr odcid in
+        eq-u64 tag expected
+
+  -- | Build a complete RFC 9000/9001 Stateless Retry packet (including 16-byte
+  -- Retry Integrity Tag) directly into `out-addr[0..out-cap)` with zero allocs.
+  -- Returns wire length written, or `0` on error.
+  #[no-alloc]
+  quic-endpoint-build-retry-raw :: QuicEndpoint -> ConnId -> ConnId -> U64 -> I64 -> U32 ->{MVar} U32
+  quic-endpoint-build-retry-raw ep client-scid odcid peer-addr out-addr out-cap =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (lt-u32 out-cap 96) then 0
+    else
+      let retry-scid = quic-endpoint-alloc-scid ep in
+      let secret = raw-load-u64 (addr-at base e-off-retry-sec) in
+      let tok-addr = addr-at base e-off-rscratch in
+      let pseudo-scratch = addr-at base (wrapping-add-u64 e-off-rscratch 64) in
+      let mac = compute-retry-mac secret peer-addr odcid in
+      let _0 = raw-store-u64 tok-addr peer-addr in
+      let _1 = raw-store-u64 (wrapping-add-i64 tok-addr 8) odcid.cid-w0 in
+      let _2 = raw-store-u64 (wrapping-add-i64 tok-addr 16) (bit-or-u64 (bit-and-u64 odcid.cid-w1 0x00ffffffffffffff) (wrapping-shl-u64 (u8-to-u64 odcid.cid-len) 56)) in
+      let _3 = raw-store-u64 (wrapping-add-i64 tok-addr 24) mac in
+      let no-tag-len = quic-encode-retry-header out-addr (wrapping-sub-u32 out-cap 16) (quic-version-v1 ()) 0x0f client-scid retry-scid tok-addr 32 in
+      if eq-u32 no-tag-len 0 then 0
+      else
+        let rkey = ep-load-rkey base in
+        let tag-addr = wrapping-add-i64 out-addr (u32-to-i64 no-tag-len) in
+        if quic-retry-tag-compute-raw rkey odcid out-addr no-tag-len pseudo-scratch tag-addr then
+          let rs = raw-load-u64 (addr-at base e-off-retries-sent) in
+          let _rs = raw-store-u64 (addr-at base e-off-retries-sent) (wrapping-add-u64 rs 1) in
+          wrapping-add-u32 no-tag-len 16
+        else 0
+
+  -- =========================================================================
+  -- 5. Fast DCID Peek & Ingress Dispatch
+  -- =========================================================================
+
+  -- Peek DCID from any QUIC packet (Long or Short header) without modifying buffer.
+  #[no-alloc]
+  peek-pkt-dcid :: I64 -> U32 -> U8 ->{MVar} ConnId
+  peek-pkt-dcid pkt-addr pkt-len short-len =
+    if eq-u32 pkt-len 0 then conn-id-empty ()
+    else
+      let b0 = raw-load-u8 pkt-addr in
+      if ne-u8 (bit-and-u8 b0 0x80) 0 then
+        if lt-u32 pkt-len 7 then conn-id-empty ()
+        else
+          let dlen = raw-load-u8 (wrapping-add-i64 pkt-addr 5) in
+          if either (gt-u8 dlen quic-cid-max-len) (lt-u32 pkt-len (wrapping-add-u32 6 (u8-to-u32 dlen))) then conn-id-empty ()
+          else conn-id-read-raw (wrapping-add-i64 pkt-addr 6) dlen
+      else
+        let slen32 = u8-to-u32 short-len in
+        if lt-u32 pkt-len (wrapping-add-u32 1 slen32) then conn-id-empty ()
+        else conn-id-read-raw (wrapping-add-i64 pkt-addr 1) short-len
+
+  -- | Zero-allocation steady-state ingress demux for existing connections AND
+  -- Stateless Retry generation (`#[no-alloc]`). Returns `QuicEpRxOutcome`.
+  #[no-alloc]
+  quic-endpoint-on-datagram-existing :: QuicEndpoint -> I64 -> U32 -> U64 -> U64 -> I64 -> U32 ->{MVar} QuicEpRxOutcome
+  quic-endpoint-on-datagram-existing ep pkt-addr pkt-len src-addr now-ns retry-out retry-cap =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (eq-u32 pkt-len 0) then quic-ep-rx-empty ()
+    else
+      let slen = raw-load-u8 (addr-at base e-off-scid-len) in
+      let dcid = peek-pkt-dcid pkt-addr pkt-len slen in
+      let slot = quic-endpoint-lookup-dcid ep dcid in
+      if ne-u32 slot ep-slot-none then
+        let conn = quic-endpoint-conn-at ep slot in
+        let _r = quic-conn-on-datagram conn pkt-addr pkt-len src-addr now-ns in
+        QuicEpRxOutcome slot 0 ep-rx-ok 0 0 0
+      else
+        -- Unknown DCID: if Initial and require-retry is enabled and token missing/invalid, emit Retry!
+        let b0 = raw-load-u8 pkt-addr in
+        if both (ne-u8 (bit-and-u8 b0 0x80) 0) (ge-u32 pkt-len 20) then
+          let ver-raw = swap-bytes-u32 (raw-load-u32 (wrapping-add-i64 pkt-addr 1)) in
+          let pt = packet-type-from-long-bits (QuicVersion ver-raw) (wrapping-shr-u8 (bit-and-u8 b0 0x30) 4) in
+          if eq-u8 pt.packet-type-raw pkt-type-code-initial then
+            let dlen32 = u8-to-u32 dcid.cid-len in
+            let scid-len-off = wrapping-add-u32 6 dlen32 in
+            if ge-u32 scid-len-off pkt-len then quic-ep-rx-empty ()
+            else
+              let cslen = raw-load-u8 (wrapping-add-i64 pkt-addr (u32-to-i64 scid-len-off)) in
+              let scid-off = wrapping-add-u32 scid-len-off 1 in
+              let tok-var-off = wrapping-add-u32 scid-off (u8-to-u32 cslen) in
+              let tdec = quic-varint-decode-raw pkt-addr tok-var-off pkt-len in
+              if eq-u8 tdec.ok 0 then quic-ep-rx-empty ()
+              else
+                let tok-off = wrapping-add-u32 tok-var-off tdec.consumed in
+                let tok-len = wrapping-u64-to-u32 tdec.val in
+                let tok-ok = quic-endpoint-verify-retry-token-raw ep src-addr (wrapping-add-i64 pkt-addr (u32-to-i64 tok-off)) tok-len in
+                if both (ne-u8 (raw-load-u8 (addr-at base e-off-req-retry)) 0) (if tok-ok then b-false else b-true) then
+                  let client-scid = conn-id-read-raw (wrapping-add-i64 pkt-addr (u32-to-i64 scid-off)) cslen in
+                  let rlen = quic-endpoint-build-retry-raw ep client-scid dcid src-addr retry-out retry-cap in
+                  if gt-u32 rlen 0 then QuicEpRxOutcome ep-slot-none rlen ep-rx-retry-sent 0 0 0
+                  else quic-ep-rx-empty ()
+                else quic-ep-rx-empty ()
+          else quic-ep-rx-empty ()
+        else quic-ep-rx-empty ()
+
+  -- | Full ingress datagram handler (handles existing connections, Stateless
+  -- Retry generation, AND accepting new server `QuicConn`s on valid Initial).
+  quic-endpoint-on-datagram :: QuicEndpoint -> I64 -> U32 -> U64 -> U64 -> I64 -> U32 ->{IO, MVar} QuicEpRxOutcome
+  quic-endpoint-on-datagram ep pkt-addr pkt-len src-addr now-ns retry-out retry-cap =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (eq-u32 pkt-len 0) then quic-ep-rx-empty ()
+    else
+      let res = quic-endpoint-on-datagram-existing ep pkt-addr pkt-len src-addr now-ns retry-out retry-cap in
+      if ne-u8 res.eprx-status ep-rx-dropped then res
+      else
+        -- Try to accept a new server connection on an Initial packet
+        let b0 = raw-load-u8 pkt-addr in
+        if both (ne-u8 (bit-and-u8 b0 0x80) 0) (ge-u32 pkt-len 20) then
+          let ver-raw = swap-bytes-u32 (raw-load-u32 (wrapping-add-i64 pkt-addr 1)) in
+          let pt = packet-type-from-long-bits (QuicVersion ver-raw) (wrapping-shr-u8 (bit-and-u8 b0 0x30) 4) in
+          if ne-u8 pt.packet-type-raw pkt-type-code-initial then quic-ep-rx-empty ()
+          else
+            let odcid = peek-pkt-dcid pkt-addr pkt-len 8 in
+            let scid-len-off = wrapping-add-u32 6 (u8-to-u32 odcid.cid-len) in
+            if ge-u32 scid-len-off pkt-len then quic-ep-rx-empty ()
+            else
+              let cslen = raw-load-u8 (wrapping-add-i64 pkt-addr (u32-to-i64 scid-len-off)) in
+              let scid-off = wrapping-add-u32 scid-len-off 1 in
+              let client-scid = conn-id-read-raw (wrapping-add-i64 pkt-addr (u32-to-i64 scid-off)) cslen in
+              let tok-var-off = wrapping-add-u32 scid-off (u8-to-u32 cslen) in
+              let tdec = quic-varint-decode-raw pkt-addr tok-var-off pkt-len in
+              let tok-valid = (if eq-u8 tdec.ok 0 then b-false
+                else quic-endpoint-verify-retry-token-raw ep src-addr (wrapping-add-i64 pkt-addr (u32-to-i64 (wrapping-add-u32 tok-var-off tdec.consumed))) (wrapping-u64-to-u32 tdec.val)) in
+              let srv-scid = quic-endpoint-alloc-scid ep in
+              let mtu = raw-load-u32 (addr-at base e-off-mtu) in
+              let seed = mix64 (bit-xor-u64 now-ns (hash-cid odcid)) in
+              let conn = quic-conn-new-server srv-scid client-scid odcid src-addr mtu now-ns seed in
+              if eq-u64 conn.qc-base 0 then QuicEpRxOutcome ep-slot-none 0 ep-rx-full 0 0 0
+              else
+                let _ar = quic-conn-set-anti-replay conn (ep-load-ar base) in
+                let _av = if tok-valid then quic-conn-set-addr-validated conn 1 else () in
+                let slot = quic-endpoint-register-conn ep conn odcid in
+                if eq-u32 slot ep-slot-none then
+                  let _ = quic-conn-destroy conn in
+                  QuicEpRxOutcome ep-slot-none 0 ep-rx-full 0 0 0
+                else
+                  let _rx = quic-conn-on-datagram conn pkt-addr pkt-len src-addr now-ns in
+                  QuicEpRxOutcome slot 0 ep-rx-new-conn 0 0 0
+        else quic-ep-rx-empty ()
+
+  -- =========================================================================
+  -- 6. UDP_GSO Burst Packetizer & Endpoint Polling (#[no-alloc])
+  -- =========================================================================
+
+  -- Pack additional same-peer packets `1..max-pkts-1` into `out-addr` after
+  -- packet 0 (which set `seg-size` and `peer-addr`). Obeys Linux `UDP_SEGMENT`:
+  -- every non-final segment has exact size `seg-size`; a shorter segment terminates the burst.
+  #[repr(C, value)]
+  record GsoPackRes where
+    gp-len :: U32
+    gp-cnt :: U32
+
+  -- Pack additional same-peer packets `1..max-pkts-1` into `out-addr` after
+  -- packet 0 (which set `seg-size` and `peer-addr`). Obeys Linux `UDP_SEGMENT`:
+  -- every non-final segment has exact size `seg-size`; a shorter segment terminates the burst.
+  #[no-alloc]
+  pack-gso-more :: QuicConn -> I64 -> U32 -> U32 -> U32 -> U64 -> U64 -> U32 -> U32 ->{MVar} GsoPackRes
+  pack-gso-more conn out-addr out-cap seg-size max-pkts peer-addr now-ns total-len count =
+    if ge-u32 count max-pkts then GsoPackRes total-len count
+    else if lt-u32 (wrapping-sub-u32 out-cap total-len) seg-size then GsoPackRes total-len count
+    else
+      let p = quic-conn-poll-tx-capped conn (wrapping-add-i64 out-addr (u32-to-i64 total-len)) (wrapping-sub-u32 out-cap total-len) seg-size now-ns in
+      if eq-u8 p.tx-ok 0 then GsoPackRes total-len count
+      else if ne-u64 p.tx-peer-addr peer-addr then GsoPackRes total-len count
+      else
+        let nt = wrapping-add-u32 total-len p.tx-len in
+        let nc = wrapping-add-u32 count 1 in
+        if lt-u32 p.tx-len seg-size then GsoPackRes nt nc
+        else pack-gso-more conn out-addr out-cap seg-size max-pkts peer-addr now-ns nt nc
+
+  #[no-alloc]
+  poll-gso-rr-loop :: U64 -> U32 -> U32 -> U32 -> I64 -> U32 -> U32 -> U64 ->{MVar} QuicGsoBurst
+  poll-gso-rr-loop base start tried max-c out-addr out-cap max-pkts now-ns =
+    if ge-u32 tried max-c then quic-gso-burst-empty ()
+    else
+      let raw-s = wrapping-add-u32 start tried in
+      let slot = if ge-u32 raw-s max-c then wrapping-sub-u32 raw-s max-c else raw-s in
+      let cbase = raw-load-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 slot) 3))) in
+      if eq-u64 cbase 0 then
+        poll-gso-rr-loop base start (wrapping-add-u32 tried 1) max-c out-addr out-cap max-pkts now-ns
+      else
+        let conn = QuicConn cbase in
+        let p0 = quic-conn-poll-tx conn out-addr out-cap now-ns in
+        if ne-u8 p0.tx-ok 0 then
+          let nxt0 = wrapping-add-u32 slot 1 in
+          let nxt = if ge-u32 nxt0 max-c then 0 else nxt0 in
+          let _rr = raw-store-u32 (addr-at base e-off-rr) nxt in
+          let seg-sz = p0.tx-len in
+          let r = pack-gso-more conn out-addr out-cap seg-sz max-pkts p0.tx-peer-addr now-ns seg-sz 1 in
+          QuicGsoBurst p0.tx-peer-addr p0.tx-release-ns r.gp-len seg-sz r.gp-cnt slot
+        else poll-gso-rr-loop base start (wrapping-add-u32 tried 1) max-c out-addr out-cap max-pkts now-ns
+
+  -- | `UDP_GSO` burst packetizer (`#[no-alloc]`): packs up to `max-pkts`
+  -- same-peer, same-segment-size protected QUIC packets contiguously into
+  -- `out-addr[0..out-cap)` ready for Linux `UDP_SEGMENT` / `sendmsg`.
+  #[no-alloc]
+  quic-endpoint-poll-gso-burst :: QuicEndpoint -> I64 -> U32 -> U32 -> U64 ->{MVar} QuicGsoBurst
+  quic-endpoint-poll-gso-burst ep out-addr out-cap max-pkts now-ns =
+    let base = ep.qep-base in
+    if either (eq-u64 base 0) (eq-u32 max-pkts 0) then quic-gso-burst-empty ()
+    else
+      let max-c = raw-load-u32 (addr-at base e-off-max-conns) in
+      let cursor0 = raw-load-u32 (addr-at base e-off-rr) in
+      let cursor = if ge-u32 cursor0 max-c then 0 else cursor0 in
+      poll-gso-rr-loop base cursor 0 max-c out-addr out-cap max-pkts now-ns
+
+  -- | Poll a single protected QUIC packet from the next ready connection (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  quic-endpoint-poll-tx :: QuicEndpoint -> I64 -> U32 -> U64 ->{MVar} QuicGsoBurst
+  quic-endpoint-poll-tx ep out-addr out-cap now-ns =
+    quic-endpoint-poll-gso-burst ep out-addr out-cap 1 now-ns
+
+  #[no-alloc]
+  timeout-conns-loop :: U64 -> U32 -> U32 -> U64 -> U32 ->{MVar} U32
+  timeout-conns-loop base i max-c now-ns fired =
+    if ge-u32 i max-c then fired
+    else
+      let cbase = raw-load-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 i) 3))) in
+      let next-f = (if ne-u64 cbase 0 then
+        let r = quic-conn-on-timeout (QuicConn cbase) now-ns in
+        if ne-u8 r quic-timeout-none then wrapping-add-u32 fired 1 else fired
+      else fired) in
+      timeout-conns-loop base (wrapping-add-u32 i 1) max-c now-ns next-f
+
+  -- | Drive RFC 9002 loss/PTO/idle timeouts across all active connections (`#[no-alloc]`).
+  #[no-alloc]
+  quic-endpoint-on-timeout :: QuicEndpoint -> U64 ->{MVar} U32
+  quic-endpoint-on-timeout ep now-ns =
+    let base = ep.qep-base in
+    if eq-u64 base 0 then 0
+    else timeout-conns-loop base 0 (raw-load-u32 (addr-at base e-off-max-conns)) now-ns 0
+
+  step-crypto-loop :: U64 -> U32 -> U32 -> U64 ->{IO, MVar} Unit
+  step-crypto-loop base i max-c now-ns =
+    if ge-u32 i max-c then ()
+    else
+      let cbase = raw-load-u64 (addr-at base (wrapping-add-u64 e-off-conns (wrapping-shl-u64 (u32-to-u64 i) 3))) in
+      let _ = (if ne-u64 cbase 0 then
+        let conn = QuicConn cbase in
+        if quic-conn-needs-crypto-step conn then
+          let _ = quic-conn-step-crypto conn now-ns in
+          ()
+        else ()
+      else ()) in
+      step-crypto-loop base (wrapping-add-u32 i 1) max-c now-ns
+
+  -- | Run cold-path handshake key-schedule steps for any connection that
+  -- received new Initial/Handshake CRYPTO frames or Retry packets.
+  quic-endpoint-step-crypto-all :: QuicEndpoint -> U64 ->{IO, MVar} Unit
+  quic-endpoint-step-crypto-all ep now-ns =
+    let base = ep.qep-base in
+    if eq-u64 base 0 then ()
+    else step-crypto-loop base 0 (raw-load-u32 (addr-at base e-off-max-conns)) now-ns
+
+  -- =========================================================================
+  -- 7. Live Engine.Sim UDP Driver Helper (`quic-endpoint-step`)
+  -- =========================================================================
+
+  copy-bytes-to-dma :: Bytes -> Nat -> I64 -> Nat ->{MVar} Unit
+  copy-bytes-to-dma src i dst n =
+    if i >= n then ()
+    else if i < bytes-len src then
+      let _ = raw-store-u8 (wrapping-add-i64 dst (nat-to-i64 i)) (bytes-get-u8 src i) in
+      copy-bytes-to-dma src (i + 1) dst n
+    else ()
+
+  copy-dma-to-bytes :: I64 -> Bytes -> Nat -> Nat ->{MVar} Unit
+  copy-dma-to-bytes src dst i n =
+    if i >= n then ()
+    else if i < bytes-len dst then
+      let _ = bytes-set-u8 dst i (raw-load-u8 (wrapping-add-i64 src (nat-to-i64 i))) in
+      copy-dma-to-bytes src dst (i + 1) n
+    else ()
+
+  drain-sim-rx :: forall r. SimWorld r -> Fd -> QuicEndpoint -> I64 -> U32 -> I64 -> U32 -> U32 -> U32 ->{IO, Mut r, MVar} U32
+  drain-sim-rx w fd ep rx-buf rx-cap retry-buf retry-cap budget done =
+    if ge-u32 done budget then done
+    else case sim-udp-recv w fd of
+      Err _ -> done
+      Ok dg ->
+        let n = bytes-len dg.dgram-payload in
+        let n32 = wrapping-i64-to-u32 (nat-to-i64 n) in
+        let _ = (if le-u32 n32 rx-cap then
+          let _c = copy-bytes-to-dma dg.dgram-payload 0 rx-buf n in
+          let src-u64 = u32-to-u64 (sim-udp-addr-pack dg.dgram-src) in
+          let now = sim-world-now-ns w in
+          let out = quic-endpoint-on-datagram ep rx-buf n32 src-u64 now retry-buf retry-cap in
+          if eq-u8 out.eprx-status ep-rx-retry-sent then
+            let rlen = u32-to-nat out.eprx-retry-len in
+            let rb = bytes-new rlen in
+            let _cr = copy-dma-to-bytes retry-buf rb 0 rlen in
+            let _s = sim-udp-send w fd dg.dgram-src rb in
+            ()
+          else if ne-u32 out.eprx-slot ep-slot-none then
+            let c = quic-endpoint-conn-at ep out.eprx-slot in
+            if quic-conn-needs-crypto-step c then
+              let _sc = quic-conn-step-crypto c now in
+              ()
+            else ()
+          else ()
+        else ()) in
+        drain-sim-rx w fd ep rx-buf rx-cap retry-buf retry-cap budget (wrapping-add-u32 done 1)
+
+  drain-sim-tx :: forall r. SimWorld r -> Fd -> QuicEndpoint -> I64 -> U32 -> U32 -> U32 ->{IO, Mut r, MVar} U32
+  drain-sim-tx w fd ep tx-buf tx-cap budget sent =
+    if ge-u32 sent budget then sent
+    else
+      let now = sim-world-now-ns w in
+      let b = quic-endpoint-poll-tx ep tx-buf tx-cap now in
+      if eq-u32 b.gso-pkt-count 0 then sent
+      else
+        let n = u32-to-nat b.gso-total-len in
+        let pkt = bytes-new n in
+        let _c = copy-dma-to-bytes tx-buf pkt 0 n in
+        let dst = sim-udp-addr-unpack (wrapping-u64-to-u32 b.gso-peer-addr) in
+        let _s = sim-udp-send w fd dst pkt in
+        drain-sim-tx w fd ep tx-buf tx-cap budget (wrapping-add-u32 sent 1)
+
+  -- | Drive one complete tick of `ep` over simulated UDP socket `fd` in `w`:
+  -- drains incoming UDP datagrams, runs pending handshake crypto steps,
+  -- processes RFC 9002 timeouts, and flushes outgoing paced packets.
+  -- `scratch-addr` must provide at least `8192` bytes of DMA scratch space.
+  -- Returns total packets received + transmitted.
+  quic-endpoint-step :: forall r. SimWorld r -> Fd -> QuicEndpoint -> I64 -> U32 ->{IO, Mut r, MVar} U32
+  quic-endpoint-step w fd ep scratch-addr max-pkts =
+    let rx-buf = scratch-addr in
+    let tx-buf = wrapping-add-i64 scratch-addr 2048 in
+    let retry-buf = wrapping-add-i64 scratch-addr 4096 in
+    let rx-n = drain-sim-rx w fd ep rx-buf 2048 retry-buf 1024 max-pkts 0 in
+    let now = sim-world-now-ns w in
+    let _c = quic-endpoint-step-crypto-all ep now in
+    let _t = quic-endpoint-on-timeout ep now in
+    let tx-n = drain-sim-tx w fd ep tx-buf 2048 max-pkts 0 in
+    wrapping-add-u32 rx-n tx-n
