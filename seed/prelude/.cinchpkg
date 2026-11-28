@@ -1555,6 +1555,14 @@
     {
       "name": "Net.Http.Static",
       "path": "Net/Http/Static.cinch"
+    },
+    {
+      "name": "Net.Http.WebSocket.Frame",
+      "path": "Net/Http/WebSocket/Frame.cinch"
+    },
+    {
+      "name": "Net.Http.WebSocket.Hub",
+      "path": "Net/Http/WebSocket/Hub.cinch"
     }
   ],
   "order": [
@@ -1945,6 +1953,8 @@
     "Net.Quic.Conn",
     "Net.Quic.Endpoint",
     "Net.Quic.Spec",
-    "Net.Http.Static"
+    "Net.Http.Static",
+    "Net.Http.WebSocket.Frame",
+    "Net.Http.WebSocket.Hub"
   ]
 }
