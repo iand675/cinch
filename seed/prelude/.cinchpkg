@@ -1343,6 +1343,10 @@
     {
       "name": "Prim.Sys.Io",
       "path": "Prim/Sys/Io.cinch"
+    },
+    {
+      "name": "Engine.Types",
+      "path": "Engine/Types.cinch"
     }
   ],
   "order": [
@@ -1680,6 +1684,7 @@
     "Prim.Sys.Io.Darwin",
     "Prim.Sys.Io.Linux",
     "Prim.Sys.Io.Portable",
-    "Prim.Sys.Io"
+    "Prim.Sys.Io",
+    "Engine.Types"
   ]
 }

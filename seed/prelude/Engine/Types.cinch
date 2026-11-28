@@ -1,0 +1,761 @@
+-- | Frozen, unboxed core contract types for the Cinch high-performance engine.
+--
+-- Every handle, span, cache-line message envelope, submission queue entry, and
+-- completion queue entry in this module uses `#[repr(value)]` / `#[repr(C, value)]`
+-- POD layout (or auto-niched single-word `Raw` enums) so hot loops execute with
+-- zero heap allocation (`#[no-alloc]`) and zero reference-counting traffic.
+--
+-- Shared across Waves 1-7 (`Engine.*`, `Net.*`, `Store.*`, `Stream.*`,
+-- `Consensus.*`), along with capability dictionaries (`ReactorOps`, `ClockOps`,
+-- `EntropyOps`) for zero-drift deterministic simulation (DST) vs. live OS
+-- reactors, and typed FFI wrappers around the Wave 0A pinned-worker and DMA
+-- runtime primitives.
+module Engine.Types where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+
+  -- Unboxed handles & identifiers
+  export CoreId, core-id, core-id-value, core-id-eq
+  export Fd, fd-of, fd-value, fd-invalid, fd-is-valid, fd-eq
+  export SlabIdx, slab-idx-of, slab-idx-value, slab-idx-invalid, slab-idx-is-valid, slab-idx-eq
+  export BufId, buf-id-of, buf-id-value, buf-id-invalid, buf-id-is-valid, buf-id-eq
+  export TimeNs, time-ns-zero, time-ns-of, time-ns-value, time-ns-add, time-ns-saturating-sub
+  export time-ns-lt, time-ns-le, time-ns-eq
+
+  -- Generational handle & I/O token bit-packing
+  export GenHandle, gen-handle-pack, gen-handle-gen, gen-handle-idx
+  export gen-handle-null, gen-handle-is-null, gen-handle-eq
+  export IoToken, io-token-pack, io-token-kind, io-token-gen, io-token-slot
+  export io-token-zero, io-token-is-zero, io-token-eq
+
+  -- Register-fit byte spans & cache-line message envelopes
+  export ByteSpan, byte-span-make, byte-span-of, byte-span-empty, byte-span-slice
+  export byte-span-is-empty, byte-span-eq
+  export MsgEnvelope, msg-envelope-empty, msg-envelope-make, msg-envelope-eq
+
+  -- Reactor I/O vocabulary
+  export IoError, IoOk, IoAgain, IoEof, IoBadFd, IoNoMem, IoCanceled
+  export IoConnReset, IoBrokenPipe, IoAddrInUse, IoTimedOut, IoUnsupported, IoOther
+  export io-error-to-u8, io-error-from-u8, io-error-is-ok, io-error-eq
+  export IoOpKind, OpNop, OpAccept, OpRecv, OpRecvMultishot, OpSend, OpSendV
+  export OpSendZc, OpSendMsg, OpRecvMsg, OpReadDirect, OpWriteDirect
+  export OpFsync, OpSplice, OpTimeout, OpCancel, OpClose
+  export op-code-nop, op-code-accept, op-code-recv, op-code-recv-multishot
+  export op-code-send, op-code-send-v, op-code-send-zc, op-code-send-msg
+  export op-code-recv-msg, op-code-read-direct, op-code-write-direct
+  export op-code-fsync, op-code-splice, op-code-timeout, op-code-cancel, op-code-close
+  export io-op-kind-to-u8, io-op-kind-from-u8, io-op-kind-eq
+  export IoSqe, io-sqe-nop, io-sqe-make, io-sqe-op-kind, io-sqe-token-id
+  export Completion, completion-empty, completion-make, completion-token
+  export completion-is-err, completion-eq
+
+  -- Capability dictionaries for zero-drift DST vs. Live Reactor
+  export ReactorOps, ClockOps, EntropyOps
+  export with-reactor-ops, with-clock-ops, with-entropy-ops, with-engine-ops
+  export engine-reactor-submit, engine-reactor-flush, engine-reactor-wait
+  export engine-reactor-cqe-count, engine-reactor-pop-cqe, engine-reactor-close
+  export engine-clock-mono-ns, engine-clock-wall-ns
+  export engine-entropy-next-u64, engine-entropy-next-u32
+
+  -- Wave 0A runtime worker, DMA, and telemetry wrappers
+  export engine-cpu-count, engine-spawn-pinned, engine-join
+  export engine-dma-alloc, engine-dma-free
+  export engine-thread-alloc-count, engine-thread-atomic-rc-count, engine-thread-counters-reset
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean combinator
+  -- =========================================================================
+
+  -- Avoid syntactic `Con(False)` from `&&` desugaring inside `#[no-alloc]` bodies.
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else eq-u32 0 1
+
+  -- =========================================================================
+  -- 1. Unboxed handles & identifiers
+  -- =========================================================================
+
+  -- | Logical CPU / share-nothing shard identifier (2-byte POD).
+  #[repr(value)]
+  record CoreId where
+    core-id-raw :: U16
+
+  #[no-alloc]
+  core-id :: U16 -> CoreId
+  core-id n = CoreId n
+
+  #[no-alloc]
+  core-id-value :: CoreId -> U16
+  core-id-value c = c.core-id-raw
+
+  #[no-alloc]
+  core-id-eq :: CoreId -> CoreId -> Bool
+  core-id-eq a b = eq-u16 a.core-id-raw b.core-id-raw
+
+  -- | Operating-system or simulated file/socket descriptor (4-byte POD).
+  #[repr(value)]
+  record Fd where
+    fd-raw :: I32
+
+  #[no-alloc]
+  fd-of :: I32 -> Fd
+  fd-of raw = Fd raw
+
+  #[no-alloc]
+  fd-value :: Fd -> I32
+  fd-value f = f.fd-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  fd-invalid :: Unit -> Fd
+  fd-invalid _ = Fd (-1)
+
+  #[no-alloc]
+  fd-is-valid :: Fd -> Bool
+  fd-is-valid f = ge-i32 f.fd-raw 0
+
+  #[no-alloc]
+  fd-eq :: Fd -> Fd -> Bool
+  fd-eq a b = eq-i32 a.fd-raw b.fd-raw
+
+  -- | Fixed-slab slot index (4-byte POD).
+  #[repr(value)]
+  record SlabIdx where
+    slab-idx-raw :: U32
+
+  #[no-alloc]
+  slab-idx-of :: U32 -> SlabIdx
+  slab-idx-of n = SlabIdx n
+
+  #[no-alloc]
+  slab-idx-value :: SlabIdx -> U32
+  slab-idx-value s = s.slab-idx-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  slab-idx-invalid :: Unit -> SlabIdx
+  slab-idx-invalid _ = SlabIdx 4294967295
+
+  #[no-alloc]
+  slab-idx-is-valid :: SlabIdx -> Bool
+  slab-idx-is-valid s = ne-u32 s.slab-idx-raw 4294967295
+
+  #[no-alloc]
+  slab-idx-eq :: SlabIdx -> SlabIdx -> Bool
+  slab-idx-eq a b = eq-u32 a.slab-idx-raw b.slab-idx-raw
+
+  -- | Registered DMA/buffer-pool identifier (4-byte POD).
+  #[repr(value)]
+  record BufId where
+    buf-id-raw :: U32
+
+  #[no-alloc]
+  buf-id-of :: U32 -> BufId
+  buf-id-of n = BufId n
+
+  #[no-alloc]
+  buf-id-value :: BufId -> U32
+  buf-id-value b = b.buf-id-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  buf-id-invalid :: Unit -> BufId
+  buf-id-invalid _ = BufId 4294967295
+
+  #[no-alloc]
+  buf-id-is-valid :: BufId -> Bool
+  buf-id-is-valid b = ne-u32 b.buf-id-raw 4294967295
+
+  #[no-alloc]
+  buf-id-eq :: BufId -> BufId -> Bool
+  buf-id-eq a b = eq-u32 a.buf-id-raw b.buf-id-raw
+
+  -- | Monotonic or epoch timestamp in nanoseconds (8-byte POD).
+  #[repr(value)]
+  record TimeNs where
+    time-ns-raw :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  time-ns-zero :: Unit -> TimeNs
+  time-ns-zero _ = TimeNs 0
+
+  #[no-alloc]
+  time-ns-of :: U64 -> TimeNs
+  time-ns-of ns = TimeNs ns
+
+  #[no-alloc]
+  time-ns-value :: TimeNs -> U64
+  time-ns-value t = t.time-ns-raw
+
+  #[no-alloc]
+  time-ns-add :: TimeNs -> U64 -> TimeNs
+  time-ns-add t delta = TimeNs (saturating-add-u64 t.time-ns-raw delta)
+
+  #[no-alloc]
+  time-ns-saturating-sub :: TimeNs -> TimeNs -> U64
+  time-ns-saturating-sub later earlier = saturating-sub-u64 later.time-ns-raw earlier.time-ns-raw
+
+  #[no-alloc]
+  time-ns-lt :: TimeNs -> TimeNs -> Bool
+  time-ns-lt a b = lt-u64 a.time-ns-raw b.time-ns-raw
+
+  #[no-alloc]
+  time-ns-le :: TimeNs -> TimeNs -> Bool
+  time-ns-le a b = le-u64 a.time-ns-raw b.time-ns-raw
+
+  #[no-alloc]
+  time-ns-eq :: TimeNs -> TimeNs -> Bool
+  time-ns-eq a b = eq-u64 a.time-ns-raw b.time-ns-raw
+
+  -- =========================================================================
+  -- 2. Generational handle & I/O token bit-packing
+  -- =========================================================================
+
+  -- | Generational slab handle packing `(gen << 32) | idx` into one 64-bit word.
+  #[repr(value)]
+  record GenHandle where
+    gen-handle-raw :: U64
+
+  #[no-alloc]
+  gen-handle-pack :: U32 -> U32 -> GenHandle
+  gen-handle-pack gen idx =
+    GenHandle (bit-or-u64 (wrapping-shl-u64 (u32-to-u64 gen) 32) (u32-to-u64 idx))
+
+  #[no-alloc]
+  gen-handle-gen :: GenHandle -> U32
+  gen-handle-gen h = wrapping-u64-to-u32 (wrapping-shr-u64 h.gen-handle-raw 32)
+
+  #[no-alloc]
+  gen-handle-idx :: GenHandle -> U32
+  gen-handle-idx h = wrapping-u64-to-u32 h.gen-handle-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  gen-handle-null :: Unit -> GenHandle
+  gen-handle-null _ = GenHandle 0
+
+  #[no-alloc]
+  gen-handle-is-null :: GenHandle -> Bool
+  gen-handle-is-null h = eq-u64 h.gen-handle-raw 0
+
+  #[no-alloc]
+  gen-handle-eq :: GenHandle -> GenHandle -> Bool
+  gen-handle-eq a b = eq-u64 a.gen-handle-raw b.gen-handle-raw
+
+  -- | Reactor completion correlation token packing
+  -- `(kind:8 << 56) | ((gen & 0xFFFFFF):24 << 32) | slot:32`.
+  #[repr(value)]
+  record IoToken where
+    io-token-raw :: U64
+
+  #[no-alloc]
+  io-token-pack :: U8 -> U32 -> U32 -> IoToken
+  io-token-pack kind gen slot =
+    let k = wrapping-shl-u64 (u8-to-u64 kind) 56 in
+    let g = wrapping-shl-u64 (u32-to-u64 (bit-and-u32 gen 16777215)) 32 in
+    let s = u32-to-u64 slot in
+    IoToken (bit-or-u64 (bit-or-u64 k g) s)
+
+  #[no-alloc]
+  io-token-kind :: IoToken -> U8
+  io-token-kind tok = wrapping-u64-to-u8 (wrapping-shr-u64 tok.io-token-raw 56)
+
+  #[no-alloc]
+  io-token-gen :: IoToken -> U32
+  io-token-gen tok = bit-and-u32 (wrapping-u64-to-u32 (wrapping-shr-u64 tok.io-token-raw 32)) 16777215
+
+  #[no-alloc]
+  io-token-slot :: IoToken -> U32
+  io-token-slot tok = wrapping-u64-to-u32 tok.io-token-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  io-token-zero :: Unit -> IoToken
+  io-token-zero _ = IoToken 0
+
+  #[no-alloc]
+  io-token-is-zero :: IoToken -> Bool
+  io-token-is-zero tok = eq-u64 tok.io-token-raw 0
+
+  #[no-alloc]
+  io-token-eq :: IoToken -> IoToken -> Bool
+  io-token-eq a b = eq-u64 a.io-token-raw b.io-token-raw
+
+  -- =========================================================================
+  -- 3. Register-fit ByteSpan (16B) & cache-line MsgEnvelope (64B align 64)
+  -- =========================================================================
+
+  -- | 16-byte POD slice referencing a registered buffer pool slot.
+  -- Fits in `{ i64, i64 }` registers across calls.
+  #[repr(C, value)]
+  record ByteSpan where
+    span-buf :: U32
+    span-off :: U32
+    span-len :: U32
+    span-flags :: U32
+
+  #[no-alloc]
+  byte-span-make :: U32 -> U32 -> U32 -> U32 -> ByteSpan
+  byte-span-make buf off len flags = ByteSpan buf off len flags
+
+  #[no-alloc]
+  byte-span-of :: BufId -> U32 -> U32 -> ByteSpan
+  byte-span-of buf off len = ByteSpan buf.buf-id-raw off len 0
+
+  #[inline(always)]
+  #[no-alloc]
+  byte-span-empty :: Unit -> ByteSpan
+  byte-span-empty _ = ByteSpan 0 0 0 0
+
+  #[no-alloc]
+  byte-span-is-empty :: ByteSpan -> Bool
+  byte-span-is-empty s = eq-u32 s.span-len 0
+
+  -- | Sub-slice `[rel-off, rel-off + sub-len)` clamped to the parent span bounds.
+  #[no-alloc]
+  byte-span-slice :: ByteSpan -> U32 -> U32 -> ByteSpan
+  byte-span-slice s rel-off sub-len =
+    if ge-u32 rel-off s.span-len then
+      ByteSpan s.span-buf (wrapping-add-u32 s.span-off s.span-len) 0 s.span-flags
+    else
+      let rem = wrapping-sub-u32 s.span-len rel-off in
+      let clamped = if lt-u32 sub-len rem then sub-len else rem in
+      ByteSpan s.span-buf (wrapping-add-u32 s.span-off rel-off) clamped s.span-flags
+
+  #[no-alloc]
+  byte-span-eq :: ByteSpan -> ByteSpan -> Bool
+  byte-span-eq a b =
+    both
+      (both (eq-u32 a.span-buf b.span-buf) (eq-u32 a.span-off b.span-off))
+      (both (eq-u32 a.span-len b.span-len) (eq-u32 a.span-flags b.span-flags))
+
+  -- | Exact 64-byte, 64-byte-aligned cache-line POD message envelope for
+  -- lock-free SPSC CoreMesh and Disruptor rings.
+  #[repr(C, value, align(64))]
+  record MsgEnvelope where
+    msg-kind :: U32
+    msg-src :: U16
+    msg-dst :: U16
+    msg-seq :: U64
+    msg-w0 :: U64
+    msg-w1 :: U64
+    msg-w2 :: U64
+    msg-w3 :: U64
+    msg-w4 :: U64
+    msg-w5 :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  msg-envelope-empty :: Unit -> MsgEnvelope
+  msg-envelope-empty _ = MsgEnvelope 0 0 0 0 0 0 0 0 0 0
+
+  #[no-alloc]
+  msg-envelope-make :: U32 -> CoreId -> CoreId -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 -> MsgEnvelope
+  msg-envelope-make kind src dst seq w0 w1 w2 w3 w4 w5 =
+    MsgEnvelope kind src.core-id-raw dst.core-id-raw seq w0 w1 w2 w3 w4 w5
+
+  #[no-alloc]
+  msg-envelope-eq :: MsgEnvelope -> MsgEnvelope -> Bool
+  msg-envelope-eq a b =
+    both
+      (both
+        (both (eq-u32 a.msg-kind b.msg-kind) (eq-u16 a.msg-src b.msg-src))
+        (both (eq-u16 a.msg-dst b.msg-dst) (eq-u64 a.msg-seq b.msg-seq)))
+      (both
+        (both
+          (both (eq-u64 a.msg-w0 b.msg-w0) (eq-u64 a.msg-w1 b.msg-w1))
+          (both (eq-u64 a.msg-w2 b.msg-w2) (eq-u64 a.msg-w3 b.msg-w3)))
+        (both (eq-u64 a.msg-w4 b.msg-w4) (eq-u64 a.msg-w5 b.msg-w5)))
+
+  -- =========================================================================
+  -- 4. Reactor I/O vocabulary
+  -- =========================================================================
+
+  -- | Canonical reactor I/O status/error vocabulary (auto-niched single-word Raw).
+  data IoError where
+    IoOk :: IoError
+    IoAgain :: IoError
+    IoEof :: IoError
+    IoBadFd :: IoError
+    IoNoMem :: IoError
+    IoCanceled :: IoError
+    IoConnReset :: IoError
+    IoBrokenPipe :: IoError
+    IoAddrInUse :: IoError
+    IoTimedOut :: IoError
+    IoUnsupported :: IoError
+    IoOther :: IoError
+
+  #[no-alloc]
+  io-error-to-u8 :: IoError -> U8
+  io-error-to-u8 err = case err of
+    IoOk -> 0
+    IoAgain -> 1
+    IoEof -> 2
+    IoBadFd -> 3
+    IoNoMem -> 4
+    IoCanceled -> 5
+    IoConnReset -> 6
+    IoBrokenPipe -> 7
+    IoAddrInUse -> 8
+    IoTimedOut -> 9
+    IoUnsupported -> 10
+    IoOther -> 11
+
+  -- Auto-niched single-word Raw enum: zero runtime heap allocation.
+  io-error-from-u8 :: U8 -> IoError
+  io-error-from-u8 code =
+    if eq-u8 code 0 then IoOk
+    else if eq-u8 code 1 then IoAgain
+    else if eq-u8 code 2 then IoEof
+    else if eq-u8 code 3 then IoBadFd
+    else if eq-u8 code 4 then IoNoMem
+    else if eq-u8 code 5 then IoCanceled
+    else if eq-u8 code 6 then IoConnReset
+    else if eq-u8 code 7 then IoBrokenPipe
+    else if eq-u8 code 8 then IoAddrInUse
+    else if eq-u8 code 9 then IoTimedOut
+    else if eq-u8 code 10 then IoUnsupported
+    else IoOther
+
+  #[no-alloc]
+  io-error-is-ok :: IoError -> Bool
+  io-error-is-ok err = eq-u8 (io-error-to-u8 err) 0
+
+  #[no-alloc]
+  io-error-eq :: IoError -> IoError -> Bool
+  io-error-eq a b = eq-u8 (io-error-to-u8 a) (io-error-to-u8 b)
+
+  -- | Reactor submission operation kind (auto-niched single-word Raw).
+  data IoOpKind where
+    OpNop :: IoOpKind
+    OpAccept :: IoOpKind
+    OpRecv :: IoOpKind
+    OpRecvMultishot :: IoOpKind
+    OpSend :: IoOpKind
+    OpSendV :: IoOpKind
+    OpSendZc :: IoOpKind
+    OpSendMsg :: IoOpKind
+    OpRecvMsg :: IoOpKind
+    OpReadDirect :: IoOpKind
+    OpWriteDirect :: IoOpKind
+    OpFsync :: IoOpKind
+    OpSplice :: IoOpKind
+    OpTimeout :: IoOpKind
+    OpCancel :: IoOpKind
+    OpClose :: IoOpKind
+
+  -- | Frozen U8 opcodes matching `IoOpKind` for POD `IoSqe.sqe-op`.
+  #[no-alloc]
+  op-code-nop :: U8
+  op-code-nop = 0
+
+  #[no-alloc]
+  op-code-accept :: U8
+  op-code-accept = 1
+
+  #[no-alloc]
+  op-code-recv :: U8
+  op-code-recv = 2
+
+  #[no-alloc]
+  op-code-recv-multishot :: U8
+  op-code-recv-multishot = 3
+
+  #[no-alloc]
+  op-code-send :: U8
+  op-code-send = 4
+
+  #[no-alloc]
+  op-code-send-v :: U8
+  op-code-send-v = 5
+
+  #[no-alloc]
+  op-code-send-zc :: U8
+  op-code-send-zc = 6
+
+  #[no-alloc]
+  op-code-send-msg :: U8
+  op-code-send-msg = 7
+
+  #[no-alloc]
+  op-code-recv-msg :: U8
+  op-code-recv-msg = 8
+
+  #[no-alloc]
+  op-code-read-direct :: U8
+  op-code-read-direct = 9
+
+  #[no-alloc]
+  op-code-write-direct :: U8
+  op-code-write-direct = 10
+
+  #[no-alloc]
+  op-code-fsync :: U8
+  op-code-fsync = 11
+
+  #[no-alloc]
+  op-code-splice :: U8
+  op-code-splice = 12
+
+  #[no-alloc]
+  op-code-timeout :: U8
+  op-code-timeout = 13
+
+  #[no-alloc]
+  op-code-cancel :: U8
+  op-code-cancel = 14
+
+  #[no-alloc]
+  op-code-close :: U8
+  op-code-close = 15
+
+  #[no-alloc]
+  io-op-kind-to-u8 :: IoOpKind -> U8
+  io-op-kind-to-u8 op = case op of
+    OpNop -> op-code-nop
+    OpAccept -> op-code-accept
+    OpRecv -> op-code-recv
+    OpRecvMultishot -> op-code-recv-multishot
+    OpSend -> op-code-send
+    OpSendV -> op-code-send-v
+    OpSendZc -> op-code-send-zc
+    OpSendMsg -> op-code-send-msg
+    OpRecvMsg -> op-code-recv-msg
+    OpReadDirect -> op-code-read-direct
+    OpWriteDirect -> op-code-write-direct
+    OpFsync -> op-code-fsync
+    OpSplice -> op-code-splice
+    OpTimeout -> op-code-timeout
+    OpCancel -> op-code-cancel
+    OpClose -> op-code-close
+
+  -- Auto-niched single-word Raw enum: zero runtime heap allocation.
+  io-op-kind-from-u8 :: U8 -> IoOpKind
+  io-op-kind-from-u8 code =
+    if eq-u8 code 0 then OpNop
+    else if eq-u8 code 1 then OpAccept
+    else if eq-u8 code 2 then OpRecv
+    else if eq-u8 code 3 then OpRecvMultishot
+    else if eq-u8 code 4 then OpSend
+    else if eq-u8 code 5 then OpSendV
+    else if eq-u8 code 6 then OpSendZc
+    else if eq-u8 code 7 then OpSendMsg
+    else if eq-u8 code 8 then OpRecvMsg
+    else if eq-u8 code 9 then OpReadDirect
+    else if eq-u8 code 10 then OpWriteDirect
+    else if eq-u8 code 11 then OpFsync
+    else if eq-u8 code 12 then OpSplice
+    else if eq-u8 code 13 then OpTimeout
+    else if eq-u8 code 14 then OpCancel
+    else if eq-u8 code 15 then OpClose
+    else OpNop
+
+  #[no-alloc]
+  io-op-kind-eq :: IoOpKind -> IoOpKind -> Bool
+  io-op-kind-eq a b = eq-u8 (io-op-kind-to-u8 a) (io-op-kind-to-u8 b)
+
+  -- | 40-byte POD submission queue entry shared by io_uring, kqueue, and DST.
+  #[repr(C, value)]
+  record IoSqe where
+    sqe-op :: U8
+    sqe-flags :: U8
+    sqe-pad :: U16
+    sqe-fd :: I32
+    sqe-buf-addr :: U64
+    sqe-len :: U32
+    sqe-aux :: U32
+    sqe-off :: U64
+    sqe-token :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  io-sqe-nop :: Unit -> IoSqe
+  io-sqe-nop _ = IoSqe 0 0 0 (-1) 0 0 0 0 0
+
+  #[no-alloc]
+  io-sqe-make :: IoOpKind -> U8 -> Fd -> U64 -> U32 -> U32 -> U64 -> IoToken -> IoSqe
+  io-sqe-make op flags fd buf-addr len aux off tok =
+    IoSqe (io-op-kind-to-u8 op) flags 0 fd.fd-raw buf-addr len aux off tok.io-token-raw
+
+  io-sqe-op-kind :: IoSqe -> IoOpKind
+  io-sqe-op-kind sqe = io-op-kind-from-u8 sqe.sqe-op
+
+  #[no-alloc]
+  io-sqe-token-id :: IoSqe -> IoToken
+  io-sqe-token-id sqe = IoToken sqe.sqe-token
+
+  -- | 16-byte POD completion queue entry; fits in `{ i64, i64 }` registers.
+  #[repr(C, value)]
+  record Completion where
+    cqe-token :: U64
+    cqe-res :: I32
+    cqe-flags :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  completion-empty :: Unit -> Completion
+  completion-empty _ = Completion 0 0 0
+
+  #[no-alloc]
+  completion-make :: IoToken -> I32 -> U32 -> Completion
+  completion-make tok res flags = Completion tok.io-token-raw res flags
+
+  #[no-alloc]
+  completion-token :: Completion -> IoToken
+  completion-token cqe = IoToken cqe.cqe-token
+
+  #[no-alloc]
+  completion-is-err :: Completion -> Bool
+  completion-is-err cqe = lt-i32 cqe.cqe-res 0
+
+  #[no-alloc]
+  completion-eq :: Completion -> Completion -> Bool
+  completion-eq a b =
+    both (eq-u64 a.cqe-token b.cqe-token)
+      (both (eq-i32 a.cqe-res b.cqe-res) (eq-u32 a.cqe-flags b.cqe-flags))
+
+  -- =========================================================================
+  -- 5. Capability dictionaries for zero-drift DST vs. Live Reactor
+  -- =========================================================================
+
+  -- | Reactor capability dictionary implemented identically by live OS
+  -- backends (`Engine.Reactor`: io_uring / kqueue) and deterministic simulation
+  -- (`Engine.Sim`).
+  #[capability]
+  record ReactorOps (r :: Region) where
+    reactor-submit :: IoSqe ->{IO r, Mut r} IoError
+    reactor-flush :: Unit ->{IO r, Mut r} I32
+    reactor-wait :: TimeNs ->{IO r, Mut r} I32
+    reactor-cqe-count :: Unit ->{IO r, Mut r} U32
+    reactor-pop-cqe :: Unit ->{IO r, Mut r} Completion
+    reactor-close :: Unit ->{IO r, Mut r} IoError
+
+  -- | Monotonic and wall-clock capability dictionary (live OS vs. DST clock).
+  #[capability]
+  record ClockOps (r :: Region) where
+    clock-mono-ns :: Unit ->{IO r, Mut r} TimeNs
+    clock-wall-ns :: Unit ->{IO r, Mut r} TimeNs
+
+  -- | Entropy capability dictionary (live CSPRNG vs. seeded deterministic PRNG).
+  #[capability]
+  record EntropyOps (r :: Region) where
+    entropy-next-u64 :: Unit ->{IO r, Mut r} U64
+    entropy-next-u32 :: Unit ->{IO r, Mut r} U32
+
+  -- | Supply a `ReactorOps r` capability lexically to `action`.
+  with-reactor-ops :: forall (r :: Region) a. ReactorOps r -> (using (rx :: ReactorOps r) => Unit ->{IO r, Mut r} a) ->{IO r, Mut r} a
+  with-reactor-ops ops action = with (rx = ops) in action ()
+
+  -- | Supply a `ClockOps r` capability lexically to `action`.
+  with-clock-ops :: forall (r :: Region) a. ClockOps r -> (using (clk :: ClockOps r) => Unit ->{IO r, Mut r} a) ->{IO r, Mut r} a
+  with-clock-ops ops action = with (clk = ops) in action ()
+
+  -- | Supply an `EntropyOps r` capability lexically to `action`.
+  with-entropy-ops :: forall (r :: Region) a. EntropyOps r -> (using (rng :: EntropyOps r) => Unit ->{IO r, Mut r} a) ->{IO r, Mut r} a
+  with-entropy-ops ops action = with (rng = ops) in action ()
+
+  -- | Supply `ReactorOps r`, `ClockOps r`, and `EntropyOps r` together for
+  -- zero-drift execution across live OS reactors and DST simulators.
+  with-engine-ops
+    :: forall (r :: Region) a.
+       ReactorOps r
+    -> ClockOps r
+    -> EntropyOps r
+    -> (using (rx :: ReactorOps r, clk :: ClockOps r, rng :: EntropyOps r) => Unit ->{IO r, Mut r} a)
+    ->{IO r, Mut r} a
+  with-engine-ops rx-ops clk-ops rng-ops action =
+    with (rx = rx-ops) in
+    with (clk = clk-ops) in
+    with (rng = rng-ops) in
+      action ()
+
+  engine-reactor-submit :: forall (r :: Region). using (rx :: ReactorOps r) => IoSqe ->{IO r, Mut r} IoError
+  engine-reactor-submit sqe = rx.reactor-submit sqe
+
+  engine-reactor-flush :: forall (r :: Region). using (rx :: ReactorOps r) => Unit ->{IO r, Mut r} I32
+  engine-reactor-flush u = rx.reactor-flush u
+
+  engine-reactor-wait :: forall (r :: Region). using (rx :: ReactorOps r) => TimeNs ->{IO r, Mut r} I32
+  engine-reactor-wait timeout-ns = rx.reactor-wait timeout-ns
+
+  engine-reactor-cqe-count :: forall (r :: Region). using (rx :: ReactorOps r) => Unit ->{IO r, Mut r} U32
+  engine-reactor-cqe-count u = rx.reactor-cqe-count u
+
+  engine-reactor-pop-cqe :: forall (r :: Region). using (rx :: ReactorOps r) => Unit ->{IO r, Mut r} Completion
+  engine-reactor-pop-cqe u = rx.reactor-pop-cqe u
+
+  engine-reactor-close :: forall (r :: Region). using (rx :: ReactorOps r) => Unit ->{IO r, Mut r} IoError
+  engine-reactor-close u = rx.reactor-close u
+
+  engine-clock-mono-ns :: forall (r :: Region). using (clk :: ClockOps r) => Unit ->{IO r, Mut r} TimeNs
+  engine-clock-mono-ns u = clk.clock-mono-ns u
+
+  engine-clock-wall-ns :: forall (r :: Region). using (clk :: ClockOps r) => Unit ->{IO r, Mut r} TimeNs
+  engine-clock-wall-ns u = clk.clock-wall-ns u
+
+  engine-entropy-next-u64 :: forall (r :: Region). using (rng :: EntropyOps r) => Unit ->{IO r, Mut r} U64
+  engine-entropy-next-u64 u = rng.entropy-next-u64 u
+
+  engine-entropy-next-u32 :: forall (r :: Region). using (rng :: EntropyOps r) => Unit ->{IO r, Mut r} U32
+  engine-entropy-next-u32 u = rng.entropy-next-u32 u
+
+  -- =========================================================================
+  -- 6. Wave 0A runtime worker, DMA, and telemetry FFI wrappers
+  -- =========================================================================
+
+  foreign import ccall "cinch_engine_cpu_count" raw-engine-cpu-count :: Unit ->{IO} I64
+  foreign import ccall "cinch_engine_spawn_pinned" raw-engine-spawn-pinned :: I64 -> I64 -> I64 ->{IO} I64
+  foreign import ccall "cinch_engine_join" raw-engine-join :: I64 ->{IO} I64
+  foreign import ccall "cinch_engine_dma_alloc" raw-engine-dma-alloc :: I64 -> I64 ->{IO} I64
+  foreign import ccall "cinch_engine_dma_free" raw-engine-dma-free :: I64 -> I64 ->{IO} I64
+  foreign import ccall "cinch_engine_thread_alloc_count" raw-engine-thread-alloc-count :: Unit ->{IO} I64
+  foreign import ccall "cinch_engine_thread_atomic_rc_count" raw-engine-thread-atomic-rc-count :: Unit ->{IO} I64
+  foreign import ccall "cinch_engine_thread_counters_reset" raw-engine-thread-counters-reset :: Unit ->{IO} I64
+
+  -- | Return the number of available logical CPUs (`>= 1`).
+  engine-cpu-count :: Unit ->{IO} U32
+  engine-cpu-count u =
+    let n = raw-engine-cpu-count u in
+    if lt-i64 n 1 then 1 else wrapping-i64-to-u32 n
+
+  -- | Spawn a dedicated OS worker thread pinned to `core`, invoking the Cinch
+  -- closure address `fn-closure` with `arg`. Returns handle `> 0` or `-1`.
+  engine-spawn-pinned :: CoreId -> U64 -> I64 ->{IO} I64
+  engine-spawn-pinned core fn-closure arg =
+    raw-engine-spawn-pinned (u16-to-i64 core.core-id-raw) (wrapping-u64-to-i64 fn-closure) arg
+
+  -- | Join a pinned OS worker handle returned by `engine-spawn-pinned`.
+  engine-join :: I64 ->{IO} I64
+  engine-join worker-id = raw-engine-join worker-id
+
+  -- | Allocate a zeroed, page/DMA-aligned slab via anonymous `mmap`.
+  -- `align-bytes` must be `>= 4096` and a power of two (`0` defaults to `4096`).
+  -- Returns the raw aligned address or `0` on failure.
+  engine-dma-alloc :: U64 -> U64 ->{IO} U64
+  engine-dma-alloc size-bytes align-bytes =
+    wrapping-i64-to-u64 (raw-engine-dma-alloc (wrapping-u64-to-i64 size-bytes) (wrapping-u64-to-i64 align-bytes))
+
+  -- | Unmap a DMA slab previously allocated by `engine-dma-alloc`.
+  engine-dma-free :: U64 -> U64 ->{IO} IoError
+  engine-dma-free addr size-bytes =
+    if eq-i64 (raw-engine-dma-free (wrapping-u64-to-i64 addr) (wrapping-u64-to-i64 size-bytes)) 0
+    then IoOk
+    else IoOther
+
+  -- | Return the calling OS thread's cumulative heap allocation count.
+  engine-thread-alloc-count :: Unit ->{IO} U64
+  engine-thread-alloc-count u = wrapping-i64-to-u64 (raw-engine-thread-alloc-count u)
+
+  -- | Return the calling OS thread's cumulative atomic RC operation count.
+  engine-thread-atomic-rc-count :: Unit ->{IO} U64
+  engine-thread-atomic-rc-count u = wrapping-i64-to-u64 (raw-engine-thread-atomic-rc-count u)
+
+  -- | Reset the calling OS thread's heap allocation and atomic RC counters to `0`.
+  engine-thread-counters-reset :: Unit ->{IO} Unit
+  engine-thread-counters-reset u =
+    let _ = raw-engine-thread-counters-reset u in
+    ()
