@@ -631,7 +631,8 @@ module Cinch.Ast where
     -- `assume = "text"`: a stated environmental assumption (scheduler,
     -- dependency, crash, network, fairness).
     ContractAssumed :: Span -> String -> ContractClause
-    -- `fair = [a, b]` / `strong_fair = [a]`: per-action fairness assumptions.
+    -- `fair = [a, b]` / `strong_fair = [a]` / `fair_each = [a]` / `strong_fair_each = [a]`:
+    -- action-level (count 1), per-instance (count 2), or both (count 3) fairness assumptions.
     ContractAssumeFair :: Span -> Bool -> List String -> ContractClause
 
   contract-clause-span :: ContractClause -> Span

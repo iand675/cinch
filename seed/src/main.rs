@@ -22,7 +22,7 @@ usage:
                                    report the first structural divergence
   cinch verify-prims <file.cinch...> [--policy=dev|jpl] [--checker=kernel|compiled]
                                    formally verify inline LLVM prim bodies
-  cinch model inspect <file.cinch> [Machine] [--json]
+  cinch model inspect <file.cinch> [Machine] [--json] [--model-fail-on-capped]
                                    inspect state machines, domains, POR/symmetry, and contracts
   cinch model trace <file.cinch> <Machine> [--state N | --deadlock | --where <pred>]
                                    find shortest BFS trace with per-step field diffs
@@ -103,6 +103,8 @@ flags:
               `assumed` receipts while still failing on counterexamples;
               `off` skips provers altogether
   --lax-prim-verify  shorthand for `--prim-verify lax`
+  --model-fail-on-capped  fail checking whenever any `machine` exploration hits
+              `max_states` (`CINCH_MODEL_FAIL_ON_CAPPED=1`)
   --dump-core <stage>  also write build/<entry>.core at that pipeline point:
               checked (solved and elaborated are aliases), owned, or lowered
               (the default stage, and the exact code generation input); a
@@ -393,6 +395,7 @@ fn main() {
             "--emit-interface-optimisations" => opts.emit_interface_optimisations = true,
             "--no-reclaim" => opts.no_reclaim = true,
             "--lax-prim-verify" => opts.prim_verify = Some(cinch::prim_verify::PrimVerifyMode::Lax),
+            "--model-fail-on-capped" => opts.model_fail_on_capped = true,
             "--replay-only" => opts.replay_only = true,
             "--proof-cache" => {
                 i += 1;

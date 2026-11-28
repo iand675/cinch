@@ -1218,7 +1218,7 @@ impl<'a> Parser<'a> {
                 }
                 t => {
                     return Err(p.err(format!(
-                        "expected a contract clause (`always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair` or `assume`), found {}",
+                        "expected a contract clause (`always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair`, `fair_each`, `strong_fair_each` or `assume`), found {}",
                         describe(&t)
                     )))
                 }
@@ -1265,11 +1265,13 @@ impl<'a> Parser<'a> {
                         op: Name::new(name, name_span),
                     })
                 }
-                "fair" | "strong_fair" => {
-                    let strong = name == "strong_fair";
+                "fair" | "strong_fair" | "fair_each" | "strong_fair_each" => {
+                    let strong = name == "strong_fair" || name == "strong_fair_each";
+                    let per_instance = name == "fair_each" || name == "strong_fair_each";
                     let actions = p.parse_name_list("fair action names")?;
                     Ok(ContractClause::AssumeFair {
                         strong,
+                        per_instance,
                         actions,
                         span: name_span,
                     })
@@ -1287,7 +1289,7 @@ impl<'a> Parser<'a> {
                 other => Err(Error::at(
                     name_span,
                     format!(
-                        "`{other}` is not a contract clause; expected `always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair` or `assume` (core specification section 10)"
+                        "`{other}` is not a contract clause; expected `always`, `eventually`, `leads_to`, `deadlock_free`, `recur`, `stable`, `fair`, `strong_fair`, `fair_each`, `strong_fair_each` or `assume` (core specification section 10)"
                     ),
                 )),
             }
@@ -1421,6 +1423,8 @@ impl<'a> Parser<'a> {
         let mut actions: Option<Vec<Name>> = None;
         let mut fair: Vec<Name> = Vec::new();
         let mut strong_fair: Vec<Name> = Vec::new();
+        let mut fair_each: Vec<Name> = Vec::new();
+        let mut strong_fair_each: Vec<Name> = Vec::new();
         let mut symmetry: Vec<ConPath> = Vec::new();
         let mut max_states: Option<usize> = None;
         let mut observe: Option<Term> = None;
@@ -1431,6 +1435,8 @@ impl<'a> Parser<'a> {
             Actions(Vec<Name>, Span),
             Fair(Vec<Name>),
             StrongFair(Vec<Name>),
+            FairEach(Vec<Name>),
+            StrongFairEach(Vec<Name>),
             Symmetry(Vec<ConPath>),
             MaxStates(usize),
             Observe(Term, Span),
@@ -1445,7 +1451,7 @@ impl<'a> Parser<'a> {
                 }
                 t => {
                     return Err(p.err(format!(
-                        "expected a machine clause (`state`, `init`, `actions`, `fair`, `strong_fair`, `symmetry`, `max_states` or `observe`), found {}",
+                        "expected a machine clause (`state`, `init`, `actions`, `fair`, `strong_fair`, `fair_each`, `strong_fair_each`, `symmetry`, `max_states` or `observe`), found {}",
                         describe(&t)
                     )))
                 }
@@ -1457,6 +1463,8 @@ impl<'a> Parser<'a> {
                 "actions" => Ok(MachineItem::Actions(p.parse_name_list("machine actions")?, name_span)),
                 "fair" => Ok(MachineItem::Fair(p.parse_name_list("weakly fair actions")?)),
                 "strong_fair" => Ok(MachineItem::StrongFair(p.parse_name_list("strongly fair actions")?)),
+                "fair_each" => Ok(MachineItem::FairEach(p.parse_name_list("per-instance weakly fair actions")?)),
+                "strong_fair_each" => Ok(MachineItem::StrongFairEach(p.parse_name_list("per-instance strongly fair actions")?)),
                 "symmetry" => Ok(MachineItem::Symmetry(p.parse_con_path_list("symmetric types")?)),
                 "max_states" => match p.peek_tok().clone() {
                     Tok::Int(s) => {
@@ -1475,7 +1483,7 @@ impl<'a> Parser<'a> {
                 other => Err(Error::at(
                     name_span,
                     format!(
-                        "`{other}` is not a machine clause; expected `state`, `init`, `actions`, `fair`, `strong_fair`, `symmetry`, `max_states` or `observe`"
+                        "`{other}` is not a machine clause; expected `state`, `init`, `actions`, `fair`, `strong_fair`, `fair_each`, `strong_fair_each`, `symmetry`, `max_states` or `observe`"
                     ),
                 )),
             }
@@ -1502,6 +1510,8 @@ impl<'a> Parser<'a> {
                 }
                 MachineItem::Fair(mut f) => fair.append(&mut f),
                 MachineItem::StrongFair(mut f) => strong_fair.append(&mut f),
+                MachineItem::FairEach(mut f) => fair_each.append(&mut f),
+                MachineItem::StrongFairEach(mut f) => strong_fair_each.append(&mut f),
                 MachineItem::Symmetry(mut s) => symmetry.append(&mut s),
                 MachineItem::MaxStates(n) => max_states = Some(n),
                 MachineItem::Observe(t, sp) => {
@@ -1522,6 +1532,8 @@ impl<'a> Parser<'a> {
             actions,
             fair,
             strong_fair,
+            fair_each,
+            strong_fair_each,
             symmetry,
             max_states,
             observe,

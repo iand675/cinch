@@ -37,7 +37,7 @@ module Cinch.TemporalMc where
   export CheckedRefinesInput, MkCheckedRefinesInput
   export McVerdictRow, MkMcVerdictRow, mc-verdict-subject, mc-verdict-name, mc-verdict-kind, mc-verdict-formula, mc-verdict-assumptions, mc-verdict-result
   export McOutcome, MkMcOutcome, mc-outcome-verdicts, mc-outcome-errors
-  export check-temporal-machines
+  export check-temporal-machines, check-temporal-machines-strict
 
   -- ------------------------------------------------------------------ types
 
@@ -138,13 +138,15 @@ module Cinch.TemporalMc where
     FootprintKnown :: List Nat -> List Nat -> Footprint
 
   -- Explored finite-state graph for one machine.
+  -- Fields: span, name, state-ty, max_states limit, nstates, ntrans, capped, sym-merged, por-pairs,
+  -- states, visited, adj, parents, m-wf, m-sf, m-wfe, m-sfe, sym-map.
   data ExploredMachine where
-    MkExploredMachine :: String -> UType -> Nat -> Nat -> Bool -> Nat -> Nat
+    MkExploredMachine :: Span -> String -> UType -> Nat -> Nat -> Nat -> Bool -> Nat -> Nat
       -> HashMap Nat McValue
       -> HashMap String Nat
       -> HashMap Nat (List (String, String, Nat))
       -> HashMap Nat (Nat, String)
-      -> List String -> List String
+      -> List String -> List String -> List String -> List String
       -> HashMap String (List String)
       -> ExploredMachine
 
@@ -1266,47 +1268,92 @@ module Cinch.TemporalMc where
     Nil -> Nil
     Cons t rest -> Cons (sym, lbl, t) (label-targets sym lbl rest)
 
+  -- Decode parser-encoded fairness lists (count 1 = action-level, count 2 = per-instance, count >= 3 = both).
+  count-str-mc :: String -> List String -> Nat -> Nat
+  count-str-mc wanted xs acc = case xs of
+    Nil -> acc
+    Cons x rest -> count-str-mc wanted rest (if same wanted x then acc + 1 else acc)
+
+  decode-fair-list :: List String -> (List String, List String)
+  decode-fair-list xs = decode-fair-loop xs xs Nil Nil Nil
+
+  decode-fair-loop :: List String -> List String -> List String -> List String -> List String -> (List String, List String)
+  decode-fair-loop all cur seen plain each = case cur of
+    Nil -> (reverse plain, reverse each)
+    Cons x rest ->
+      if has-str x seen then decode-fair-loop all rest seen plain each
+      else
+        let n = count-str-mc x all 0 in
+        let seen2 = Cons x seen in
+        if n == 1 then decode-fair-loop all rest seen2 (Cons x plain) each
+        else if n == 2 then decode-fair-loop all rest seen2 plain (Cons x each)
+        else decode-fair-loop all rest seen2 (Cons x plain) (Cons x each)
+
+  ready-action-syms :: List ReadyAction -> List String
+  ready-action-syms actions = case actions of
+    Nil -> Nil
+    Cons (MkReadyAction sym _ _ _ _) rest -> Cons sym (ready-action-syms rest)
+
+  validate-fair-list :: Span -> String -> String -> List String -> List String -> Result Diagnostic Unit
+  validate-fair-list sp mname clause-name listed action-syms = case listed of
+    Nil -> Ok ()
+    Cons act rest ->
+      if has-str act action-syms then validate-fair-list sp mname clause-name rest action-syms
+      else Err (mc-diag sp (cat ["machine `", short-ident mname, "`: `", clause-name, "` names unknown action `", short-ident act, "` (not in `actions`)"]))
+
   -- BFS state-space exploration with two-list O(1) amortized queue.
   explore-machine :: McContext -> CheckedMachineInput -> Result Diagnostic ExploredMachine
   explore-machine ctx input = case (ctx, input) of
     (MkMcContext home defs datas instances scope _,
-     MkCheckedMachineInput sp mname state-ty init-term actions fair sf sym max-opt obs-opt) ->
+     MkCheckedMachineInput sp mname state-ty init-term actions fair-raw sf-raw sym max-opt obs-opt) ->
       case validate-symmetry-types sp sym datas instances hash-map-empty of
         Err diag -> Err diag
         Ok sym-map ->
           case prepare-actions sp ctx actions defs datas of
             Err diag -> Err diag
             Ok ready-actions ->
-              let por-pairs = count-por-pairs (collect-action-footprints (state-record-ctor state-ty datas) actions defs) in
-              let limit = (case max-opt of Some n -> n; None -> 4096) in
-              case mc-eval-term ctx None McEnvEnd init-term 50000 of
-                Err msg -> Err (mc-diag sp (cat ["failed to evaluate initial state of machine `", short-ident mname, "`: ", msg]))
-                Ok (init-raw, _) ->
-                  let init-val = canonicalize-symmetry sym-map init-raw in
-                  let init-key = mc-value-key init-val in
-                  let states0 = hash-map-insert 0 init-val hash-map-empty in
-                  let visited0 = hash-map-insert init-key 0 hash-map-empty in
-                  let raw-seen0 = hash-map-insert (mc-value-key init-raw) 0 hash-map-empty in
-                  bfs-loop sp ctx mname state-ty ready-actions fair sf sym-map limit por-pairs
-                    [0] Nil 1 0 False 0 states0 visited0 raw-seen0 hash-map-empty hash-map-empty
+              let (fair, fair-each) = decode-fair-list fair-raw in
+              let (sf, sf-each) = decode-fair-list sf-raw in
+              let act-syms = ready-action-syms ready-actions in
+              case validate-fair-list sp mname "fair" fair act-syms of
+                Err diag -> Err diag
+                Ok _ -> case validate-fair-list sp mname "strong_fair" sf act-syms of
+                  Err diag -> Err diag
+                  Ok _ -> case validate-fair-list sp mname "fair_each" fair-each act-syms of
+                    Err diag -> Err diag
+                    Ok _ -> case validate-fair-list sp mname "strong_fair_each" sf-each act-syms of
+                      Err diag -> Err diag
+                      Ok _ ->
+                        let por-pairs = count-por-pairs (collect-action-footprints (state-record-ctor state-ty datas) actions defs) in
+                        let limit = (case max-opt of Some n -> n; None -> 4096) in
+                        case mc-eval-term ctx None McEnvEnd init-term 50000 of
+                          Err msg -> Err (mc-diag sp (cat ["failed to evaluate initial state of machine `", short-ident mname, "`: ", msg]))
+                          Ok (init-raw, _) ->
+                            let init-val = canonicalize-symmetry sym-map init-raw in
+                            let init-key = mc-value-key init-val in
+                            let states0 = hash-map-insert 0 init-val hash-map-empty in
+                            let visited0 = hash-map-insert init-key 0 hash-map-empty in
+                            let raw-seen0 = hash-map-insert (mc-value-key init-raw) 0 hash-map-empty in
+                            bfs-loop sp ctx mname state-ty ready-actions fair sf fair-each sf-each sym-map limit por-pairs
+                              [0] Nil 1 0 False 0 states0 visited0 raw-seen0 hash-map-empty hash-map-empty
 
-  bfs-loop :: Span -> McContext -> String -> UType -> List ReadyAction -> List String -> List String
+  bfs-loop :: Span -> McContext -> String -> UType -> List ReadyAction -> List String -> List String -> List String -> List String
     -> HashMap String (List String) -> Nat -> Nat
     -> List Nat -> List Nat -> Nat -> Nat -> Bool -> Nat
     -> HashMap Nat McValue -> HashMap String Nat -> HashMap String Nat
     -> HashMap Nat (List (String, String, Nat)) -> HashMap Nat (Nat, String)
     -> Result Diagnostic ExploredMachine
-  bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+  bfs-loop sp ctx mname state-ty actions fair sf fair-each sf-each sym-map limit por-pairs
     q-front q-back next-id trans-count capped sym-merged states visited raw-seen adj parents =
     case q-front of
       Nil -> case q-back of
-        Nil -> Ok (MkExploredMachine mname state-ty next-id trans-count capped sym-merged por-pairs
-          states visited adj parents fair sf sym-map)
-        other -> bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+        Nil -> Ok (MkExploredMachine sp mname state-ty limit next-id trans-count capped sym-merged por-pairs
+          states visited adj parents fair sf fair-each sf-each sym-map)
+        other -> bfs-loop sp ctx mname state-ty actions fair sf fair-each sf-each sym-map limit por-pairs
           (reverse q-back) Nil next-id trans-count capped sym-merged states visited raw-seen adj parents
       Cons cur-id q-rest ->
         case hash-map-lookup cur-id states of
-          None -> bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+          None -> bfs-loop sp ctx mname state-ty actions fair sf fair-each sf-each sym-map limit por-pairs
             q-rest q-back next-id trans-count capped sym-merged states visited raw-seen adj parents
           Some cur-val ->
             case expand-actions ctx actions cur-val of
@@ -1315,7 +1362,7 @@ module Cinch.TemporalMc where
                 case register-edges cur-id raw-edges sym-map limit
                   q-back next-id trans-count capped sym-merged states visited raw-seen Nil parents of
                   (q-back2, next-id2, trans2, capped2, sym2, states2, visited2, raw2, out-edges, parents2) ->
-                    bfs-loop sp ctx mname state-ty actions fair sf sym-map limit por-pairs
+                    bfs-loop sp ctx mname state-ty actions fair sf fair-each sf-each sym-map limit por-pairs
                       q-rest q-back2 next-id2 trans2 capped2 sym2 states2 visited2 raw2
                       (hash-map-insert cur-id (reverse out-edges) adj) parents2
 
@@ -1436,10 +1483,13 @@ module Cinch.TemporalMc where
         Err msg -> Err msg
         Ok b -> eval-pred-all ctx pred-term (idx + 1) total states (hash-map-insert idx (if b then 1 else 0) acc)
 
-  -- ------------------------------------------------------------------ Tarjan SCC + Emerson-Lei fair-SCC lasso finder
+  -- ------------------------------------------------------------------ Iterative Tarjan SCC + Emerson-Lei fair-SCC lasso finder
 
   data TarjanState where
     MkTarjanState :: Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat -> List Nat -> List (List Nat) -> TarjanState
+
+  data TarjanFrame where
+    MkTarjanFrame :: Nat -> List (String, String, Nat) -> TarjanFrame
 
   tarjan-sccs :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List (List Nat)
   tarjan-sccs nodes allowed adj =
@@ -1454,51 +1504,55 @@ module Cinch.TemporalMc where
       MkTarjanState idx indices lowlink on-stack stack sccs ->
         case hash-map-lookup v indices of
           Some _ -> tarjan-loop rest allowed adj st
-          None -> tarjan-loop rest allowed adj (tarjan-visit v allowed adj st)
+          None ->
+            let st1 = MkTarjanState (idx + 1) (hash-map-insert v idx indices) (hash-map-insert v idx lowlink) (hash-map-insert v 1 on-stack) (Cons v stack) sccs in
+            let es = (case hash-map-lookup v adj of Some xs -> xs; None -> Nil) in
+            let st2 = tarjan-run [MkTarjanFrame v es] allowed adj st1 in
+            tarjan-loop rest allowed adj st2
 
-  tarjan-visit :: Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> TarjanState -> TarjanState
-  tarjan-visit v allowed adj st = case st of
-    MkTarjanState idx indices lowlink on-stack stack sccs ->
-      let st1 = MkTarjanState (idx + 1) (hash-map-insert v idx indices) (hash-map-insert v idx lowlink) (hash-map-insert v 1 on-stack) (Cons v stack) sccs in
-      let edges = (case hash-map-lookup v adj of Some es -> es; None -> Nil) in
-      let st2 = tarjan-edges v edges allowed adj st1 in
-      case st2 of
-        MkTarjanState idx2 indices2 lowlink2 on-stack2 stack2 sccs2 ->
-          let v-idx = lookup-nat-or v indices2 0 in
-          let v-low = lookup-nat-or v lowlink2 0 in
-          if v-low == v-idx then
-            case pop-scc v stack2 on-stack2 Nil of
-              (comp, stack3, on-stack3) -> MkTarjanState idx2 indices2 lowlink2 on-stack3 stack3 (Cons comp sccs2)
-          else st2
+  tarjan-run :: List TarjanFrame -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> TarjanState -> TarjanState
+  tarjan-run frames allowed adj st = case frames of
+    Nil -> st
+    Cons (MkTarjanFrame v Nil) parent-frames ->
+      case st of
+        MkTarjanState idx indices lowlink on-stack stack sccs ->
+          let v-idx = lookup-nat-or v indices 0 in
+          let v-low = lookup-nat-or v lowlink 0 in
+          let st1 = (if v-low == v-idx then
+                case pop-scc v stack on-stack Nil of
+                  (comp, stack2, on-stack2) -> MkTarjanState idx indices lowlink on-stack2 stack2 (Cons comp sccs)
+              else st) in
+          case parent-frames of
+            Nil -> st1
+            Cons (MkTarjanFrame parent _) _ ->
+              case st1 of
+                MkTarjanState idx2 indices2 lowlink2 on-stack2 stack2 sccs2 ->
+                  let p-low = lookup-nat-or parent lowlink2 0 in
+                  let st2 = MkTarjanState idx2 indices2 (hash-map-insert parent (min-nat p-low v-low) lowlink2) on-stack2 stack2 sccs2 in
+                  tarjan-run parent-frames allowed adj st2
+    Cons (MkTarjanFrame v (Cons (_, _, w) rest)) parent-frames ->
+      if not (flag-true w allowed) then
+        tarjan-run (Cons (MkTarjanFrame v rest) parent-frames) allowed adj st
+      else case st of
+        MkTarjanState idx indices lowlink on-stack stack sccs ->
+          case hash-map-lookup w indices of
+            None ->
+              let st1 = MkTarjanState (idx + 1) (hash-map-insert w idx indices) (hash-map-insert w idx lowlink) (hash-map-insert w 1 on-stack) (Cons w stack) sccs in
+              let wes = (case hash-map-lookup w adj of Some xs -> xs; None -> Nil) in
+              tarjan-run (Cons (MkTarjanFrame w wes) (Cons (MkTarjanFrame v rest) parent-frames)) allowed adj st1
+            Some w-idx ->
+              if flag-true w on-stack then
+                let v-low = lookup-nat-or v lowlink 0 in
+                let st1 = MkTarjanState idx indices (hash-map-insert v (min-nat v-low w-idx) lowlink) on-stack stack sccs in
+                tarjan-run (Cons (MkTarjanFrame v rest) parent-frames) allowed adj st1
+              else
+                tarjan-run (Cons (MkTarjanFrame v rest) parent-frames) allowed adj st
 
   lookup-nat-or :: Nat -> HashMap Nat Nat -> Nat -> Nat
   lookup-nat-or k m def = case hash-map-lookup k m of Some v -> v; None -> def
 
   min-nat :: Nat -> Nat -> Nat
   min-nat a b = if a < b then a else b
-
-  tarjan-edges :: Nat -> List (String, String, Nat) -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> TarjanState -> TarjanState
-  tarjan-edges v edges allowed adj st = case edges of
-    Nil -> st
-    Cons (sym, lbl, w) rest ->
-      if not (flag-true w allowed) then tarjan-edges v rest allowed adj st
-      else case st of
-        MkTarjanState idx indices lowlink on-stack stack sccs ->
-          case hash-map-lookup w indices of
-            None ->
-              let st2 = tarjan-visit w allowed adj st in
-              (case st2 of
-                MkTarjanState idx2 indices2 lowlink2 on-stack2 stack2 sccs2 ->
-                  let v-low = lookup-nat-or v lowlink2 0 in
-                  let w-low = lookup-nat-or w lowlink2 0 in
-                  tarjan-edges v rest allowed adj
-                    (MkTarjanState idx2 indices2 (hash-map-insert v (min-nat v-low w-low) lowlink2) on-stack2 stack2 sccs2))
-            Some w-idx ->
-              if flag-true w on-stack then
-                let v-low = lookup-nat-or v lowlink 0 in
-                tarjan-edges v rest allowed adj
-                  (MkTarjanState idx indices (hash-map-insert v (min-nat v-low w-idx) lowlink) on-stack stack sccs)
-              else tarjan-edges v rest allowed adj st
 
   pop-scc :: Nat -> List Nat -> HashMap Nat Nat -> List Nat -> (List Nat, List Nat, HashMap Nat Nat)
   pop-scc root stack on-stack acc = case stack of
@@ -1508,16 +1562,17 @@ module Cinch.TemporalMc where
       let acc2 = Cons w acc in
       if w == root then (acc2, rest, on2) else pop-scc root rest on2 acc2
 
-  -- Emerson-Lei fair-SCC search on subgraph `allowed` reachable from `starts`.
+  -- Emerson-Lei fair-SCC search on subgraph `allowed` reachable from `starts`, supporting
+  -- action-level (`wf`, `sf`) and per-instance (`wfe`, `sfe`) weak/strong fairness.
   -- Returns `Some (entry-node, cycle-edges)` for the first fair cycle or deadlock found.
   find-fair-violation :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat))
-    -> List String -> List String -> Option (Nat, List (String, Nat))
-  find-fair-violation starts allowed adj wf sf =
+    -> List String -> List String -> List String -> List String -> Option (Nat, List (String, Nat))
+  find-fair-violation starts allowed adj wf sf wfe sfe =
     let (reach-list, reach-map) = bfs-restricted starts allowed adj in
     -- First check for a deadlocked node inside `reach-list` (stuttering forever is fair when no action is enabled).
     case find-deadlock-in reach-list adj of
       Some d -> Some (d, Nil)
-      None -> find-fair-scc reach-list reach-map adj wf sf
+      None -> find-fair-scc reach-list reach-map adj wf sf wfe sfe
 
   bfs-restricted :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> (List Nat, HashMap Nat Nat)
   bfs-restricted starts allowed adj =
@@ -1558,32 +1613,37 @@ module Cinch.TemporalMc where
       Some _ -> find-deadlock-in rest adj
 
   find-fair-scc :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat))
-    -> List String -> List String -> Option (Nat, List (String, Nat))
-  find-fair-scc nodes allowed adj wf sf =
+    -> List String -> List String -> List String -> List String -> Option (Nat, List (String, Nat))
+  find-fair-scc nodes allowed adj wf sf wfe sfe =
     let sccs = tarjan-sccs nodes allowed adj in
-    check-sccs-fair sccs adj wf sf
+    check-sccs-fair sccs adj wf sf wfe sfe
 
   check-sccs-fair :: List (List Nat) -> HashMap Nat (List (String, String, Nat))
-    -> List String -> List String -> Option (Nat, List (String, Nat))
-  check-sccs-fair sccs adj wf sf = case sccs of
+    -> List String -> List String -> List String -> List String -> Option (Nat, List (String, Nat))
+  check-sccs-fair sccs adj wf sf wfe sfe = case sccs of
     Nil -> None
     Cons comp rest ->
       let comp-map = nat-list-to-map comp hash-map-empty in
-      if not (scc-is-nontrivial comp comp-map adj) then check-sccs-fair rest adj wf sf
-      else if not (scc-satisfies-wf comp comp-map adj wf) then check-sccs-fair rest adj wf sf
+      if not (scc-is-nontrivial comp comp-map adj) then check-sccs-fair rest adj wf sf wfe sfe
+      else if not (scc-satisfies-wf comp comp-map adj wf) then check-sccs-fair rest adj wf sf wfe sfe
+      else if not (scc-satisfies-wf-each comp comp-map adj wfe) then check-sccs-fair rest adj wf sf wfe sfe
       else case scc-violated-sf comp comp-map adj sf of
-        None ->
-          -- Found a fair non-trivial SCC! Extract a concrete cycle inside `comp`.
-          (case comp of
-            Cons entry _ -> Some (entry, extract-scc-cycle entry comp-map adj)
-            Nil -> check-sccs-fair rest adj wf sf)
         Some bad-action ->
-          -- Strong fairness: remove states in `comp` where `bad-action` is enabled, and recurse!
-          let pruned = prune-action-enabled comp bad-action adj in
+          let pruned = prune-action-enabled comp bad-action adj Nil in
           let pruned-map = nat-list-to-map pruned hash-map-empty in
-          (case find-fair-scc pruned pruned-map adj wf sf of
-            Some hit -> Some hit
-            None -> check-sccs-fair rest adj wf sf)
+          let subs = tarjan-sccs pruned pruned-map adj in
+          check-sccs-fair (subs <> rest) adj wf sf wfe sfe
+        None -> case scc-violated-sf-each comp comp-map adj sfe of
+          Some (bad-sym, bad-lbl) ->
+            let pruned = prune-instance-enabled comp bad-sym bad-lbl adj Nil in
+            let pruned-map = nat-list-to-map pruned hash-map-empty in
+            let subs = tarjan-sccs pruned pruned-map adj in
+            check-sccs-fair (subs <> rest) adj wf sf wfe sfe
+          None ->
+            -- Found a fair non-trivial SCC! Extract a concrete cycle inside `comp`.
+            (case comp of
+              Cons entry _ -> Some (entry, extract-scc-cycle entry comp-map adj)
+              Nil -> check-sccs-fair rest adj wf sf wfe sfe)
 
   nat-list-to-map :: List Nat -> HashMap Nat Nat -> HashMap Nat Nat
   nat-list-to-map xs acc = case xs of
@@ -1604,7 +1664,7 @@ module Cinch.TemporalMc where
   edges-hit-map :: List (String, String, Nat) -> HashMap Nat Nat -> Bool
   edges-hit-map es comp-map = case es of
     Nil -> False
-    Cons (_, _, w) rest -> flag-true w comp-map || edges-hit-map rest comp-map
+    Cons (_, _, w) rest -> if flag-true w comp-map then True else edges-hit-map rest comp-map
 
   action-enabled-at :: Nat -> String -> HashMap Nat (List (String, String, Nat)) -> Bool
   action-enabled-at u act adj = case hash-map-lookup u adj of
@@ -1614,7 +1674,17 @@ module Cinch.TemporalMc where
   edges-have-action :: String -> List (String, String, Nat) -> Bool
   edges-have-action act es = case es of
     Nil -> False
-    Cons (sym, _, _) rest -> same sym act || edges-have-action act rest
+    Cons (sym, _, _) rest -> if same sym act then True else edges-have-action act rest
+
+  instance-enabled-at :: Nat -> String -> String -> HashMap Nat (List (String, String, Nat)) -> Bool
+  instance-enabled-at u act lbl adj = case hash-map-lookup u adj of
+    None -> False
+    Some es -> edges-have-instance act lbl es
+
+  edges-have-instance :: String -> String -> List (String, String, Nat) -> Bool
+  edges-have-instance act lbl es = case es of
+    Nil -> False
+    Cons (sym, l, _) rest -> if same sym act && same l lbl then True else edges-have-instance act lbl rest
 
   action-taken-in-scc :: String -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
   action-taken-in-scc act comp comp-map adj = case comp of
@@ -1623,29 +1693,67 @@ module Cinch.TemporalMc where
       let taken-here = (case hash-map-lookup u adj of
             None -> False
             Some es -> edges-have-action-in act es comp-map) in
-      taken-here || action-taken-in-scc act rest comp-map adj
+      if taken-here then True else action-taken-in-scc act rest comp-map adj
 
   edges-have-action-in :: String -> List (String, String, Nat) -> HashMap Nat Nat -> Bool
   edges-have-action-in act es comp-map = case es of
     Nil -> False
-    Cons (sym, _, w) rest -> (same sym act && flag-true w comp-map) || edges-have-action-in act rest comp-map
+    Cons (sym, _, w) rest -> if same sym act && flag-true w comp-map then True else edges-have-action-in act rest comp-map
+
+  instance-taken-in-scc :: String -> String -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  instance-taken-in-scc act lbl comp comp-map adj = case comp of
+    Nil -> False
+    Cons u rest ->
+      let taken-here = (case hash-map-lookup u adj of
+            None -> False
+            Some es -> edges-have-instance-in act lbl es comp-map) in
+      if taken-here then True else instance-taken-in-scc act lbl rest comp-map adj
+
+  edges-have-instance-in :: String -> String -> List (String, String, Nat) -> HashMap Nat Nat -> Bool
+  edges-have-instance-in act lbl es comp-map = case es of
+    Nil -> False
+    Cons (sym, l, w) rest -> if same sym act && same l lbl && flag-true w comp-map then True else edges-have-instance-in act lbl rest comp-map
 
   all-states-enable :: String -> List Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
   all-states-enable act comp adj = case comp of
     Nil -> True
-    Cons u rest -> action-enabled-at u act adj && all-states-enable act rest adj
+    Cons u rest -> if action-enabled-at u act adj then all-states-enable act rest adj else False
 
   any-state-enables :: String -> List Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
   any-state-enables act comp adj = case comp of
     Nil -> False
-    Cons u rest -> action-enabled-at u act adj || any-state-enables act rest adj
+    Cons u rest -> if action-enabled-at u act adj then True else any-state-enables act rest adj
+
+  all-states-enable-inst :: String -> String -> List Nat -> HashMap Nat (List (String, String, Nat)) -> Bool
+  all-states-enable-inst act lbl comp adj = case comp of
+    Nil -> True
+    Cons u rest -> if instance-enabled-at u act lbl adj then all-states-enable-inst act lbl rest adj else False
 
   scc-satisfies-wf :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Bool
   scc-satisfies-wf comp comp-map adj wf = case wf of
     Nil -> True
     Cons act rest ->
-      (if all-states-enable act comp adj then action-taken-in-scc act comp comp-map adj else True)
-      && scc-satisfies-wf comp comp-map adj rest
+      let ok = if all-states-enable act comp adj then action-taken-in-scc act comp comp-map adj else True in
+      if ok then scc-satisfies-wf comp comp-map adj rest else False
+
+  scc-satisfies-wf-each :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Bool
+  scc-satisfies-wf-each comp comp-map adj wfe = case wfe of
+    Nil -> True
+    other -> case comp of
+      Nil -> True
+      Cons first rest -> case hash-map-lookup first adj of
+        None -> True
+        Some es -> check-wf-each-edges es comp rest comp-map adj wfe
+
+  check-wf-each-edges :: List (String, String, Nat) -> List Nat -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Bool
+  check-wf-each-edges es comp rest-nodes comp-map adj wfe = case es of
+    Nil -> True
+    Cons (sym, lbl, _) more ->
+      if has-str sym wfe
+         && not (instance-taken-in-scc sym lbl comp comp-map adj)
+         && all-states-enable-inst sym lbl rest-nodes adj
+      then False
+      else check-wf-each-edges more comp rest-nodes comp-map adj wfe
 
   scc-violated-sf :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Option String
   scc-violated-sf comp comp-map adj sf = case sf of
@@ -1654,12 +1762,40 @@ module Cinch.TemporalMc where
       if any-state-enables act comp adj && not (action-taken-in-scc act comp comp-map adj) then Some act
       else scc-violated-sf comp comp-map adj rest
 
-  prune-action-enabled :: List Nat -> String -> HashMap Nat (List (String, String, Nat)) -> List Nat
-  prune-action-enabled comp act adj = case comp of
-    Nil -> Nil
+  scc-violated-sf-each :: List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Option (String, String)
+  scc-violated-sf-each comp comp-map adj sfe = case sfe of
+    Nil -> None
+    other -> find-violated-sf-each-node comp comp comp-map adj sfe
+
+  find-violated-sf-each-node :: List Nat -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Option (String, String)
+  find-violated-sf-each-node nodes comp comp-map adj sfe = case nodes of
+    Nil -> None
+    Cons u rest -> case hash-map-lookup u adj of
+      None -> find-violated-sf-each-node rest comp comp-map adj sfe
+      Some es -> case find-violated-sf-each-edge es comp comp-map adj sfe of
+        Some hit -> Some hit
+        None -> find-violated-sf-each-node rest comp comp-map adj sfe
+
+  find-violated-sf-each-edge :: List (String, String, Nat) -> List Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List String -> Option (String, String)
+  find-violated-sf-each-edge es comp comp-map adj sfe = case es of
+    Nil -> None
+    Cons (sym, lbl, _) rest ->
+      if has-str sym sfe && not (instance-taken-in-scc sym lbl comp comp-map adj) then Some (sym, lbl)
+      else find-violated-sf-each-edge rest comp comp-map adj sfe
+
+  prune-action-enabled :: List Nat -> String -> HashMap Nat (List (String, String, Nat)) -> List Nat -> List Nat
+  prune-action-enabled comp act adj acc = case comp of
+    Nil -> reverse acc
     Cons u rest ->
-      if action-enabled-at u act adj then prune-action-enabled rest act adj
-      else Cons u (prune-action-enabled rest act adj)
+      if action-enabled-at u act adj then prune-action-enabled rest act adj acc
+      else prune-action-enabled rest act adj (Cons u acc)
+
+  prune-instance-enabled :: List Nat -> String -> String -> HashMap Nat (List (String, String, Nat)) -> List Nat -> List Nat
+  prune-instance-enabled comp act lbl adj acc = case comp of
+    Nil -> reverse acc
+    Cons u rest ->
+      if instance-enabled-at u act lbl adj then prune-instance-enabled rest act lbl adj acc
+      else prune-instance-enabled rest act lbl adj (Cons u acc)
 
   -- Find a short non-empty cycle from `entry` back to `entry` inside `comp-map`.
   extract-scc-cycle :: Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> List (String, Nat)
@@ -1719,13 +1855,18 @@ module Cinch.TemporalMc where
 
   machine-scope-note :: ExploredMachine -> String
   machine-scope-note m = case m of
-    MkExploredMachine _ _ nstates ntrans capped sym-merged por-pairs _ _ _ _ _ _ _ ->
+    MkExploredMachine _ _ _ _ nstates ntrans capped sym-merged por-pairs _ _ _ _ _ _ _ _ _ ->
       let prefix = if capped then "bounded/capped at " else "" in
       cat [prefix, nat-to-string nstates, " states, ", nat-to-string ntrans, " transitions, symmetry_merged: ",
         nat-to-string sym-merged, ", por_independent_pairs: ", nat-to-string por-pairs]
 
   all-state-ids :: Nat -> Nat -> List Nat
-  all-state-ids idx total = if idx >= total then Nil else Cons idx (all-state-ids (idx + 1) total)
+  all-state-ids idx total = all-state-ids-acc idx total Nil
+
+  all-state-ids-acc :: Nat -> Nat -> List Nat -> List Nat
+  all-state-ids-acc idx total acc =
+    if idx >= total then reverse acc
+    else all-state-ids-acc (idx + 1) total (Cons idx acc)
 
   invert-bool-map :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> HashMap Nat Nat
   invert-bool-map idx total m acc =
@@ -1733,11 +1874,13 @@ module Cinch.TemporalMc where
     else invert-bool-map (idx + 1) total m (hash-map-insert idx (if flag-true idx m then 0 else 1) acc)
 
   filter-map-true :: Nat -> Nat -> HashMap Nat Nat -> List Nat
-  filter-map-true idx total m =
-    if idx >= total then Nil
-    else
-      let more = filter-map-true (idx + 1) total m in
-      if flag-true idx m then Cons idx more else more
+  filter-map-true idx total m = filter-map-true-acc idx total m Nil
+
+  filter-map-true-acc :: Nat -> Nat -> HashMap Nat Nat -> List Nat -> List Nat
+  filter-map-true-acc idx total m acc =
+    if idx >= total then reverse acc
+    else if flag-true idx m then filter-map-true-acc (idx + 1) total m (Cons idx acc)
+    else filter-map-true-acc (idx + 1) total m acc
 
   all-true-map :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat
   all-true-map idx total acc =
@@ -1773,15 +1916,26 @@ module Cinch.TemporalMc where
         None -> Some u
         Some es -> if has-edge-into u env-ok adj then find-deadlock-in-env rest env-ok adj else Some u
 
+  machine-fair-rows :: String -> List String -> List String
+  machine-fair-rows tag xs = case xs of
+    Nil -> Nil
+    Cons x rest -> Cons (cat [tag, short-ident x]) (machine-fair-rows tag rest)
+
   check-machine-contract :: McContext -> ExploredMachine -> CheckedMachineContract -> Result Diagnostic McVerdictRow
   check-machine-contract ctx machine mc-contract = case (machine, mc-contract) of
-    (MkExploredMachine mname state-ty nstates ntrans capped sym-merged por-pairs states visited adj parents m-wf m-sf sym-map,
-     MkCheckedMachineContract sp kind cname subject form-text formula c-wf c-sf assumptions env-preds) ->
+    (MkExploredMachine _ mname state-ty _ nstates ntrans capped sym-merged por-pairs states visited adj parents m-wf m-sf m-wfe m-sfe sym-map,
+     MkCheckedMachineContract sp kind cname subject form-text formula c-wf-raw c-sf-raw assumptions env-preds) ->
       let rfields = ctx-record-fields ctx in
+      let (c-wf, c-wfe) = decode-fair-list c-wf-raw in
+      let (c-sf, c-sfe) = decode-fair-list c-sf-raw in
       let wf = m-wf <> c-wf in
       let sf = m-sf <> c-sf in
+      let wfe = m-wfe <> c-wfe in
+      let sfe = m-sfe <> c-sfe in
+      let m-assumptions = (machine-fair-rows "weak_fair " m-wf <> machine-fair-rows "strong_fair " m-sf <> machine-fair-rows "fair_each " m-wfe <> machine-fair-rows "strong_fair_each " m-sfe) in
+      let all-assumptions = m-assumptions <> assumptions in
       let mshort = short-ident mname in
-      let ok-row = MkMcVerdictRow mname cname kind form-text assumptions (cat ["model-checked (Tier 1 bounded exploration: ", machine-scope-note machine, "; 0 violations)"]) in
+      let ok-row = MkMcVerdictRow mname cname kind form-text all-assumptions (cat ["model-checked (Tier 1 bounded exploration: ", machine-scope-note machine, "; 0 violations)"]) in
       let all-ok = all-true-map 0 nstates hash-map-empty in
       case eval-env-assumptions ctx env-preds nstates states all-ok of
         Err msg -> Err (mc-diag sp msg)
@@ -1810,7 +1964,7 @@ module Cinch.TemporalMc where
                 Ok qmap ->
                   let not-q = and-bool-maps 0 nstates env-reach (invert-bool-map 0 nstates qmap hash-map-empty) hash-map-empty in
                   let starts = if flag-true 0 not-q then [0] else Nil in
-                  (case find-fair-violation starts not-q adj wf sf of
+                  (case find-fair-violation starts not-q adj wf sf wfe sfe of
                     None -> Ok ok-row
                     Some (entry, cyc) ->
                       let trace = reconstruct-trace rfields entry states parents in
@@ -1825,7 +1979,7 @@ module Cinch.TemporalMc where
                     let not-q = and-bool-maps 0 nstates env-reach (invert-bool-map 0 nstates qmap hash-map-empty) hash-map-empty in
                     let p-in-env = and-bool-maps 0 nstates env-reach pmap hash-map-empty in
                     let p-starts = filter-p-not-q 0 nstates p-in-env qmap in
-                    (case find-fair-violation p-starts not-q adj wf sf of
+                    (case find-fair-violation p-starts not-q adj wf sf wfe sfe of
                       None -> Ok ok-row
                       Some (entry, cyc) ->
                         let trace = reconstruct-trace rfields entry states parents in
@@ -1837,7 +1991,7 @@ module Cinch.TemporalMc where
                 Ok qmap ->
                   let not-q = and-bool-maps 0 nstates env-reach (invert-bool-map 0 nstates qmap hash-map-empty) hash-map-empty in
                   let not-q-nodes = filter-map-true 0 nstates not-q in
-                  (case find-fair-violation not-q-nodes not-q adj wf sf of
+                  (case find-fair-violation not-q-nodes not-q adj wf sf wfe sfe of
                     None -> Ok ok-row
                     Some (entry, cyc) ->
                       let trace = reconstruct-trace rfields entry states parents in
@@ -1879,11 +2033,13 @@ module Cinch.TemporalMc where
     else find-first-false (idx + 1) total m
 
   filter-p-not-q :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> List Nat
-  filter-p-not-q idx total pmap qmap =
-    if idx >= total then Nil
-    else
-      let more = filter-p-not-q (idx + 1) total pmap qmap in
-      if flag-true idx pmap && not (flag-true idx qmap) then Cons idx more else more
+  filter-p-not-q idx total pmap qmap = filter-p-not-q-acc idx total pmap qmap Nil
+
+  filter-p-not-q-acc :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat Nat -> List Nat -> List Nat
+  filter-p-not-q-acc idx total pmap qmap acc =
+    if idx >= total then reverse acc
+    else if flag-true idx pmap && not (flag-true idx qmap) then filter-p-not-q-acc (idx + 1) total pmap qmap (Cons idx acc)
+    else filter-p-not-q-acc (idx + 1) total pmap qmap acc
 
   find-stability-violation :: Nat -> Nat -> HashMap Nat Nat -> HashMap Nat (List (String, String, Nat)) -> Option (Nat, String, Nat)
   find-stability-violation idx total qmap adj =
@@ -1950,8 +2106,8 @@ module Cinch.TemporalMc where
       let ashort = short-ident abs-sym in
       case (hash-map-lookup conc-sym explored, hash-map-lookup abs-sym explored) of
         (Some conc-m, Some abs-m) -> case (conc-m, abs-m) of
-          (MkExploredMachine _ _ c-nstates _ _ _ _ c-states _ c-adj c-parents c-wf c-sf _,
-           MkExploredMachine _ _ a-nstates _ _ _ _ a-states _ a-adj _ _ _ a-sym) ->
+          (MkExploredMachine _ _ _ _ c-nstates _ _ _ _ c-states _ c-adj c-parents c-wf c-sf c-wfe c-sfe _,
+           MkExploredMachine _ _ _ _ a-nstates _ _ _ _ a-states _ a-adj _ _ _ _ _ a-sym) ->
             case eval-view-all ctx view-term a-sym 0 c-nstates c-states hash-map-empty of
               Err msg -> Err (mc-diag sp (cat ["refinement `view` failed on `", cshort, "`: ", msg]))
               Ok vmap ->
@@ -2027,20 +2183,35 @@ module Cinch.TemporalMc where
 
   check-temporal-machines :: McContext -> List CheckedMachineInput -> List CheckedMachineContract -> List CheckedRefinesInput -> McOutcome
   check-temporal-machines ctx machines contracts refinements =
-    case explore-all-machines ctx machines hash-map-empty Nil of
-      (explored, exp-errs) ->
+    check-temporal-machines-strict False ctx machines contracts refinements
+
+  check-temporal-machines-strict :: Bool -> McContext -> List CheckedMachineInput -> List CheckedMachineContract -> List CheckedRefinesInput -> McOutcome
+  check-temporal-machines-strict fail-on-capped ctx machines contracts refinements =
+    case explore-all-machines ctx machines hash-map-empty Nil Nil of
+      (explored, explored-list, exp-errs) ->
         let (c-rows, c-errs) = check-all-machine-contracts ctx explored contracts Nil Nil in
         let (r-rows, r-errs) = check-all-refines ctx explored refinements Nil Nil in
-        MkMcOutcome (c-rows <> r-rows) (exp-errs <> c-errs <> r-errs)
+        let cap-errs = if fail-on-capped then collect-capped-diagnostics explored-list Nil else Nil in
+        MkMcOutcome (c-rows <> r-rows) (exp-errs <> c-errs <> r-errs <> cap-errs)
 
-  explore-all-machines :: McContext -> List CheckedMachineInput -> HashMap String ExploredMachine -> List Diagnostic -> (HashMap String ExploredMachine, List Diagnostic)
-  explore-all-machines ctx machines acc errs = case machines of
-    Nil -> (acc, reverse errs)
+  collect-capped-diagnostics :: List ExploredMachine -> List Diagnostic -> List Diagnostic
+  collect-capped-diagnostics ms acc = case ms of
+    Nil -> reverse acc
+    Cons em rest -> case em of
+      MkExploredMachine sp mname _ limit nstates _ capped _ _ _ _ _ _ _ _ _ _ _ ->
+        if capped then
+          let msg = cat ["machine `", short-ident mname, "` hit state exploration cap (`max_states = ", nat-to-string limit, "`, explored ", nat-to-string nstates, " states); raise `max_states` or remove `--model-fail-on-capped`"] in
+          collect-capped-diagnostics rest (Cons (mc-diag sp msg) acc)
+        else collect-capped-diagnostics rest acc
+
+  explore-all-machines :: McContext -> List CheckedMachineInput -> HashMap String ExploredMachine -> List ExploredMachine -> List Diagnostic -> (HashMap String ExploredMachine, List ExploredMachine, List Diagnostic)
+  explore-all-machines ctx machines acc list-acc errs = case machines of
+    Nil -> (acc, reverse list-acc, reverse errs)
     Cons m rest -> case explore-machine ctx m of
-      Err diag -> explore-all-machines ctx rest acc (Cons diag errs)
+      Err diag -> explore-all-machines ctx rest acc list-acc (Cons diag errs)
       Ok em -> case em of
-        MkExploredMachine mname _ _ _ _ _ _ _ _ _ _ _ _ _ ->
-          explore-all-machines ctx rest (hash-map-insert mname em acc) errs
+        MkExploredMachine _ mname _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ ->
+          explore-all-machines ctx rest (hash-map-insert mname em acc) (Cons em list-acc) errs
 
   check-all-machine-contracts :: McContext -> HashMap String ExploredMachine -> List CheckedMachineContract
     -> List McVerdictRow -> List Diagnostic -> (List McVerdictRow, List Diagnostic)

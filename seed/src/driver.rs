@@ -4647,6 +4647,14 @@ fn scratch_dir(tag: &str) -> Result<std::path::PathBuf> {
 }
 
 /// The flags a compile takes that are neither a mode nor a profile.
+/// Whether `CINCH_MODEL_FAIL_ON_CAPPED` is set to a truthy value (`1`/`true`/`yes`).
+pub fn env_model_fail_on_capped() -> bool {
+    matches!(
+        std::env::var("CINCH_MODEL_FAIL_ON_CAPPED").ok().as_deref(),
+        Some("1" | "true" | "TRUE" | "yes" | "YES")
+    )
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct DriverOptions {
     /// Build a native shared library with load-time layout registration.
@@ -4806,6 +4814,9 @@ pub struct DriverOptions {
     pub proof_cache: Option<PathBuf>,
     /// `--replay-only`: replay cached proofs through checkers only (zero provers).
     pub replay_only: bool,
+    /// `--model-fail-on-capped` (`CINCH_MODEL_FAIL_ON_CAPPED=1`): fail checking
+    /// if any `machine` state-space exploration hits its `max_states` cap.
+    pub model_fail_on_capped: bool,
     /// The words the CLI forwards to the program `Mode::Run` executes:
     /// every argument after the entry file (`cinch run f.cinch a b`, or
     /// everything after `--` verbatim). They land on the built program's
@@ -4837,6 +4848,12 @@ impl DriverOptions {
 
     pub fn array_report(&self) -> bool {
         self.array_report || std::env::var_os("CINCH_ARRAY_REPORT").is_some()
+    }
+
+    /// Whether `cinch check` / `cinch model inspect` fails if any `machine`
+    /// hits `max_states` (`--model-fail-on-capped` or `CINCH_MODEL_FAIL_ON_CAPPED=1`).
+    pub fn model_fail_on_capped(&self) -> bool {
+        self.model_fail_on_capped || env_model_fail_on_capped()
     }
 
     pub fn resolved_array_target(&self) -> crate::array_ir::ArrayTarget {
@@ -5982,6 +5999,20 @@ pub fn driver_with_profile_opts(
         profile,
         &project.module_preludes,
     )?;
+    if opts.model_fail_on_capped() {
+        if let Some(m) = report.machines.iter().find(|m| m.capped) {
+            return Err(Error::at(
+                m.span,
+                format!(
+                    "machine `{}.{}` hit state exploration cap (`max_states = {}`, explored {} states); raise `max_states` or remove `--model-fail-on-capped`",
+                    m.module,
+                    m.name,
+                    m.max_states,
+                    m.states.len()
+                ),
+            ));
+        }
+    }
     trace_driver_phase(phase_trace, "check.end");
     trace_driver_phase(phase_trace, "contracts.begin");
     // Metadata boundary checks (design note, section 3).
