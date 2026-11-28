@@ -1359,6 +1359,10 @@
     {
       "name": "Engine.Mem.Slab.Spec",
       "path": "Engine/Mem/Slab/Spec.cinch"
+    },
+    {
+      "name": "Engine.Mem.DmaPool",
+      "path": "Engine/Mem/DmaPool.cinch"
     }
   ],
   "order": [
@@ -1700,6 +1704,7 @@
     "Engine.Types",
     "Engine.Mem.Slab",
     "Engine.Mem.Arena",
-    "Engine.Mem.Slab.Spec"
+    "Engine.Mem.Slab.Spec",
+    "Engine.Mem.DmaPool"
   ]
 }

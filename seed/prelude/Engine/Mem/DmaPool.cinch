@@ -1,0 +1,449 @@
+-- | 4 KiB page-aligned DMA buffer pool with `%1` linear buffer ownership,
+-- zero-copy headroom/body/tailroom slice splitting, and `io_uring`
+-- `IORING_REGISTER_PBUF_RING` descriptor table export.
+--
+-- A `DmaPool` is backed by two anonymous `mmap` slabs obtained via
+-- `engine-dma-alloc`:
+--   1. A contiguous 4096-byte-aligned data slab partitioned into `count`
+--      fixed-size buffers (`buf-size` power of two, `>= 4096`, e.g. 4 KiB,
+--      16 KiB, or 64 KiB). Every buffer address is strictly 4096-byte aligned.
+--   2. A separate 4096-byte-aligned header slab holding pool metadata and an
+--      O(1) LIFO free stack of `U32` buffer IDs starting at cache line 1
+--      (byte offset 64).
+--
+-- Buffers are handed out as opaque `DmaBufHandle` values and consumed linearly
+-- (`%1`) by `dma-pool-release` and `dma-buf-as-slice`, turning dropped or
+-- double-released linear handles into compile-time errors while keeping
+-- steady-state acquire/write/read/release loops at zero heap allocation and
+-- zero atomic reference-counting traffic.
+module Engine.Mem.DmaPool where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Prim.Atomic
+  import Engine.Types
+
+  -- Pool handle & lifecycle
+  export DmaPool, dma-pool-new, dma-pool-destroy
+
+  -- Linear (`%1`) buffer ownership & inspection
+  export DmaBufHandle, dma-pool-acquire, dma-pool-release, dma-pool-with-buf, dma-buf-as-slice
+
+  -- Zero-copy headroom/body/tailroom slices (`#[repr(C, value)]`, 24B POD)
+  export DmaSlice, dma-slice-empty, dma-slice-tailroom, dma-slice-truncate
+  export dma-slice-split, dma-slice-reserve-headroom, dma-slice-reserve-tailroom
+  export dma-slice-to-byte-span
+
+  -- io_uring IORING_REGISTER_PBUF_RING descriptor export
+  export dma-pool-fill-pbuf-ring
+
+  -- Pool telemetry
+  export dma-pool-capacity, dma-pool-buf-size, dma-pool-free-count
+  export dma-pool-base-addr, dma-pool-buf-addr
+
+  -- =========================================================================
+  -- 0. Internal header layout constants & #[no-alloc] helpers
+  -- =========================================================================
+
+  -- Header slab byte offsets:
+  --   +0  : count      :: U32  (total buffers in pool)
+  --   +4  : buf-size   :: U32  (bytes per buffer, power-of-two >= 4096)
+  --   +8  : data-bytes :: U64  (total bytes in data slab)
+  --   +16 : hdr-bytes  :: U64  (total bytes in header slab)
+  --   +24 : top        :: U32  (number of free buffer IDs on stack, 0..=count)
+  --   +28 : destroyed  :: U32  (0 = live, 1 = destroyed)
+  --   +64 : free-stack :: [U32; count] (cache-line aligned)
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-count :: I64
+  hdr-off-count = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-buf-size :: I64
+  hdr-off-buf-size = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-data-bytes :: I64
+  hdr-off-data-bytes = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-hdr-bytes :: I64
+  hdr-off-hdr-bytes = 16
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-top :: I64
+  hdr-off-top = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-destroyed :: I64
+  hdr-off-destroyed = 28
+
+  #[inline(always)]
+  #[no-alloc]
+  hdr-off-stack :: I64
+  hdr-off-stack = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-page-align :: U64
+  dma-page-align = 4096
+
+  #[inline(always)]
+  #[no-alloc]
+  max-i64-u64 :: U64
+  max-i64-u64 = 9223372036854775807
+
+  #[inline(always)]
+  #[no-alloc]
+  is-valid-buf-size :: U32 -> Bool
+  is-valid-buf-size sz =
+    if lt-u32 sz 4096 then eq-u32 0 1
+    else eq-u32 (bit-and-u32 sz (wrapping-sub-u32 sz 1)) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stack-slot-addr :: I64 -> U32 -> I64
+  stack-slot-addr hdr idx =
+    wrapping-add-i64 (wrapping-add-i64 hdr hdr-off-stack) (wrapping-shl-i64 (u32-to-i64 idx) 2)
+
+  -- =========================================================================
+  -- 1. Core types: DmaPool (opaque handle), DmaBufHandle (opaque linear), DmaSlice (24B POD)
+  -- =========================================================================
+
+  -- | Opaque handle to a pre-allocated, 4 KiB-aligned DMA buffer pool.
+  -- Holds raw addresses of the DMA header slab and contiguous DMA data slab;
+  -- its constructor is private to `Engine.Mem.DmaPool`.
+  data DmaPool where
+    MkDmaPool :: I64 -> I64 -> DmaPool
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-hdr-addr :: DmaPool -> I64
+  pool-hdr-addr p = case p of
+    MkDmaPool hdr _ -> hdr
+
+  #[inline(always)]
+  #[no-alloc]
+  pool-data-addr :: DmaPool -> I64
+  pool-data-addr p = case p of
+    MkDmaPool _ d -> d
+
+  -- | Opaque owned handle to one acquired DMA buffer (`buf-id`, `base-addr`, `cap`).
+  -- Its constructor is private to `Engine.Mem.DmaPool`; callers must consume
+  -- linear (`%1`) handles through `dma-buf-as-slice` and `dma-pool-release`.
+  data DmaBufHandle where
+    MkDmaBufHandle :: U32 -> I64 -> U32 -> DmaBufHandle
+
+  -- | 24-byte POD descriptor for a zero-copy byte range inside a DMA buffer.
+  -- Supports disjoint headroom, body, and tailroom slicing with `#[no-alloc]`.
+  #[repr(C, value)]
+  record DmaSlice where
+    slice-buf-id :: U32
+    slice-off :: U32
+    slice-len :: U32
+    slice-cap :: U32
+    slice-addr :: I64
+
+  -- =========================================================================
+  -- 2. Pool creation & destruction
+  -- =========================================================================
+
+  -- Fill `free-stack[i] = count - 1 - i` so successive acquires pop IDs `0, 1, ...`.
+  init-free-stack :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-free-stack hdr count i =
+    if ge-u32 i count then ()
+    else
+      let bid = wrapping-sub-u32 (wrapping-sub-u32 count 1) i in
+      let _ = raw-store-u32 (stack-slot-addr hdr i) bid in
+      init-free-stack hdr count (wrapping-add-u32 i 1)
+
+  -- | Allocate a contiguous 4096-byte-aligned DMA buffer pool of `count` buffers,
+  -- each `buf-size` bytes (`buf-size` must be a power of two `>= 4096`, `count > 0`).
+  -- Returns `None` on invalid geometry or OS mapping failure.
+  dma-pool-new :: U32 -> U32 ->{IO, MVar} Option DmaPool
+  dma-pool-new buf-size count =
+    if eq-u32 count 0 then None
+    else if not (is-valid-buf-size buf-size) then None
+    else
+      case checked-mul-u64 (u32-to-u64 count) (u32-to-u64 buf-size) of
+        None -> None
+        Some data-bytes ->
+          if eq-u64 data-bytes 0 then None
+          else if gt-u64 data-bytes max-i64-u64 then None
+          else
+            let hdr-bytes = wrapping-add-u64 64 (wrapping-mul-u64 (u32-to-u64 count) 4) in
+            let hdr-u64 = engine-dma-alloc hdr-bytes dma-page-align in
+            if eq-u64 hdr-u64 0 then None
+            else
+              let data-u64 = engine-dma-alloc data-bytes dma-page-align in
+              if eq-u64 data-u64 0 then
+                let _ = engine-dma-free hdr-u64 hdr-bytes in
+                None
+              else
+                let hdr = wrapping-u64-to-i64 hdr-u64 in
+                let data-addr = wrapping-u64-to-i64 data-u64 in
+                let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-count) count in
+                let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-buf-size) buf-size in
+                let _ = raw-store-u64 (wrapping-add-i64 hdr hdr-off-data-bytes) data-bytes in
+                let _ = raw-store-u64 (wrapping-add-i64 hdr hdr-off-hdr-bytes) hdr-bytes in
+                let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-top) count in
+                let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-destroyed) 0 in
+                let _ = init-free-stack hdr count 0 in
+                Some (MkDmaPool hdr data-addr)
+
+  -- | Unmap both the DMA buffer data slab and header/free-stack slab.
+  dma-pool-destroy :: DmaPool ->{IO, MVar} Unit
+  dma-pool-destroy pool =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then ()
+    else
+      let destroyed = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+      if ne-u32 destroyed 0 then ()
+      else
+        let data-bytes = raw-load-u64 (wrapping-add-i64 hdr hdr-off-data-bytes) in
+        let hdr-bytes = raw-load-u64 (wrapping-add-i64 hdr hdr-off-hdr-bytes) in
+        let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-destroyed) 1 in
+        let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-top) 0 in
+        let _ = engine-dma-free (wrapping-i64-to-u64 (pool-data-addr pool)) data-bytes in
+        let _ = engine-dma-free (wrapping-i64-to-u64 hdr) hdr-bytes in
+        ()
+
+  -- =========================================================================
+  -- 3. O(1) Acquire / Release & Linear (`%1`) Buffer Ownership
+  -- =========================================================================
+
+  -- | Acquire one 4 KiB-aligned DMA buffer from the pool in O(1) time.
+  -- Returns `None` when the pool is exhausted or invalid.
+  #[inline(always)]
+  dma-pool-acquire :: DmaPool ->{MVar} Option DmaBufHandle
+  dma-pool-acquire pool =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then None
+    else
+      let top = raw-load-u32 (wrapping-add-i64 hdr hdr-off-top) in
+      if eq-u32 top 0 then None
+      else
+        let new-top = wrapping-sub-u32 top 1 in
+        let bid = raw-load-u32 (stack-slot-addr hdr new-top) in
+        let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-top) new-top in
+        let buf-size = raw-load-u32 (wrapping-add-i64 hdr hdr-off-buf-size) in
+        let addr = wrapping-add-i64 (pool-data-addr pool) (wrapping-mul-i64 (u32-to-i64 bid) (u32-to-i64 buf-size)) in
+        Some (MkDmaBufHandle bid addr buf-size)
+
+  -- | Release an owned linear (`%1`) `DmaBufHandle` back to `pool` in O(1) time.
+  #[inline(always)]
+  dma-pool-release :: DmaPool -> DmaBufHandle %1 ->{MVar} Unit
+  dma-pool-release pool buf =
+    case buf of
+      MkDmaBufHandle bid _ _ ->
+        let hdr = pool-hdr-addr pool in
+        if eq-i64 hdr 0 then ()
+        else
+          let count = raw-load-u32 (wrapping-add-i64 hdr hdr-off-count) in
+          let top = raw-load-u32 (wrapping-add-i64 hdr hdr-off-top) in
+          if ge-u32 bid count then ()
+          else if ge-u32 top count then ()
+          else
+            let _ = raw-store-u32 (stack-slot-addr hdr top) bid in
+            raw-store-u32 (wrapping-add-i64 hdr hdr-off-top) (wrapping-add-u32 top 1)
+
+  -- | Acquire one 4 KiB-aligned DMA buffer and invoke `k pool state slice handle`
+  -- with both its 24-byte POD `DmaSlice` and its `%1` linear `DmaBufHandle`,
+  -- returning `on-empty` if the pool is exhausted.
+  -- Because `k` is invoked in non-tail position and `DmaSlice` is an unboxed
+  -- `#[repr(C, value)]` POD, the compiler stack-allocates `DmaBufHandle` on the
+  -- activation frame (`RC_FRAME`), giving 0 heap allocations and 0 atomic RC ops
+  -- in steady-state loops while preserving compile-time `%1` linearity.
+  #[inline(always)]
+  dma-pool-with-buf :: forall s a. DmaPool -> s -> a -> (DmaPool -> s -> DmaSlice -> DmaBufHandle %1 ->{MVar} a) ->{MVar} a
+  dma-pool-with-buf pool st on-empty k =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then on-empty
+    else
+      let top = raw-load-u32 (wrapping-add-i64 hdr hdr-off-top) in
+      if eq-u32 top 0 then on-empty
+      else
+        let new-top = wrapping-sub-u32 top 1 in
+        let bid = raw-load-u32 (stack-slot-addr hdr new-top) in
+        let _ = raw-store-u32 (wrapping-add-i64 hdr hdr-off-top) new-top in
+        let buf-size = raw-load-u32 (wrapping-add-i64 hdr hdr-off-buf-size) in
+        let addr = wrapping-add-i64 (pool-data-addr pool) (wrapping-mul-i64 (u32-to-i64 bid) (u32-to-i64 buf-size)) in
+        let sl = DmaSlice bid 0 buf-size buf-size addr in
+        let res = k pool st sl (MkDmaBufHandle bid addr buf-size) in
+        let _ = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+        res
+
+  -- | Linearly inspect a `DmaBufHandle` as a full-capacity 24-byte POD
+  -- `DmaSlice`, returning both the slice and the linear handle intact so the
+  -- caller must still release it via `dma-pool-release`.
+  #[inline(always)]
+  dma-buf-as-slice :: DmaBufHandle %1 -> (DmaSlice, DmaBufHandle)
+  dma-buf-as-slice buf =
+    case buf of
+      MkDmaBufHandle bid addr cap ->
+        (DmaSlice bid 0 cap cap addr, MkDmaBufHandle bid addr cap)
+
+  -- =========================================================================
+  -- 4. Headroom / Body / Tailroom & Zero-Copy ByteSpan Helpers
+  -- =========================================================================
+
+  -- | Construct an empty zero-length `DmaSlice`.
+  #[inline(always)]
+  #[no-alloc]
+  dma-slice-empty :: Unit -> DmaSlice
+  dma-slice-empty _ = DmaSlice 0 0 0 0 0
+
+  -- | Return the available tailroom (`slice-cap - slice-len`) in bytes.
+  #[inline(always)]
+  #[no-alloc]
+  dma-slice-tailroom :: DmaSlice -> U32
+  dma-slice-tailroom s = saturating-sub-u32 s.slice-cap s.slice-len
+
+  -- | Truncate `slice-len` to `min(new-len, slice-cap)` while preserving
+  -- `slice-cap`, exposing the remainder as tailroom (e.g. for AEAD tags).
+  #[inline(always)]
+  #[no-alloc]
+  dma-slice-truncate :: DmaSlice -> U32 -> DmaSlice
+  dma-slice-truncate s new-len =
+    let clamped = if lt-u32 new-len s.slice-cap then new-len else s.slice-cap in
+    DmaSlice s.slice-buf-id s.slice-off clamped s.slice-cap s.slice-addr
+
+  -- Scalar-parameter worker for `dma-slice-split` (avoids mixing `Val` params
+  -- with unboxed-Option `#cc` calling conventions in codegen).
+  #[inline(never)]
+  dma-slice-split-raw :: U32 -> U32 -> U32 -> U32 -> I64 -> U32 -> Option (DmaSlice, DmaSlice)
+  dma-slice-split-raw bid off len cap addr mid =
+    let bound = if lt-u32 len cap then len else cap in
+    if gt-u32 mid bound then None
+    else
+      let left = DmaSlice bid off mid mid addr in
+      let right = DmaSlice bid (wrapping-add-u32 off mid) (wrapping-sub-u32 len mid) (wrapping-sub-u32 cap mid) (wrapping-add-i64 addr (u32-to-i64 mid)) in
+      Some (left, right)
+
+  -- | Split `s` into two disjoint, contiguous slices `[0, mid)` and `[mid, len)`.
+  -- Returns `None` if `mid > s.slice-len` or `mid > s.slice-cap`.
+  dma-slice-split :: DmaSlice -> U32 -> Option (DmaSlice, DmaSlice)
+  dma-slice-split s mid =
+    dma-slice-split-raw s.slice-buf-id s.slice-off s.slice-len s.slice-cap s.slice-addr mid
+
+  -- | Reserve `headroom` leading bytes from `s` (e.g. 9B HTTP/2 frame header
+  -- or 64B TLS/QUIC record header), returning `Some (headroom-slice, body-slice)`.
+  -- Returns `None` if `headroom > s.slice-len`.
+  dma-slice-reserve-headroom :: DmaSlice -> U32 -> Option (DmaSlice, DmaSlice)
+  dma-slice-reserve-headroom s headroom =
+    dma-slice-split-raw s.slice-buf-id s.slice-off s.slice-len s.slice-cap s.slice-addr headroom
+
+  #[no-alloc]
+  dma-tailroom-mid :: DmaSlice -> U32 -> U32
+  dma-tailroom-mid s tailroom =
+    if gt-u32 tailroom s.slice-len then wrapping-add-u32 s.slice-len 1
+    else wrapping-sub-u32 s.slice-len tailroom
+
+  -- | Reserve `tailroom` trailing bytes from `s` (e.g. 16B AEAD auth tag),
+  -- returning `Some (body-slice, tailroom-slice)`.
+  -- Returns `None` if `tailroom > s.slice-len`.
+  dma-slice-reserve-tailroom :: DmaSlice -> U32 -> Option (DmaSlice, DmaSlice)
+  dma-slice-reserve-tailroom s tailroom =
+    dma-slice-split-raw s.slice-buf-id s.slice-off s.slice-len s.slice-cap s.slice-addr (dma-tailroom-mid s tailroom)
+
+  -- | Convert a `DmaSlice` into a register-fit 16-byte `ByteSpan` referencing
+  -- the same registered buffer ID, offset, and length.
+  #[inline(always)]
+  #[no-alloc]
+  dma-slice-to-byte-span :: DmaSlice -> ByteSpan
+  dma-slice-to-byte-span s = byte-span-make s.slice-buf-id s.slice-off s.slice-len 0
+
+  -- =========================================================================
+  -- 5. io_uring Provided Buffer Ring (`IORING_REGISTER_PBUF_RING`) Export
+  -- =========================================================================
+
+  -- Each `struct io_uring_buf` entry is 16 bytes:
+  --   +0  : addr :: U64  (8 bytes, 4 KiB-aligned buffer address)
+  --   +8  : len  :: U32  (4 bytes, buffer capacity in bytes)
+  --   +12 : bid  :: U16  (2 bytes, buffer ID `0..n-1`)
+  --   +14 : resv :: U16  (2 bytes, 0)
+  fill-pbuf-loop :: I64 -> I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  fill-pbuf-loop data-base ring-addr buf-size limit i =
+    if ge-u32 i limit then limit
+    else
+      let entry = wrapping-add-i64 ring-addr (wrapping-shl-i64 (u32-to-i64 i) 4) in
+      let buf-addr = wrapping-add-i64 data-base (wrapping-mul-i64 (u32-to-i64 i) (u32-to-i64 buf-size)) in
+      let _ = raw-store-u64 entry (wrapping-i64-to-u64 buf-addr) in
+      let _ = raw-store-u32 (wrapping-add-i64 entry 8) buf-size in
+      -- Little-endian 32-bit store writes `bid :: U16` at +12 and `resv = 0 :: U16` at +14.
+      let _ = raw-store-u32 (wrapping-add-i64 entry 12) (bit-and-u32 i 65535) in
+      fill-pbuf-loop data-base ring-addr buf-size limit (wrapping-add-u32 i 1)
+
+  -- | Populate an `io_uring_buf` ring at `ring-addr` (capacity `ring-entries`
+  -- 16-byte descriptors) with all pool buffers (`min(count, ring-entries, 65536)`).
+  -- Returns the number of populated descriptors so the Linux reactor can publish
+  -- `ring->tail` and register the ring via `IORING_REGISTER_PBUF_RING`.
+  dma-pool-fill-pbuf-ring :: DmaPool -> I64 -> U32 ->{MVar} U32
+  dma-pool-fill-pbuf-ring pool ring-addr ring-entries =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then 0
+    else if eq-i64 ring-addr 0 then 0
+    else if eq-u32 ring-entries 0 then 0
+    else
+      let destroyed = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+      if ne-u32 destroyed 0 then 0
+      else
+        let count = raw-load-u32 (wrapping-add-i64 hdr hdr-off-count) in
+        let buf-size = raw-load-u32 (wrapping-add-i64 hdr hdr-off-buf-size) in
+        let n0 = if lt-u32 count ring-entries then count else ring-entries in
+        let limit = if lt-u32 n0 65536 then n0 else 65536 in
+        fill-pbuf-loop (pool-data-addr pool) ring-addr buf-size limit 0
+
+  -- =========================================================================
+  -- 6. Pool Telemetry
+  -- =========================================================================
+
+  -- | Return the total number of buffers in `pool`.
+  #[inline(always)]
+  dma-pool-capacity :: DmaPool ->{MVar} U32
+  dma-pool-capacity pool =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 hdr hdr-off-count)
+
+  -- | Return the fixed size in bytes of each buffer in `pool`.
+  #[inline(always)]
+  dma-pool-buf-size :: DmaPool ->{MVar} U32
+  dma-pool-buf-size pool =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 hdr hdr-off-buf-size)
+
+  -- | Return the number of currently available (unacquired) buffers in `pool`.
+  #[inline(always)]
+  dma-pool-free-count :: DmaPool ->{MVar} U32
+  dma-pool-free-count pool =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 hdr hdr-off-top)
+
+  -- | Return the 4 KiB-aligned base address of the contiguous DMA buffer slab.
+  #[inline(always)]
+  #[no-alloc]
+  dma-pool-base-addr :: DmaPool -> I64
+  dma-pool-base-addr pool = pool-data-addr pool
+
+  -- | Return the 4 KiB-aligned address of buffer `buf-id`, or `0` if out of range.
+  #[inline(always)]
+  dma-pool-buf-addr :: DmaPool -> U32 ->{MVar} I64
+  dma-pool-buf-addr pool buf-id =
+    let hdr = pool-hdr-addr pool in
+    if eq-i64 hdr 0 then 0
+    else
+      let count = raw-load-u32 (wrapping-add-i64 hdr hdr-off-count) in
+      if ge-u32 buf-id count then 0
+      else
+        let buf-size = raw-load-u32 (wrapping-add-i64 hdr hdr-off-buf-size) in
+        wrapping-add-i64 (pool-data-addr pool) (wrapping-mul-i64 (u32-to-i64 buf-id) (u32-to-i64 buf-size))
