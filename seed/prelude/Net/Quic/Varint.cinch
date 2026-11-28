@@ -1,0 +1,194 @@
+-- | Zero-allocation RFC 9000 section 16 variable-length integer codec (`Net.Quic.Varint`).
+--
+-- Operates directly over raw DMA buffer addresses (`I64`) with `#[no-alloc]`
+-- and unboxed `#[repr(C, value)]` return types:
+--   * 1-byte (`0b00`, 0 ..= 63)
+--   * 2-byte (`0b01`, 0 ..= 16383)
+--   * 4-byte (`0b10`, 0 ..= 1073741823)
+--   * 8-byte (`0b11`, 0 ..= 4611686018427387903 = 2^62 - 1)
+--
+-- Supports both minimal-width encoding (`quic-varint-encode-raw`) and fixed-width
+-- 2-byte / 4-byte encoding (`quic-varint-encode2b`, `quic-varint-encode4b`) for
+-- length fields, as well as decoding non-minimal wire encodings per RFC 9000 §16.
+module Net.Quic.Varint where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Prim.Atomic
+
+  export quic-varint-max
+  export VarintDecoded, varint-decoded-err, varint-decoded-ok
+  export quic-varint-len
+  export quic-varint-encode-raw, quic-varint-decode-raw
+  export quic-varint-encode2b, quic-varint-encode4b, quic-varint-encode8b
+
+  -- =========================================================================
+  -- 1. Constants & Unboxed Result Type
+  -- =========================================================================
+
+  -- | Maximum representable QUIC variable-length integer (`2^62 - 1`).
+  #[inline(always)]
+  #[no-alloc]
+  quic-varint-max :: U64
+  quic-varint-max = 4611686018427387903
+
+  -- | 16-byte `#[repr(C, value)]` POD decode result (zero heap allocation).
+  #[repr(C, value)]
+  record VarintDecoded where
+    val :: U64
+    consumed :: U32
+    ok :: U8
+    pad0 :: U8
+    pad1 :: U16
+
+  #[inline(always)]
+  #[no-alloc]
+  varint-decoded-err :: Unit -> VarintDecoded
+  varint-decoded-err _ = VarintDecoded 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  varint-decoded-ok :: VarintDecoded -> Bool
+  varint-decoded-ok d = ne-u8 d.ok 0
+
+  -- =========================================================================
+  -- 2. Encoded Length & Encoders (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- | Return the minimal RFC 9000 §16 encoded byte length (`1`, `2`, `4`, or `8`),
+  -- or `0` if `v > 0x3FFFFFFFFFFFFFFF`.
+  #[inline(always)]
+  #[no-alloc]
+  quic-varint-len :: U64 -> U32
+  quic-varint-len v =
+    if lt-u64 v 64 then 1
+    else if lt-u64 v 16384 then 2
+    else if lt-u64 v 1073741824 then 4
+    else if le-u64 v quic-varint-max then 8
+    else 0
+
+  -- | Encode `v` (`0 <= v <= 16383`) as a fixed 2-byte QUIC varint at
+  -- `buf-addr + off` (prefix `0b01`). Returns `2` on success, or `0` on
+  -- overflow or insufficient capacity (`cap - off < 2`).
+  #[inline(always)]
+  #[no-alloc]
+  quic-varint-encode2b :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-varint-encode2b buf-addr off cap v =
+    if ge-u64 v 16384 then 0
+    else if gt-u32 off cap then 0
+    else if lt-u32 (wrapping-sub-u32 cap off) 2 then 0
+    else
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      let b0 = bit-or-u8 0x40 (wrapping-u64-to-u8 (wrapping-shr-u64 v 8)) in
+      let b1 = wrapping-u64-to-u8 v in
+      let _0 = raw-store-u8 p b0 in
+      let _1 = raw-store-u8 (wrapping-add-i64 p 1) b1 in
+      2
+
+  -- | Encode `v` (`0 <= v <= 1073741823`) as a fixed 4-byte QUIC varint at
+  -- `buf-addr + off` (prefix `0b10`). Returns `4` on success, or `0` on
+  -- overflow or insufficient capacity (`cap - off < 4`).
+  #[inline(always)]
+  #[no-alloc]
+  quic-varint-encode4b :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-varint-encode4b buf-addr off cap v =
+    if ge-u64 v 1073741824 then 0
+    else if gt-u32 off cap then 0
+    else if lt-u32 (wrapping-sub-u32 cap off) 4 then 0
+    else
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      let w = bit-or-u32 0x80000000 (wrapping-u64-to-u32 v) in
+      let _ = raw-store-u32 p (swap-bytes-u32 w) in
+      4
+
+  -- | Encode `v` (`0 <= v <= 2^62 - 1`) as a fixed 8-byte QUIC varint at
+  -- `buf-addr + off` (prefix `0b11`). Returns `8` on success, or `0` on
+  -- overflow or insufficient capacity (`cap - off < 8`).
+  #[inline(always)]
+  #[no-alloc]
+  quic-varint-encode8b :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-varint-encode8b buf-addr off cap v =
+    if gt-u64 v quic-varint-max then 0
+    else if gt-u32 off cap then 0
+    else if lt-u32 (wrapping-sub-u32 cap off) 8 then 0
+    else
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      let w = bit-or-u64 0xc000000000000000 v in
+      let _ = raw-store-u64 p (swap-bytes-u64 w) in
+      8
+
+  -- | Encode `v` in minimal RFC 9000 §16 width at `buf-addr + off` within
+  -- buffer capacity `cap`. Returns bytes written (`1`, `2`, `4`, or `8`), or
+  -- `0` on overflow (`v > 2^62 - 1`) or insufficient buffer space.
+  #[no-alloc]
+  quic-varint-encode-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  quic-varint-encode-raw buf-addr off cap v =
+    if gt-u32 off cap then 0
+    else
+      let rem = wrapping-sub-u32 cap off in
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      if lt-u64 v 64 then
+        if lt-u32 rem 1 then 0
+        else
+          let _ = raw-store-u8 p (wrapping-u64-to-u8 v) in
+          1
+      else if lt-u64 v 16384 then
+        if lt-u32 rem 2 then 0
+        else
+          let b0 = bit-or-u8 0x40 (wrapping-u64-to-u8 (wrapping-shr-u64 v 8)) in
+          let b1 = wrapping-u64-to-u8 v in
+          let _0 = raw-store-u8 p b0 in
+          let _1 = raw-store-u8 (wrapping-add-i64 p 1) b1 in
+          2
+      else if lt-u64 v 1073741824 then
+        if lt-u32 rem 4 then 0
+        else
+          let w = bit-or-u32 0x80000000 (wrapping-u64-to-u32 v) in
+          let _ = raw-store-u32 p (swap-bytes-u32 w) in
+          4
+      else if le-u64 v quic-varint-max then
+        if lt-u32 rem 8 then 0
+        else
+          let w = bit-or-u64 0xc000000000000000 v in
+          let _ = raw-store-u64 p (swap-bytes-u64 w) in
+          8
+      else 0
+
+  -- =========================================================================
+  -- 3. Decoder (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- | Decode an RFC 9000 §16 variable-length integer at `buf-addr + off`
+  -- within a buffer of length `len`. Accepts minimal and non-minimal encodings
+  -- (e.g. `0x4025` -> `37`). Returns `VarintDecoded` with `ok == 0` on
+  -- truncation or out-of-bounds offset.
+  #[no-alloc]
+  quic-varint-decode-raw :: I64 -> U32 -> U32 ->{MVar} VarintDecoded
+  quic-varint-decode-raw buf-addr off len =
+    if ge-u32 off len then varint-decoded-err ()
+    else
+      let rem = wrapping-sub-u32 len off in
+      let p = wrapping-add-i64 buf-addr (u32-to-i64 off) in
+      let first = raw-load-u8 p in
+      let prefix = wrapping-shr-u8 first 6 in
+      if eq-u8 prefix 0 then
+        VarintDecoded (u8-to-u64 (bit-and-u8 first 0x3f)) 1 1 0 0
+      else if eq-u8 prefix 1 then
+        if lt-u32 rem 2 then varint-decoded-err ()
+        else
+          let hi = u8-to-u64 (bit-and-u8 first 0x3f) in
+          let lo = u8-to-u64 (raw-load-u8 (wrapping-add-i64 p 1)) in
+          VarintDecoded (bit-or-u64 (wrapping-shl-u64 hi 8) lo) 2 1 0 0
+      else if eq-u8 prefix 2 then
+        if lt-u32 rem 4 then varint-decoded-err ()
+        else
+          let w = swap-bytes-u32 (raw-load-u32 p) in
+          let v = u32-to-u64 (bit-and-u32 w 0x3fffffff) in
+          VarintDecoded v 4 1 0 0
+      else
+        if lt-u32 rem 8 then varint-decoded-err ()
+        else
+          let w = swap-bytes-u64 (raw-load-u64 p) in
+          let v = bit-and-u64 w quic-varint-max in
+          VarintDecoded v 8 1 0 0

@@ -1,0 +1,808 @@
+-- | Frozen, unboxed QUIC RFC 9000 / RFC 9001 / RFC 9369 core types (`Net.Quic.Types`).
+--
+-- Every type in this module uses `#[repr(C, value)]` POD layout so packet parsing,
+-- routing, frame dispatch, and protection run with zero heap allocations
+-- (`#[no-alloc]`) and zero reference-counting traffic.
+--
+-- Includes:
+--   * `QuicVersion` (QUIC v1 `0x00000001`, QUIC v2 `0x6b3343cf`, Version Negotiation `0`)
+--   * `PnSpace` (`Initial = 0`, `Handshake = 1`, `AppData = 2`)
+--   * `PacketType` (`Initial`, `ZeroRtt`, `Handshake`, `Retry`, `Short`, `VersionNeg`)
+--   * `ConnId` (fixed inline up to 20 bytes packed in `U64` x 3 + `U8` length)
+--   * Obfuscated core-routable Connection ID codec (`quic-cid-encode-core` /
+--     `quic-cid-decode-core`), placing the 16-bit routing tag at DCID bytes `0..1`
+--     (short-header packet byte offset `1..2`, matching `Engine.Reactor.Linux`'s
+--     BPF `SO_ATTACH_REUSEPORT_CBPF` steering)
+--   * `StreamId` with RFC 9000 section 2.1 client/server and bidi/uni predicates
+--   * `QuicTransportError` with RFC 9000 section 20.1 transport and CRYPTO error codes
+module Net.Quic.Types where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Versions
+  export QuicVersion, quic-version-raw-v1, quic-version-raw-v2
+  export quic-version-v1, quic-version-v2, quic-version-negotiation
+  export quic-version-of, quic-version-value
+  export quic-version-is-v1, quic-version-is-v2, quic-version-is-supported, quic-version-eq
+
+  -- Packet Number Spaces
+  export PnSpace, pn-space-code-initial, pn-space-code-handshake, pn-space-code-app-data
+  export pn-space-initial, pn-space-handshake, pn-space-app-data
+  export pn-space-from-u8, pn-space-to-u8, pn-space-is-valid, pn-space-eq
+
+  -- Packet Types
+  export PacketType
+  export pkt-type-code-initial, pkt-type-code-zero-rtt, pkt-type-code-handshake
+  export pkt-type-code-retry, pkt-type-code-short, pkt-type-code-version-neg, pkt-type-code-invalid
+  export packet-type-initial, packet-type-zero-rtt, packet-type-handshake
+  export packet-type-retry, packet-type-short, packet-type-version-neg, packet-type-invalid
+  export packet-type-to-u8, packet-type-from-u8, packet-type-eq
+  export packet-type-is-long, packet-type-pn-space
+  export packet-type-to-long-bits, packet-type-from-long-bits
+
+  -- Inline zero-allocation Connection ID & core-routable CID codec
+  export ConnId, quic-cid-max-len
+  export conn-id-empty, conn-id-make, conn-id-len, conn-id-is-empty
+  export conn-id-get-byte, conn-id-set-byte, conn-id-eq
+  export conn-id-read-raw, conn-id-write-raw
+  export conn-id-from-bytes, conn-id-to-bytes
+  export quic-cid-encode-core, quic-cid-decode-core
+
+  -- Stream IDs (RFC 9000 §2.1)
+  export StreamId, stream-id-max
+  export stream-id-of, stream-id-value, stream-id-is-valid
+  export stream-id-is-client, stream-id-is-server, stream-id-is-bidi, stream-id-is-uni
+  export stream-id-seq, stream-id-make, stream-id-eq
+
+  -- Transport Error Codes (RFC 9000 §20.1)
+  export QuicTransportError
+  export quic-err-no-error, quic-err-internal-error, quic-err-connection-refused
+  export quic-err-flow-control-error, quic-err-stream-limit-error, quic-err-stream-state-error
+  export quic-err-final-size-error, quic-err-frame-encoding-error, quic-err-transport-parameter-error
+  export quic-err-connection-id-limit-error, quic-err-protocol-violation, quic-err-invalid-token
+  export quic-err-application-error, quic-err-crypto-buffer-exceeded, quic-err-key-update-error
+  export quic-err-aead-limit-reached, quic-err-no-viable-path, quic-err-crypto-base
+  export quic-transport-error-of, quic-transport-error-code, quic-transport-error-crypto
+  export quic-transport-error-is-crypto, quic-transport-error-alert, quic-transport-error-eq
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean combinators
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  qt-true :: Bool
+  qt-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  qt-false :: Bool
+  qt-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  qt-and :: Bool -> Bool -> Bool
+  qt-and a b = if a then b else qt-false
+
+  #[inline(always)]
+  #[no-alloc]
+  qt-or :: Bool -> Bool -> Bool
+  qt-or a b = if a then qt-true else b
+
+  -- =========================================================================
+  -- 1. QuicVersion (RFC 9000 §15 & RFC 9369)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-raw-v1 :: U32
+  quic-version-raw-v1 = 0x00000001
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-raw-v2 :: U32
+  quic-version-raw-v2 = 0x6b3343cf
+
+  #[repr(C, value)]
+  record QuicVersion where
+    quic-version-raw :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-v1 :: Unit -> QuicVersion
+  quic-version-v1 _ = QuicVersion quic-version-raw-v1
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-v2 :: Unit -> QuicVersion
+  quic-version-v2 _ = QuicVersion quic-version-raw-v2
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-negotiation :: Unit -> QuicVersion
+  quic-version-negotiation _ = QuicVersion 0
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-of :: U32 -> QuicVersion
+  quic-version-of raw = QuicVersion raw
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-value :: QuicVersion -> U32
+  quic-version-value v = v.quic-version-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-is-v1 :: QuicVersion -> Bool
+  quic-version-is-v1 v = eq-u32 v.quic-version-raw quic-version-raw-v1
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-is-v2 :: QuicVersion -> Bool
+  quic-version-is-v2 v = eq-u32 v.quic-version-raw quic-version-raw-v2
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-is-supported :: QuicVersion -> Bool
+  quic-version-is-supported v = qt-or (quic-version-is-v1 v) (quic-version-is-v2 v)
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-version-eq :: QuicVersion -> QuicVersion -> Bool
+  quic-version-eq a b = eq-u32 a.quic-version-raw b.quic-version-raw
+
+  -- =========================================================================
+  -- 2. PnSpace (RFC 9000 §12.3: Initial=0, Handshake=1, AppData=2)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-code-initial :: U8
+  pn-space-code-initial = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-code-handshake :: U8
+  pn-space-code-handshake = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-code-app-data :: U8
+  pn-space-code-app-data = 2
+
+  #[repr(C, value)]
+  record PnSpace where
+    pn-space-raw :: U8
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-initial :: Unit -> PnSpace
+  pn-space-initial _ = PnSpace pn-space-code-initial
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-handshake :: Unit -> PnSpace
+  pn-space-handshake _ = PnSpace pn-space-code-handshake
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-app-data :: Unit -> PnSpace
+  pn-space-app-data _ = PnSpace pn-space-code-app-data
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-from-u8 :: U8 -> PnSpace
+  pn-space-from-u8 code = PnSpace code
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-to-u8 :: PnSpace -> U8
+  pn-space-to-u8 sp = sp.pn-space-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-is-valid :: PnSpace -> Bool
+  pn-space-is-valid sp = le-u8 sp.pn-space-raw pn-space-code-app-data
+
+  #[inline(always)]
+  #[no-alloc]
+  pn-space-eq :: PnSpace -> PnSpace -> Bool
+  pn-space-eq a b = eq-u8 a.pn-space-raw b.pn-space-raw
+
+  -- =========================================================================
+  -- 3. PacketType (RFC 9000 §17 & RFC 9369)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-initial :: U8
+  pkt-type-code-initial = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-zero-rtt :: U8
+  pkt-type-code-zero-rtt = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-handshake :: U8
+  pkt-type-code-handshake = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-retry :: U8
+  pkt-type-code-retry = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-short :: U8
+  pkt-type-code-short = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-version-neg :: U8
+  pkt-type-code-version-neg = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  pkt-type-code-invalid :: U8
+  pkt-type-code-invalid = 255
+
+  #[repr(C, value)]
+  record PacketType where
+    packet-type-raw :: U8
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-initial :: Unit -> PacketType
+  packet-type-initial _ = PacketType pkt-type-code-initial
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-zero-rtt :: Unit -> PacketType
+  packet-type-zero-rtt _ = PacketType pkt-type-code-zero-rtt
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-handshake :: Unit -> PacketType
+  packet-type-handshake _ = PacketType pkt-type-code-handshake
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-retry :: Unit -> PacketType
+  packet-type-retry _ = PacketType pkt-type-code-retry
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-short :: Unit -> PacketType
+  packet-type-short _ = PacketType pkt-type-code-short
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-version-neg :: Unit -> PacketType
+  packet-type-version-neg _ = PacketType pkt-type-code-version-neg
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-invalid :: Unit -> PacketType
+  packet-type-invalid _ = PacketType pkt-type-code-invalid
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-to-u8 :: PacketType -> U8
+  packet-type-to-u8 pt = pt.packet-type-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-from-u8 :: U8 -> PacketType
+  packet-type-from-u8 code =
+    if le-u8 code pkt-type-code-version-neg then PacketType code
+    else PacketType pkt-type-code-invalid
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-eq :: PacketType -> PacketType -> Bool
+  packet-type-eq a b = eq-u8 a.packet-type-raw b.packet-type-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-is-long :: PacketType -> Bool
+  packet-type-is-long pt =
+    qt-or (le-u8 pt.packet-type-raw pkt-type-code-retry) (eq-u8 pt.packet-type-raw pkt-type-code-version-neg)
+
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-pn-space :: PacketType -> PnSpace
+  packet-type-pn-space pt =
+    if eq-u8 pt.packet-type-raw pkt-type-code-initial then PnSpace pn-space-code-initial
+    else if eq-u8 pt.packet-type-raw pkt-type-code-handshake then PnSpace pn-space-code-handshake
+    else PnSpace pn-space-code-app-data
+
+  -- | Map `PacketType` to the 2-bit wire Long Packet Type field (bits 4..5 of
+  -- byte 0) for QUIC v1 (RFC 9000) or QUIC v2 (RFC 9369 §3.2).
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-to-long-bits :: QuicVersion -> PacketType -> U8
+  packet-type-to-long-bits ver pt =
+    let raw = pt.packet-type-raw in
+    if quic-version-is-v2 ver then
+      if eq-u8 raw pkt-type-code-retry then 0
+      else if eq-u8 raw pkt-type-code-initial then 1
+      else if eq-u8 raw pkt-type-code-zero-rtt then 2
+      else if eq-u8 raw pkt-type-code-handshake then 3
+      else 255
+    else
+      if le-u8 raw pkt-type-code-retry then raw else 255
+
+  -- | Map the 2-bit wire Long Packet Type field (`0..3`) to `PacketType`.
+  #[inline(always)]
+  #[no-alloc]
+  packet-type-from-long-bits :: QuicVersion -> U8 -> PacketType
+  packet-type-from-long-bits ver bits =
+    let b = bit-and-u8 bits 3 in
+    if quic-version-is-v2 ver then
+      if eq-u8 b 0 then PacketType pkt-type-code-retry
+      else if eq-u8 b 1 then PacketType pkt-type-code-initial
+      else if eq-u8 b 2 then PacketType pkt-type-code-zero-rtt
+      else PacketType pkt-type-code-handshake
+    else PacketType b
+
+  -- =========================================================================
+  -- 4. Inline Zero-Allocation ConnId (up to 20 bytes in U64 x 3 + U8 len)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-cid-max-len :: U8
+  quic-cid-max-len = 20
+
+  -- | 32-byte `#[repr(C, value)]` POD Connection ID holding 0..=20 bytes inline.
+  -- Byte `i` sits in `cid-w{i/8}` at bit offset `(i % 8) * 8`. Unused trailing
+  -- bytes are canonicalized to 0 so `conn-id-eq` is a 4-word comparison.
+  #[repr(C, value)]
+  record ConnId where
+    cid-w0 :: U64
+    cid-w1 :: U64
+    cid-w2 :: U64
+    cid-len :: U8
+    cid-pad0 :: U8
+    cid-pad1 :: U16
+    cid-pad2 :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  mask-low-bytes-u64 :: U64 -> U32 -> U64
+  mask-low-bytes-u64 w n-bytes =
+    if eq-u32 n-bytes 0 then 0
+    else if ge-u32 n-bytes 8 then w
+    else
+      let bits = wrapping-shl-u32 n-bytes 3 in
+      let m = wrapping-sub-u64 (wrapping-shl-u64 1 bits) 1 in
+      bit-and-u64 w m
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-empty :: Unit -> ConnId
+  conn-id-empty _ = ConnId 0 0 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-make :: U64 -> U64 -> U64 -> U8 -> ConnId
+  conn-id-make w0 w1 w2 len =
+    let clen = if gt-u8 len quic-cid-max-len then quic-cid-max-len else len in
+    let n = u8-to-u32 clen in
+    let m0 = mask-low-bytes-u64 w0 n in
+    let m1 = if gt-u32 n 8 then mask-low-bytes-u64 w1 (wrapping-sub-u32 n 8) else 0 in
+    let m2 = if gt-u32 n 16 then mask-low-bytes-u64 w2 (wrapping-sub-u32 n 16) else 0 in
+    ConnId m0 m1 m2 clen 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-len :: ConnId -> U8
+  conn-id-len cid = cid.cid-len
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-is-empty :: ConnId -> Bool
+  conn-id-is-empty cid = eq-u8 cid.cid-len 0
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-get-byte :: ConnId -> U32 -> U8
+  conn-id-get-byte cid idx =
+    if ge-u32 idx (u8-to-u32 cid.cid-len) then 0
+    else if lt-u32 idx 8 then
+      wrapping-u64-to-u8 (wrapping-shr-u64 cid.cid-w0 (wrapping-shl-u32 idx 3))
+    else if lt-u32 idx 16 then
+      wrapping-u64-to-u8 (wrapping-shr-u64 cid.cid-w1 (wrapping-shl-u32 (wrapping-sub-u32 idx 8) 3))
+    else
+      wrapping-u64-to-u8 (wrapping-shr-u64 cid.cid-w2 (wrapping-shl-u32 (wrapping-sub-u32 idx 16) 3))
+
+  #[inline(always)]
+  #[no-alloc]
+  set-byte-u64 :: U64 -> U32 -> U8 -> U64
+  set-byte-u64 w lane b =
+    let sh = wrapping-shl-u32 lane 3 in
+    let cleared = bit-and-u64 w (bit-not-u64 (wrapping-shl-u64 255 sh)) in
+    bit-or-u64 cleared (wrapping-shl-u64 (u8-to-u64 b) sh)
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-set-byte :: ConnId -> U32 -> U8 -> ConnId
+  conn-id-set-byte cid idx b =
+    if ge-u32 idx (u8-to-u32 cid.cid-len) then cid
+    else if lt-u32 idx 8 then
+      ConnId (set-byte-u64 cid.cid-w0 idx b) cid.cid-w1 cid.cid-w2 cid.cid-len 0 0 0
+    else if lt-u32 idx 16 then
+      ConnId cid.cid-w0 (set-byte-u64 cid.cid-w1 (wrapping-sub-u32 idx 8) b) cid.cid-w2 cid.cid-len 0 0 0
+    else
+      ConnId cid.cid-w0 cid.cid-w1 (set-byte-u64 cid.cid-w2 (wrapping-sub-u32 idx 16) b) cid.cid-len 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-id-eq :: ConnId -> ConnId -> Bool
+  conn-id-eq a b =
+    qt-and
+      (qt-and (eq-u8 a.cid-len b.cid-len) (eq-u64 a.cid-w0 b.cid-w0))
+      (qt-and (eq-u64 a.cid-w1 b.cid-w1) (eq-u64 a.cid-w2 b.cid-w2))
+
+  #[no-alloc]
+  cid-load-word-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} U64
+  cid-load-word-raw addr i n acc =
+    if ge-u32 i n then acc
+    else
+      let b = raw-load-u8 (wrapping-add-i64 addr (u32-to-i64 i)) in
+      let next = bit-or-u64 acc (wrapping-shl-u64 (u8-to-u64 b) (wrapping-shl-u32 i 3)) in
+      cid-load-word-raw addr (wrapping-add-u32 i 1) n next
+
+  -- | Read a `ConnId` of `len` bytes (`0..=20`) directly from raw DMA address `addr`.
+  #[no-alloc]
+  conn-id-read-raw :: I64 -> U8 ->{MVar} ConnId
+  conn-id-read-raw addr len =
+    let clen = if gt-u8 len quic-cid-max-len then quic-cid-max-len else len in
+    let n = (u8-to-u32 clen :: U32) in
+    let n0 = if lt-u32 n 8 then n else 8 in
+    let w0 = cid-load-word-raw addr 0 n0 0 in
+    let w1 = (if gt-u32 n 8 then
+      let rem1 = wrapping-sub-u32 n 8 in
+      let n1 = if lt-u32 rem1 8 then rem1 else 8 in
+      cid-load-word-raw (wrapping-add-i64 addr 8) 0 n1 0
+    else 0) in
+    let w2 = (if gt-u32 n 16 then
+      let n2 = wrapping-sub-u32 n 16 in
+      cid-load-word-raw (wrapping-add-i64 addr 16) 0 n2 0
+    else 0) in
+    ConnId w0 w1 w2 clen 0 0 0
+
+  #[no-alloc]
+  cid-store-word-raw :: I64 -> U32 -> U32 -> U64 ->{MVar} Unit
+  cid-store-word-raw addr i n w =
+    if ge-u32 i n then ()
+    else
+      let b = wrapping-u64-to-u8 (wrapping-shr-u64 w (wrapping-shl-u32 i 3)) in
+      let _ = raw-store-u8 (wrapping-add-i64 addr (u32-to-i64 i)) b in
+      cid-store-word-raw addr (wrapping-add-u32 i 1) n w
+
+  -- | Write `cid` bytes directly to raw DMA address `addr`. Returns bytes written.
+  #[no-alloc]
+  conn-id-write-raw :: ConnId -> I64 ->{MVar} U32
+  conn-id-write-raw cid addr =
+    let n = (u8-to-u32 cid.cid-len :: U32) in
+    let n0 = if lt-u32 n 8 then n else 8 in
+    let _0 = cid-store-word-raw addr 0 n0 cid.cid-w0 in
+    let _1 = (if gt-u32 n 8 then
+      let rem1 = wrapping-sub-u32 n 8 in
+      let n1 = if lt-u32 rem1 8 then rem1 else 8 in
+      cid-store-word-raw (wrapping-add-i64 addr 8) 0 n1 cid.cid-w1
+    else ()) in
+    let _2 = (if gt-u32 n 16 then
+      let n2 = wrapping-sub-u32 n 16 in
+      cid-store-word-raw (wrapping-add-i64 addr 16) 0 n2 cid.cid-w2
+    else ()) in
+    n
+
+  -- | Convert a `Bytes` slice (`0..=20` bytes) to an inline `ConnId`.
+  conn-id-from-bytes-loop :: Bytes -> Nat -> Nat -> ConnId -> ConnId
+  conn-id-from-bytes-loop src i n acc =
+    if i >= n then acc
+    else if i < bytes-len src && i <= 20 then
+      let b = bytes-get-u8 src i in
+      conn-id-from-bytes-loop src (i + 1) n (conn-id-set-byte acc (wrapping-i64-to-u32 (nat-to-i64 i)) b)
+    else acc
+
+  conn-id-from-bytes :: Bytes -> ConnId
+  conn-id-from-bytes src =
+    let n = if bytes-len src > 20 then 20 else bytes-len src in
+    if n <= 20 then
+      let clen = wrapping-i64-to-u8 (nat-to-i64 n) in
+      conn-id-from-bytes-loop src 0 n (ConnId 0 0 0 clen 0 0 0)
+    else conn-id-empty ()
+
+  -- | Copy an inline `ConnId` into a freshly allocated `Bytes` (for setup/diagnostics).
+  conn-id-to-bytes-loop :: ConnId -> Bytes -> Nat -> Nat -> Unit
+  conn-id-to-bytes-loop cid dst i n =
+    if i >= n then ()
+    else if i < bytes-len dst && i <= 20 then
+      let _ = bytes-set-u8 dst i (conn-id-get-byte cid (wrapping-i64-to-u32 (nat-to-i64 i))) in
+      conn-id-to-bytes-loop cid dst (i + 1) n
+    else ()
+
+  conn-id-to-bytes :: ConnId -> Bytes
+  conn-id-to-bytes cid =
+    let n = u8-to-nat cid.cid-len in
+    let out = bytes-new n in
+    let _ = conn-id-to-bytes-loop cid out 0 n in
+    out
+
+  -- =========================================================================
+  -- 5. Obfuscated Core-Routable Connection ID Codec (matches Linux BPF 1..2)
+  -- =========================================================================
+
+  -- | SplitMix64 bijective avalanche mixer used to derive the 16-bit routing
+  -- obfuscation mask and fill trailing CID entropy bytes with zero allocs.
+  #[inline(always)]
+  #[no-alloc]
+  cid-mix64 :: U64 -> U64
+  cid-mix64 x =
+    let z0 = wrapping-add-u64 x 0x9e3779b97f4a7c15 in
+    let z1 = wrapping-mul-u64 (bit-xor-u64 z0 (wrapping-shr-u64 z0 30)) 0xbf58476d1ce4e5b9 in
+    let z2 = wrapping-mul-u64 (bit-xor-u64 z1 (wrapping-shr-u64 z1 27)) 0x94d049bb133111eb in
+    bit-xor-u64 z2 (wrapping-shr-u64 z2 31)
+
+  -- | Compute deterministic 16-bit obfuscation mask from `mask-key` and the
+  -- non-routing CID bytes `dcid[2..len)`. When `mask-key == 0`, returns `0`
+  -- so `dcid[0..1]` carries cleartext big-endian `core_id` directly readable by
+  -- `Engine.Reactor.Linux.linux-build-quic-cid-bpf` (`ntohs(payload[1..2])`).
+  #[inline(always)]
+  #[no-alloc]
+  cid-core-mask16 :: U64 -> U64 -> U64 -> U64 -> U8 -> U16
+  cid-core-mask16 mask-key w0 w1 w2 len =
+    if eq-u64 mask-key 0 then 0
+    else
+      let tail0 = wrapping-shr-u64 w0 16 in
+      let h0 = cid-mix64 (bit-xor-u64 mask-key (bit-xor-u64 tail0 (u8-to-u64 len))) in
+      let h1 = cid-mix64 (bit-xor-u64 h0 w1) in
+      let h2 = cid-mix64 (bit-xor-u64 h1 w2) in
+      wrapping-u64-to-u16 (bit-xor-u64 h2 (wrapping-shr-u64 h2 32))
+
+  -- | Encode a core-routable `ConnId` of `cid-len` bytes (`8..=20`, clamped)
+  -- carrying `core` at DCID bytes `0..1` (byte offset `1..2` of a QUIC 1-RTT
+  -- short-header packet, big-endian). When `mask-key == 0`, bytes `0..1` are
+  -- cleartext `be16(core)` for direct `Engine.Reactor.Linux` BPF steering;
+  -- when `mask-key != 0`, `core` is XOR-obfuscated with a keyed hash of the
+  -- remaining CID bytes derived from `nonce`.
+  #[no-alloc]
+  quic-cid-encode-core :: CoreId -> U64 -> U64 -> U8 -> ConnId
+  quic-cid-encode-core core nonce mask-key req-len =
+    let len0 = if lt-u8 req-len 8 then 8 else req-len in
+    let clen = if gt-u8 len0 quic-cid-max-len then quic-cid-max-len else len0 in
+    let n = u8-to-u32 clen in
+    let r0 = cid-mix64 nonce in
+    let r1 = cid-mix64 (bit-xor-u64 r0 0xd1b54a32d192ed03) in
+    let r2 = cid-mix64 (bit-xor-u64 r1 0x94d049bb133111eb) in
+    -- Place random tail bytes in positions 2..len, leaving positions 0..1 clear.
+    let w0-tail = mask-low-bytes-u64 (bit-and-u64 r0 (bit-not-u64 65535)) n in
+    let w1 = if gt-u32 n 8 then mask-low-bytes-u64 r1 (wrapping-sub-u32 n 8) else 0 in
+    let w2 = if gt-u32 n 16 then mask-low-bytes-u64 r2 (wrapping-sub-u32 n 16) else 0 in
+    let mask16 = cid-core-mask16 mask-key w0-tail w1 w2 clen in
+    let obf = bit-xor-u16 (core-id-value core) mask16 in
+    let hi = wrapping-u16-to-u8 (wrapping-shr-u16 obf 8) in
+    let lo = wrapping-u16-to-u8 obf in
+    let w0 = bit-or-u64 w0-tail (bit-or-u64 (u8-to-u64 hi) (wrapping-shl-u64 (u8-to-u64 lo) 8)) in
+    ConnId w0 w1 w2 clen 0 0 0
+
+  -- | Decode the 16-bit `CoreId` from DCID bytes `0..1` (short-header packet
+  -- byte offset `1..2`) using `mask-key` (`0` for cleartext BPF steering).
+  #[no-alloc]
+  quic-cid-decode-core :: ConnId -> U64 -> CoreId
+  quic-cid-decode-core cid mask-key =
+    if lt-u8 cid.cid-len 2 then core-id 0
+    else
+      let hi = u8-to-u16 (wrapping-u64-to-u8 cid.cid-w0) in
+      let lo = u8-to-u16 (wrapping-u64-to-u8 (wrapping-shr-u64 cid.cid-w0 8)) in
+      let obf = bit-or-u16 (wrapping-shl-u16 hi 8) lo in
+      let mask16 = cid-core-mask16 mask-key cid.cid-w0 cid.cid-w1 cid.cid-w2 cid.cid-len in
+      core-id (bit-xor-u16 obf mask16)
+
+  -- =========================================================================
+  -- 6. StreamId (RFC 9000 §2.1)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-max :: U64
+  stream-id-max = 4611686018427387903
+
+  #[repr(C, value)]
+  record StreamId where
+    stream-id-raw :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-of :: U64 -> StreamId
+  stream-id-of raw = StreamId raw
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-value :: StreamId -> U64
+  stream-id-value s = s.stream-id-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-is-valid :: StreamId -> Bool
+  stream-id-is-valid s = le-u64 s.stream-id-raw stream-id-max
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-is-client :: StreamId -> Bool
+  stream-id-is-client s = eq-u64 (bit-and-u64 s.stream-id-raw 1) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-is-server :: StreamId -> Bool
+  stream-id-is-server s = ne-u64 (bit-and-u64 s.stream-id-raw 1) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-is-bidi :: StreamId -> Bool
+  stream-id-is-bidi s = eq-u64 (bit-and-u64 s.stream-id-raw 2) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-is-uni :: StreamId -> Bool
+  stream-id-is-uni s = ne-u64 (bit-and-u64 s.stream-id-raw 2) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-seq :: StreamId -> U64
+  stream-id-seq s = wrapping-shr-u64 s.stream-id-raw 2
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-make :: U64 -> Bool -> Bool -> StreamId
+  stream-id-make seq is-server is-uni =
+    let s-bit = if is-server then (1 :: U64) else 0 in
+    let u-bit = if is-uni then (2 :: U64) else 0 in
+    StreamId (bit-or-u64 (wrapping-shl-u64 seq 2) (bit-or-u64 s-bit u-bit))
+
+  #[inline(always)]
+  #[no-alloc]
+  stream-id-eq :: StreamId -> StreamId -> Bool
+  stream-id-eq a b = eq-u64 a.stream-id-raw b.stream-id-raw
+
+  -- =========================================================================
+  -- 7. QuicTransportError (RFC 9000 §20.1)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-no-error :: U64
+  quic-err-no-error = 0x00
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-internal-error :: U64
+  quic-err-internal-error = 0x01
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-connection-refused :: U64
+  quic-err-connection-refused = 0x02
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-flow-control-error :: U64
+  quic-err-flow-control-error = 0x03
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-stream-limit-error :: U64
+  quic-err-stream-limit-error = 0x04
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-stream-state-error :: U64
+  quic-err-stream-state-error = 0x05
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-final-size-error :: U64
+  quic-err-final-size-error = 0x06
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-frame-encoding-error :: U64
+  quic-err-frame-encoding-error = 0x07
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-transport-parameter-error :: U64
+  quic-err-transport-parameter-error = 0x08
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-connection-id-limit-error :: U64
+  quic-err-connection-id-limit-error = 0x09
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-protocol-violation :: U64
+  quic-err-protocol-violation = 0x0a
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-invalid-token :: U64
+  quic-err-invalid-token = 0x0b
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-application-error :: U64
+  quic-err-application-error = 0x0c
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-crypto-buffer-exceeded :: U64
+  quic-err-crypto-buffer-exceeded = 0x0d
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-key-update-error :: U64
+  quic-err-key-update-error = 0x0e
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-aead-limit-reached :: U64
+  quic-err-aead-limit-reached = 0x0f
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-no-viable-path :: U64
+  quic-err-no-viable-path = 0x10
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-err-crypto-base :: U64
+  quic-err-crypto-base = 0x0100
+
+  #[repr(C, value)]
+  record QuicTransportError where
+    quic-err-raw :: U64
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-transport-error-of :: U64 -> QuicTransportError
+  quic-transport-error-of code = QuicTransportError code
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-transport-error-code :: QuicTransportError -> U64
+  quic-transport-error-code e = e.quic-err-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-transport-error-crypto :: U8 -> QuicTransportError
+  quic-transport-error-crypto tls-alert =
+    QuicTransportError (bit-or-u64 quic-err-crypto-base (u8-to-u64 tls-alert))
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-transport-error-is-crypto :: QuicTransportError -> Bool
+  quic-transport-error-is-crypto e =
+    qt-and (ge-u64 e.quic-err-raw 0x0100) (le-u64 e.quic-err-raw 0x01ff)
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-transport-error-alert :: QuicTransportError -> U8
+  quic-transport-error-alert e = wrapping-u64-to-u8 e.quic-err-raw
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-transport-error-eq :: QuicTransportError -> QuicTransportError -> Bool
+  quic-transport-error-eq a b = eq-u64 a.quic-err-raw b.quic-err-raw
