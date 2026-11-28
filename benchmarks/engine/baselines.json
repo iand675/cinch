@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "description": "Reference industry targets (Waves 2-7) and live measured Wave 1 host baselines for the Cinch Engine.",
+  "host": {
+    "timestamp_utc": "2026-11-28T14:17:57.858112+00:00",
+    "os": "macOS 27.2.1 (arm64)",
+    "arch": "arm64",
+    "cpu": "Apple M5 Max",
+    "cpu_cores": 18,
+    "ram_gb": 128,
+    "compiler": "/Users/ian/Code/personal/dasl-w2-bench-harness/seed/target/release/cinch",
+    "opt_level": 3,
+    "revision": "qolxpzqxlozylplknyxwmspulskokvlx 60c89211f9ff5a61a3e91da0aae2d2b84e446a56"
+  },
+  "reference_targets": {
+    "http1_plaintext": {
+      "references": [
+        {
+          "system": "H2O",
+          "metric": "requests_per_sec_per_core",
+          "value": 350000,
+          "unit": "req/s/core",
+          "notes": "Single-core pipelined/keep-alive HTTP/1.1 plaintext ceiling on Linux io_uring/epoll"
+        },
+        {
+          "system": "http.zig",
+          "metric": "requests_per_sec_per_core",
+          "value": 300000,
+          "unit": "req/s/core",
+          "notes": "Zero-allocation arena-backed Zig HTTP/1.1 parser & server reference"
+        }
+      ],
+      "cinch_target": {
+        "requests_per_sec_per_core": 350000,
+        "p99_latency_us": 500,
+        "hot_loop_allocs": 0,
+        "hot_loop_atomic_rc": 0
+      }
+    },
+    "http2_multiplexed": {
+      "references": [
+        {
+          "system": "H2O",
+          "metric": "requests_per_sec_per_core",
+          "value": 250000,
+          "unit": "req/s/core",
+          "notes": "Multiplexed HTTP/2 (HPACK + 64 concurrent streams/conn) via h2load"
+        }
+      ],
+      "cinch_target": {
+        "requests_per_sec_per_core": 250000,
+        "p99_latency_us": 800,
+        "hot_loop_allocs": 0,
+        "hot_loop_atomic_rc": 0
+      }
+    },
+    "http3_quic": {
+      "references": [
+        {
+          "system": "Cloudflare quiche",
+          "metric": "bulk_throughput_gbps_per_core",
+          "value": 10.0,
+          "unit": "Gb/s/core",
+          "notes": "UDP GSO/GRO + QUIC v1 / HTTP/3 with hardware AES-GCM / ChaCha20-Poly1305"
+        }
+      ],
+      "cinch_target": {
+        "bulk_throughput_gbps_per_core": 10.0,
+        "handshake_p99_ms": 2.0,
+        "hot_loop_allocs": 0,
+        "hot_loop_atomic_rc": 0
+      }
+    },
+    "kv_share_nothing": {
+      "references": [
+        {
+          "system": "DragonflyDB",
+          "metric": "ops_per_sec_per_core",
+          "value": 600000,
+          "unit": "ops/s/core",
+          "notes": "Share-nothing Dash-table RESP3 GET/SET with pipelining (redis-benchmark -P 16)"
+        }
+      ],
+      "cinch_target": {
+        "ops_per_sec_per_core": 600000,
+        "p99_latency_us": 400,
+        "hot_loop_allocs": 0,
+        "hot_loop_atomic_rc": 0
+      }
+    },
+    "wal_and_raft": {
+      "references": [
+        {
+          "system": "TigerBeetle / io_uring O_DIRECT WAL",
+          "metric": "append_throughput_gb_per_sec",
+          "value": 2.0,
+          "unit": "GB/s",
+          "notes": "4 KiB-aligned O_DIRECT CRC32C-framed group-commit WAL append"
+        }
+      ],
+      "cinch_target": {
+        "crc32c_gb_per_sec": 10.0,
+        "wal_append_gb_per_sec": 2.0,
+        "hot_loop_allocs": 0,
+        "hot_loop_atomic_rc": 0
+      }
+    }
+  },
+  "wave1_microbenchmarks": {
+    "slab_alloc_free": {
+      "ops": 500000,
+      "elapsed_ns": 1462208,
+      "ns_per_op": 2.924,
+      "ops_per_sec": 341948614.7,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0
+    },
+    "bump_arena_alloc_reset": {
+      "ops": 500000,
+      "elapsed_ns": 513000,
+      "ns_per_op": 1.026,
+      "ops_per_sec": 974658869.4,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0
+    },
+    "dma_pool_acquire_release": {
+      "ops": 500000,
+      "elapsed_ns": 563416,
+      "ns_per_op": 1.127,
+      "ops_per_sec": 887443736.07,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0
+    },
+    "spsc_ring_batch_push_pop": {
+      "ops": 1000000,
+      "elapsed_ns": 2056500,
+      "ns_per_op": 2.057,
+      "ops_per_sec": 486263068.32,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0
+    },
+    "timer_wheel_sched_cancel": {
+      "ops": 500000,
+      "elapsed_ns": 1705125,
+      "ns_per_op": 3.41,
+      "ops_per_sec": 293233633.9,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0
+    },
+    "simd_scan_crlf": {
+      "ops": 250000,
+      "elapsed_ns": 19765875,
+      "ns_per_op": 79.064,
+      "ops_per_sec": 12648061.37,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0,
+      "bytes": 1024000000,
+      "gb_per_sec": 51.806
+    },
+    "simd_crc32c_4k": {
+      "ops": 250000,
+      "elapsed_ns": 89588542,
+      "ns_per_op": 358.354,
+      "ops_per_sec": 2790535.42,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0,
+      "bytes": 1024000000,
+      "gb_per_sec": 11.43
+    },
+    "simd_ws_mask_4k": {
+      "ops": 250000,
+      "elapsed_ns": 14336000,
+      "ns_per_op": 57.344,
+      "ops_per_sec": 17438616.07,
+      "allocs": 0,
+      "atomic_rc": 0,
+      "max_regression_pct": 20.0,
+      "bytes": 1024000000,
+      "gb_per_sec": 71.429
+    }
+  }
+}

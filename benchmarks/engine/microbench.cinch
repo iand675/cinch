@@ -1,0 +1,390 @@
+-- | Wave 1 Engine Microbenchmark Suite (pure Cinch).
+--
+-- Benchmarks every Wave 1 zero-allocation engine primitive using `Effect.Clock`
+-- monotonic nanoseconds and emits one machine-readable JSON line per benchmark:
+--   {"metric":...,"ops":...,"elapsed_ns":...,"ops_per_sec":...,"allocs":...,"atomic_rc":...}
+-- (plus "bytes" and "gb_per_sec" for SIMD byte-throughput kernels).
+--
+-- Strictly asserts `allocs == 0` and `atomic_rc == 0` inside every single hot
+-- loop via `engine-thread-counters-reset`, `engine-thread-alloc-count`, and
+-- `engine-thread-atomic-rc-count`. Exits 0 iff all benchmarks complete with
+-- valid checksums, 0 heap allocations, and 0 atomic RC operations.
+module Main where
+
+  import Algebra.Arithmetic
+  import Data.Bool
+  import Data.Bytes
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.String
+  import Effect.Clock
+  import Engine.Types
+  import Engine.Mem.Slab
+  import Engine.Mem.Arena
+  import Engine.Mem.DmaPool
+  import Engine.Ring.Spsc
+  import Engine.Timer
+  import Engine.Simd.Scan
+  import Engine.Simd.Crc32c
+  import Engine.Simd.Mask
+  import Prim.Atomic
+
+  -- =========================================================================
+  -- 0. Helpers: U64 -> Nat, JSON line formatting, stdout output
+  -- =========================================================================
+
+  u64-to-nat :: U64 -> Nat
+  u64-to-nat x =
+    let hi = u32-to-nat (wrapping-u64-to-u32 (wrapping-shr-u64 x 32)) in
+    let lo = u32-to-nat (wrapping-u64-to-u32 x) in
+    hi * 4294967296 + lo
+
+  format-two-dec :: Nat -> String
+  format-two-dec x100 =
+    let whole = nat-div x100 100 in
+    let frac = nat-rem x100 100 in
+    let frac-str = if frac < 10 then string-concat "0" (nat-to-string frac) else nat-to-string frac in
+    string-concat (nat-to-string whole) (string-concat "." frac-str)
+
+  emit-line :: forall r. using (io :: Io r) => String ->{IO r} Unit
+  emit-line s =
+    let _ = ioWrite (string-to-bytes (string-concat s "\n")) in
+    ()
+
+  emit-op-metric
+    :: forall r. using (io :: Io r)
+    => String -> Nat -> Nat -> U64 -> U64 -> U64 ->{IO r} Int
+  emit-op-metric name ops elapsed allocs atomic-rcs checksum =
+    let ops-per-sec = if elapsed == 0 then ops * 1000000000 else nat-div (ops * 1000000000) elapsed in
+    let line = string-concat-all (
+      Cons "{\"metric\":\"" (
+      Cons name (
+      Cons "\",\"ops\":" (
+      Cons (nat-to-string ops) (
+      Cons ",\"elapsed_ns\":" (
+      Cons (nat-to-string elapsed) (
+      Cons ",\"ops_per_sec\":" (
+      Cons (nat-to-string ops-per-sec) (
+      Cons ",\"allocs\":" (
+      Cons (nat-to-string (u64-to-nat allocs)) (
+      Cons ",\"atomic_rc\":" (
+      Cons (nat-to-string (u64-to-nat atomic-rcs)) (
+      Cons ",\"checksum\":" (
+      Cons (nat-to-string (u64-to-nat checksum)) (
+      Cons "}" Nil))))))))))))))) in
+    let _ = emit-line line in
+    if ne-u64 allocs 0 then 1
+    else if ne-u64 atomic-rcs 0 then 1
+    else if eq-u64 checksum 0 then 1
+    else 0
+
+  emit-simd-metric
+    :: forall r. using (io :: Io r)
+    => String -> Nat -> Nat -> Nat -> U64 -> U64 -> U64 ->{IO r} Int
+  emit-simd-metric name ops total-bytes elapsed allocs atomic-rcs checksum =
+    let ops-per-sec = if elapsed == 0 then ops * 1000000000 else nat-div (ops * 1000000000) elapsed in
+    -- Decimal GB/s = total-bytes / elapsed_ns; scaled by 100 for 2 decimal places.
+    let gb-x100 = if elapsed == 0 then total-bytes * 100 else nat-div (total-bytes * 100) elapsed in
+    let line = string-concat-all (
+      Cons "{\"metric\":\"" (
+      Cons name (
+      Cons "\",\"ops\":" (
+      Cons (nat-to-string ops) (
+      Cons ",\"bytes\":" (
+      Cons (nat-to-string total-bytes) (
+      Cons ",\"elapsed_ns\":" (
+      Cons (nat-to-string elapsed) (
+      Cons ",\"ops_per_sec\":" (
+      Cons (nat-to-string ops-per-sec) (
+      Cons ",\"gb_per_sec\":" (
+      Cons (format-two-dec gb-x100) (
+      Cons ",\"allocs\":" (
+      Cons (nat-to-string (u64-to-nat allocs)) (
+      Cons ",\"atomic_rc\":" (
+      Cons (nat-to-string (u64-to-nat atomic-rcs)) (
+      Cons ",\"checksum\":" (
+      Cons (nat-to-string (u64-to-nat checksum)) (
+      Cons "}" Nil))))))))))))))))))) in
+    let _ = emit-line line in
+    if ne-u64 allocs 0 then 1
+    else if ne-u64 atomic-rcs 0 then 1
+    else if eq-u64 checksum 0 then 1
+    else 0
+
+  -- =========================================================================
+  -- 1. slab_alloc_free: 500,000 cycles on Engine.Mem.Slab.RawSlab
+  -- =========================================================================
+
+  #[no-alloc]
+  slab-bench-loop :: RawSlab -> U32 -> U64 ->{MVar} U64
+  slab-bench-loop slab rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let h = raw-slab-alloc slab in
+      let _ = raw-slab-write-u64 slab h 0 (u32-to-u64 rem) in
+      let v = raw-slab-read-u64 slab h 0 in
+      let ok = raw-slab-free slab h in
+      let delta = if ok then v else 0 in
+      slab-bench-loop slab (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc delta)
+
+  bench-slab :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  bench-slab _ =
+    let slab = raw-slab-new 16 64 in
+    if not (raw-slab-is-valid slab) then 10
+    else
+      let _ = slab-bench-loop slab 64 0 in
+      let t0 = clock-monotonic-ns () in
+      let _ = engine-thread-counters-reset () in
+      let sum = slab-bench-loop slab 500000 0 in
+      let allocs = engine-thread-alloc-count () in
+      let atomic-rcs = engine-thread-atomic-rc-count () in
+      let t1 = clock-monotonic-ns () in
+      let _ = raw-slab-destroy slab in
+      emit-op-metric "slab_alloc_free" 500000 (saturating-sub t1 t0) allocs atomic-rcs sum
+
+  -- =========================================================================
+  -- 2. bump_arena_alloc_reset: 500,000 cycles on Engine.Mem.Arena.BumpArena
+  -- =========================================================================
+
+  #[no-alloc]
+  arena-bench-loop :: BumpArena -> U32 -> U64 ->{MVar} U64
+  arena-bench-loop arena rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let p1 = bump-arena-alloc arena 64 64 in
+      let p2 = bump-arena-alloc arena 32 16 in
+      let _ = bump-arena-reset arena in
+      arena-bench-loop arena (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc (bit-xor-u64 p1 p2))
+
+  #[inline(never)]
+  arena-bench-cap :: Unit -> U64
+  arena-bench-cap _ = 4096
+
+  bench-arena :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  bench-arena _ =
+    let arena = bump-arena-new (arena-bench-cap ()) in
+    if not (bump-arena-is-valid arena) then 11
+    else
+      let _ = arena-bench-loop arena 64 0 in
+      let t0 = clock-monotonic-ns () in
+      let _ = engine-thread-counters-reset () in
+      let sum = arena-bench-loop arena 500000 0 in
+      let allocs = engine-thread-alloc-count () in
+      let atomic-rcs = engine-thread-atomic-rc-count () in
+      let t1 = clock-monotonic-ns () in
+      let _ = bump-arena-destroy arena in
+      emit-op-metric "bump_arena_alloc_reset" 500000 (saturating-sub t1 t0) allocs atomic-rcs sum
+
+  -- =========================================================================
+  -- 3. dma_pool_acquire_release: 500,000 cycles on Engine.Mem.DmaPool
+  -- =========================================================================
+
+  dma-bench-step :: DmaPool -> U32 -> DmaSlice -> DmaBufHandle %1 ->{MVar} U64
+  dma-bench-step pool n sl h =
+    let val = wrapping-add-u64 (u32-to-u64 n) 1 in
+    let _ = raw-store-u64 sl.slice-addr val in
+    let got = raw-load-u64 sl.slice-addr in
+    let _ = dma-pool-release pool h in
+    got
+
+  dma-bench-loop :: DmaPool -> U32 -> U64 ->{MVar} U64
+  dma-bench-loop pool rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let got = dma-pool-with-buf pool rem 0 dma-bench-step in
+      dma-bench-loop pool (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc got)
+
+  bench-dma-pool :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  bench-dma-pool _ =
+    case dma-pool-new 4096 16 of
+      None -> 12
+      Some pool ->
+        let _ = dma-bench-loop pool 64 0 in
+        let t0 = clock-monotonic-ns () in
+        let _ = engine-thread-counters-reset () in
+        let sum = dma-bench-loop pool 500000 0 in
+        let allocs = engine-thread-alloc-count () in
+        let atomic-rcs = engine-thread-atomic-rc-count () in
+        let t1 = clock-monotonic-ns () in
+        let _ = dma-pool-destroy pool in
+        emit-op-metric "dma_pool_acquire_release" 500000 (saturating-sub t1 t0) allocs atomic-rcs sum
+
+  -- =========================================================================
+  -- 4. spsc_ring_batch_push_pop: 1,000,000 msgs (15,625 batches x 64 msgs)
+  -- =========================================================================
+
+  init-batch-msgs :: I64 -> U64 -> U64 ->{MVar} Unit
+  init-batch-msgs base i count =
+    if ge-u64 i count then ()
+    else
+      let slot = wrapping-add-i64 base (wrapping-shl-i64 (wrapping-u64-to-i64 i) 6) in
+      let msg = MsgEnvelope 1 0 1 i (wrapping-mul-u64 i 7) (bit-xor-u64 i 0x5A5A5A5A) 0 0 0 0 in
+      let _ = store-msg-envelope slot msg in
+      init-batch-msgs base (wrapping-add-u64 i 1) count
+
+  spsc-batch-loop :: SpscRing -> I64 -> I64 -> U32 -> U64 ->{MVar} U64
+  spsc-batch-loop ring src dst batches acc =
+    if eq-u32 batches 0 then acc
+    else
+      let pushed = spsc-try-push-batch ring src 64 in
+      let popped = spsc-try-pop-batch ring dst 64 in
+      spsc-batch-loop ring src dst (wrapping-sub-u32 batches 1) (wrapping-add-u64 acc (wrapping-add-u64 pushed popped))
+
+  bench-spsc-batch :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  bench-spsc-batch _ =
+    case spsc-new 1024 of
+      None -> 13
+      Some ring ->
+        let src-u64 = engine-dma-alloc 4096 4096 in
+        let dst-u64 = engine-dma-alloc 4096 4096 in
+        if eq-u64 src-u64 0 || eq-u64 dst-u64 0 then
+          let _ = spsc-destroy ring in
+          let _ = if ne-u64 src-u64 0 then engine-dma-free src-u64 4096 else IoOk in
+          let _ = if ne-u64 dst-u64 0 then engine-dma-free dst-u64 4096 else IoOk in
+          13
+        else
+          let src = wrapping-u64-to-i64 src-u64 in
+          let dst = wrapping-u64-to-i64 dst-u64 in
+          let _ = init-batch-msgs src 0 64 in
+          let _ = spsc-batch-loop ring src dst 16 0 in
+          let t0 = clock-monotonic-ns () in
+          let _ = engine-thread-counters-reset () in
+          -- 15,625 batches * 64 messages = 1,000,000 messages pushed + popped.
+          let total-half = spsc-batch-loop ring src dst 15625 0 in
+          let allocs = engine-thread-alloc-count () in
+          let atomic-rcs = engine-thread-atomic-rc-count () in
+          let t1 = clock-monotonic-ns () in
+          let _ = engine-dma-free src-u64 4096 in
+          let _ = engine-dma-free dst-u64 4096 in
+          let _ = spsc-destroy ring in
+          let ok-sum = if eq-u64 total-half 2000000 then total-half else 0 in
+          emit-op-metric "spsc_ring_batch_push_pop" 1000000 (saturating-sub t1 t0) allocs atomic-rcs ok-sum
+
+  -- =========================================================================
+  -- 5. timer_wheel_sched_cancel: 500,000 cycles on Engine.Timer
+  -- =========================================================================
+
+  timer-bench-loop :: TimerWheel -> U32 -> U64 ->{MVar} U64
+  timer-bench-loop tw rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let delay = wrapping-add-u64 10 (wrapping-shl-u64 (u32-to-u64 (bit-and-u32 rem 3)) 8) in
+      let tok = io-token-pack 1 1 rem in
+      let h = timer-wheel-schedule tw delay tok in
+      let ok = timer-wheel-cancel tw h in
+      let delta = if ok then 1 else 0 in
+      timer-bench-loop tw (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc delta)
+
+  bench-timer-wheel :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  bench-timer-wheel _ =
+    case timer-wheel-new 1024 0 of
+      None -> 14
+      Some tw ->
+        let _ = timer-bench-loop tw 64 0 in
+        let t0 = clock-monotonic-ns () in
+        let _ = engine-thread-counters-reset () in
+        let sum = timer-bench-loop tw 500000 0 in
+        let allocs = engine-thread-alloc-count () in
+        let atomic-rcs = engine-thread-atomic-rc-count () in
+        let t1 = clock-monotonic-ns () in
+        let _ = timer-wheel-destroy tw in
+        let ok-sum = if eq-u64 sum 500000 then sum else 0 in
+        emit-op-metric "timer_wheel_sched_cancel" 500000 (saturating-sub t1 t0) allocs atomic-rcs ok-sum
+
+  -- =========================================================================
+  -- 6-8. SIMD kernels (250,000 x 4096 B = 1,024,000,000 B each, #[no-alloc])
+  -- =========================================================================
+
+  fill-simd-page :: I64 -> U32 ->{MVar} Unit
+  fill-simd-page base i =
+    if ge-u32 i 4096 then ()
+    else
+      let b = (if eq-u32 i 4094 then 13
+        else if eq-u32 i 4095 then 10
+        else wrapping-add-u8 65 (wrapping-u32-to-u8 (rem-u32 i 26))) in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 i)) b in
+      fill-simd-page base (wrapping-add-u32 i 1)
+
+  #[no-alloc]
+  simd-crlf-loop :: I64 -> U32 -> U64 ->{MVar} U64
+  simd-crlf-loop dma rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let pos = dma-find-crlf dma 0 4096 in
+      simd-crlf-loop dma (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc (wrapping-i64-to-u64 (i32-to-i64 pos)))
+
+  #[no-alloc]
+  simd-crc32c-loop :: I64 -> U32 -> U64 ->{MVar} U64
+  simd-crc32c-loop dma rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let c = crc32c-finish (crc32c-update-dma crc32c-init dma 4096) in
+      simd-crc32c-loop dma (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc (u32-to-u64 c))
+
+  #[no-alloc]
+  simd-ws-mask-loop :: I64 -> U32 -> U64 ->{MVar} U64
+  simd-ws-mask-loop dma rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let _ = ws-mask-dma-in-place dma 4096 0x13579BDF in
+      let sample = raw-load-u64 dma in
+      simd-ws-mask-loop dma (wrapping-sub-u32 rem 1) (wrapping-add-u64 acc sample)
+
+  bench-simd-all :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  bench-simd-all _ =
+    let dma-u64 = engine-dma-alloc 4096 4096 in
+    if eq-u64 dma-u64 0 then 15
+    else
+      let dma = wrapping-u64-to-i64 dma-u64 in
+      let _ = fill-simd-page dma 0 in
+      -- Warm up + run simd_scan_crlf (250,000 * 4096 = 1,024,000,000 bytes)
+      let _ = simd-crlf-loop dma 32 0 in
+      let t0 = clock-monotonic-ns () in
+      let _ = engine-thread-counters-reset () in
+      let crlf-sum = simd-crlf-loop dma 250000 0 in
+      let crlf-allocs = engine-thread-alloc-count () in
+      let crlf-rcs = engine-thread-atomic-rc-count () in
+      let t1 = clock-monotonic-ns () in
+      let r1 = emit-simd-metric "simd_scan_crlf" 250000 1024000000 (saturating-sub t1 t0) crlf-allocs crlf-rcs crlf-sum in
+
+      -- Warm up + run simd_crc32c_4k (250,000 * 4096 = 1,024,000,000 bytes)
+      let _ = simd-crc32c-loop dma 32 0 in
+      let t2 = clock-monotonic-ns () in
+      let _ = engine-thread-counters-reset () in
+      let crc-sum = simd-crc32c-loop dma 250000 0 in
+      let crc-allocs = engine-thread-alloc-count () in
+      let crc-rcs = engine-thread-atomic-rc-count () in
+      let t3 = clock-monotonic-ns () in
+      let r2 = emit-simd-metric "simd_crc32c_4k" 250000 1024000000 (saturating-sub t3 t2) crc-allocs crc-rcs crc-sum in
+
+      -- Warm up + run simd_ws_mask_4k (250,000 * 4096 = 1,024,000,000 bytes)
+      let _ = simd-ws-mask-loop dma 32 0 in
+      let t4 = clock-monotonic-ns () in
+      let _ = engine-thread-counters-reset () in
+      let mask-sum = simd-ws-mask-loop dma 250000 0 in
+      let mask-allocs = engine-thread-alloc-count () in
+      let mask-rcs = engine-thread-atomic-rc-count () in
+      let t5 = clock-monotonic-ns () in
+      let r3 = emit-simd-metric "simd_ws_mask_4k" 250000 1024000000 (saturating-sub t5 t4) mask-allocs mask-rcs mask-sum in
+
+      let _ = engine-dma-free dma-u64 4096 in
+      r1 + r2 + r3
+
+  -- =========================================================================
+  -- Main entry
+  -- =========================================================================
+
+  run-all :: forall r. using (io :: Io r) => Unit ->{IO r, IO, MVar} Int
+  run-all _ =
+    let r1 = bench-slab () in
+    let r2 = bench-arena () in
+    let r3 = bench-dma-pool () in
+    let r4 = bench-spsc-batch () in
+    let r5 = bench-timer-wheel () in
+    let r6 = bench-simd-all () in
+    r1 + r2 + r3 + r4 + r5 + r6
+
+  main :: Unit ->{IO r, IO, MVar} Int
+  main _ = with (io = newIO ()) in run-all ()
