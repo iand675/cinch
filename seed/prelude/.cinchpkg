@@ -1575,6 +1575,10 @@
     {
       "name": "Store.Wal.Spec",
       "path": "Store/Wal/Spec.cinch"
+    },
+    {
+      "name": "Store.Kv.Resp",
+      "path": "Store/Kv/Resp.cinch"
     }
   ],
   "order": [
@@ -1970,6 +1974,7 @@
     "Net.Http.WebSocket.Hub",
     "Store.Wal.Format",
     "Store.Wal.Engine",
-    "Store.Wal.Spec"
+    "Store.Wal.Spec",
+    "Store.Kv.Resp"
   ]
 }
