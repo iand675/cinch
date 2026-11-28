@@ -1,0 +1,1848 @@
+-- | Share-nothing pinned worker runtime loop (`Engine.Runtime`) for the Cinch
+-- high-throughput engine.
+--
+-- Implements a strict per-core share-nothing event loop where each worker owns
+-- its own `CoreId`, `DmaPool`, `BumpArena`, `TimerWheel`, `CoarseClockCache`,
+-- `CoreMeshSlice` (directed lock-free SPSC rings to peer cores), and reactor
+-- handle, executing the canonical 5-phase deterministic tick order:
+--
+--   1. Drain inbound `CoreMesh` SPSC messages (bounded batch, fair round-robin)
+--      and dispatch each envelope to the message handler.
+--   2. Reap reactor completions (up to batch limit, wait timeout clamped to
+--      the next `TimerWheel` deadline) and dispatch to the I/O completion handler.
+--   3. Advance `TimerWheel` and refresh the 1-second `CoarseClockCache`
+--      (`Date:` header), dispatching expired timers in deadline + FIFO order.
+--   4. Flush coalesced outbound SPSC peer batches and reactor submissions.
+--   5. Reset `BumpArena` (`bump-arena-reset`) at tick end.
+--
+-- Supports both:
+--   * Zero-drift capability-polymorphic execution (`runtime-worker-tick`,
+--     `runtime-run-ops`, `runtime-run-using-ops`) parameterized over
+--     `Engine.Types.ReactorOps r` and `Engine.Types.ClockOps r` so the exact
+--     same tick loop runs identically inside `Engine.Sim` (DST) and over live
+--     OS reactors (`darwin-reactor-ops` / `darwin-clock-ops`).
+--   * Live zero-allocation raw reactor loops (`runtime-worker-tick-raw`,
+--     `runtime-run-raw`) and multi-core pinned OS worker orchestration
+--     (`runtime-spawn-workers`, `runtime-request-shutdown`, `runtime-join-all`,
+--     `runtime-destroy`) backed by `engine-spawn-pinned` / `engine-join`,
+--     `CoreMesh`, atomic ready/shutdown flags, and graceful drain shutdown.
+module Engine.Runtime where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Mem.Arena
+  import Engine.Mem.DmaPool
+  import Engine.Ring.Spsc
+  import Engine.Timer
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Configuration, CoreMesh slice, and telemetry POD types
+  export WorkerConfig, worker-config-default, worker-config-single-core
+  export CoreMeshSlice, core-mesh-slice-empty, core-mesh-slice-of
+  export core-mesh-slice-has-peers, core-mesh-slice-core, core-mesh-slice-core-count
+  export core-mesh-slice-send, core-mesh-slice-recv-unboxed
+  export WorkerMetrics, worker-metrics-zero, worker-metrics-read
+
+  -- Per-core share-nothing WorkerState & accessors
+  export WorkerState, worker-state-new, worker-state-new-standalone, worker-state-destroy
+  export worker-core-id, worker-core-count, worker-dma-pool, worker-arena
+  export worker-timers, worker-clock-cache, worker-mesh, worker-mesh-slice
+  export worker-last-mono-ns, worker-last-wall-ns
+  export worker-cqe-scratch-addr, worker-cqe-scratch-cap
+  export worker-user-ctx, worker-set-user-ctx
+  export worker-reactor-handle, worker-set-reactor-handle
+  export worker-reactor-fd, worker-set-reactor-fd
+  export worker-arena-alloc, worker-enqueue-msg, worker-outbound-pending
+  export worker-request-local-shutdown, worker-is-shutdown-requested, worker-is-draining
+
+  -- Tick handler tables & canonical 5-phase tick loop (DST + Live)
+  export TickHandler, tick-handler-noop
+  export RawTickHandler, raw-tick-handler-noop
+  export runtime-compute-wait-ns
+  export runtime-phase-drain-mesh, runtime-phase-reap-cqes
+  export runtime-phase-timers-clock, runtime-phase-flush, runtime-phase-reset-arena
+  export runtime-worker-tick, runtime-run-ops, runtime-run-using-ops
+  export runtime-worker-tick-raw, runtime-run-raw
+
+  -- Multi-core pinned OS worker orchestration & boot helpers
+  export RuntimeHandle
+  export runtime-spawn-workers, runtime-request-shutdown, runtime-is-shutdown
+  export runtime-ready-count, runtime-done-count, runtime-wait-all-ready
+  export runtime-handle-mesh, runtime-handle-worker-count
+  export runtime-join-all, runtime-destroy
+  export runtime-worker-result, runtime-worker-slot-metrics
+  export runtime-worker-slot-allocs, runtime-worker-slot-atomic-rcs, runtime-worker-slot-user-out
+  export runtime-boot-init, runtime-boot-mark-ready, runtime-boot-publish-and-done
+  export runtime-boot-core-id, runtime-boot-user-ctx
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & DMA layout constants
+  -- =========================================================================
+
+  -- | Zero-alloc `Bool` true avoiding `Con(True)` inside `#[no-alloc]` bodies.
+  #[inline(always)]
+  #[no-alloc]
+  rt-true :: Bool
+  rt-true = eq-u32 0 0
+
+  -- | Zero-alloc `Bool` false avoiding `Con(False)` inside `#[no-alloc]` bodies.
+  #[inline(always)]
+  #[no-alloc]
+  rt-false :: Bool
+  rt-false = eq-u32 0 1
+
+  -- | Zero-alloc logical conjunction avoiding `&&` desugaring inside `#[no-alloc]`.
+  #[inline(always)]
+  #[no-alloc]
+  rt-both :: Bool -> Bool -> Bool
+  rt-both a b = if a then b else rt-false
+
+  -- | Zero-alloc logical disjunction avoiding `||` desugaring inside `#[no-alloc]`.
+  #[inline(always)]
+  #[no-alloc]
+  rt-either :: Bool -> Bool -> Bool
+  rt-either a b = if a then rt-true else b
+
+  -- | Zero-alloc logical negation avoiding `not` inside `#[no-alloc]` bodies.
+  #[inline(always)]
+  #[no-alloc]
+  rt-not :: Bool -> Bool
+  rt-not b = if b then rt-false else rt-true
+
+  -- | Sentinel indicating graceful drain countdown has not yet started.
+  #[inline(always)]
+  #[no-alloc]
+  drain-not-started :: U32
+  drain-not-started = 4294967295
+
+  -- Per-worker 16 KiB DMA slab offsets:
+  --   0..256     : metrics, timestamps, cursors, flags, reactor/user handles
+  --   512..4608  : 512 x 8B expired IoToken staging ring
+  --   4608..12800: 128 x 64B coalesced outbound MsgEnvelope staging buffer
+  --   12800..16384: 224 x 16B CQE scratch buffer
+
+  -- | Total size in bytes of the per-worker DMA metrics and staging slab.
+  #[no-alloc]
+  ws-slab-size :: U64
+  ws-slab-size = 16384
+
+  -- | Offset of cumulative tick counter in `ws-slab`.
+  #[no-alloc]
+  off-ticks :: I64
+  off-ticks = 0
+
+  -- | Offset of cumulative drained inbound SPSC message counter in `ws-slab`.
+  #[no-alloc]
+  off-msgs-drained :: I64
+  off-msgs-drained = 8
+
+  -- | Offset of cumulative flushed outbound SPSC message counter in `ws-slab`.
+  #[no-alloc]
+  off-msgs-sent :: I64
+  off-msgs-sent = 16
+
+  -- | Offset of cumulative deferred outbound SPSC message counter in `ws-slab`.
+  #[no-alloc]
+  off-msgs-deferred :: I64
+  off-msgs-deferred = 24
+
+  -- | Offset of cumulative reaped reactor CQE counter in `ws-slab`.
+  #[no-alloc]
+  off-cqes-reaped :: I64
+  off-cqes-reaped = 32
+
+  -- | Offset of cumulative fired timer counter in `ws-slab`.
+  #[no-alloc]
+  off-timers-fired :: I64
+  off-timers-fired = 40
+
+  -- | Offset of cumulative `CoarseClockCache` date refresh counter in `ws-slab`.
+  #[no-alloc]
+  off-date-refreshes :: I64
+  off-date-refreshes = 48
+
+  -- | Offset of cumulative flushed reactor SQE counter in `ws-slab`.
+  #[no-alloc]
+  off-sqes-flushed :: I64
+  off-sqes-flushed = 56
+
+  -- | Offset of cumulative Phase-4 flush counter in `ws-slab`.
+  #[no-alloc]
+  off-flushes :: I64
+  off-flushes = 64
+
+  -- | Offset of cumulative `BumpArena` reset counter in `ws-slab`.
+  #[no-alloc]
+  off-arena-resets :: I64
+  off-arena-resets = 72
+
+  -- | Offset of peak per-tick `BumpArena` byte usage in `ws-slab`.
+  #[no-alloc]
+  off-arena-peak :: I64
+  off-arena-peak = 80
+
+  -- | Offset of last observed monotonic clock timestamp in nanoseconds.
+  #[no-alloc]
+  off-last-mono :: I64
+  off-last-mono = 88
+
+  -- | Offset of last observed wall clock timestamp in nanoseconds.
+  #[no-alloc]
+  off-last-wall :: I64
+  off-last-wall = 96
+
+  -- | Offset of round-robin inbound peer cursor in `ws-slab`.
+  #[no-alloc]
+  off-in-cursor :: I64
+  off-in-cursor = 104
+
+  -- | Offset of queued outbound SPSC message count in `ws-slab`.
+  #[no-alloc]
+  off-out-len :: I64
+  off-out-len = 108
+
+  -- | Offset of staged expired timer token count in `ws-slab`.
+  #[no-alloc]
+  off-exp-len :: I64
+  off-exp-len = 112
+
+  -- | Offset of worker-local shutdown request flag (`0` or `1`) in `ws-slab`.
+  #[no-alloc]
+  off-local-shut :: I64
+  off-local-shut = 116
+
+  -- | Offset of graceful drain countdown ticks in `ws-slab`.
+  #[no-alloc]
+  off-drain-rem :: I64
+  off-drain-rem = 120
+
+  -- | Offset of worker destroyed flag (`0` or `1`) in `ws-slab`.
+  #[no-alloc]
+  off-ws-dead :: I64
+  off-ws-dead = 124
+
+  -- | Offset of shared `RuntimeControl` atomic shutdown address in `ws-slab`.
+  #[no-alloc]
+  off-ctrl-shut-addr :: I64
+  off-ctrl-shut-addr = 128
+
+  -- | Offset of optional opaque raw reactor handle in `ws-slab`.
+  #[no-alloc]
+  off-rx-handle :: I64
+  off-rx-handle = 136
+
+  -- | Offset of optional reactor descriptor (`I32`) in `ws-slab`.
+  #[no-alloc]
+  off-rx-fd :: I64
+  off-rx-fd = 144
+
+  -- | Offset of opaque user context word in `ws-slab`.
+  #[no-alloc]
+  off-user-ctx :: I64
+  off-user-ctx = 152
+
+  -- | Offset of expired `IoToken` staging array (512 x 8B) in `ws-slab`.
+  #[no-alloc]
+  off-exp-buf :: I64
+  off-exp-buf = 512
+
+  -- | Capacity of the expired `IoToken` staging buffer per tick.
+  #[no-alloc]
+  exp-buf-cap :: U32
+  exp-buf-cap = 512
+
+  -- | Offset of coalesced outbound `MsgEnvelope` staging array (128 x 64B) in `ws-slab`.
+  #[no-alloc]
+  off-out-buf :: I64
+  off-out-buf = 4608
+
+  -- | Maximum capacity of the coalesced outbound `MsgEnvelope` staging buffer.
+  #[no-alloc]
+  out-buf-cap :: U32
+  out-buf-cap = 128
+
+  -- | Offset of pre-allocated `Completion` scratch array (224 x 16B) in `ws-slab`.
+  #[no-alloc]
+  off-cqe-scratch :: I64
+  off-cqe-scratch = 12800
+
+  -- | Capacity in `Completion` entries of the pre-allocated CQE scratch array.
+  #[no-alloc]
+  cqe-scratch-cap :: U32
+  cqe-scratch-cap = 224
+
+  -- Shared RuntimeControl DMA slab layout (cache-line isolated at 128B):
+  --   +0   : atomic shutdown-flag :: I64
+  --   +128 : atomic ready-count   :: I64
+  --   +136 : atomic done-count    :: I64
+  --   +256 : immutable config header
+  --   +512 : WorkerBootSlot[i] (128B per worker)
+
+  -- | Offset of atomic shutdown flag in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-shutdown :: I64
+  ctrl-off-shutdown = 0
+
+  -- | Offset of atomic ready-worker counter in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-ready :: I64
+  ctrl-off-ready = 128
+
+  -- | Offset of atomic finished-worker counter in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-done :: I64
+  ctrl-off-done = 136
+
+  -- | Offset of worker count in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-wcount :: I64
+  ctrl-off-wcount = 256
+
+  -- | Offset of runtime destroyed flag in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-dead :: I64
+  ctrl-off-dead = 260
+
+  -- | Offset of `CoreMesh` base address in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-mesh-base :: I64
+  ctrl-off-mesh-base = 264
+
+  -- | Offset of `CoreMesh` per-ring capacity in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-mesh-cap :: I64
+  ctrl-off-mesh-cap = 272
+
+  -- | Offset of `CoreMesh` per-ring byte stride in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-mesh-stride :: I64
+  ctrl-off-mesh-stride = 280
+
+  -- | Offset of `CoreMesh` total slab bytes in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-mesh-bytes :: I64
+  ctrl-off-mesh-bytes = 288
+
+  -- | Offset of per-worker DMA buffer size in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-dma-sz :: I64
+  ctrl-off-dma-sz = 296
+
+  -- | Offset of per-worker DMA buffer count in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-dma-cnt :: I64
+  ctrl-off-dma-cnt = 300
+
+  -- | Offset of inbound message batch limit in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-msg-batch :: I64
+  ctrl-off-msg-batch = 304
+
+  -- | Offset of CQE reap batch limit in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-cqe-batch :: I64
+  ctrl-off-cqe-batch = 308
+
+  -- | Offset of outbound message batch limit in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-out-batch :: I64
+  ctrl-off-out-batch = 312
+
+  -- | Offset of timer wheel capacity in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-timer-cap :: I64
+  ctrl-off-timer-cap = 316
+
+  -- | Offset of graceful drain tick count in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-drain-ticks :: I64
+  ctrl-off-drain-ticks = 320
+
+  -- | Offset of per-worker `BumpArena` byte capacity in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-arena-bytes :: I64
+  ctrl-off-arena-bytes = 328
+
+  -- | Offset of default reactor wait timeout in nanoseconds in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-wait-ns :: I64
+  ctrl-off-wait-ns = 336
+
+  -- | Offset of user context word in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-user-ctx :: I64
+  ctrl-off-user-ctx = 344
+
+  -- | Offset of the first 128-byte `WorkerBootSlot` in `RuntimeControl`.
+  #[no-alloc]
+  ctrl-off-slots :: I64
+  ctrl-off-slots = 512
+
+  -- | Byte stride of each cache-line-isolated `WorkerBootSlot`.
+  #[no-alloc]
+  boot-slot-stride :: I64
+  boot-slot-stride = 128
+
+  -- Per-worker boot slot field offsets (within each 128B slot):
+
+  -- | Offset of `RuntimeControl` back-pointer in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-ctrl :: I64
+  slot-off-ctrl = 0
+
+  -- | Offset of logical `CoreId` in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-core :: I64
+  slot-off-core = 8
+
+  -- | Offset of OS worker thread handle in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-handle :: I64
+  slot-off-handle = 16
+
+  -- | Offset of joined worker return code in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-result :: I64
+  slot-off-result = 24
+
+  -- | Offset of per-worker atomic ready flag in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-ready :: I64
+  slot-off-ready = 32
+
+  -- | Offset of published tick count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-ticks :: I64
+  slot-off-ticks = 40
+
+  -- | Offset of published inbound message count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-msgs-drained :: I64
+  slot-off-msgs-drained = 48
+
+  -- | Offset of published outbound message count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-msgs-sent :: I64
+  slot-off-msgs-sent = 56
+
+  -- | Offset of published CQE reap count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-cqes :: I64
+  slot-off-cqes = 64
+
+  -- | Offset of published timer firing count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-timers :: I64
+  slot-off-timers = 72
+
+  -- | Offset of published arena reset count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-arena-resets :: I64
+  slot-off-arena-resets = 80
+
+  -- | Offset of published thread heap allocation count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-allocs :: I64
+  slot-off-allocs = 88
+
+  -- | Offset of published thread atomic RC count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-atomic-rcs :: I64
+  slot-off-atomic-rcs = 96
+
+  -- | Offset of worker-published user output word in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-user-out :: I64
+  slot-off-user-out = 104
+
+  -- | Offset of published Phase-4 flush count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-flushes :: I64
+  slot-off-flushes = 112
+
+  -- | Offset of published `CoarseClockCache` refresh count in a `WorkerBootSlot`.
+  #[no-alloc]
+  slot-off-date-refreshes :: I64
+  slot-off-date-refreshes = 120
+
+  -- =========================================================================
+  -- 1. Configuration, CoreMeshSlice, and WorkerMetrics POD types
+  -- =========================================================================
+
+  -- | Configuration parameters for constructing a share-nothing worker or
+  -- spawning a multi-core pinned worker runtime.
+  record WorkerConfig where
+    -- | Number of pinned share-nothing workers (`>= 1`).
+    cfg-worker-count :: U32
+    -- | Per-buffer size in bytes for each worker's `DmaPool` (power of two `>= 4096`).
+    cfg-dma-buf-size :: U32
+    -- | Number of buffers in each worker's `DmaPool` (`>= 1`).
+    cfg-dma-buf-count :: U32
+    -- | Maximum inbound `CoreMesh` SPSC messages drained per tick (Phase 1).
+    cfg-msg-batch :: U32
+    -- | Maximum reactor completions reaped per tick (Phase 2).
+    cfg-cqe-batch :: U32
+    -- | Maximum coalesced outbound SPSC messages buffered per tick (Phase 4, clamped to 128).
+    cfg-out-batch :: U32
+    -- | Fixed timer capacity of each worker's `TimerWheel` (`>= 1`).
+    cfg-timer-cap :: U32
+    -- | Number of graceful drain ticks executed after shutdown is requested.
+    cfg-drain-ticks :: U32
+    -- | Byte capacity of each worker's per-tick `BumpArena` (`>= 64`).
+    cfg-arena-bytes :: U64
+    -- | Slot capacity of each directed `CoreMesh` SPSC ring (power of two `>= 2`).
+    cfg-ring-cap :: U64
+    -- | Default maximum reactor poll/wait timeout per tick in nanoseconds.
+    cfg-wait-timeout-ns :: U64
+    -- | Opaque user context word forwarded to every spawned worker.
+    cfg-user-ctx :: I64
+
+  -- | Construct a sensible multi-core `WorkerConfig` for `worker-count` cores.
+  worker-config-default :: U32 -> WorkerConfig
+  worker-config-default worker-count =
+    let wc = if eq-u32 worker-count 0 then 1 else worker-count in
+    WorkerConfig wc 4096 16 64 64 64 1024 4 65536 256 1000000 0
+
+  -- | Construct a compact single-core `WorkerConfig` suitable for deterministic
+  -- simulation (`Engine.Sim`) and single-worker benchmarks.
+  worker-config-single-core :: Unit -> WorkerConfig
+  worker-config-single-core _ =
+    WorkerConfig 1 4096 8 64 64 64 512 2 16384 64 1000000 0
+
+  -- | Unboxed per-worker slice of a `CoreMesh`, scoping inbound (`peer -> self`)
+  -- and outbound (`self -> peer`) lock-free SPSC rings to one pinned core.
+  #[repr(C, value)]
+  record CoreMeshSlice where
+    -- | Base address of the `CoreMesh` DMA slab (`0` in single-core mode).
+    slice-mesh-base :: I64
+    -- | Total core count in the `CoreMesh` (`1` in single-core mode).
+    slice-mesh-cores :: U32
+    -- | Raw `U16` core identifier of the owning worker.
+    slice-core-raw :: U16
+    -- | Alignment padding word.
+    slice-pad :: U16
+    -- | Per-ring capacity in `MsgEnvelope` slots.
+    slice-mesh-cap :: I64
+    -- | Byte stride between adjacent SPSC rings inside the DMA slab.
+    slice-ring-stride :: I64
+    -- | Total byte length of the `CoreMesh` DMA slab.
+    slice-mesh-bytes :: U64
+
+  -- | Construct an empty single-core `CoreMeshSlice` (no peer SPSC rings).
+  #[inline(always)]
+  #[no-alloc]
+  core-mesh-slice-empty :: CoreId -> CoreMeshSlice
+  core-mesh-slice-empty cid =
+    CoreMeshSlice 0 1 cid.core-id-raw 0 0 0 0
+
+  -- | Project a worker's `CoreMeshSlice` for `cid` from a `CoreMesh`.
+  #[inline(always)]
+  #[no-alloc]
+  core-mesh-slice-of :: CoreMesh -> CoreId -> CoreMeshSlice
+  core-mesh-slice-of mesh cid =
+    CoreMeshSlice mesh.mesh-base mesh.mesh-cores cid.core-id-raw 0 mesh.mesh-cap mesh.mesh-ring-stride mesh.mesh-bytes
+
+  -- | Return `True` when `sl` is attached to a multi-core `CoreMesh` (`cores >= 2`).
+  #[inline(always)]
+  #[no-alloc]
+  core-mesh-slice-has-peers :: CoreMeshSlice -> Bool
+  core-mesh-slice-has-peers sl =
+    rt-both (ne-i64 sl.slice-mesh-base 0) (gt-u32 sl.slice-mesh-cores 1)
+
+  -- | Return the owning worker's `CoreId`.
+  #[inline(always)]
+  #[no-alloc]
+  core-mesh-slice-core :: CoreMeshSlice -> CoreId
+  core-mesh-slice-core sl = core-id sl.slice-core-raw
+
+  -- | Return the total core count of the underlying `CoreMesh`.
+  #[inline(always)]
+  #[no-alloc]
+  core-mesh-slice-core-count :: CoreMeshSlice -> U32
+  core-mesh-slice-core-count sl = sl.slice-mesh-cores
+
+  -- | Compute the ring index `(src, dst)` inside a `C x (C - 1)` `CoreMesh`.
+  #[inline(always)]
+  #[no-alloc]
+  slice-ring-index :: U32 -> U32 -> U32 -> I64
+  slice-ring-index cores src dst =
+    let s = wrapping-u32-to-i64 src in
+    let d = wrapping-u32-to-i64 dst in
+    let c1 = wrapping-sub-i64 (wrapping-u32-to-i64 cores) 1 in
+    let col = if lt-i64 d s then d else wrapping-sub-i64 d 1 in
+    wrapping-add-i64 (wrapping-mul-i64 s c1) col
+
+  -- | Compute the byte address of slot `idx` inside an SPSC ring slab.
+  #[inline(always)]
+  #[no-alloc]
+  slice-slot-addr :: I64 -> I64 -> I64 -> I64
+  slice-slot-addr base mask idx =
+    let slot = bit-and-i64 idx mask in
+    wrapping-add-i64 base (wrapping-add-i64 spsc-off-slots (wrapping-shl-i64 slot 6))
+
+  -- | Store one 64-byte `MsgEnvelope` into an SPSC slot with zero allocation.
+  #[inline(always)]
+  #[no-alloc]
+  rt-store-msg :: I64 -> MsgEnvelope ->{MVar} Unit
+  rt-store-msg addr msg =
+    let hdr = bit-or-u64 (u32-to-u64 msg.msg-kind) (bit-or-u64 (wrapping-shl-u64 (u16-to-u64 msg.msg-src) 32) (wrapping-shl-u64 (u16-to-u64 msg.msg-dst) 48)) in
+    let _a = raw-store-u64 addr hdr in
+    let _b = raw-store-u64 (wrapping-add-i64 addr 8) msg.msg-seq in
+    let _c = raw-store-u64 (wrapping-add-i64 addr 16) msg.msg-w0 in
+    let _d = raw-store-u64 (wrapping-add-i64 addr 24) msg.msg-w1 in
+    let _e = raw-store-u64 (wrapping-add-i64 addr 32) msg.msg-w2 in
+    let _f = raw-store-u64 (wrapping-add-i64 addr 40) msg.msg-w3 in
+    let _g = raw-store-u64 (wrapping-add-i64 addr 48) msg.msg-w4 in
+    raw-store-u64 (wrapping-add-i64 addr 56) msg.msg-w5
+
+  -- | Load one 64-byte `MsgEnvelope` from a raw staging address with zero allocation.
+  #[inline(always)]
+  #[no-alloc]
+  rt-load-msg :: I64 ->{MVar} MsgEnvelope
+  rt-load-msg addr =
+    let hdr = raw-load-u64 addr in
+    let kind = wrapping-u64-to-u32 hdr in
+    let src = wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32) in
+    let dst = wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48) in
+    let seq = raw-load-u64 (wrapping-add-i64 addr 8) in
+    let w0 = raw-load-u64 (wrapping-add-i64 addr 16) in
+    let w1 = raw-load-u64 (wrapping-add-i64 addr 24) in
+    let w2 = raw-load-u64 (wrapping-add-i64 addr 32) in
+    let w3 = raw-load-u64 (wrapping-add-i64 addr 40) in
+    let w4 = raw-load-u64 (wrapping-add-i64 addr 48) in
+    let w5 = raw-load-u64 (wrapping-add-i64 addr 56) in
+    MsgEnvelope kind src dst seq w0 w1 w2 w3 w4 w5
+
+  -- | Copy one 64-byte `MsgEnvelope` between two raw addresses with zero allocation.
+  #[inline(always)]
+  #[no-alloc]
+  rt-copy-msg :: I64 -> I64 ->{MVar} Unit
+  rt-copy-msg dst-addr src-addr =
+    let _a = raw-store-u64 dst-addr (raw-load-u64 src-addr) in
+    let _b = raw-store-u64 (wrapping-add-i64 dst-addr 8) (raw-load-u64 (wrapping-add-i64 src-addr 8)) in
+    let _c = raw-store-u64 (wrapping-add-i64 dst-addr 16) (raw-load-u64 (wrapping-add-i64 src-addr 16)) in
+    let _d = raw-store-u64 (wrapping-add-i64 dst-addr 24) (raw-load-u64 (wrapping-add-i64 src-addr 24)) in
+    let _e = raw-store-u64 (wrapping-add-i64 dst-addr 32) (raw-load-u64 (wrapping-add-i64 src-addr 32)) in
+    let _f = raw-store-u64 (wrapping-add-i64 dst-addr 40) (raw-load-u64 (wrapping-add-i64 src-addr 40)) in
+    let _g = raw-store-u64 (wrapping-add-i64 dst-addr 48) (raw-load-u64 (wrapping-add-i64 src-addr 48)) in
+    raw-store-u64 (wrapping-add-i64 dst-addr 56) (raw-load-u64 (wrapping-add-i64 src-addr 56))
+
+  -- | Non-blocking lock-free send from this worker's `CoreMeshSlice` to peer
+  -- `dst`. Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  core-mesh-slice-send :: CoreMeshSlice -> CoreId -> MsgEnvelope ->{MVar} Bool
+  core-mesh-slice-send sl dst msg =
+    if rt-not (core-mesh-slice-has-peers sl) then rt-false
+    else
+      let s = u16-to-u32 sl.slice-core-raw in
+      let d = u16-to-u32 dst.core-id-raw in
+      let valid = rt-both (rt-both (lt-u32 s sl.slice-mesh-cores) (lt-u32 d sl.slice-mesh-cores)) (ne-u32 s d) in
+      if rt-not valid then rt-false
+      else
+        let idx = slice-ring-index sl.slice-mesh-cores s d in
+        let base = wrapping-add-i64 sl.slice-mesh-base (wrapping-mul-i64 idx sl.slice-ring-stride) in
+        let mask = wrapping-sub-i64 sl.slice-mesh-cap 1 in
+        let head-addr = wrapping-add-i64 base spsc-off-head in
+        let ctail-addr = wrapping-add-i64 base spsc-off-cached-tail in
+        let head = atomic-load-relaxed-i64 head-addr in
+        let ctail = raw-load-i64 ctail-addr in
+        let used0 = wrapping-sub-i64 head ctail in
+        let used = if lt-i64 used0 sl.slice-mesh-cap then used0 else (let fresh = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-tail) in let _c = raw-store-i64 ctail-addr fresh in wrapping-sub-i64 head fresh) in
+        if ge-i64 used sl.slice-mesh-cap then rt-false
+        else
+          let slot = slice-slot-addr base mask head in
+          let _w = rt-store-msg slot msg in
+          let _p = atomic-store-release-i64 head-addr (wrapping-add-i64 head 1) in
+          rt-true
+
+  -- | Non-blocking lock-free receive on this worker's `CoreMeshSlice` from
+  -- peer `src`, returning an unboxed `PopEnvelope`. Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  core-mesh-slice-recv-unboxed :: CoreMeshSlice -> CoreId ->{MVar} PopEnvelope
+  core-mesh-slice-recv-unboxed sl src =
+    if rt-not (core-mesh-slice-has-peers sl) then pop-envelope-empty ()
+    else
+      let s = u16-to-u32 src.core-id-raw in
+      let d = u16-to-u32 sl.slice-core-raw in
+      let valid = rt-both (rt-both (lt-u32 s sl.slice-mesh-cores) (lt-u32 d sl.slice-mesh-cores)) (ne-u32 s d) in
+      if rt-not valid then pop-envelope-empty ()
+      else
+        let idx = slice-ring-index sl.slice-mesh-cores s d in
+        let base = wrapping-add-i64 sl.slice-mesh-base (wrapping-mul-i64 idx sl.slice-ring-stride) in
+        let mask = wrapping-sub-i64 sl.slice-mesh-cap 1 in
+        let tail-addr = wrapping-add-i64 base spsc-off-tail in
+        let chead-addr = wrapping-add-i64 base spsc-off-cached-head in
+        let tail = atomic-load-relaxed-i64 tail-addr in
+        let chead = raw-load-i64 chead-addr in
+        let avail = if lt-i64 tail chead then chead else (let fresh = atomic-load-acquire-i64 (wrapping-add-i64 base spsc-off-head) in let _c = raw-store-i64 chead-addr fresh in fresh) in
+        if ge-i64 tail avail then pop-envelope-empty ()
+        else
+          let slot = slice-slot-addr base mask tail in
+          let hdr = raw-load-u64 slot in
+          let seq = raw-load-u64 (wrapping-add-i64 slot 8) in
+          let w0 = raw-load-u64 (wrapping-add-i64 slot 16) in
+          let w1 = raw-load-u64 (wrapping-add-i64 slot 24) in
+          let w2 = raw-load-u64 (wrapping-add-i64 slot 32) in
+          let w3 = raw-load-u64 (wrapping-add-i64 slot 40) in
+          let w4 = raw-load-u64 (wrapping-add-i64 slot 48) in
+          let w5 = raw-load-u64 (wrapping-add-i64 slot 56) in
+          let _p = atomic-store-release-i64 tail-addr (wrapping-add-i64 tail 1) in
+          PopEnvelope 1 (wrapping-u64-to-u32 hdr) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 32)) (wrapping-u64-to-u16 (wrapping-shr-u64 hdr 48)) seq w0 w1 w2 w3 w4 w5
+
+  -- | Unboxed POD telemetry snapshot for one share-nothing worker.
+  #[repr(C, value)]
+  record WorkerMetrics where
+    -- | Total canonical ticks completed by this worker.
+    metric-ticks :: U64
+    -- | Total inbound `CoreMesh` SPSC messages drained and dispatched.
+    metric-msgs-drained :: U64
+    -- | Total coalesced outbound `CoreMesh` SPSC messages flushed.
+    metric-msgs-sent :: U64
+    -- | Total outbound SPSC messages deferred due to full peer rings.
+    metric-msgs-deferred :: U64
+    -- | Total reactor completions reaped and dispatched.
+    metric-cqes-reaped :: U64
+    -- | Total expired `TimerWheel` timers fired and dispatched.
+    metric-timers-fired :: U64
+    -- | Total 1-second `CoarseClockCache` RFC 9110 date reformats.
+    metric-date-refreshes :: U64
+    -- | Total reactor SQEs flushed across ticks.
+    metric-sqes-flushed :: U64
+    -- | Total Phase-4 flush cycles executed.
+    metric-flushes :: U64
+    -- | Total Phase-5 `BumpArena` resets executed.
+    metric-arena-resets :: U64
+    -- | Peak per-tick `BumpArena` byte usage observed before reset.
+    metric-arena-peak-bytes :: U64
+
+  -- | Construct a zero-initialized `WorkerMetrics` value.
+  #[inline(always)]
+  #[no-alloc]
+  worker-metrics-zero :: Unit -> WorkerMetrics
+  worker-metrics-zero _ = WorkerMetrics 0 0 0 0 0 0 0 0 0 0 0
+
+  -- =========================================================================
+  -- 2. Share-nothing WorkerState lifecycle & zero-alloc accessors
+  -- =========================================================================
+
+  -- | Share-nothing per-core worker state owning per-core `CoreId`, `DmaPool`,
+  -- `BumpArena`, `TimerWheel`, `CoarseClockCache`, `CoreMeshSlice`, and a
+  -- private 16 KiB DMA metrics and staging slab.
+  record WorkerState where
+    -- | Logical CPU / shard identifier owned by this worker.
+    ws-core :: CoreId
+    -- | Total worker count in the runtime topology (`>= 1`).
+    ws-core-count :: U32
+    -- | Per-worker 4 KiB-aligned DMA buffer pool.
+    ws-dma-pool :: DmaPool
+    -- | Per-worker tick-scoped DMA bump arena (reset at end of every tick).
+    ws-arena :: BumpArena
+    -- | Per-worker 4-level hierarchical hashed timer wheel.
+    ws-timers :: TimerWheel
+    -- | Per-worker 1-second cached RFC 9110 HTTP `Date:` formatter.
+    ws-clock-cache :: CoarseClockCache
+    -- | Underlying `CoreMesh` handle (base `0` in standalone single-core mode).
+    ws-mesh :: CoreMesh
+    -- | Per-worker `CoreMeshSlice` scoping inbound/outbound SPSC rings.
+    ws-mesh-slice :: CoreMeshSlice
+    -- | Base address of the worker's 16 KiB DMA metrics and staging slab.
+    ws-slab :: I64
+    -- | Total byte length of `ws-slab`.
+    ws-slab-bytes :: U64
+    -- | Bounded inbound SPSC message drain limit per tick (Phase 1).
+    ws-msg-batch :: U32
+    -- | Bounded reactor completion reap limit per tick (Phase 2).
+    ws-cqe-batch :: U32
+    -- | Bounded coalesced outbound SPSC staging capacity (Phase 4).
+    ws-out-batch :: U32
+    -- | Default maximum reactor wait timeout per tick in nanoseconds.
+    ws-wait-timeout-ns :: U64
+    -- | Number of graceful drain ticks executed after shutdown is requested.
+    ws-drain-ticks :: U32
+    -- | Pre-bound zero-alloc collector closure writing expired `IoToken`s into `ws-slab`.
+    ws-timer-collector :: IoToken ->{MVar} Unit
+
+  -- | Stage one expired `IoToken` into `ws-slab`'s expired-token buffer during
+  -- `timer-wheel-advance`. Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  stage-expired-token :: I64 -> IoToken ->{MVar} Unit
+  stage-expired-token slab tok =
+    let cnt = raw-load-u32 (wrapping-add-i64 slab off-exp-len) in
+    if ge-u32 cnt exp-buf-cap then ()
+    else
+      let slot = wrapping-add-i64 (wrapping-add-i64 slab off-exp-buf) (wrapping-shl-i64 (u32-to-i64 cnt) 3) in
+      let _w = raw-store-u64 slot tok.io-token-raw in
+      raw-store-u32 (wrapping-add-i64 slab off-exp-len) (wrapping-add-u32 cnt 1)
+
+  -- | Scalar-parameter helper for `worker-state-new` keeping `Option WorkerState`
+  -- cleanly separated from `#[repr(value)]` `CoreId` arguments.
+  #[inline(never)]
+  worker-state-new-raw :: U16 -> WorkerConfig -> CoreMesh -> I64 -> U64 ->{IO, MVar} Option WorkerState
+  worker-state-new-raw cid-raw cfg mesh ctrl-shut-addr start-now-ms =
+    let cid = core-id cid-raw in
+    let wc = if eq-u32 cfg.cfg-worker-count 0 then 1 else cfg.cfg-worker-count in
+    let msg-b = if eq-u32 cfg.cfg-msg-batch 0 then 64 else cfg.cfg-msg-batch in
+    let cqe-b = if eq-u32 cfg.cfg-cqe-batch 0 then 64 else cfg.cfg-cqe-batch in
+    let out-b0 = if eq-u32 cfg.cfg-out-batch 0 then 64 else cfg.cfg-out-batch in
+    let out-b = if gt-u32 out-b0 out-buf-cap then out-buf-cap else out-b0 in
+    let arena-sz = if lt-u64 cfg.cfg-arena-bytes 64 then 4096 else cfg.cfg-arena-bytes in
+    let timer-c = if eq-u32 cfg.cfg-timer-cap 0 then 256 else cfg.cfg-timer-cap in
+    case dma-pool-new cfg.cfg-dma-buf-size cfg.cfg-dma-buf-count of
+      None -> None
+      Some pool ->
+        let arena = bump-arena-new arena-sz in
+        if not (bump-arena-is-valid arena) then
+          let _p = dma-pool-destroy pool in
+          None
+        else
+          case timer-wheel-new timer-c start-now-ms of
+            None ->
+              let _a = bump-arena-destroy arena in
+              let _p = dma-pool-destroy pool in
+              None
+            Some tw ->
+              case coarse-clock-new () of
+                None ->
+                  let _t = timer-wheel-destroy tw in
+                  let _a = bump-arena-destroy arena in
+                  let _p = dma-pool-destroy pool in
+                  None
+                Some ccc ->
+                  let slab-u = engine-dma-alloc ws-slab-size 4096 in
+                  if eq-u64 slab-u 0 then
+                    let _c = coarse-clock-destroy ccc in
+                    let _t = timer-wheel-destroy tw in
+                    let _a = bump-arena-destroy arena in
+                    let _p = dma-pool-destroy pool in
+                    None
+                  else
+                    let slab = wrapping-u64-to-i64 slab-u in
+                    let _d0 = raw-store-u32 (wrapping-add-i64 slab off-drain-rem) drain-not-started in
+                    let _d1 = raw-store-u32 (wrapping-add-i64 slab off-ws-dead) 0 in
+                    let _d2 = raw-store-i64 (wrapping-add-i64 slab off-ctrl-shut-addr) ctrl-shut-addr in
+                    let _d3 = raw-store-i64 (wrapping-add-i64 slab off-rx-handle) 0 in
+                    let _d4 = raw-store-u32 (wrapping-add-i64 slab off-rx-fd) (wrapping-i32-to-u32 (-1)) in
+                    let _d5 = raw-store-i64 (wrapping-add-i64 slab off-user-ctx) cfg.cfg-user-ctx in
+                    let _d6 = raw-store-u64 (wrapping-add-i64 slab off-last-mono) (wrapping-mul-u64 start-now-ms 1000000) in
+                    let mslice = if ne-i64 mesh.mesh-base 0 && gt-u32 mesh.mesh-cores 1 then core-mesh-slice-of mesh cid else core-mesh-slice-empty cid in
+                    let collector = stage-expired-token slab in
+                    Some (WorkerState cid wc pool arena tw ccc mesh mslice slab ws-slab-size msg-b cqe-b out-b cfg.cfg-wait-timeout-ns cfg.cfg-drain-ticks collector)
+
+  -- | Initialize all per-core share-nothing resources for a worker pinned to
+  -- `cid`, attached to `mesh` (with optional shared `ctrl-shut-addr`), starting
+  -- the timer wheel at `start-now-ms`. Returns `None` on invalid configuration
+  -- or DMA allocation failure (cleaning up any partial allocations).
+  worker-state-new :: CoreId -> WorkerConfig -> CoreMesh -> I64 -> U64 ->{IO, MVar} Option WorkerState
+  worker-state-new cid cfg mesh ctrl-shut-addr start-now-ms =
+    worker-state-new-raw cid.core-id-raw cfg mesh ctrl-shut-addr start-now-ms
+
+  -- | Initialize a standalone single-core `WorkerState` without a `CoreMesh`
+  -- (ideal for `Engine.Sim` deterministic tests and single-worker pipelines).
+  worker-state-new-standalone :: CoreId -> WorkerConfig -> U64 ->{IO, MVar} Option WorkerState
+  worker-state-new-standalone cid cfg start-now-ms =
+    let empty-mesh = CoreMesh 0 1 0 0 0 0 in
+    worker-state-new cid cfg empty-mesh 0 start-now-ms
+
+  -- | Destroy all per-core DMA resources owned by `ws` (`DmaPool`, `BumpArena`,
+  -- `TimerWheel`, `CoarseClockCache`, and `ws-slab`). Does not destroy the
+  -- shared `CoreMesh` (owned by `RuntimeHandle` or the caller). Idempotent.
+  worker-state-destroy :: WorkerState ->{IO, MVar} Unit
+  worker-state-destroy ws =
+    let slab = ws.ws-slab in
+    if eq-i64 slab 0 then ()
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 slab off-ws-dead) in
+      if ne-u32 dead 0 then ()
+      else
+        let _m = raw-store-u32 (wrapping-add-i64 slab off-ws-dead) 1 in
+        let _c = coarse-clock-destroy ws.ws-clock-cache in
+        let _t = timer-wheel-destroy ws.ws-timers in
+        let _a = bump-arena-destroy ws.ws-arena in
+        let _p = dma-pool-destroy ws.ws-dma-pool in
+        let _s = engine-dma-free (wrapping-i64-to-u64 slab) ws.ws-slab-bytes in
+        ()
+
+  -- | Return the logical `CoreId` of `ws`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-core-id :: WorkerState -> CoreId
+  worker-core-id ws = ws.ws-core
+
+  -- | Return the total worker count in the runtime topology.
+  #[inline(always)]
+  #[no-alloc]
+  worker-core-count :: WorkerState -> U32
+  worker-core-count ws = ws.ws-core-count
+
+  -- | Return the worker's per-core `DmaPool`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-dma-pool :: WorkerState -> DmaPool
+  worker-dma-pool ws = ws.ws-dma-pool
+
+  -- | Return the worker's per-tick `BumpArena`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-arena :: WorkerState -> BumpArena
+  worker-arena ws = ws.ws-arena
+
+  -- | Return the worker's per-core `TimerWheel`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-timers :: WorkerState -> TimerWheel
+  worker-timers ws = ws.ws-timers
+
+  -- | Return the worker's per-core 1-second `CoarseClockCache`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-clock-cache :: WorkerState -> CoarseClockCache
+  worker-clock-cache ws = ws.ws-clock-cache
+
+  -- | Return the `CoreMesh` attached to `ws`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-mesh :: WorkerState -> CoreMesh
+  worker-mesh ws = ws.ws-mesh
+
+  -- | Return the worker's unboxed `CoreMeshSlice`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-mesh-slice :: WorkerState -> CoreMeshSlice
+  worker-mesh-slice ws = ws.ws-mesh-slice
+
+  -- | Read an unboxed `WorkerMetrics` snapshot from `ws`. Zero heap allocation.
+  #[no-alloc]
+  worker-metrics-read :: WorkerState ->{MVar} WorkerMetrics
+  worker-metrics-read ws =
+    let s = ws.ws-slab in
+    if eq-i64 s 0 then worker-metrics-zero ()
+    else
+      WorkerMetrics
+        (raw-load-u64 (wrapping-add-i64 s off-ticks))
+        (raw-load-u64 (wrapping-add-i64 s off-msgs-drained))
+        (raw-load-u64 (wrapping-add-i64 s off-msgs-sent))
+        (raw-load-u64 (wrapping-add-i64 s off-msgs-deferred))
+        (raw-load-u64 (wrapping-add-i64 s off-cqes-reaped))
+        (raw-load-u64 (wrapping-add-i64 s off-timers-fired))
+        (raw-load-u64 (wrapping-add-i64 s off-date-refreshes))
+        (raw-load-u64 (wrapping-add-i64 s off-sqes-flushed))
+        (raw-load-u64 (wrapping-add-i64 s off-flushes))
+        (raw-load-u64 (wrapping-add-i64 s off-arena-resets))
+        (raw-load-u64 (wrapping-add-i64 s off-arena-peak))
+
+  -- | Return the last monotonic clock timestamp observed during Phase 3.
+  #[inline(always)]
+  #[no-alloc]
+  worker-last-mono-ns :: WorkerState ->{MVar} TimeNs
+  worker-last-mono-ns ws = time-ns-of (raw-load-u64 (wrapping-add-i64 ws.ws-slab off-last-mono))
+
+  -- | Return the last wall clock timestamp observed during Phase 3.
+  #[inline(always)]
+  #[no-alloc]
+  worker-last-wall-ns :: WorkerState ->{MVar} TimeNs
+  worker-last-wall-ns ws = time-ns-of (raw-load-u64 (wrapping-add-i64 ws.ws-slab off-last-wall))
+
+  -- | Return the base address of the worker's pre-allocated DMA CQE scratch array.
+  #[inline(always)]
+  #[no-alloc]
+  worker-cqe-scratch-addr :: WorkerState -> I64
+  worker-cqe-scratch-addr ws = wrapping-add-i64 ws.ws-slab off-cqe-scratch
+
+  -- | Return the capacity in `Completion` entries of the worker's CQE scratch array.
+  #[inline(always)]
+  #[no-alloc]
+  worker-cqe-scratch-cap :: WorkerState -> U32
+  worker-cqe-scratch-cap _ = cqe-scratch-cap
+
+  -- | Read the worker's opaque user context word.
+  #[inline(always)]
+  #[no-alloc]
+  worker-user-ctx :: WorkerState ->{MVar} I64
+  worker-user-ctx ws = raw-load-i64 (wrapping-add-i64 ws.ws-slab off-user-ctx)
+
+  -- | Store the worker's opaque user context word.
+  #[inline(always)]
+  #[no-alloc]
+  worker-set-user-ctx :: WorkerState -> I64 ->{MVar} Unit
+  worker-set-user-ctx ws ctx = raw-store-i64 (wrapping-add-i64 ws.ws-slab off-user-ctx) ctx
+
+  -- | Read the opaque raw reactor handle word attached to `ws`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-reactor-handle :: WorkerState ->{MVar} I64
+  worker-reactor-handle ws = raw-load-i64 (wrapping-add-i64 ws.ws-slab off-rx-handle)
+
+  -- | Store an opaque raw reactor handle word on `ws`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-set-reactor-handle :: WorkerState -> I64 ->{MVar} Unit
+  worker-set-reactor-handle ws h = raw-store-i64 (wrapping-add-i64 ws.ws-slab off-rx-handle) h
+
+  -- | Read the reactor descriptor (`Fd`) attached to `ws`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-reactor-fd :: WorkerState ->{MVar} Fd
+  worker-reactor-fd ws = fd-of (wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 ws.ws-slab off-rx-fd)))
+
+  -- | Store a reactor descriptor (`Fd`) on `ws`.
+  #[inline(always)]
+  #[no-alloc]
+  worker-set-reactor-fd :: WorkerState -> Fd ->{MVar} Unit
+  worker-set-reactor-fd ws f = raw-store-u32 (wrapping-add-i64 ws.ws-slab off-rx-fd) (wrapping-i32-to-u32 f.fd-raw)
+
+  -- | Bump-allocate `size-bytes` aligned to `align-bytes` from the worker's
+  -- tick-scoped `BumpArena` (reclaimed automatically at Phase 5). Zero heap alloc.
+  #[inline(always)]
+  #[no-alloc]
+  worker-arena-alloc :: WorkerState -> U64 -> U64 ->{MVar} U64
+  worker-arena-alloc ws size-bytes align-bytes =
+    bump-arena-alloc ws.ws-arena size-bytes align-bytes
+
+  -- | Stage a 64-byte `MsgEnvelope` for coalesced outbound `CoreMesh` flush in
+  -- Phase 4 of the current tick (overwriting `msg-src` and `msg-dst` with this
+  -- worker's `CoreId` and `dst`). Returns `False` if the staging buffer is full.
+  -- Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  worker-enqueue-msg :: WorkerState -> CoreId -> MsgEnvelope ->{MVar} Bool
+  worker-enqueue-msg ws dst msg =
+    let s = ws.ws-slab in
+    let len = raw-load-u32 (wrapping-add-i64 s off-out-len) in
+    if ge-u32 len ws.ws-out-batch then rt-false
+    else
+      let slot = wrapping-add-i64 (wrapping-add-i64 s off-out-buf) (wrapping-shl-i64 (u32-to-i64 len) 6) in
+      let stamped = MsgEnvelope msg.msg-kind ws.ws-core.core-id-raw dst.core-id-raw msg.msg-seq msg.msg-w0 msg.msg-w1 msg.msg-w2 msg.msg-w3 msg.msg-w4 msg.msg-w5 in
+      let _w = rt-store-msg slot stamped in
+      let _u = raw-store-u32 (wrapping-add-i64 s off-out-len) (wrapping-add-u32 len 1) in
+      rt-true
+
+  -- | Return the number of outbound `MsgEnvelope`s currently staged for Phase-4 flush.
+  #[inline(always)]
+  #[no-alloc]
+  worker-outbound-pending :: WorkerState ->{MVar} U32
+  worker-outbound-pending ws = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-out-len)
+
+  -- | Request graceful shutdown on this worker locally (used in single-worker
+  -- and DST loops as well as self-stopping workers). Zero heap allocation.
+  #[inline(always)]
+  #[no-alloc]
+  worker-request-local-shutdown :: WorkerState ->{MVar} Unit
+  worker-request-local-shutdown ws =
+    raw-store-u32 (wrapping-add-i64 ws.ws-slab off-local-shut) 1
+
+  -- | Return `True` if shutdown has been requested either locally or via the
+  -- shared `RuntimeControl` atomic shutdown flag. Zero heap allocation.
+  #[inline(always)]
+  #[no-alloc]
+  worker-is-shutdown-requested :: WorkerState ->{MVar} Bool
+  worker-is-shutdown-requested ws =
+    let local = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-local-shut) in
+    if ne-u32 local 0 then rt-true
+    else
+      let caddr = raw-load-i64 (wrapping-add-i64 ws.ws-slab off-ctrl-shut-addr) in
+      if eq-i64 caddr 0 then rt-false
+      else ne-i64 (atomic-load-acquire-i64 caddr) 0
+
+  -- | Return `True` once this worker has entered its graceful drain countdown.
+  #[inline(always)]
+  #[no-alloc]
+  worker-is-draining :: WorkerState ->{MVar} Bool
+  worker-is-draining ws =
+    ne-u32 (raw-load-u32 (wrapping-add-i64 ws.ws-slab off-drain-rem)) drain-not-started
+
+  -- | Increment a `U64` metric word at `off` in `ws-slab` by `delta`.
+  #[inline(always)]
+  #[no-alloc]
+  add-metric-u64 :: I64 -> I64 -> U64 ->{MVar} Unit
+  add-metric-u64 slab off delta =
+    if eq-u64 delta 0 then ()
+    else
+      let a = wrapping-add-i64 slab off in
+      raw-store-u64 a (wrapping-add-u64 (raw-load-u64 a) delta)
+
+  -- =========================================================================
+  -- 3. TickHandler tables & canonical 5-phase deterministic tick loop
+  -- =========================================================================
+
+  -- | Region-polymorphic callback table invoked during the 5 phases of
+  -- `runtime-worker-tick` and `runtime-run-ops`. Every callback is single-argument
+  -- so steady-state indirect dispatch is saturated with zero partial-application
+  -- closure allocations.
+  record TickHandler (r :: Region) where
+    -- | Phase 1 callback: handle one inbound `CoreMesh` SPSC `MsgEnvelope`.
+    tick-on-msg :: MsgEnvelope ->{IO r, Mut r, MVar} Unit
+    -- | Phase 2 callback: handle one reaped reactor `Completion`.
+    tick-on-cqe :: Completion ->{IO r, Mut r, MVar} Unit
+    -- | Phase 3 callback: handle one expired `TimerWheel` `IoToken`.
+    tick-on-timer :: IoToken ->{IO r, Mut r, MVar} Unit
+    -- | Phase 4 pre-flush hook invoked before flushing outbound SPSC batches and SQEs.
+    tick-on-flush :: Unit ->{IO r, Mut r, MVar} Unit
+
+  -- | No-op message callback for `tick-handler-noop`.
+  noop-msg-r :: forall (r :: Region). MsgEnvelope ->{IO r, Mut r, MVar} Unit
+  noop-msg-r _ = ()
+
+  -- | No-op completion callback for `tick-handler-noop`.
+  noop-cqe-r :: forall (r :: Region). Completion ->{IO r, Mut r, MVar} Unit
+  noop-cqe-r _ = ()
+
+  -- | No-op timer callback for `tick-handler-noop`.
+  noop-timer-r :: forall (r :: Region). IoToken ->{IO r, Mut r, MVar} Unit
+  noop-timer-r _ = ()
+
+  -- | No-op flush callback for `tick-handler-noop`.
+  noop-flush-r :: forall (r :: Region). Unit ->{IO r, Mut r, MVar} Unit
+  noop-flush-r _ = ()
+
+  -- | Construct a no-op `TickHandler r` suitable as a template or idle benchmark.
+  tick-handler-noop :: forall (r :: Region). Unit -> TickHandler r
+  tick-handler-noop _ = TickHandler noop-msg-r noop-cqe-r noop-timer-r noop-flush-r
+
+  -- | Direct `{IO, MVar}` callback table for live zero-allocation pinned OS
+  -- workers (e.g. driving `DarwinReactor` directly without `Deque` boxing).
+  -- Every callback is single-argument for zero-allocation saturated dispatch.
+  record RawTickHandler where
+    -- | Phase 1 callback: handle one inbound `CoreMesh` SPSC `MsgEnvelope`.
+    raw-on-msg :: MsgEnvelope ->{IO, MVar} Unit
+    -- | Phase 2 callback: poll the live reactor with timeout and dispatch ready CQEs, returning reaped count.
+    raw-on-poll :: TimeNs ->{IO, MVar} U32
+    -- | Phase 3 callback: handle one expired `TimerWheel` `IoToken`.
+    raw-on-timer :: IoToken ->{IO, MVar} Unit
+    -- | Phase 4 callback: flush pending reactor submissions, returning flushed SQE count.
+    raw-on-flush :: Unit ->{IO, MVar} U32
+    -- | Monotonic clock read for Phase 3 timer advancement.
+    raw-mono-ns :: Unit ->{IO, MVar} TimeNs
+    -- | Wall clock read for Phase 3 `CoarseClockCache` refresh.
+    raw-wall-ns :: Unit ->{IO, MVar} TimeNs
+
+  -- | No-op raw message callback.
+  noop-raw-msg :: MsgEnvelope ->{IO, MVar} Unit
+  noop-raw-msg _ = ()
+
+  -- | No-op raw poll callback.
+  noop-raw-poll :: TimeNs ->{IO, MVar} U32
+  noop-raw-poll _ = 0
+
+  -- | No-op raw timer callback.
+  noop-raw-timer :: IoToken ->{IO, MVar} Unit
+  noop-raw-timer _ = ()
+
+  -- | No-op raw flush callback.
+  noop-raw-flush :: Unit ->{IO, MVar} U32
+  noop-raw-flush _ = 0
+
+  -- | No-op raw clock callback returning zero.
+  noop-raw-clock :: Unit ->{IO, MVar} TimeNs
+  noop-raw-clock _ = time-ns-zero ()
+
+  -- | Construct a no-op `RawTickHandler`.
+  raw-tick-handler-noop :: Unit -> RawTickHandler
+  raw-tick-handler-noop _ = RawTickHandler noop-raw-msg noop-raw-poll noop-raw-timer noop-raw-flush noop-raw-clock noop-raw-clock
+
+  -- | Clamp `requested-wait` against the worker's next `TimerWheel` deadline,
+  -- returning `0` immediately whenever work is already pending or shutdown has
+  -- been requested. Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  runtime-compute-wait-ns :: WorkerState -> TimeNs -> U32 -> U32 -> U64 ->{MVar} TimeNs
+  runtime-compute-wait-ns ws requested-wait drained-msgs queued-cqes next-timer-ms =
+    if gt-u32 drained-msgs 0 then time-ns-zero ()
+    else if gt-u32 queued-cqes 0 then time-ns-zero ()
+    else if gt-u32 (worker-outbound-pending ws) 0 then time-ns-zero ()
+    else if worker-is-shutdown-requested ws then time-ns-zero ()
+    else
+      let req-ns = time-ns-value requested-wait in
+      if eq-u64 req-ns 0 then time-ns-zero ()
+      else if eq-u64 next-timer-ms max-bound-u64 then requested-wait
+      else
+        let now-ns = raw-load-u64 (wrapping-add-i64 ws.ws-slab off-last-mono) in
+        let now-ms = div-u64 now-ns 1000000 in
+        if le-u64 next-timer-ms now-ms then time-ns-zero ()
+        else
+          let delta-ms = wrapping-sub-u64 next-timer-ms now-ms in
+          let max-ms = 18446744073709 in
+          if gt-u64 delta-ms max-ms then requested-wait
+          else
+            let delta-ns = wrapping-mul-u64 delta-ms 1000000 in
+            time-ns-of (if lt-u64 delta-ns req-ns then delta-ns else req-ns)
+
+  -- | Drain up to `budget` inbound SPSC messages from one peer `src-id`.
+  drain-peer-loop :: forall (r :: Region). WorkerState -> TickHandler r -> CoreId -> U32 -> U32 ->{IO r, Mut r, MVar} U32
+  drain-peer-loop ws hdl src-id done budget =
+    if ge-u32 done budget then done
+    else
+      let pop = core-mesh-slice-recv-unboxed ws.ws-mesh-slice src-id in
+      if pop-envelope-is-some pop then
+        let msg = pop-envelope-msg pop in
+        let _h = hdl.tick-on-msg msg in
+        drain-peer-loop ws hdl src-id (wrapping-add-u32 done 1) budget
+      else done
+
+  -- | Round-robin sweep across all peer cores in `CoreMeshSlice`.
+  drain-all-peers-loop :: forall (r :: Region). WorkerState -> TickHandler r -> U32 -> U32 -> U32 -> U32 ->{IO r, Mut r, MVar} U32
+  drain-all-peers-loop ws hdl start-idx offset drained budget =
+    let cores = ws.ws-mesh-slice.slice-mesh-cores in
+    if ge-u32 offset cores || ge-u32 drained budget then drained
+    else
+      let raw-idx = wrapping-add-u32 start-idx offset in
+      let peer-idx = if ge-u32 raw-idx cores then wrapping-sub-u32 raw-idx cores else raw-idx in
+      let self-idx = u16-to-u32 ws.ws-core.core-id-raw in
+      if eq-u32 peer-idx self-idx then
+        drain-all-peers-loop ws hdl start-idx (wrapping-add-u32 offset 1) drained budget
+      else
+        let rem = wrapping-sub-u32 budget drained in
+        let got = drain-peer-loop ws hdl (core-id (wrapping-u32-to-u16 peer-idx)) 0 rem in
+        drain-all-peers-loop ws hdl start-idx (wrapping-add-u32 offset 1) (wrapping-add-u32 drained got) budget
+
+  -- | Phase 1: drain up to `ws-msg-batch` inbound `CoreMesh` SPSC messages
+  -- using fair round-robin peer scanning and dispatch to `hdl.tick-on-msg`.
+  runtime-phase-drain-mesh :: forall (r :: Region). WorkerState -> TickHandler r ->{IO r, Mut r, MVar} U32
+  runtime-phase-drain-mesh ws hdl =
+    if rt-not (core-mesh-slice-has-peers ws.ws-mesh-slice) then 0
+    else
+      let cores = ws.ws-mesh-slice.slice-mesh-cores in
+      let cur = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-in-cursor) in
+      let start = if ge-u32 cur cores then 0 else cur in
+      let next-cur0 = wrapping-add-u32 start 1 in
+      let next-cur = if ge-u32 next-cur0 cores then 0 else next-cur0 in
+      let _uc = raw-store-u32 (wrapping-add-i64 ws.ws-slab off-in-cursor) next-cur in
+      let drained = drain-all-peers-loop ws hdl start 0 0 ws.ws-msg-batch in
+      let _m = add-metric-u64 ws.ws-slab off-msgs-drained (u32-to-u64 drained) in
+      drained
+
+  -- | Pop up to `budget` completions from `ReactorOps r` and dispatch each to `tick-on-cqe`.
+  reap-cqes-loop :: forall (r :: Region). using (rx :: ReactorOps r) => WorkerState -> TickHandler r -> U32 -> U32 ->{IO r, Mut r, MVar} U32
+  reap-cqes-loop ws hdl reaped budget =
+    if ge-u32 reaped budget then reaped
+    else
+      let avail = engine-reactor-cqe-count () in
+      if eq-u32 avail 0 then reaped
+      else
+        let cqe = engine-reactor-pop-cqe () in
+        let _h = hdl.tick-on-cqe cqe in
+        reap-cqes-loop ws hdl (wrapping-add-u32 reaped 1) budget
+
+  -- | Phase 2: wait on `ReactorOps r` (timeout clamped to the next timer wheel
+  -- deadline) and reap up to `ws-cqe-batch` completions to `hdl.tick-on-cqe`.
+  runtime-phase-reap-cqes :: forall (r :: Region). using (rx :: ReactorOps r) => WorkerState -> TickHandler r -> TimeNs -> U32 ->{IO r, Mut r, MVar} U32
+  runtime-phase-reap-cqes ws hdl requested-wait drained-msgs =
+    let queued = engine-reactor-cqe-count () in
+    let next-dl = timer-wheel-next-deadline-raw ws.ws-timers in
+    let eff-wait = runtime-compute-wait-ns ws requested-wait drained-msgs queued next-dl in
+    let _w = engine-reactor-wait eff-wait in
+    let reaped = reap-cqes-loop ws hdl 0 ws.ws-cqe-batch in
+    let _m = add-metric-u64 ws.ws-slab off-cqes-reaped (u32-to-u64 reaped) in
+    reaped
+
+  -- | Dispatch all staged expired `IoToken`s from `ws-slab` to `hdl.tick-on-timer`.
+  dispatch-expired-loop :: forall (r :: Region). WorkerState -> TickHandler r -> U32 -> U32 ->{IO r, Mut r, MVar} Unit
+  dispatch-expired-loop ws hdl i count =
+    if ge-u32 i count then ()
+    else
+      let slot = wrapping-add-i64 (wrapping-add-i64 ws.ws-slab off-exp-buf) (wrapping-shl-i64 (u32-to-i64 i) 3) in
+      let tok = IoToken (raw-load-u64 slot) in
+      let _h = hdl.tick-on-timer tok in
+      dispatch-expired-loop ws hdl (wrapping-add-u32 i 1) count
+
+  -- | Phase 3: read `ClockOps r`, refresh `CoarseClockCache` on 1-second
+  -- boundary, advance `TimerWheel`, and dispatch expired timers to `hdl.tick-on-timer`.
+  runtime-phase-timers-clock :: forall (r :: Region). using (clk :: ClockOps r) => WorkerState -> TickHandler r ->{IO r, Mut r, MVar} U32
+  runtime-phase-timers-clock ws hdl =
+    let mono = engine-clock-mono-ns () in
+    let wall = engine-clock-wall-ns () in
+    let mono-u = time-ns-value mono in
+    let wall-u = time-ns-value wall in
+    let _s0 = raw-store-u64 (wrapping-add-i64 ws.ws-slab off-last-mono) mono-u in
+    let _s1 = raw-store-u64 (wrapping-add-i64 ws.ws-slab off-last-wall) wall-u in
+    let wall-sec = div-u64 wall-u 1000000000 in
+    let refreshed = coarse-date-refresh ws.ws-clock-cache wall-sec in
+    let _mr = if refreshed then add-metric-u64 ws.ws-slab off-date-refreshes 1 else () in
+    let now-ms = div-u64 mono-u 1000000 in
+    let _clr = raw-store-u32 (wrapping-add-i64 ws.ws-slab off-exp-len) 0 in
+    let fired = timer-wheel-advance ws.ws-timers now-ms ws.ws-timer-collector in
+    let staged = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-exp-len) in
+    let _disp = dispatch-expired-loop ws hdl 0 staged in
+    let _mt = add-metric-u64 ws.ws-slab off-timers-fired (u32-to-u64 fired) in
+    fired
+
+  -- | Flush coalesced outbound `MsgEnvelope`s staged in `ws-slab` into peer
+  -- SPSC rings, compacting any full-ring deferred envelopes to the front.
+  -- Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  flush-outbound-mesh-loop :: WorkerState -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  flush-outbound-mesh-loop ws i total sent kept =
+    if ge-u32 i total then
+      let _u = raw-store-u32 (wrapping-add-i64 ws.ws-slab off-out-len) kept in
+      let _ms = add-metric-u64 ws.ws-slab off-msgs-sent (u32-to-u64 sent) in
+      let _md = add-metric-u64 ws.ws-slab off-msgs-deferred (u32-to-u64 kept) in
+      sent
+    else
+      let base = wrapping-add-i64 ws.ws-slab off-out-buf in
+      let src-slot = wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 i) 6) in
+      let msg = rt-load-msg src-slot in
+      let dst = core-id msg.msg-dst in
+      if core-mesh-slice-send ws.ws-mesh-slice dst msg then
+        flush-outbound-mesh-loop ws (wrapping-add-u32 i 1) total (wrapping-add-u32 sent 1) kept
+      else
+        let _mv = (if ne-u32 kept i then rt-copy-msg (wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 kept) 6)) src-slot else ()) in
+        flush-outbound-mesh-loop ws (wrapping-add-u32 i 1) total sent (wrapping-add-u32 kept 1)
+
+  -- | Flush all staged outbound SPSC envelopes from `ws-slab` to peers.
+  -- Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  flush-outbound-mesh :: WorkerState ->{MVar} U32
+  flush-outbound-mesh ws =
+    let total = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-out-len) in
+    if eq-u32 total 0 then 0
+    else flush-outbound-mesh-loop ws 0 total 0 0
+
+  -- | Phase 4: invoke `hdl.tick-on-flush`, flush coalesced outbound SPSC
+  -- peer batches, and flush pending reactor submissions via `ReactorOps r`.
+  runtime-phase-flush :: forall (r :: Region). using (rx :: ReactorOps r) => WorkerState -> TickHandler r ->{IO r, Mut r, MVar} U32
+  runtime-phase-flush ws hdl =
+    let _pre = hdl.tick-on-flush () in
+    let sent = flush-outbound-mesh ws in
+    let flushed-sqes = engine-reactor-flush () in
+    let _ms = if gt-i32 flushed-sqes 0 then add-metric-u64 ws.ws-slab off-sqes-flushed (u32-to-u64 (wrapping-i32-to-u32 flushed-sqes)) else () in
+    let _mf = add-metric-u64 ws.ws-slab off-flushes 1 in
+    sent
+
+  -- | Phase 5: update peak arena usage telemetry, reset the per-tick
+  -- `BumpArena` (`bump-arena-reset`), and advance reset and tick counters.
+  -- Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  runtime-phase-reset-arena :: WorkerState ->{MVar} Unit
+  runtime-phase-reset-arena ws =
+    let used = bump-arena-used ws.ws-arena in
+    let peak-addr = wrapping-add-i64 ws.ws-slab off-arena-peak in
+    let cur-peak = raw-load-u64 peak-addr in
+    let _up = if gt-u64 used cur-peak then raw-store-u64 peak-addr used else () in
+    let _rst = bump-arena-reset ws.ws-arena in
+    let _mr = add-metric-u64 ws.ws-slab off-arena-resets 1 in
+    add-metric-u64 ws.ws-slab off-ticks 1
+
+  -- | Execute one canonical 5-phase deterministic worker tick over
+  -- `ReactorOps r` and `ClockOps r`:
+  --   1. Drain inbound `CoreMesh` SPSC messages (bounded batch)
+  --   2. Reap reactor completions (up to batch limit)
+  --   3. Advance `TimerWheel` and refresh 1-second `CoarseClockCache`
+  --   4. Flush coalesced outbound SPSC peer batches and reactor submissions
+  --   5. Reset `BumpArena` (`bump-arena-reset`)
+  -- Returns total work units handled in this tick (`drained + reaped + fired + sent`).
+  runtime-worker-tick :: forall (r :: Region). using (rx :: ReactorOps r, clk :: ClockOps r) => WorkerState -> TickHandler r -> TimeNs ->{IO r, Mut r, MVar} U32
+  runtime-worker-tick ws hdl wait-timeout =
+    let p1 = runtime-phase-drain-mesh ws hdl in
+    let p2 = runtime-phase-reap-cqes ws hdl wait-timeout p1 in
+    let p3 = runtime-phase-timers-clock ws hdl in
+    let p4 = runtime-phase-flush ws hdl in
+    let _p5 = runtime-phase-reset-arena ws in
+    wrapping-add-u32 (wrapping-add-u32 p1 p2) (wrapping-add-u32 p3 p4)
+
+  -- | Check graceful drain state and advance drain countdown once shutdown is
+  -- requested. Returns `True` if the worker should execute another tick.
+  #[no-alloc]
+  should-continue-tick :: WorkerState -> U64 -> U64 ->{MVar} Bool
+  should-continue-tick ws done-ticks max-ticks =
+    if rt-both (gt-u64 max-ticks 0) (ge-u64 done-ticks max-ticks) then rt-false
+    else if rt-not (worker-is-shutdown-requested ws) then rt-true
+    else
+      let rem-addr = wrapping-add-i64 ws.ws-slab off-drain-rem in
+      let rem = raw-load-u32 rem-addr in
+      if eq-u32 rem drain-not-started then
+        if eq-u32 ws.ws-drain-ticks 0 then
+          let _s = raw-store-u32 rem-addr 0 in
+          rt-false
+        else
+          let _s = raw-store-u32 rem-addr (wrapping-sub-u32 ws.ws-drain-ticks 1) in
+          rt-true
+      else if eq-u32 rem 0 then
+        rt-false
+      else
+        let _s = raw-store-u32 rem-addr (wrapping-sub-u32 rem 1) in
+        rt-true
+
+  -- | Tail-recursive driver loop for `runtime-run-using-ops` and `runtime-run-ops`.
+  run-ops-loop :: forall (r :: Region). using (rx :: ReactorOps r, clk :: ClockOps r) => WorkerState -> TickHandler r -> U64 -> U64 ->{IO r, Mut r, MVar} WorkerMetrics
+  run-ops-loop ws hdl done-ticks max-ticks =
+    if rt-not (should-continue-tick ws done-ticks max-ticks) then
+      worker-metrics-read ws
+    else
+      let wait-t = if worker-is-draining ws then time-ns-zero () else time-ns-of ws.ws-wait-timeout-ns in
+      let _w = runtime-worker-tick ws hdl wait-t in
+      run-ops-loop ws hdl (wrapping-add-u64 done-ticks 1) max-ticks
+
+  -- | Run the canonical deterministic tick loop using lexically bound
+  -- `ReactorOps r` and `ClockOps r` capabilities until `max-ticks` (`0` = run
+  -- until shutdown + graceful drain) completes.
+  runtime-run-using-ops :: forall (r :: Region). using (rx :: ReactorOps r, clk :: ClockOps r) => WorkerState -> TickHandler r -> U64 ->{IO r, Mut r, MVar} WorkerMetrics
+  runtime-run-using-ops ws hdl max-ticks =
+    run-ops-loop ws hdl 0 max-ticks
+
+  -- | Run the canonical deterministic tick loop parameterized directly over
+  -- `Engine.Types.ReactorOps r` and `Engine.Types.ClockOps r` so the exact same
+  -- worker loop executes identically inside `Engine.Sim` (zero-drift DST) and
+  -- over live OS reactors (`darwin-reactor-ops` / `darwin-clock-ops`).
+  runtime-run-ops :: forall (r :: Region). ReactorOps r -> ClockOps r -> WorkerState -> TickHandler r -> U64 ->{IO r, Mut r, MVar} WorkerMetrics
+  runtime-run-ops rx-ops clk-ops ws hdl max-ticks =
+    with (rx = rx-ops) in
+    with (clk = clk-ops) in
+      run-ops-loop ws hdl 0 max-ticks
+
+  -- =========================================================================
+  -- 4. Direct `{IO, MVar}` zero-alloc tick loop for live pinned OS workers
+  -- =========================================================================
+
+  -- | Drain up to `budget` inbound SPSC messages from one peer in raw `{IO, MVar}` mode.
+  drain-raw-peer-loop :: WorkerState -> RawTickHandler -> CoreId -> U32 -> U32 ->{IO, MVar} U32
+  drain-raw-peer-loop ws hdl src-id done budget =
+    if ge-u32 done budget then done
+    else
+      let pop = core-mesh-slice-recv-unboxed ws.ws-mesh-slice src-id in
+      if pop-envelope-is-some pop then
+        let msg = pop-envelope-msg pop in
+        let _h = hdl.raw-on-msg msg in
+        drain-raw-peer-loop ws hdl src-id (wrapping-add-u32 done 1) budget
+      else done
+
+  -- | Round-robin sweep across all peers in raw `{IO, MVar}` mode.
+  drain-raw-all-peers :: WorkerState -> RawTickHandler -> U32 -> U32 -> U32 -> U32 ->{IO, MVar} U32
+  drain-raw-all-peers ws hdl start-idx offset drained budget =
+    let cores = ws.ws-mesh-slice.slice-mesh-cores in
+    if ge-u32 offset cores || ge-u32 drained budget then drained
+    else
+      let raw-idx = wrapping-add-u32 start-idx offset in
+      let peer-idx = if ge-u32 raw-idx cores then wrapping-sub-u32 raw-idx cores else raw-idx in
+      let self-idx = u16-to-u32 ws.ws-core.core-id-raw in
+      if eq-u32 peer-idx self-idx then
+        drain-raw-all-peers ws hdl start-idx (wrapping-add-u32 offset 1) drained budget
+      else
+        let rem = wrapping-sub-u32 budget drained in
+        let got = drain-raw-peer-loop ws hdl (core-id (wrapping-u32-to-u16 peer-idx)) 0 rem in
+        drain-raw-all-peers ws hdl start-idx (wrapping-add-u32 offset 1) (wrapping-add-u32 drained got) budget
+
+  -- | Dispatch staged expired `IoToken`s in raw `{IO, MVar}` mode.
+  dispatch-raw-expired :: WorkerState -> RawTickHandler -> U32 -> U32 ->{IO, MVar} Unit
+  dispatch-raw-expired ws hdl i count =
+    if ge-u32 i count then ()
+    else
+      let slot = wrapping-add-i64 (wrapping-add-i64 ws.ws-slab off-exp-buf) (wrapping-shl-i64 (u32-to-i64 i) 3) in
+      let tok = IoToken (raw-load-u64 slot) in
+      let _h = hdl.raw-on-timer tok in
+      dispatch-raw-expired ws hdl (wrapping-add-u32 i 1) count
+
+  -- | Execute one canonical 5-phase worker tick in direct `{IO, MVar}` mode
+  -- (zero heap allocations and zero atomic RC ops when paired with a live
+  -- DMA-backed reactor such as `DarwinReactor`).
+  runtime-worker-tick-raw :: WorkerState -> RawTickHandler -> TimeNs ->{IO, MVar} U32
+  runtime-worker-tick-raw ws hdl wait-timeout =
+    -- Phase 1: drain inbound CoreMesh SPSC messages
+    let p1 = (if rt-not (core-mesh-slice-has-peers ws.ws-mesh-slice) then 0
+      else
+        let cores = ws.ws-mesh-slice.slice-mesh-cores in
+        let cur = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-in-cursor) in
+        let start = if ge-u32 cur cores then 0 else cur in
+        let next0 = wrapping-add-u32 start 1 in
+        let next-cur = if ge-u32 next0 cores then 0 else next0 in
+        let _uc = raw-store-u32 (wrapping-add-i64 ws.ws-slab off-in-cursor) next-cur in
+        let got = drain-raw-all-peers ws hdl start 0 0 ws.ws-msg-batch in
+        let _m1 = add-metric-u64 ws.ws-slab off-msgs-drained (u32-to-u64 got) in
+        got) in
+    -- Phase 2: poll reactor & reap completions
+    let next-dl = timer-wheel-next-deadline-raw ws.ws-timers in
+    let eff-wait = runtime-compute-wait-ns ws wait-timeout p1 0 next-dl in
+    let p2 = hdl.raw-on-poll eff-wait in
+    let _m2 = add-metric-u64 ws.ws-slab off-cqes-reaped (u32-to-u64 p2) in
+    -- Phase 3: advance TimerWheel & refresh CoarseClockCache
+    let mono = hdl.raw-mono-ns () in
+    let wall = hdl.raw-wall-ns () in
+    let mono-u = time-ns-value mono in
+    let wall-u = time-ns-value wall in
+    let _s0 = raw-store-u64 (wrapping-add-i64 ws.ws-slab off-last-mono) mono-u in
+    let _s1 = raw-store-u64 (wrapping-add-i64 ws.ws-slab off-last-wall) wall-u in
+    let refreshed = coarse-date-refresh ws.ws-clock-cache (div-u64 wall-u 1000000000) in
+    let _mr = if refreshed then add-metric-u64 ws.ws-slab off-date-refreshes 1 else () in
+    let _clr = raw-store-u32 (wrapping-add-i64 ws.ws-slab off-exp-len) 0 in
+    let p3 = timer-wheel-advance ws.ws-timers (div-u64 mono-u 1000000) ws.ws-timer-collector in
+    let staged = raw-load-u32 (wrapping-add-i64 ws.ws-slab off-exp-len) in
+    let _dt = dispatch-raw-expired ws hdl 0 staged in
+    let _m3 = add-metric-u64 ws.ws-slab off-timers-fired (u32-to-u64 p3) in
+    -- Phase 4: flush coalesced outbound SPSC batches & reactor submissions
+    let p4-sqes = hdl.raw-on-flush () in
+    let p4-sent = flush-outbound-mesh ws in
+    let _m4a = add-metric-u64 ws.ws-slab off-sqes-flushed (u32-to-u64 p4-sqes) in
+    let _m4b = add-metric-u64 ws.ws-slab off-flushes 1 in
+    -- Phase 5: reset BumpArena
+    let _p5 = runtime-phase-reset-arena ws in
+    wrapping-add-u32 (wrapping-add-u32 p1 p2) (wrapping-add-u32 p3 p4-sent)
+
+  -- | Tail-recursive driver loop for `runtime-run-raw`.
+  run-raw-loop :: WorkerState -> RawTickHandler -> U64 -> U64 ->{IO, MVar} WorkerMetrics
+  run-raw-loop ws hdl done-ticks max-ticks =
+    if rt-not (should-continue-tick ws done-ticks max-ticks) then
+      worker-metrics-read ws
+    else
+      let wait-t = if worker-is-draining ws then time-ns-zero () else time-ns-of ws.ws-wait-timeout-ns in
+      let _w = runtime-worker-tick-raw ws hdl wait-t in
+      run-raw-loop ws hdl (wrapping-add-u64 done-ticks 1) max-ticks
+
+  -- | Run the direct `{IO, MVar}` canonical 5-phase worker tick loop until
+  -- `max-ticks` (`0` = run until shutdown + graceful drain) completes.
+  runtime-run-raw :: WorkerState -> RawTickHandler -> U64 ->{IO, MVar} WorkerMetrics
+  runtime-run-raw ws hdl max-ticks =
+    run-raw-loop ws hdl 0 max-ticks
+
+  -- =========================================================================
+  -- 5. Multi-core pinned OS worker launcher & graceful drain orchestration
+  -- =========================================================================
+
+  -- | Coordinator handle to a multi-core pinned worker runtime owning the
+  -- shared `RuntimeControl` DMA slab and `CoreMesh` SPSC topology.
+  record RuntimeHandle where
+    -- | Base address of the shared 4 KiB-aligned `RuntimeControl` DMA slab.
+    rt-ctrl-addr :: I64
+    -- | Total byte length of the `RuntimeControl` DMA slab.
+    rt-ctrl-bytes :: U64
+    -- | Number of pinned OS workers spawned by this runtime.
+    rt-worker-count :: U32
+    -- | Shared `CoreMesh` SPSC topology (base `0` for single-worker runtimes).
+    rt-mesh :: CoreMesh
+
+  -- | Compute the byte address of `WorkerBootSlot[idx]` inside `ctrl`.
+  #[inline(always)]
+  #[no-alloc]
+  boot-slot-addr :: I64 -> U32 -> I64
+  boot-slot-addr ctrl idx =
+    wrapping-add-i64 (wrapping-add-i64 ctrl ctrl-off-slots) (wrapping-mul-i64 (u32-to-i64 idx) boot-slot-stride)
+
+  -- | Round `v` up to a 4096-byte page boundary.
+  #[inline(always)]
+  #[no-alloc]
+  align-page-u64 :: U64 -> U64
+  align-page-u64 v = bit-and-u64 (wrapping-add-u64 v 4095) (bit-not-u64 4095)
+
+  -- | Initialize `WorkerBootSlot[0..count)` before spawning worker threads.
+  init-boot-slots :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-boot-slots ctrl i count =
+    if ge-u32 i count then ()
+    else
+      let slot = boot-slot-addr ctrl i in
+      let _a = raw-store-i64 (wrapping-add-i64 slot slot-off-ctrl) ctrl in
+      let _b = raw-store-u64 (wrapping-add-i64 slot slot-off-core) (u32-to-u64 i) in
+      let _c = raw-store-i64 (wrapping-add-i64 slot slot-off-handle) 0 in
+      let _d = raw-store-i64 (wrapping-add-i64 slot slot-off-result) 0 in
+      let _e = atomic-store-relaxed-i64 (wrapping-add-i64 slot slot-off-ready) 0 in
+      init-boot-slots ctrl (wrapping-add-u32 i 1) count
+
+  -- | Join worker threads `0..limit` during normal shutdown or spawn-failure cleanup.
+  join-workers-loop :: I64 -> U32 -> U32 -> I64 ->{IO, MVar} I64
+  join-workers-loop ctrl i count first-err =
+    if ge-u32 i count then first-err
+    else
+      let slot = boot-slot-addr ctrl i in
+      let h-addr = wrapping-add-i64 slot slot-off-handle in
+      let h = raw-load-i64 h-addr in
+      if le-i64 h 0 then
+        join-workers-loop ctrl (wrapping-add-u32 i 1) count first-err
+      else
+        let res = engine-join h in
+        let _clr = raw-store-i64 h-addr 0 in
+        let _sr = raw-store-i64 (wrapping-add-i64 slot slot-off-result) res in
+        let next-err = if eq-i64 first-err 0 && ne-i64 res 0 then res else first-err in
+        join-workers-loop ctrl (wrapping-add-u32 i 1) count next-err
+
+  -- | Spawn pinned OS workers `i..count` via `engine-spawn-pinned`.
+  spawn-workers-loop :: I64 -> U64 -> U32 -> U32 ->{IO, MVar} Bool
+  spawn-workers-loop ctrl entry-closure i count =
+    if ge-u32 i count then True
+    else
+      let slot = boot-slot-addr ctrl i in
+      let h = engine-spawn-pinned (core-id (wrapping-u32-to-u16 i)) entry-closure slot in
+      if le-i64 h 0 then
+        let _sh = atomic-store-release-i64 (wrapping-add-i64 ctrl ctrl-off-shutdown) 1 in
+        let _jn = join-workers-loop ctrl 0 i 0 in
+        False
+      else
+        let _sh = raw-store-i64 (wrapping-add-i64 slot slot-off-handle) h in
+        spawn-workers-loop ctrl entry-closure (wrapping-add-u32 i 1) count
+
+  -- | Allocate the shared `CoreMesh` and `RuntimeControl` DMA slabs and spawn
+  -- `cfg.cfg-worker-count` pinned OS workers invoking `worker-entry-closure`
+  -- with each worker's cache-line-isolated `WorkerBootSlot` address.
+  -- Returns `None` on invalid configuration, DMA allocation failure, or thread
+  -- spawn failure.
+  runtime-spawn-workers :: WorkerConfig -> U64 ->{IO, MVar} Option RuntimeHandle
+  runtime-spawn-workers cfg worker-entry-closure =
+    if eq-u32 cfg.cfg-worker-count 0 || eq-u64 worker-entry-closure 0 then None
+    else
+      let wc = cfg.cfg-worker-count in
+      let mesh-opt = (if ge-u32 wc 2 then core-mesh-new wc cfg.cfg-ring-cap else Some (CoreMesh 0 1 0 0 0 0)) in
+      case mesh-opt of
+        None -> None
+        Some mesh ->
+          let ctrl-bytes = align-page-u64 (wrapping-add-u64 512 (wrapping-mul-u64 (u32-to-u64 wc) 128)) in
+          let ctrl-u = engine-dma-alloc ctrl-bytes 4096 in
+          if eq-u64 ctrl-u 0 then
+            let _fm = if ne-i64 mesh.mesh-base 0 then core-mesh-destroy mesh else IoOk in
+            None
+          else
+            let ctrl = wrapping-u64-to-i64 ctrl-u in
+            let _a0 = atomic-store-relaxed-i64 (wrapping-add-i64 ctrl ctrl-off-shutdown) 0 in
+            let _a1 = atomic-store-relaxed-i64 (wrapping-add-i64 ctrl ctrl-off-ready) 0 in
+            let _a2 = atomic-store-relaxed-i64 (wrapping-add-i64 ctrl ctrl-off-done) 0 in
+            let _c0 = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-wcount) wc in
+            let _c1 = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-dead) 0 in
+            let _c2 = raw-store-i64 (wrapping-add-i64 ctrl ctrl-off-mesh-base) mesh.mesh-base in
+            let _c3 = raw-store-i64 (wrapping-add-i64 ctrl ctrl-off-mesh-cap) mesh.mesh-cap in
+            let _c4 = raw-store-i64 (wrapping-add-i64 ctrl ctrl-off-mesh-stride) mesh.mesh-ring-stride in
+            let _c5 = raw-store-u64 (wrapping-add-i64 ctrl ctrl-off-mesh-bytes) mesh.mesh-bytes in
+            let _c6 = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-dma-sz) cfg.cfg-dma-buf-size in
+            let _c7 = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-dma-cnt) cfg.cfg-dma-buf-count in
+            let _c8 = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-msg-batch) cfg.cfg-msg-batch in
+            let _c9 = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-cqe-batch) cfg.cfg-cqe-batch in
+            let _ca = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-out-batch) cfg.cfg-out-batch in
+            let _cb = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-timer-cap) cfg.cfg-timer-cap in
+            let _cc = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-drain-ticks) cfg.cfg-drain-ticks in
+            let _cd = raw-store-u64 (wrapping-add-i64 ctrl ctrl-off-arena-bytes) cfg.cfg-arena-bytes in
+            let _ce = raw-store-u64 (wrapping-add-i64 ctrl ctrl-off-wait-ns) cfg.cfg-wait-timeout-ns in
+            let _cf = raw-store-i64 (wrapping-add-i64 ctrl ctrl-off-user-ctx) cfg.cfg-user-ctx in
+            let _sl = init-boot-slots ctrl 0 wc in
+            let _fn = atomic-fence-release () in
+            if spawn-workers-loop ctrl worker-entry-closure 0 wc then
+              Some (RuntimeHandle ctrl ctrl-bytes wc mesh)
+            else
+              let _fc = engine-dma-free ctrl-u ctrl-bytes in
+              let _fm = if ne-i64 mesh.mesh-base 0 then core-mesh-destroy mesh else IoOk in
+              None
+
+  -- | Atomically signal all pinned workers in `rt` to enter graceful drain and
+  -- exit. Zero heap allocation (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  runtime-request-shutdown :: RuntimeHandle ->{MVar} Unit
+  runtime-request-shutdown rt =
+    if eq-i64 rt.rt-ctrl-addr 0 then ()
+    else atomic-store-release-i64 (wrapping-add-i64 rt.rt-ctrl-addr ctrl-off-shutdown) 1
+
+  -- | Return `True` if shutdown has been requested on `rt`.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-is-shutdown :: RuntimeHandle ->{MVar} Bool
+  runtime-is-shutdown rt =
+    if eq-i64 rt.rt-ctrl-addr 0 then rt-true
+    else ne-i64 (atomic-load-acquire-i64 (wrapping-add-i64 rt.rt-ctrl-addr ctrl-off-shutdown)) 0
+
+  -- | Return the number of workers that have completed initialization and
+  -- called `runtime-boot-mark-ready`.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-ready-count :: RuntimeHandle ->{MVar} U32
+  runtime-ready-count rt =
+    if eq-i64 rt.rt-ctrl-addr 0 then 0
+    else wrapping-i64-to-u32 (atomic-load-acquire-i64 (wrapping-add-i64 rt.rt-ctrl-addr ctrl-off-ready))
+
+  -- | Return the number of workers that have finished draining and called
+  -- `runtime-boot-publish-and-done`.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-done-count :: RuntimeHandle ->{MVar} U32
+  runtime-done-count rt =
+    if eq-i64 rt.rt-ctrl-addr 0 then 0
+    else wrapping-i64-to-u32 (atomic-load-acquire-i64 (wrapping-add-i64 rt.rt-ctrl-addr ctrl-off-done))
+
+  -- | Spin-wait helper for `runtime-wait-all-ready`.
+  wait-ready-loop :: RuntimeHandle -> U64 ->{MVar} Bool
+  wait-ready-loop rt rem =
+    if ge-u32 (runtime-ready-count rt) rt.rt-worker-count then True
+    else if eq-u64 rem 0 then False
+    else
+      let _p = cpu-pause () in
+      wait-ready-loop rt (wrapping-sub-u64 rem 1)
+
+  -- | Wait until all workers in `rt` report ready, spinning with `cpu-pause ()`
+  -- up to `max-spins` iterations (`0` defaults to `100000000`).
+  runtime-wait-all-ready :: RuntimeHandle -> U64 ->{MVar} Bool
+  runtime-wait-all-ready rt max-spins =
+    let limit = if eq-u64 max-spins 0 then 100000000 else max-spins in
+    wait-ready-loop rt limit
+
+  -- | Return the shared `CoreMesh` owned by `rt`.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-handle-mesh :: RuntimeHandle -> CoreMesh
+  runtime-handle-mesh rt = rt.rt-mesh
+
+  -- | Return the number of workers managed by `rt`.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-handle-worker-count :: RuntimeHandle -> U32
+  runtime-handle-worker-count rt = rt.rt-worker-count
+
+  -- | Join all pinned OS worker threads in `rt`, recording each worker's exit
+  -- code in its `WorkerBootSlot`. Returns `0` if every worker returned `0`,
+  -- otherwise the first non-zero worker result.
+  runtime-join-all :: RuntimeHandle ->{IO, MVar} I64
+  runtime-join-all rt =
+    if eq-i64 rt.rt-ctrl-addr 0 then -1
+    else join-workers-loop rt.rt-ctrl-addr 0 rt.rt-worker-count 0
+
+  -- | Read the joined exit code of worker `cid` after `runtime-join-all`.
+  #[no-alloc]
+  runtime-worker-result :: RuntimeHandle -> CoreId ->{MVar} I64
+  runtime-worker-result rt cid =
+    let idx = u16-to-u32 cid.core-id-raw in
+    if rt-either (eq-i64 rt.rt-ctrl-addr 0) (ge-u32 idx rt.rt-worker-count) then -1
+    else raw-load-i64 (wrapping-add-i64 (boot-slot-addr rt.rt-ctrl-addr idx) slot-off-result)
+
+  -- | Read the published `WorkerMetrics` summary of worker `cid` from its
+  -- `WorkerBootSlot` after `runtime-join-all`.
+  #[no-alloc]
+  runtime-worker-slot-metrics :: RuntimeHandle -> CoreId ->{MVar} WorkerMetrics
+  runtime-worker-slot-metrics rt cid =
+    let idx = u16-to-u32 cid.core-id-raw in
+    if rt-either (eq-i64 rt.rt-ctrl-addr 0) (ge-u32 idx rt.rt-worker-count) then worker-metrics-zero ()
+    else
+      let slot = boot-slot-addr rt.rt-ctrl-addr idx in
+      WorkerMetrics
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-ticks))
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-msgs-drained))
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-msgs-sent))
+        0
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-cqes))
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-timers))
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-date-refreshes))
+        0
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-flushes))
+        (raw-load-u64 (wrapping-add-i64 slot slot-off-arena-resets))
+        0
+
+  -- | Read the steady-state thread heap allocation count published by worker `cid`.
+  #[no-alloc]
+  runtime-worker-slot-allocs :: RuntimeHandle -> CoreId ->{MVar} U64
+  runtime-worker-slot-allocs rt cid =
+    let idx = u16-to-u32 cid.core-id-raw in
+    if rt-either (eq-i64 rt.rt-ctrl-addr 0) (ge-u32 idx rt.rt-worker-count) then 0
+    else raw-load-u64 (wrapping-add-i64 (boot-slot-addr rt.rt-ctrl-addr idx) slot-off-allocs)
+
+  -- | Read the steady-state thread atomic RC count published by worker `cid`.
+  #[no-alloc]
+  runtime-worker-slot-atomic-rcs :: RuntimeHandle -> CoreId ->{MVar} U64
+  runtime-worker-slot-atomic-rcs rt cid =
+    let idx = u16-to-u32 cid.core-id-raw in
+    if rt-either (eq-i64 rt.rt-ctrl-addr 0) (ge-u32 idx rt.rt-worker-count) then 0
+    else raw-load-u64 (wrapping-add-i64 (boot-slot-addr rt.rt-ctrl-addr idx) slot-off-atomic-rcs)
+
+  -- | Read the user-defined output word published by worker `cid`.
+  #[no-alloc]
+  runtime-worker-slot-user-out :: RuntimeHandle -> CoreId ->{MVar} I64
+  runtime-worker-slot-user-out rt cid =
+    let idx = u16-to-u32 cid.core-id-raw in
+    if rt-either (eq-i64 rt.rt-ctrl-addr 0) (ge-u32 idx rt.rt-worker-count) then 0
+    else raw-load-i64 (wrapping-add-i64 (boot-slot-addr rt.rt-ctrl-addr idx) slot-off-user-out)
+
+  -- | Unmap the shared `CoreMesh` and `RuntimeControl` DMA slabs owned by `rt`
+  -- after all workers have been joined via `runtime-join-all`. Idempotent.
+  runtime-destroy :: RuntimeHandle ->{IO, MVar} IoError
+  runtime-destroy rt =
+    let ctrl = rt.rt-ctrl-addr in
+    if eq-i64 ctrl 0 then IoOk
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-dead) in
+      if ne-u32 dead 0 then IoOk
+      else
+        let _md = raw-store-u32 (wrapping-add-i64 ctrl ctrl-off-dead) 1 in
+        let e1 = if ne-i64 rt.rt-mesh.mesh-base 0 then core-mesh-destroy rt.rt-mesh else IoOk in
+        let e2 = engine-dma-free (wrapping-i64-to-u64 ctrl) rt.rt-ctrl-bytes in
+        if io-error-is-ok e1 then e2 else e1
+
+  -- =========================================================================
+  -- 6. Pinned worker-side bootstrap & graceful completion helpers
+  -- =========================================================================
+
+  -- | Read this worker's `CoreId` from its `WorkerBootSlot` address.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-boot-core-id :: I64 ->{MVar} CoreId
+  runtime-boot-core-id slot-addr =
+    core-id (wrapping-u64-to-u16 (raw-load-u64 (wrapping-add-i64 slot-addr slot-off-core)))
+
+  -- | Read the coordinator's `cfg-user-ctx` word from this worker's `WorkerBootSlot`.
+  #[inline(always)]
+  #[no-alloc]
+  runtime-boot-user-ctx :: I64 ->{MVar} I64
+  runtime-boot-user-ctx slot-addr =
+    let ctrl = raw-load-i64 (wrapping-add-i64 slot-addr slot-off-ctrl) in
+    if eq-i64 ctrl 0 then 0
+    else raw-load-i64 (wrapping-add-i64 ctrl ctrl-off-user-ctx)
+
+  -- | Initialize a share-nothing `WorkerState` inside a spawned pinned OS
+  -- worker thread from its `slot-addr` argument and initial monotonic time
+  -- `start-now-ms`.
+  runtime-boot-init :: I64 -> U64 ->{IO, MVar} Option WorkerState
+  runtime-boot-init slot-addr start-now-ms =
+    if eq-i64 slot-addr 0 then None
+    else
+      let _fa = atomic-fence-acquire () in
+      let ctrl = raw-load-i64 (wrapping-add-i64 slot-addr slot-off-ctrl) in
+      if eq-i64 ctrl 0 then None
+      else
+        let cid = runtime-boot-core-id slot-addr in
+        let wc = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-wcount) in
+        let dma-sz = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-dma-sz) in
+        let dma-cnt = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-dma-cnt) in
+        let msg-b = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-msg-batch) in
+        let cqe-b = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-cqe-batch) in
+        let out-b = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-out-batch) in
+        let tcap = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-timer-cap) in
+        let dticks = raw-load-u32 (wrapping-add-i64 ctrl ctrl-off-drain-ticks) in
+        let arena-b = raw-load-u64 (wrapping-add-i64 ctrl ctrl-off-arena-bytes) in
+        let wait-ns = raw-load-u64 (wrapping-add-i64 ctrl ctrl-off-wait-ns) in
+        let uctx = raw-load-i64 (wrapping-add-i64 ctrl ctrl-off-user-ctx) in
+        let mbase = raw-load-i64 (wrapping-add-i64 ctrl ctrl-off-mesh-base) in
+        let mcap = raw-load-i64 (wrapping-add-i64 ctrl ctrl-off-mesh-cap) in
+        let mstride = raw-load-i64 (wrapping-add-i64 ctrl ctrl-off-mesh-stride) in
+        let mbytes = raw-load-u64 (wrapping-add-i64 ctrl ctrl-off-mesh-bytes) in
+        let cfg = WorkerConfig wc dma-sz dma-cnt msg-b cqe-b out-b tcap dticks arena-b (wrapping-i64-to-u64 mcap) wait-ns uctx in
+        let mesh = CoreMesh mbase wc 0 mcap mstride mbytes in
+        let shut-addr = wrapping-add-i64 ctrl ctrl-off-shutdown in
+        worker-state-new cid cfg mesh shut-addr start-now-ms
+
+  -- | Atomically publish that this pinned worker has initialized its
+  -- per-core resources and entered steady state. Zero heap allocation.
+  #[no-alloc]
+  runtime-boot-mark-ready :: I64 ->{MVar} Unit
+  runtime-boot-mark-ready slot-addr =
+    if eq-i64 slot-addr 0 then ()
+    else
+      let ctrl = raw-load-i64 (wrapping-add-i64 slot-addr slot-off-ctrl) in
+      let _r0 = atomic-store-release-i64 (wrapping-add-i64 slot-addr slot-off-ready) 1 in
+      if eq-i64 ctrl 0 then ()
+      else
+        let _r1 = atomic-fetch-add-acqrel-i64 (wrapping-add-i64 ctrl ctrl-off-ready) 1 in
+        ()
+
+  -- | Publish this worker's final `WorkerMetrics`, allocation telemetry, and
+  -- `user-out` word into its `WorkerBootSlot` and increment the runtime's
+  -- atomic `done-count`. Zero heap allocation (`#[no-alloc]`).
+  #[no-alloc]
+  runtime-boot-publish-and-done :: I64 -> WorkerState -> U64 -> U64 -> I64 ->{MVar} Unit
+  runtime-boot-publish-and-done slot-addr ws allocs atomic-rcs user-out =
+    if eq-i64 slot-addr 0 then ()
+    else
+      let m = worker-metrics-read ws in
+      let _a = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-ticks) m.metric-ticks in
+      let _b = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-msgs-drained) m.metric-msgs-drained in
+      let _c = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-msgs-sent) m.metric-msgs-sent in
+      let _d = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-cqes) m.metric-cqes-reaped in
+      let _e = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-timers) m.metric-timers-fired in
+      let _f = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-arena-resets) m.metric-arena-resets in
+      let _g = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-allocs) allocs in
+      let _h = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-atomic-rcs) atomic-rcs in
+      let _i = raw-store-i64 (wrapping-add-i64 slot-addr slot-off-user-out) user-out in
+      let _j = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-flushes) m.metric-flushes in
+      let _k = raw-store-u64 (wrapping-add-i64 slot-addr slot-off-date-refreshes) m.metric-date-refreshes in
+      let ctrl = raw-load-i64 (wrapping-add-i64 slot-addr slot-off-ctrl) in
+      if eq-i64 ctrl 0 then ()
+      else
+        let _d1 = atomic-fetch-add-acqrel-i64 (wrapping-add-i64 ctrl ctrl-off-done) 1 in
+        ()
