@@ -1407,6 +1407,10 @@
     {
       "name": "Engine.Sim",
       "path": "Engine/Sim.cinch"
+    },
+    {
+      "name": "Engine.Reactor.Darwin",
+      "path": "Engine/Reactor/Darwin.cinch"
     }
   ],
   "order": [
@@ -1760,6 +1764,7 @@
     "Engine.Simd.Crc32c",
     "Engine.Simd.Mask",
     "Engine.Sim.Faults",
-    "Engine.Sim"
+    "Engine.Sim",
+    "Engine.Reactor.Darwin"
   ]
 }

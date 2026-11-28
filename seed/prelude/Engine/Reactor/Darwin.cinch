@@ -1,0 +1,1270 @@
+-- | Live macOS `kqueue`, `writev`, `sendfile`, and `F_NOCACHE` reactor backend
+-- for the Cinch high-performance engine.
+--
+-- Built directly over `Prim.Sys.Io.Darwin`, `Engine.Types`, `Engine.Mem.DmaPool`,
+-- and `Prim.Atomic`, with a single contiguous 4 KiB-aligned DMA slab backing
+-- the `DarwinKevent` changelist, event output buffer, cached tick timestamp,
+-- and syscall scratch slots so steady-state arm/poll/recv/writev ticks perform
+-- zero heap allocations and zero atomic reference-counting traffic.
+module Engine.Reactor.Darwin where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.Mutable.Deque
+  import Data.Mutable.Var
+  import Engine.Mem.DmaPool
+  import Engine.Types
+  import Prim.Atomic
+  import Prim.Sys.Io.Darwin
+
+  -- Reactor handle, constants, and CQE flag decoders
+  export DarwinReactor
+  export ipv4-loopback, ipv4-any, ipv4-pack
+  export darwin-ev-error, darwin-so-nosigpipe
+  export darwin-errno-to-io-error
+  export darwin-cqe-filter, darwin-cqe-flags
+  export darwin-cqe-is-read, darwin-cqe-is-write, darwin-cqe-is-eof, darwin-cqe-is-error
+
+  -- Reactor lifecycle and inspection
+  export darwin-reactor-new, darwin-reactor-destroy
+  export darwin-reactor-kq-fd, darwin-reactor-changelist-len, darwin-reactor-changelist-cap
+  export darwin-reactor-events-cap, darwin-reactor-now-ns
+
+  -- Zero-alloc edge-triggered (`EV_CLEAR`) registration & batched poll/reap
+  export darwin-reactor-arm-read, darwin-reactor-arm-write
+  export darwin-reactor-disarm, darwin-reactor-disarm-read, darwin-reactor-disarm-write
+  export darwin-reactor-poll
+  export darwin-load-completion, darwin-store-completion
+
+  -- Zero-alloc DMA socket, iovec, and sockaddr helpers
+  export darwin-iovec-write, darwin-iovec-write-slice
+  export darwin-sockaddr-write-dma, darwin-sockaddr-read-port-dma, darwin-sockaddr-read-ip-dma
+  export darwin-tcp-listen-reuseport, darwin-tcp-accept-nonblock, darwin-tcp-connect-nonblock
+  export darwin-udp-bind-reuseport, darwin-close-fd
+  export darwin-recv-dma, darwin-send-dma, darwin-writev-dma, darwin-readv-dma
+  export darwin-recv-slice, darwin-send-slice
+  export darwin-sendfile-fd, darwin-sendfile-dma
+  export darwin-udp-sendto-dma, darwin-udp-recvfrom-dma
+
+  -- Direct (`F_NOCACHE`) disk I/O and monotonic/wall clocks
+  export darwin-open-direct, darwin-pread-dma, darwin-pwrite-dma
+  export darwin-pread-slice, darwin-pwrite-slice
+  export darwin-fsync-fd, darwin-ftruncate-fd
+  export darwin-clock-monotonic-ns, darwin-clock-wall-ns
+
+  -- Bridge to `Engine.Types` capability dictionaries (`ReactorOps`, `ClockOps`)
+  export darwin-reactor-ops, darwin-clock-ops
+
+  -- =========================================================================
+  -- 0. Internal constants, DMA slab layout, and libSystem clock/ABI imports
+  -- =========================================================================
+
+  -- | Darwin `EV_ERROR` (`0x4000`) kevent flag bit.
+  #[no-alloc]
+  darwin-ev-error :: U16
+  darwin-ev-error = 0x4000
+
+  -- | Darwin `SO_NOSIGPIPE` (`0x1022`) socket option constant.
+  #[no-alloc]
+  darwin-so-nosigpipe :: I64
+  darwin-so-nosigpipe = 0x1022
+
+  -- | Host-order IPv4 loopback address `127.0.0.1` (`0x7F000001`).
+  #[no-alloc]
+  ipv4-loopback :: U32
+  ipv4-loopback = 0x7F000001
+
+  -- | Host-order IPv4 wildcard address `0.0.0.0`.
+  #[no-alloc]
+  ipv4-any :: U32
+  ipv4-any = 0
+
+  -- | Pack four IPv4 octets `a.b.c.d` into a host-order `U32`.
+  #[inline(always)]
+  #[no-alloc]
+  ipv4-pack :: U8 -> U8 -> U8 -> U8 -> U32
+  ipv4-pack a b c d =
+    let w0 = wrapping-shl-u32 (u8-to-u32 a) 24 in
+    let w1 = wrapping-shl-u32 (u8-to-u32 b) 16 in
+    let w2 = wrapping-shl-u32 (u8-to-u32 c) 8 in
+    bit-or-u32 (bit-or-u32 w0 w1) (bit-or-u32 w2 (u8-to-u32 d))
+
+  -- | Internal sentinel token stored in `udata` for `darwin-reactor-disarm` so
+  -- harmless `ENOENT` replies from deleting an unregistered filter are filtered.
+  #[no-alloc]
+  disarm-sentinel :: U64
+  disarm-sentinel = 0xFFFFFFFFFFFFFFFE
+
+  -- | Internal `EV_ADD | EV_ENABLE | EV_CLEAR` (`0x25`) edge-triggered mask.
+  #[no-alloc]
+  ev-arm-flags :: U16
+  ev-arm-flags = 0x0025
+
+  -- | Internal `EV_DELETE` (`0x0002`) kevent flag.
+  #[no-alloc]
+  ev-delete-flags :: U16
+  ev-delete-flags = 0x0002
+
+  -- | Internal `EVFILT_READ` (`-1`) filter constant as `I16`.
+  #[no-alloc]
+  flt-read-i16 :: I16
+  flt-read-i16 = -1
+
+  -- | Internal `EVFILT_WRITE` (`-2`) filter constant as `I16`.
+  #[no-alloc]
+  flt-write-i16 :: I16
+  flt-write-i16 = -2
+
+  -- DMA header layout (bytes 0..128):
+  --   +0  : changelist-len :: U32
+  --   +4  : destroyed      :: U32  (0 = live, 1 = destroyed)
+  --   +8  : now-ns         :: U64  (cached monotonic timestamp)
+  --   +16 : slab-bytes     :: U64  (total mapped slab size)
+  --   +24 : events-cap     :: U32
+  --   +28 : changelist-cap :: U32
+  --   +32 : scratch-ts     :: Timespec (16B: tv_sec +32, tv_nsec +40)
+  --   +48 : clock-ts       :: Timespec (16B: tv_sec +48, tv_nsec +56)
+  --   +128: changelist     :: [DarwinKevent; changelist-cap] (32B each)
+  --   +128 + changelist-cap*32 : events :: [DarwinKevent; events-cap] (32B each)
+
+  -- | Byte offset of pending changelist length in the reactor DMA header.
+  #[no-alloc]
+  hdr-off-cl-len :: I64
+  hdr-off-cl-len = 0
+
+  -- | Byte offset of the reactor destroyed flag in the DMA header.
+  #[no-alloc]
+  hdr-off-destroyed :: I64
+  hdr-off-destroyed = 4
+
+  -- | Byte offset of the cached monotonic tick timestamp in the DMA header.
+  #[no-alloc]
+  hdr-off-now-ns :: I64
+  hdr-off-now-ns = 8
+
+  -- | Byte offset of the total DMA slab byte length in the DMA header.
+  #[no-alloc]
+  hdr-off-slab-bytes :: I64
+  hdr-off-slab-bytes = 16
+
+  -- | Byte offset of the `kevent` timeout `Timespec` scratch slot.
+  #[no-alloc]
+  hdr-off-poll-ts :: I64
+  hdr-off-poll-ts = 32
+
+  -- | Byte offset of the `clock_gettime` `Timespec` scratch slot.
+  #[no-alloc]
+  hdr-off-clock-ts :: I64
+  hdr-off-clock-ts = 48
+
+  -- | Byte offset where the `DarwinKevent` changelist begins.
+  #[no-alloc]
+  hdr-off-changelist :: I64
+  hdr-off-changelist = 128
+
+  -- | Zero-alloc `Bool` true avoiding syntactic constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  bool-t :: Bool
+  bool-t = eq-u32 0 0
+
+  -- | Zero-alloc `Bool` false avoiding syntactic constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  bool-f :: Bool
+  bool-f = eq-u32 0 1
+
+  -- | Runtime monotonic clock binding (zero Cinch heap allocation).
+  foreign import ccall "cinch_clock_monotonic_ns" raw-mono-ns-io :: Unit ->{IO} I64
+  -- | Runtime wall clock binding (zero Cinch heap allocation).
+  foreign import ccall "cinch_clock_wall_ns" raw-wall-ns-io :: Unit ->{IO} I64
+  -- | Region-polymorphic runtime monotonic clock binding for `ClockOps r`.
+  foreign import ccall "cinch_clock_monotonic_ns" raw-mono-ns-r :: forall r. Unit ->{IO r} I64
+  -- | Region-polymorphic runtime wall clock binding for `ClockOps r`.
+  foreign import ccall "cinch_clock_wall_ns" raw-wall-ns-r :: forall r. Unit ->{IO r} I64
+
+  -- | Direct `libSystem` bindings at `{IO}` effect for the `{IO, MVar}` engine API,
+  -- matching `Prim.Sys.Io.Darwin`'s exact Darwin ABI and `__error()` convention.
+  foreign import ccall "kqueue" io-kqueue :: Unit ->{IO} I32
+  -- | Darwin `kevent(2)` at `{IO}` effect.
+  foreign import ccall "kevent" io-kevent :: I32 -> I64 -> I32 -> I64 -> I32 -> I64 ->{IO} I32
+  -- | Darwin `socket(2)` at `{IO}` effect.
+  foreign import ccall "socket" io-socket :: I32 -> I32 -> I32 ->{IO} I32
+  -- | Darwin `bind(2)` at `{IO}` effect.
+  foreign import ccall "bind" io-bind :: I32 -> I64 -> U32 ->{IO} I32
+  -- | Darwin `listen(2)` at `{IO}` effect.
+  foreign import ccall "listen" io-listen :: I32 -> I32 ->{IO} I32
+  -- | Darwin `accept(2)` at `{IO}` effect.
+  foreign import ccall "accept" io-accept :: I32 -> I64 -> I64 ->{IO} I32
+  -- | Darwin `connect(2)` at `{IO}` effect.
+  foreign import ccall "connect" io-connect :: I32 -> I64 -> U32 ->{IO} I32
+  -- | Darwin `setsockopt(2)` at `{IO}` effect.
+  foreign import ccall "setsockopt" io-setsockopt :: I32 -> I32 -> I32 -> I64 -> U32 ->{IO} I32
+  -- | Darwin `getsockname(2)` at `{IO}` effect.
+  foreign import ccall "getsockname" io-getsockname :: I32 -> I64 -> I64 ->{IO} I32
+  -- | Darwin `close(2)` at `{IO}` effect.
+  foreign import ccall "close" io-close :: I32 ->{IO} I32
+  -- | Darwin `__fcntl` (fixed 3-arg non-variadic ABI) at `{IO}` effect.
+  foreign import ccall "__fcntl" io-fcntl :: I32 -> I32 -> I64 ->{IO} I32
+  -- | Darwin `read(2)` at `{IO}` effect.
+  foreign import ccall "read" io-read :: I32 -> I64 -> I64 ->{IO} I64
+  -- | Darwin `write(2)` at `{IO}` effect.
+  foreign import ccall "write" io-write :: I32 -> I64 -> I64 ->{IO} I64
+  -- | Darwin `readv(2)` at `{IO}` effect.
+  foreign import ccall "readv" io-readv :: I32 -> I64 -> I32 ->{IO} I64
+  -- | Darwin `writev(2)` at `{IO}` effect.
+  foreign import ccall "writev" io-writev :: I32 -> I64 -> I32 ->{IO} I64
+  -- | Darwin `sendto(2)` at `{IO}` effect.
+  foreign import ccall "sendto" io-sendto :: I32 -> I64 -> I64 -> I32 -> I64 -> U32 ->{IO} I64
+  -- | Darwin `recvfrom(2)` at `{IO}` effect.
+  foreign import ccall "recvfrom" io-recvfrom :: I32 -> I64 -> I64 -> I32 -> I64 -> I64 ->{IO} I64
+  -- | Darwin `pread(2)` at `{IO}` effect.
+  foreign import ccall "pread" io-pread :: I32 -> I64 -> I64 -> I64 ->{IO} I64
+  -- | Darwin `pwrite(2)` at `{IO}` effect.
+  foreign import ccall "pwrite" io-pwrite :: I32 -> I64 -> I64 -> I64 ->{IO} I64
+  -- | Darwin `sendfile(2)` at `{IO}` effect.
+  foreign import ccall "sendfile" io-sendfile :: I32 -> I32 -> I64 -> I64 -> I64 -> I32 ->{IO} I32
+  -- | Darwin `__open` (fixed 3-arg non-variadic ABI) at `{IO}` effect.
+  foreign import ccall "__open" io-open :: I64 -> I32 -> I32 ->{IO} I32
+  -- | Darwin `ftruncate(2)` at `{IO}` effect.
+  foreign import ccall "ftruncate" io-ftruncate :: I32 -> I64 ->{IO} I32
+  -- | Darwin `fsync(2)` at `{IO}` effect.
+  foreign import ccall "fsync" io-fsync :: I32 ->{IO} I32
+  -- | Darwin `clock_gettime(2)` at `{IO}` effect.
+  foreign import ccall "clock_gettime" io-clock-gettime :: I32 -> I64 ->{IO} I32
+  -- | Darwin `__error()` thread-local errno slot pointer at `{IO}` effect.
+  foreign import ccall "__error" io-errno-slot :: Unit ->{IO} I64
+
+  -- | Read Darwin's thread-local `errno` and return its negated `I64` value.
+  #[inline(always)]
+  neg-errno-io :: Unit ->{IO, MVar} I64
+  neg-errno-io _ =
+    let ptr = io-errno-slot () in
+    let e = i32-to-i64 (wrapping-u32-to-i32 (raw-load-u32 ptr)) in
+    if lt-i64 0 e then wrapping-neg-i64 e else -5
+
+  -- | Convert a Darwin `I32` syscall return value into `>= 0` or `-errno`.
+  #[inline(always)]
+  res-i32-io :: I32 ->{IO, MVar} I64
+  res-i32-io r =
+    let v = i32-to-i64 r in
+    if lt-i64 v 0 then neg-errno-io () else v
+
+  -- | Convert a Darwin `I64` syscall return value into `>= 0` or `-errno`.
+  #[inline(always)]
+  res-i64-io :: I64 ->{IO, MVar} I64
+  res-i64-io r =
+    if lt-i64 r 0 then neg-errno-io () else r
+
+  -- | Convert a positive Darwin `errno` into `Engine.Types.IoError`.
+  darwin-errno-to-io-error :: I64 -> IoError
+  darwin-errno-to-io-error e =
+    if eq-i64 e 0 then IoOk
+    else if eq-i64 e eagain then IoAgain
+    else if eq-i64 e 9 then IoBadFd
+    else if eq-i64 e 12 then IoNoMem
+    else if eq-i64 e 89 then IoCanceled
+    else if eq-i64 e 54 then IoConnReset
+    else if eq-i64 e 32 then IoBrokenPipe
+    else if eq-i64 e 48 then IoAddrInUse
+    else if eq-i64 e 60 then IoTimedOut
+    else if eq-i64 e enosys || eq-i64 e 45 then IoUnsupported
+    else IoOther
+
+  -- | Encode an `IoError` as a negative `I32` completion result.
+  #[inline(always)]
+  #[no-alloc]
+  neg-io-err-i32 :: IoError -> I32
+  neg-io-err-i32 err =
+    let c = u8-to-i32 (io-error-to-u8 err) in
+    if eq-i32 c 0 then 0 else wrapping-neg-i32 c
+
+  -- | Polymorphic non-inlined `Result` identity barrier keeping `Result`
+  -- returns containing `#[repr(value)]` `Fd` on the uniform boxed ABI.
+  #[inline(never)]
+  id-res :: forall e a. Result e a -> Result e a
+  id-res r = r
+
+  -- | Non-inlined `Ok Fd` wrapper preserving uniform boxed `Result` ABI.
+  #[inline(never)]
+  wrap-ok-fd :: Fd -> Result IoError Fd
+  wrap-ok-fd f = id-res (Ok f)
+
+  -- | Non-inlined `Err IoError` wrapper for `Result IoError Fd`.
+  #[inline(never)]
+  wrap-err-fd :: IoError -> Result IoError Fd
+  wrap-err-fd e = id-res (Err e)
+
+  -- | Non-inlined `Ok (Fd, U16)` wrapper preserving uniform boxed `Result` ABI.
+  #[inline(never)]
+  wrap-ok-fd-port :: Fd -> U16 -> Result IoError (Fd, U16)
+  wrap-ok-fd-port f p = id-res (Ok (f, p))
+
+  -- | Non-inlined `Err IoError` wrapper for `Result IoError (Fd, U16)`.
+  #[inline(never)]
+  wrap-err-fd-port :: IoError -> Result IoError (Fd, U16)
+  wrap-err-fd-port e = id-res (Err e)
+
+  -- | Non-inlined `Ok DarwinReactor` wrapper preserving uniform boxed `Result` ABI.
+  #[inline(never)]
+  wrap-ok-reactor :: DarwinReactor -> Result IoError DarwinReactor
+  wrap-ok-reactor rx = id-res (Ok rx)
+
+  -- | Non-inlined `Err IoError` wrapper for `Result IoError DarwinReactor`.
+  #[inline(never)]
+  wrap-err-reactor :: IoError -> Result IoError DarwinReactor
+  wrap-err-reactor e = id-res (Err e)
+
+  -- =========================================================================
+  -- 1. `DarwinReactor` handle, CQE flag decoders, and lifecycle
+  -- =========================================================================
+
+  -- | Live macOS `kqueue` reactor handle backed by a single 4 KiB-aligned DMA
+  -- slab holding the header, pending `DarwinKevent` changelist, reaped
+  -- `DarwinKevent` event array, and `Timespec` scratch slots.
+  --
+  -- Allocated once in `darwin-reactor-new`; all steady-state arm/disarm/poll
+  -- operations mutate the DMA slab in place with zero heap allocations and
+  -- zero atomic RC traffic.
+  record DarwinReactor where
+    -- | Underlying `kqueue(2)` file descriptor.
+    kq-fd :: I32
+    -- | Alignment padding word.
+    reactor-pad :: U32
+    -- | Base address of the reactor's 4 KiB-aligned DMA header slab.
+    reactor-hdr-addr :: I64
+    -- | Base address of the 32B `DarwinKevent` changelist array inside the DMA slab.
+    changelist-addr :: I64
+    -- | Maximum pending changelist entries before polling.
+    changelist-cap :: U32
+    -- | Maximum `DarwinKevent` entries reaped per `kevent(2)` call.
+    events-cap :: U32
+    -- | Base address of the 32B `DarwinKevent` output array inside the DMA slab.
+    events-addr :: I64
+
+  -- | Return the underlying `kqueue(2)` file descriptor wrapped as `Fd`.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-reactor-kq-fd :: DarwinReactor -> Fd
+  darwin-reactor-kq-fd rx = fd-of rx.kq-fd
+
+  -- | Return the current number of queued changelist entries awaiting submission.
+  #[inline(always)]
+  darwin-reactor-changelist-len :: DarwinReactor ->{MVar} U32
+  darwin-reactor-changelist-len rx =
+    if eq-i64 rx.reactor-hdr-addr 0 then 0
+    else raw-load-u32 (wrapping-add-i64 rx.reactor-hdr-addr hdr-off-cl-len)
+
+  -- | Return the changelist capacity in `DarwinKevent` entries.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-reactor-changelist-cap :: DarwinReactor -> U32
+  darwin-reactor-changelist-cap rx = rx.changelist-cap
+
+  -- | Return the event output buffer capacity in `DarwinKevent` entries.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-reactor-events-cap :: DarwinReactor -> U32
+  darwin-reactor-events-cap rx = rx.events-cap
+
+  -- | Return the cached monotonic timestamp (nanoseconds) refreshed on each poll.
+  #[inline(always)]
+  darwin-reactor-now-ns :: DarwinReactor ->{MVar} U64
+  darwin-reactor-now-ns rx =
+    if eq-i64 rx.reactor-hdr-addr 0 then 0
+    else raw-load-u64 (wrapping-add-i64 rx.reactor-hdr-addr hdr-off-now-ns)
+
+  -- | Extract the Darwin kqueue filter (`EVFILT_READ = -1`, `EVFILT_WRITE = -2`)
+  -- from a `Completion.cqe-flags` word produced by `darwin-reactor-poll`.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-cqe-filter :: U32 -> I16
+  darwin-cqe-filter fl = wrapping-u32-to-i16 fl
+
+  -- | Extract the Darwin kqueue flags (`EV_EOF`, `EV_ERROR`, `EV_CLEAR`, ...)
+  -- from a `Completion.cqe-flags` word produced by `darwin-reactor-poll`.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-cqe-flags :: U32 -> U16
+  darwin-cqe-flags fl = wrapping-u32-to-u16 (wrapping-shr-u32 fl 16)
+
+  -- | True when `cqe` reports an `EVFILT_READ` readiness completion.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-cqe-is-read :: Completion -> Bool
+  darwin-cqe-is-read cqe = eq-i16 (darwin-cqe-filter cqe.cqe-flags) flt-read-i16
+
+  -- | True when `cqe` reports an `EVFILT_WRITE` readiness completion.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-cqe-is-write :: Completion -> Bool
+  darwin-cqe-is-write cqe = eq-i16 (darwin-cqe-filter cqe.cqe-flags) flt-write-i16
+
+  -- | True when `cqe` carries Darwin's `EV_EOF` (`0x8000`) flag.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-cqe-is-eof :: Completion -> Bool
+  darwin-cqe-is-eof cqe = ne-u16 (bit-and-u16 (darwin-cqe-flags cqe.cqe-flags) 0x8000) 0
+
+  -- | True when `cqe` carries Darwin's `EV_ERROR` (`0x4000`) flag.
+  #[inline(always)]
+  #[no-alloc]
+  darwin-cqe-is-error :: Completion -> Bool
+  darwin-cqe-is-error cqe = ne-u16 (bit-and-u16 (darwin-cqe-flags cqe.cqe-flags) darwin-ev-error) 0
+
+  -- | Refresh `now-ns` inside the reactor DMA header using `clock_gettime(CLOCK_MONOTONIC)`.
+  #[inline(always)]
+  refresh-reactor-clock :: I64 ->{IO, MVar} U64
+  refresh-reactor-clock hdr =
+    let ts-addr = wrapping-add-i64 hdr hdr-off-clock-ts in
+    let rc = io-clock-gettime (wrapping-i64-to-i32 clock-monotonic) ts-addr in
+    if eq-i32 rc 0 then
+      let sec = raw-load-u64 ts-addr in
+      let nsec = raw-load-u64 (wrapping-add-i64 ts-addr 8) in
+      let ns = wrapping-add-u64 (wrapping-mul-u64 sec 1000000000) nsec in
+      let _ = raw-store-u64 (wrapping-add-i64 hdr hdr-off-now-ns) ns in
+      ns
+    else
+      raw-load-u64 (wrapping-add-i64 hdr hdr-off-now-ns)
+
+  -- | Allocate and initialize a new `DarwinReactor` with a `kqueue(2)` descriptor
+  -- and DMA-backed changelist and event arrays (minimum 256 event slots).
+  darwin-reactor-new :: U32 ->{IO, MVar} Result IoError DarwinReactor
+  darwin-reactor-new cap =
+    let cl-cap = if eq-u32 cap 0 then 256 else cap in
+    let ev-cap = if lt-u32 cl-cap 256 then 256 else cl-cap in
+    let kq = res-i32-io (io-kqueue ()) in
+    if io-is-err kq then wrap-err-reactor (darwin-errno-to-io-error (io-errno kq))
+    else
+      let cl-bytes = wrapping-shl-u64 (u32-to-u64 cl-cap) 5 in
+      let ev-bytes = wrapping-shl-u64 (u32-to-u64 ev-cap) 5 in
+      let total-bytes = wrapping-add-u64 128 (wrapping-add-u64 cl-bytes ev-bytes) in
+      let slab-u64 = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 slab-u64 0 then
+        let _ = io-close (wrapping-i64-to-i32 kq) in
+        wrap-err-reactor IoNoMem
+      else
+        let hdr = wrapping-u64-to-i64 slab-u64 in
+        let cl-addr = wrapping-add-i64 hdr hdr-off-changelist in
+        let ev-addr = wrapping-add-i64 cl-addr (wrapping-u64-to-i64 cl-bytes) in
+        let _0 = raw-store-u32 (wrapping-add-i64 hdr hdr-off-cl-len) 0 in
+        let _1 = raw-store-u32 (wrapping-add-i64 hdr hdr-off-destroyed) 0 in
+        let _2 = raw-store-u64 (wrapping-add-i64 hdr hdr-off-slab-bytes) total-bytes in
+        let _3 = raw-store-u32 (wrapping-add-i64 hdr 24) ev-cap in
+        let _4 = raw-store-u32 (wrapping-add-i64 hdr 28) cl-cap in
+        let _5 = refresh-reactor-clock hdr in
+        wrap-ok-reactor (DarwinReactor (wrapping-i64-to-i32 kq) 0 hdr cl-addr cl-cap ev-cap ev-addr)
+
+  -- | Close the reactor's `kqueue(2)` descriptor and unmap its DMA slab.
+  -- Idempotent on already-destroyed handles.
+  darwin-reactor-destroy :: DarwinReactor ->{IO, MVar} Unit
+  darwin-reactor-destroy rx =
+    let hdr = rx.reactor-hdr-addr in
+    if eq-i64 hdr 0 then ()
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+      if ne-u32 dead 0 then ()
+      else
+        let slab-bytes = raw-load-u64 (wrapping-add-i64 hdr hdr-off-slab-bytes) in
+        let _0 = raw-store-u32 (wrapping-add-i64 hdr hdr-off-destroyed) 1 in
+        let _1 = raw-store-u32 (wrapping-add-i64 hdr hdr-off-cl-len) 0 in
+        let _2 = if ge-i32 rx.kq-fd 0 then io-close rx.kq-fd else 0 in
+        let _3 = engine-dma-free (wrapping-i64-to-u64 hdr) slab-bytes in
+        ()
+
+  -- =========================================================================
+  -- 2. Batched `EV_CLEAR` Registration & Single-Syscall Poll/Reap (0 allocs)
+  -- =========================================================================
+
+  -- | Write one 32-byte Darwin `struct kevent` into the DMA changelist.
+  #[inline(always)]
+  write-kevent-slot :: I64 -> U64 -> I16 -> U16 -> U64 ->{MVar} Unit
+  write-kevent-slot slot ident-v flt-v flags-v udata-v =
+    let flt-u32 = bit-and-u32 (wrapping-i16-to-u32 flt-v) 65535 in
+    let flg-u32 = wrapping-shl-u32 (u16-to-u32 flags-v) 16 in
+    let _0 = raw-store-u64 slot ident-v in
+    let _1 = raw-store-u32 (wrapping-add-i64 slot 8) (bit-or-u32 flt-u32 flg-u32) in
+    let _2 = raw-store-u32 (wrapping-add-i64 slot 12) 0 in
+    let _3 = raw-store-i64 (wrapping-add-i64 slot 16) 0 in
+    raw-store-u64 (wrapping-add-i64 slot 24) udata-v
+
+  -- | Append one change entry to the reactor's DMA changelist. Zero heap alloc.
+  #[inline(always)]
+  push-change :: DarwinReactor -> U64 -> I16 -> U16 -> U64 ->{MVar} Bool
+  push-change rx ident-v flt-v flags-v udata-v =
+    let hdr = rx.reactor-hdr-addr in
+    if eq-i64 hdr 0 then bool-f
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+      if ne-u32 dead 0 then bool-f
+      else
+        let len = raw-load-u32 (wrapping-add-i64 hdr hdr-off-cl-len) in
+        if ge-u32 len rx.changelist-cap then bool-f
+        else
+          let slot = wrapping-add-i64 rx.changelist-addr (wrapping-shl-i64 (u32-to-i64 len) 5) in
+          let _w = write-kevent-slot slot ident-v flt-v flags-v udata-v in
+          let _u = raw-store-u32 (wrapping-add-i64 hdr hdr-off-cl-len) (wrapping-add-u32 len 1) in
+          bool-t
+
+  -- | Queue an edge-triggered (`EV_ADD | EV_ENABLE | EV_CLEAR`) `EVFILT_READ`
+  -- registration for `fd` correlated with `tok`. Zero heap allocations.
+  #[inline(always)]
+  darwin-reactor-arm-read :: DarwinReactor -> Fd -> IoToken ->{MVar} Bool
+  darwin-reactor-arm-read rx fd tok =
+    if not (fd-is-valid fd) then bool-f
+    else push-change rx (u32-to-u64 (wrapping-i32-to-u32 fd.fd-raw)) flt-read-i16 ev-arm-flags tok.io-token-raw
+
+  -- | Queue an edge-triggered (`EV_ADD | EV_ENABLE | EV_CLEAR`) `EVFILT_WRITE`
+  -- registration for `fd` correlated with `tok`. Zero heap allocations.
+  #[inline(always)]
+  darwin-reactor-arm-write :: DarwinReactor -> Fd -> IoToken ->{MVar} Bool
+  darwin-reactor-arm-write rx fd tok =
+    if not (fd-is-valid fd) then bool-f
+    else push-change rx (u32-to-u64 (wrapping-i32-to-u32 fd.fd-raw)) flt-write-i16 ev-arm-flags tok.io-token-raw
+
+  -- | Queue `EV_DELETE` for `EVFILT_READ` on `fd`. Zero heap allocations.
+  #[inline(always)]
+  darwin-reactor-disarm-read :: DarwinReactor -> Fd ->{MVar} Bool
+  darwin-reactor-disarm-read rx fd =
+    if not (fd-is-valid fd) then bool-f
+    else push-change rx (u32-to-u64 (wrapping-i32-to-u32 fd.fd-raw)) flt-read-i16 ev-delete-flags disarm-sentinel
+
+  -- | Queue `EV_DELETE` for `EVFILT_WRITE` on `fd`. Zero heap allocations.
+  #[inline(always)]
+  darwin-reactor-disarm-write :: DarwinReactor -> Fd ->{MVar} Bool
+  darwin-reactor-disarm-write rx fd =
+    if not (fd-is-valid fd) then bool-f
+    else push-change rx (u32-to-u64 (wrapping-i32-to-u32 fd.fd-raw)) flt-write-i16 ev-delete-flags disarm-sentinel
+
+  -- | Queue `EV_DELETE` for both `EVFILT_READ` and `EVFILT_WRITE` on `fd`.
+  -- Harmless `ENOENT` replies for filters that were not armed are suppressed
+  -- during `darwin-reactor-poll`. Zero heap allocations.
+  #[inline(always)]
+  darwin-reactor-disarm :: DarwinReactor -> Fd ->{MVar} Bool
+  darwin-reactor-disarm rx fd =
+    let hdr = rx.reactor-hdr-addr in
+    if not (fd-is-valid fd) then bool-f
+    else if eq-i64 hdr 0 then bool-f
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+      if ne-u32 dead 0 then bool-f
+      else
+        let len = raw-load-u32 (wrapping-add-i64 hdr hdr-off-cl-len) in
+        let rem = saturating-sub-u32 rx.changelist-cap len in
+        if lt-u32 rem 2 then bool-f
+        else
+          let ident-v = u32-to-u64 (wrapping-i32-to-u32 fd.fd-raw) in
+          let slot0 = wrapping-add-i64 rx.changelist-addr (wrapping-shl-i64 (u32-to-i64 len) 5) in
+          let slot1 = wrapping-add-i64 slot0 32 in
+          let _0 = write-kevent-slot slot0 ident-v flt-read-i16 ev-delete-flags disarm-sentinel in
+          let _1 = write-kevent-slot slot1 ident-v flt-write-i16 ev-delete-flags disarm-sentinel in
+          let _2 = raw-store-u32 (wrapping-add-i64 hdr hdr-off-cl-len) (wrapping-add-u32 len 2) in
+          bool-t
+
+  -- | Load the `idx`-th 16-byte `Completion` from a DMA buffer at `base-addr`.
+  -- Zero heap allocations.
+  #[inline(always)]
+  darwin-load-completion :: I64 -> U32 ->{MVar} Completion
+  darwin-load-completion base-addr idx =
+    let p = wrapping-add-i64 base-addr (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+    let tok = raw-load-u64 p in
+    let res = wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 p 8)) in
+    let flg = raw-load-u32 (wrapping-add-i64 p 12) in
+    Completion tok res flg
+
+  -- | Store one 16-byte `Completion` at slot `idx` of a DMA buffer at `base-addr`.
+  -- Zero heap allocations.
+  #[inline(always)]
+  darwin-store-completion :: I64 -> U32 -> Completion ->{MVar} Unit
+  darwin-store-completion base-addr idx cqe =
+    let p = wrapping-add-i64 base-addr (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+    let _0 = raw-store-u64 p cqe.cqe-token in
+    let _1 = raw-store-u32 (wrapping-add-i64 p 8) (wrapping-i32-to-u32 cqe.cqe-res) in
+    raw-store-u32 (wrapping-add-i64 p 12) cqe.cqe-flags
+
+  -- | Translate `n` reaped `DarwinKevent` records into 16B `Completion` records
+  -- in caller's DMA buffer at `cqe-out-addr`. Zero heap allocations.
+  translate-kevents :: I64 -> I64 -> I32 -> I32 -> I32 ->{MVar} I32
+  translate-kevents ev-base out-base i n out-i =
+    if ge-i32 i n then out-i
+    else
+      let ev = wrapping-add-i64 ev-base (wrapping-shl-i64 (i32-to-i64 i) 5) in
+      let flt-flags = raw-load-u32 (wrapping-add-i64 ev 8) in
+      let flags-u16 = wrapping-u32-to-u16 (wrapping-shr-u32 flt-flags 16) in
+      let ev-data = raw-load-i64 (wrapping-add-i64 ev 16) in
+      let udata = raw-load-u64 (wrapping-add-i64 ev 24) in
+      let is-err = ne-u16 (bit-and-u16 flags-u16 darwin-ev-error) 0 in
+      let is-disarm-enoent = if is-err then (if eq-i64 ev-data 2 then eq-u64 udata disarm-sentinel else bool-f) else bool-f in
+      if is-disarm-enoent then
+        translate-kevents ev-base out-base (wrapping-add-i32 i 1) n out-i
+      else
+        let cqe-res = (if is-err then (if lt-i64 0 ev-data then wrapping-neg-i32 (wrapping-i64-to-i32 ev-data) else 0) else if gt-i64 ev-data 2147483647 then 2147483647 else wrapping-i64-to-i32 ev-data) in
+        let dst = wrapping-add-i64 out-base (wrapping-shl-i64 (i32-to-i64 out-i) 4) in
+        let _0 = raw-store-u64 dst udata in
+        let _1 = raw-store-u32 (wrapping-add-i64 dst 8) (wrapping-i32-to-u32 cqe-res) in
+        let _2 = raw-store-u32 (wrapping-add-i64 dst 12) flt-flags in
+        translate-kevents ev-base out-base (wrapping-add-i32 i 1) n (wrapping-add-i32 out-i 1)
+
+  -- | Submit all pending changelist entries AND reap up to `max-cqes` ready
+  -- completions in a SINGLE `kevent(2)` syscall, writing 16-byte `Completion`
+  -- records into `cqe-out-addr` (`cqe-token = udata`, `cqe-res = data`,
+  -- `cqe-flags = (flags << 16) | (filter & 0xFFFF)`).
+  --
+  -- `timeout-ns == 0` performs an immediate non-blocking poll;
+  -- `timeout-ns == 0xFFFFFFFFFFFFFFFF` blocks indefinitely; any other value
+  -- waits up to `timeout-ns` nanoseconds. Refreshes `darwin-reactor-now-ns`.
+  -- Returns the number of `Completion` records written (`>= 0`) or `-errno`.
+  -- Zero heap allocations and zero atomic RC traffic.
+  darwin-reactor-poll :: DarwinReactor -> U64 -> I64 -> U32 ->{IO, MVar} I32
+  darwin-reactor-poll rx timeout-ns cqe-out-addr max-cqes =
+    let hdr = rx.reactor-hdr-addr in
+    if eq-i64 hdr 0 then -9
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 hdr hdr-off-destroyed) in
+      if ne-u32 dead 0 then -9
+      else
+        let nchanges = raw-load-u32 (wrapping-add-i64 hdr hdr-off-cl-len) in
+        let chg-ptr = if eq-u32 nchanges 0 then 0 else rx.changelist-addr in
+        let want0 = if eq-i64 cqe-out-addr 0 then 0 else max-cqes in
+        let want = if lt-u32 want0 rx.events-cap then want0 else rx.events-cap in
+        let ev-ptr = if eq-u32 want 0 then 0 else rx.events-addr in
+        let ts-ptr = (if eq-u64 timeout-ns 0xFFFFFFFFFFFFFFFF then 0 else (let tp = wrapping-add-i64 hdr hdr-off-poll-ts in let sec = div-u64 timeout-ns 1000000000 in let nsec = rem-u64 timeout-ns 1000000000 in let _s = raw-store-u64 tp sec in let _n = raw-store-u64 (wrapping-add-i64 tp 8) nsec in tp)) in
+        let raw-r = res-i32-io (io-kevent rx.kq-fd chg-ptr (wrapping-u32-to-i32 nchanges) ev-ptr (wrapping-u32-to-i32 want) ts-ptr) in
+        let _clk = refresh-reactor-clock hdr in
+        if io-is-err raw-r then
+          wrapping-i64-to-i32 raw-r
+        else
+          let _clr = raw-store-u32 (wrapping-add-i64 hdr hdr-off-cl-len) 0 in
+          let nev = wrapping-i64-to-i32 raw-r in
+          if le-i32 nev 0 || eq-i64 cqe-out-addr 0 then 0
+          else translate-kevents rx.events-addr cqe-out-addr 0 nev 0
+
+  -- =========================================================================
+  -- 3. Zero-Alloc DMA Socket, `iovec`, `sockaddr_in`, `writev`, & `sendfile`
+  -- =========================================================================
+
+  -- | Write one 16-byte POSIX `struct iovec` at slot `idx` of a DMA array at `iov-addr`.
+  #[inline(always)]
+  darwin-iovec-write :: I64 -> U32 -> I64 -> U64 ->{MVar} Unit
+  darwin-iovec-write iov-addr idx buf-addr buf-len =
+    let slot = wrapping-add-i64 iov-addr (wrapping-shl-i64 (u32-to-i64 idx) 4) in
+    let _0 = raw-store-u64 slot (wrapping-i64-to-u64 buf-addr) in
+    raw-store-u64 (wrapping-add-i64 slot 8) buf-len
+
+  -- | Write one 16-byte `struct iovec` from an `Engine.Mem.DmaPool.DmaSlice`.
+  #[inline(always)]
+  darwin-iovec-write-slice :: I64 -> U32 -> DmaSlice ->{MVar} Unit
+  darwin-iovec-write-slice iov-addr idx sl =
+    darwin-iovec-write iov-addr idx sl.slice-addr (u32-to-u64 sl.slice-len)
+
+  -- | Write a 16-byte Darwin `struct sockaddr_in` for `(ipv4-host-order, port)`
+  -- directly into DMA memory at `addr`. Zero heap allocations.
+  #[inline(always)]
+  darwin-sockaddr-write-dma :: I64 -> U32 -> U16 ->{MVar} Unit
+  darwin-sockaddr-write-dma addr ip-host port =
+    let p-hi = wrapping-u16-to-u8 (wrapping-shr-u16 port 8) in
+    let p-lo = wrapping-u16-to-u8 port in
+    let hdr0 = bit-or-u32 (bit-or-u32 16 (wrapping-shl-u32 2 8)) (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 p-hi) 16) (wrapping-shl-u32 (u8-to-u32 p-lo) 24)) in
+    let _0 = raw-store-u32 addr hdr0 in
+    let _1 = raw-store-u32 (wrapping-add-i64 addr 4) (swap-bytes-u32 ip-host) in
+    raw-store-u64 (wrapping-add-i64 addr 8) 0
+
+  -- | Decode the host-order TCP/UDP port from a 16-byte `sockaddr_in` at `addr`.
+  #[inline(always)]
+  darwin-sockaddr-read-port-dma :: I64 ->{MVar} U16
+  darwin-sockaddr-read-port-dma addr =
+    let hi = u8-to-u16 (raw-load-u8 (wrapping-add-i64 addr 2)) in
+    let lo = u8-to-u16 (raw-load-u8 (wrapping-add-i64 addr 3)) in
+    bit-or-u16 (wrapping-shl-u16 hi 8) lo
+
+  -- | Decode the host-order IPv4 address from a 16-byte `sockaddr_in` at `addr`.
+  #[inline(always)]
+  darwin-sockaddr-read-ip-dma :: I64 ->{MVar} U32
+  darwin-sockaddr-read-ip-dma addr =
+    swap-bytes-u32 (raw-load-u32 (wrapping-add-i64 addr 4))
+
+  -- | Set `O_NONBLOCK` on descriptor `fd` via `F_GETFL` + `F_SETFL`.
+  set-nonblock-io :: I32 ->{IO, MVar} I64
+  set-nonblock-io fd =
+    let flags = res-i32-io (io-fcntl fd (wrapping-i64-to-i32 f-getfl) 0) in
+    if io-is-err flags then flags
+    else res-i32-io (io-fcntl fd (wrapping-i64-to-i32 f-setfl) (bit-or-i64 flags o-nonblock))
+
+  -- | Set an integer `I32` socket option using a 4-byte stack-scoped `Bytes`.
+  set-sockopt-i32 :: I32 -> I64 -> I64 -> U32 ->{IO, MVar} I64
+  set-sockopt-i32 fd level opt val =
+    let b = bytes-new 4 in
+    let _w = bytes-store-le32 b 0 val in
+    let rc = res-i32-io (io-setsockopt fd (wrapping-i64-to-i32 level) (wrapping-i64-to-i32 opt) (bytes-data b) 4) in
+    sys-held b rc
+
+  -- | Build a 16-byte Darwin `struct sockaddr_in` `Bytes` buffer for `(ip-host, port)`.
+  make-sockaddr-bytes :: U32 -> U16 -> Bytes
+  make-sockaddr-bytes ip-host port =
+    let b = bytes-new 16 in
+    let p-hi = wrapping-u16-to-u8 (wrapping-shr-u16 port 8) in
+    let p-lo = wrapping-u16-to-u8 port in
+    let _0 = bytes-set-u8 b 0 16 in
+    let _1 = bytes-set-u8 b 1 2 in
+    let _2 = bytes-set-u8 b 2 p-hi in
+    let _3 = bytes-set-u8 b 3 p-lo in
+    let _4 = bytes-store-le32 b 4 (swap-bytes-u32 ip-host) in
+    b
+
+  -- | Query the actual bound host-order port of `fd` via `getsockname(2)`.
+  query-bound-port :: I32 ->{IO, MVar} Result IoError U16
+  query-bound-port fd =
+    let bound = bytes-new 16 in
+    let alen = bytes-new 4 in
+    let _w = bytes-store-le32 alen 0 16 in
+    let rc = sys-held bound (sys-held alen (res-i32-io (io-getsockname fd (bytes-data bound) (bytes-data alen)))) in
+    if io-is-err rc then id-res (Err (darwin-errno-to-io-error (io-errno rc)))
+    else id-res (Ok (sys-sockaddr-in-port bound))
+
+  -- | Create a non-blocking IPv4 TCP listener bound to `127.0.0.1:port`
+  -- (`port == 0` selects an ephemeral port), configured with `SO_REUSEADDR`,
+  -- `SO_REUSEPORT`, `TCP_NODELAY`, `SO_NOSIGPIPE`, and `O_NONBLOCK`.
+  -- Returns `Ok (listener-fd, bound-port)`.
+  darwin-tcp-listen-reuseport :: U16 -> I32 ->{IO, MVar} Result IoError (Fd, U16)
+  darwin-tcp-listen-reuseport port backlog =
+    let bl = if le-i32 backlog 0 then 128 else backlog in
+    let fd64 = res-i32-io (io-socket (wrapping-i64-to-i32 af-inet) (wrapping-i64-to-i32 sock-stream) 0) in
+    if io-is-err fd64 then wrap-err-fd-port (darwin-errno-to-io-error (io-errno fd64))
+    else
+      let fd = wrapping-i64-to-i32 fd64 in
+      let r1 = set-sockopt-i32 fd sol-socket so-reuseaddr 1 in
+      let r2 = set-sockopt-i32 fd sol-socket so-reuseport 1 in
+      let r3 = set-sockopt-i32 fd ipproto-tcp tcp-nodelay 1 in
+      let _r4 = set-sockopt-i32 fd sol-socket darwin-so-nosigpipe 1 in
+      let r5 = set-nonblock-io fd in
+      if io-is-err r1 || io-is-err r2 || io-is-err r3 || io-is-err r5 then
+        let _cl = io-close fd in
+        let err-r = if io-is-err r1 then r1 else if io-is-err r2 then r2 else if io-is-err r3 then r3 else r5 in
+        wrap-err-fd-port (darwin-errno-to-io-error (io-errno err-r))
+      else
+        let addr = make-sockaddr-bytes ipv4-loopback port in
+        let rb = sys-held addr (res-i32-io (io-bind fd (bytes-data addr) 16)) in
+        if io-is-err rb then
+          let _cl = io-close fd in
+          wrap-err-fd-port (darwin-errno-to-io-error (io-errno rb))
+        else
+          let rl = res-i32-io (io-listen fd bl) in
+          if io-is-err rl then
+            let _cl = io-close fd in
+            wrap-err-fd-port (darwin-errno-to-io-error (io-errno rl))
+          else
+            case query-bound-port fd of
+              Err e ->
+                let _cl = io-close fd in
+                wrap-err-fd-port e
+              Ok bound-port ->
+                wrap-ok-fd-port (fd-of fd) bound-port
+
+  -- | Accept one pending TCP connection on a non-blocking listener `fd`,
+  -- configuring `O_NONBLOCK`, `TCP_NODELAY`, and `SO_NOSIGPIPE` on the accepted
+  -- socket. Returns `Err IoAgain` when no pending connection is ready.
+  darwin-tcp-accept-nonblock :: Fd ->{IO, MVar} Result IoError Fd
+  darwin-tcp-accept-nonblock listen-fd =
+    darwin-tcp-accept-raw listen-fd.fd-raw
+
+  -- | Raw descriptor worker for `darwin-tcp-accept-nonblock`.
+  darwin-tcp-accept-raw :: I32 ->{IO, MVar} Result IoError Fd
+  darwin-tcp-accept-raw lfd =
+    if lt-i32 lfd 0 then wrap-err-fd IoBadFd
+    else
+      let cfd64 = res-i32-io (io-accept lfd 0 0) in
+      if io-is-err cfd64 then wrap-err-fd (darwin-errno-to-io-error (io-errno cfd64))
+      else
+        let cfd = wrapping-i64-to-i32 cfd64 in
+        let r1 = set-nonblock-io cfd in
+        let r2 = set-sockopt-i32 cfd ipproto-tcp tcp-nodelay 1 in
+        let _r3 = set-sockopt-i32 cfd sol-socket darwin-so-nosigpipe 1 in
+        if io-is-err r1 || io-is-err r2 then
+          let _cl = io-close cfd in
+          let err-r = if io-is-err r1 then r1 else r2 in
+          wrap-err-fd (darwin-errno-to-io-error (io-errno err-r))
+        else
+          wrap-ok-fd (fd-of cfd)
+
+  -- | Initiate a non-blocking IPv4 TCP connection to `(ipv4-host-order, port)`
+  -- with `O_NONBLOCK`, `TCP_NODELAY`, and `SO_NOSIGPIPE`. Treats Darwin's
+  -- `EINPROGRESS` as a successful non-blocking handshake start.
+  darwin-tcp-connect-nonblock :: U32 -> U16 ->{IO, MVar} Result IoError Fd
+  darwin-tcp-connect-nonblock ip-host port =
+    let fd64 = res-i32-io (io-socket (wrapping-i64-to-i32 af-inet) (wrapping-i64-to-i32 sock-stream) 0) in
+    if io-is-err fd64 then wrap-err-fd (darwin-errno-to-io-error (io-errno fd64))
+    else
+      let fd = wrapping-i64-to-i32 fd64 in
+      let r1 = set-nonblock-io fd in
+      let r2 = set-sockopt-i32 fd ipproto-tcp tcp-nodelay 1 in
+      let _r3 = set-sockopt-i32 fd sol-socket darwin-so-nosigpipe 1 in
+      if io-is-err r1 || io-is-err r2 then
+        let _cl = io-close fd in
+        let err-r = if io-is-err r1 then r1 else r2 in
+        wrap-err-fd (darwin-errno-to-io-error (io-errno err-r))
+      else
+        let dst = make-sockaddr-bytes ip-host port in
+        let rc = sys-held dst (res-i32-io (io-connect fd (bytes-data dst) 16)) in
+        if eq-i64 rc 0 || io-is-in-progress rc then
+          wrap-ok-fd (fd-of fd)
+        else
+          let _cl = io-close fd in
+          wrap-err-fd (darwin-errno-to-io-error (io-errno rc))
+
+  -- | Bind a non-blocking IPv4 UDP socket on `127.0.0.1:port` (`port == 0`
+  -- selects an ephemeral port) with `SO_REUSEADDR`, `SO_REUSEPORT`, and
+  -- `O_NONBLOCK`. Returns `Ok (udp-fd, bound-port)`.
+  darwin-udp-bind-reuseport :: U16 ->{IO, MVar} Result IoError (Fd, U16)
+  darwin-udp-bind-reuseport port =
+    let fd64 = res-i32-io (io-socket (wrapping-i64-to-i32 af-inet) (wrapping-i64-to-i32 sock-dgram) 0) in
+    if io-is-err fd64 then wrap-err-fd-port (darwin-errno-to-io-error (io-errno fd64))
+    else
+      let fd = wrapping-i64-to-i32 fd64 in
+      let r1 = set-sockopt-i32 fd sol-socket so-reuseaddr 1 in
+      let r2 = set-sockopt-i32 fd sol-socket so-reuseport 1 in
+      let r3 = set-nonblock-io fd in
+      if io-is-err r1 || io-is-err r2 || io-is-err r3 then
+        let _cl = io-close fd in
+        let err-r = if io-is-err r1 then r1 else if io-is-err r2 then r2 else r3 in
+        wrap-err-fd-port (darwin-errno-to-io-error (io-errno err-r))
+      else
+        let addr = make-sockaddr-bytes ipv4-loopback port in
+        let rb = sys-held addr (res-i32-io (io-bind fd (bytes-data addr) 16)) in
+        if io-is-err rb then
+          let _cl = io-close fd in
+          wrap-err-fd-port (darwin-errno-to-io-error (io-errno rb))
+        else
+          case query-bound-port fd of
+            Err e ->
+              let _cl = io-close fd in
+              wrap-err-fd-port e
+            Ok bound-port ->
+              wrap-ok-fd-port (fd-of fd) bound-port
+
+  -- | Close an OS file or socket descriptor.
+  darwin-close-fd :: Fd ->{IO, MVar} IoError
+  darwin-close-fd fd =
+    if not (fd-is-valid fd) then IoBadFd
+    else
+      let rc = res-i32-io (io-close fd.fd-raw) in
+      if io-is-err rc then darwin-errno-to-io-error (io-errno rc) else IoOk
+
+  -- | Non-blocking read directly into a DMA buffer address `buf-addr`.
+  -- Returns bytes read (`> 0`), `0` on EOF, or `-errno` (e.g. `-35` for `EAGAIN`).
+  -- Zero heap allocations.
+  #[inline(always)]
+  darwin-recv-dma :: Fd -> I64 -> U32 ->{IO, MVar} I32
+  darwin-recv-dma fd buf-addr len =
+    wrapping-i64-to-i32 (res-i64-io (io-read fd.fd-raw buf-addr (u32-to-i64 len)))
+
+  -- | Non-blocking write directly from a DMA buffer address `buf-addr`.
+  -- Returns bytes written (`>= 0`) or `-errno`. Zero heap allocations.
+  #[inline(always)]
+  darwin-send-dma :: Fd -> I64 -> U32 ->{IO, MVar} I32
+  darwin-send-dma fd buf-addr len =
+    wrapping-i64-to-i32 (res-i64-io (io-write fd.fd-raw buf-addr (u32-to-i64 len)))
+
+  -- | Scatter-gather `writev(2)` of `iovcnt` 16-byte `Iovec` entries stored in
+  -- DMA memory at `iov-addr`. Returns total bytes written (`>= 0`) or `-errno`.
+  -- Zero heap allocations.
+  #[inline(always)]
+  darwin-writev-dma :: Fd -> I64 -> U32 ->{IO, MVar} I32
+  darwin-writev-dma fd iov-addr iovcnt =
+    wrapping-i64-to-i32 (res-i64-io (io-writev fd.fd-raw iov-addr (wrapping-u32-to-i32 iovcnt)))
+
+  -- | Scatter-gather `readv(2)` into `iovcnt` 16-byte `Iovec` entries stored in
+  -- DMA memory at `iov-addr`. Returns total bytes read (`>= 0`) or `-errno`.
+  -- Zero heap allocations.
+  #[inline(always)]
+  darwin-readv-dma :: Fd -> I64 -> U32 ->{IO, MVar} I32
+  darwin-readv-dma fd iov-addr iovcnt =
+    wrapping-i64-to-i32 (res-i64-io (io-readv fd.fd-raw iov-addr (wrapping-u32-to-i32 iovcnt)))
+
+  -- | Non-blocking receive directly into an `Engine.Mem.DmaPool.DmaSlice`.
+  #[inline(always)]
+  darwin-recv-slice :: Fd -> DmaSlice ->{IO, MVar} I32
+  darwin-recv-slice fd sl = darwin-recv-dma fd sl.slice-addr sl.slice-len
+
+  -- | Non-blocking send directly from an `Engine.Mem.DmaPool.DmaSlice`.
+  #[inline(always)]
+  darwin-send-slice :: Fd -> DmaSlice ->{IO, MVar} I32
+  darwin-send-slice fd sl = darwin-send-dma fd sl.slice-addr sl.slice-len
+
+  -- | Zero-copy Darwin `sendfile(2)` from regular file `file-fd` at `offset`
+  -- (up to `len` bytes, or until EOF when `len == 0`) to TCP stream socket
+  -- `sock-fd`, using caller's 8-byte DMA scratch address `len-scratch-addr` for
+  -- the in/out `off_t *len` parameter. Zero heap allocations.
+  -- Returns bytes transferred (`>= 0`) or `-errno`.
+  darwin-sendfile-dma :: Fd -> Fd -> U64 -> U64 -> I64 ->{IO, MVar} I64
+  darwin-sendfile-dma file-fd sock-fd offset len len-scratch-addr =
+    if eq-i64 len-scratch-addr 0 then -22
+    else
+      let _w = raw-store-i64 len-scratch-addr (wrapping-u64-to-i64 len) in
+      let rc = res-i32-io (io-sendfile file-fd.fd-raw sock-fd.fd-raw (wrapping-u64-to-i64 offset) len-scratch-addr 0 0) in
+      let sent = raw-load-i64 len-scratch-addr in
+      if eq-i64 rc 0 then sent
+      else if (io-is-would-block rc || io-is-interrupted rc) && lt-i64 0 sent then sent
+      else rc
+
+  -- | Zero-copy Darwin `sendfile(2)` transferring up to `len` bytes (`0` = until
+  -- EOF) from `file-fd` at byte `offset` directly into TCP socket `sock-fd`.
+  -- Returns bytes transferred (`>= 0`) or `-errno`.
+  darwin-sendfile-fd :: Fd -> Fd -> U64 -> U64 ->{IO, MVar} I64
+  darwin-sendfile-fd file-fd sock-fd offset len =
+    let len-buf = bytes-new 8 in
+    let _w = bytes-store-le64 len-buf 0 len in
+    let rc = sys-held len-buf (res-i32-io (io-sendfile file-fd.fd-raw sock-fd.fd-raw (wrapping-u64-to-i64 offset) (bytes-data len-buf) 0 0)) in
+    let sent = wrapping-u64-to-i64 (bytes-load-le64 len-buf 0) in
+    if eq-i64 rc 0 then sent
+    else if (io-is-would-block rc || io-is-interrupted rc) && lt-i64 0 sent then sent
+    else rc
+
+  -- | Non-blocking UDP `sendto(2)` directly from DMA address `buf-addr` to a
+  -- 16-byte Darwin `struct sockaddr_in` at `dest-addr`. Zero heap allocations.
+  #[inline(always)]
+  darwin-udp-sendto-dma :: Fd -> I64 -> U32 -> I64 ->{IO, MVar} I32
+  darwin-udp-sendto-dma fd buf-addr len dest-addr =
+    wrapping-i64-to-i32 (res-i64-io (io-sendto fd.fd-raw buf-addr (u32-to-i64 len) 0 dest-addr 16))
+
+  -- | Non-blocking UDP `recvfrom(2)` directly into DMA address `buf-addr`,
+  -- writing the sender's 16-byte `sockaddr_in` into `src-addr` and length into
+  -- `src-len-addr` (if non-zero). Zero heap allocations.
+  #[inline(always)]
+  darwin-udp-recvfrom-dma :: Fd -> I64 -> U32 -> I64 -> I64 ->{IO, MVar} I32
+  darwin-udp-recvfrom-dma fd buf-addr len src-addr src-len-addr =
+    let _init = if ne-i64 src-len-addr 0 then raw-store-u32 src-len-addr 16 else () in
+    wrapping-i64-to-i32 (res-i64-io (io-recvfrom fd.fd-raw buf-addr (u32-to-i64 len) 0 src-addr src-len-addr))
+
+  -- =========================================================================
+  -- 4. Direct Disk I/O (`F_NOCACHE`), `pread`/`pwrite`, `fsync`, and Clocks
+  -- =========================================================================
+
+  -- | Copy `path` into a NUL-terminated `Bytes` buffer for `open(2)`.
+  nul-terminate-path :: Bytes -> Bytes
+  nul-terminate-path path =
+    let n = bytes-len path in
+    let out = bytes-new (n + 1) in
+    let _c = if n <= bytes-len out && n <= bytes-len path then bytes-copy-range out path 0 0 n else () in
+    let _z = if n < bytes-len out then bytes-set-u8 out n 0 else () in
+    out
+
+  -- | Open a file at `path` with POSIX `flags` (e.g. `o-rdwr | o-creat | o-trunc`)
+  -- and enable macOS `F_NOCACHE` via `fcntl(fd, F_NOCACHE, 1)` to bypass the OS
+  -- page cache for direct storage I/O.
+  darwin-open-direct :: Bytes -> I32 ->{IO, MVar} Result IoError Fd
+  darwin-open-direct path flags =
+    let cpath = nul-terminate-path path in
+    let fd64 = sys-held cpath (res-i32-io (io-open (bytes-data cpath) flags 420)) in
+    if io-is-err fd64 then wrap-err-fd (darwin-errno-to-io-error (io-errno fd64))
+    else
+      let fd = wrapping-i64-to-i32 fd64 in
+      let rc = res-i32-io (io-fcntl fd (wrapping-i64-to-i32 f-nocache) 1) in
+      if io-is-err rc then
+        let _cl = io-close fd in
+        wrap-err-fd (darwin-errno-to-io-error (io-errno rc))
+      else
+        wrap-ok-fd (fd-of fd)
+
+  -- | Positioned `pread(2)` directly into DMA address `buf-addr` at file byte `offset`.
+  -- Returns bytes read (`>= 0`) or `-errno`. Zero heap allocations.
+  #[inline(always)]
+  darwin-pread-dma :: Fd -> I64 -> U32 -> U64 ->{IO, MVar} I32
+  darwin-pread-dma fd buf-addr len offset =
+    wrapping-i64-to-i32 (res-i64-io (io-pread fd.fd-raw buf-addr (u32-to-i64 len) (wrapping-u64-to-i64 offset)))
+
+  -- | Positioned `pwrite(2)` directly from DMA address `buf-addr` at file byte `offset`.
+  -- Returns bytes written (`>= 0`) or `-errno`. Zero heap allocations.
+  #[inline(always)]
+  darwin-pwrite-dma :: Fd -> I64 -> U32 -> U64 ->{IO, MVar} I32
+  darwin-pwrite-dma fd buf-addr len offset =
+    wrapping-i64-to-i32 (res-i64-io (io-pwrite fd.fd-raw buf-addr (u32-to-i64 len) (wrapping-u64-to-i64 offset)))
+
+  -- | Positioned `pread(2)` into an `Engine.Mem.DmaPool.DmaSlice`.
+  #[inline(always)]
+  darwin-pread-slice :: Fd -> DmaSlice -> U64 ->{IO, MVar} I32
+  darwin-pread-slice fd sl offset = darwin-pread-dma fd sl.slice-addr sl.slice-len offset
+
+  -- | Positioned `pwrite(2)` from an `Engine.Mem.DmaPool.DmaSlice`.
+  #[inline(always)]
+  darwin-pwrite-slice :: Fd -> DmaSlice -> U64 ->{IO, MVar} I32
+  darwin-pwrite-slice fd sl offset = darwin-pwrite-dma fd sl.slice-addr sl.slice-len offset
+
+  -- | Flush file data and metadata to durable storage via `fsync(2)`.
+  darwin-fsync-fd :: Fd ->{IO, MVar} IoError
+  darwin-fsync-fd fd =
+    if not (fd-is-valid fd) then IoBadFd
+    else
+      let rc = res-i32-io (io-fsync fd.fd-raw) in
+      if io-is-err rc then darwin-errno-to-io-error (io-errno rc) else IoOk
+
+  -- | Resize an open file descriptor to `len` bytes via `ftruncate(2)`.
+  darwin-ftruncate-fd :: Fd -> U64 ->{IO, MVar} IoError
+  darwin-ftruncate-fd fd len =
+    if not (fd-is-valid fd) then IoBadFd
+    else
+      let rc = res-i32-io (io-ftruncate fd.fd-raw (wrapping-u64-to-i64 len)) in
+      if io-is-err rc then darwin-errno-to-io-error (io-errno rc) else IoOk
+
+  -- | Read the monotonic clock in nanoseconds. Zero heap allocations.
+  #[inline(always)]
+  darwin-clock-monotonic-ns :: Unit ->{IO, MVar} U64
+  darwin-clock-monotonic-ns u =
+    let ns = raw-mono-ns-io u in
+    if lt-i64 ns 0 then 0 else wrapping-i64-to-u64 ns
+
+  -- | Read the wall-clock Unix epoch timestamp in nanoseconds. Zero heap allocations.
+  #[inline(always)]
+  darwin-clock-wall-ns :: Unit ->{IO, MVar} U64
+  darwin-clock-wall-ns u =
+    let ns = raw-wall-ns-io u in
+    if lt-i64 ns 0 then 0 else wrapping-i64-to-u64 ns
+
+  -- =========================================================================
+  -- 5. Bridge to `Engine.Types` (`ReactorOps r` and `ClockOps r`)
+  -- =========================================================================
+
+  -- | Boxed wrapper storing 40-byte `IoSqe` entries in a `Deque`.
+  data DarwinBoxedSqe where
+    -- | Wrapped submission queue entry.
+    DarwinBoxedSqe :: IoSqe -> DarwinBoxedSqe
+
+  -- | Boxed wrapper storing 16-byte `Completion` entries in a `Deque`.
+  data DarwinBoxedCqe where
+    -- | Wrapped completion queue entry.
+    DarwinBoxedCqe :: Completion -> DarwinBoxedCqe
+
+  -- | Non-inlined `Deque` pop-front barrier for `DarwinBoxedSqe` / `DarwinBoxedCqe`.
+  #[inline(never)]
+  rx-dq-pop :: forall r a. Deque r a ->{Mut r} Option a
+  rx-dq-pop q = deque-pop-front q
+
+  -- | Region-polymorphic `kqueue` adapter state bridging `DarwinReactor` into
+  -- `Engine.Types.ReactorOps r` (`{IO r, Mut r}`).
+  record DarwinOpsState (r :: Region) where
+    -- | Underlying kqueue descriptor from `DarwinReactor`.
+    ops-kq :: I32
+    -- | Queued `IoSqe` submissions awaiting flush.
+    ops-sqes :: Deque r DarwinBoxedSqe
+    -- | Pending `IoSqe` entries parked on `EAGAIN` waiting for kqueue readiness.
+    ops-parked :: Deque r DarwinBoxedSqe
+    -- | Ready `Completion` queue awaiting `reactor-pop-cqe`.
+    ops-cqes :: Deque r DarwinBoxedCqe
+    -- | Whether the capability handle has been closed.
+    ops-closed :: Var r Bool
+
+  -- | Build one 32-byte `DarwinKevent` in a `Bytes` buffer for `ReactorOps`.
+  make-ops-kevent :: U64 -> I64 -> I64 -> U64 -> Bytes
+  make-ops-kevent ident-v flt-v flg-v udata-v =
+    let b = bytes-new 32 in
+    let _0 = bytes-store-le64 b 0 ident-v in
+    let f16 = wrapping-i64-to-u16 flt-v in
+    let fl16 = wrapping-i64-to-u16 flg-v in
+    let _1 = bytes-set-u8 b 8 (wrapping-u16-to-u8 f16) in
+    let _2 = bytes-set-u8 b 9 (wrapping-u16-to-u8 (wrapping-shr-u16 f16 8)) in
+    let _3 = bytes-set-u8 b 10 (wrapping-u16-to-u8 fl16) in
+    let _4 = bytes-set-u8 b 11 (wrapping-u16-to-u8 (wrapping-shr-u16 fl16 8)) in
+    let _5 = bytes-store-le64 b 24 udata-v in
+    b
+
+  -- | Register a one-shot edge-triggered kqueue watch for a parked `IoSqe`.
+  ops-arm-fd :: forall r. using (io :: Io r) => I32 -> I32 -> I64 -> U64 ->{IO r} Unit
+  ops-arm-fd kq fd flt tok =
+    let chg = make-ops-kevent (u32-to-u64 (wrapping-i32-to-u32 fd)) flt (bit-or-i64 (bit-or-i64 ev-add ev-enable) ev-clear) tok in
+    let _ = sys-held chg (sys-kevent (i32-to-i64 kq) (bytes-data chg) 1 0 0 0) in
+    ()
+
+  -- | Execute one `IoSqe` against live Darwin descriptors, parking on `EAGAIN`.
+  ops-exec-sqe :: forall r. using (io :: Io r) => DarwinOpsState r -> IoSqe ->{IO r, Mut r} Unit
+  ops-exec-sqe st sqe =
+    let op = io-sqe-op-kind sqe in
+    let tok = io-sqe-token-id sqe in
+    let fd64 = i32-to-i64 sqe.sqe-fd in
+    let addr = wrapping-u64-to-i64 sqe.sqe-buf-addr in
+    let len64 = u32-to-i64 sqe.sqe-len in
+    case op of
+      OpNop ->
+        deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok 0 0))
+      OpClose ->
+        let rc = sys-close fd64 in
+        let res = if io-is-err rc then neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc)) else 0 in
+        deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok res 0))
+      OpAccept ->
+        let rc = sys-accept fd64 0 0 in
+        if io-is-would-block rc then
+          let _a = ops-arm-fd st.ops-kq sqe.sqe-fd evfilt-read sqe.sqe-token in
+          deque-push-back st.ops-parked (DarwinBoxedSqe sqe)
+        else if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          let _nb = sys-set-nonblocking rc in
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpRecv ->
+        let rc = sys-read fd64 addr len64 in
+        if io-is-would-block rc then
+          let _a = ops-arm-fd st.ops-kq sqe.sqe-fd evfilt-read sqe.sqe-token in
+          deque-push-back st.ops-parked (DarwinBoxedSqe sqe)
+        else if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpRecvMultishot ->
+        let rc = sys-read fd64 addr len64 in
+        if io-is-would-block rc then
+          let _a = ops-arm-fd st.ops-kq sqe.sqe-fd evfilt-read sqe.sqe-token in
+          deque-push-back st.ops-parked (DarwinBoxedSqe sqe)
+        else if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpSend ->
+        let rc = sys-write fd64 addr len64 in
+        if io-is-would-block rc then
+          let _a = ops-arm-fd st.ops-kq sqe.sqe-fd evfilt-write sqe.sqe-token in
+          deque-push-back st.ops-parked (DarwinBoxedSqe sqe)
+        else if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpSendV ->
+        let rc = sys-writev fd64 addr len64 in
+        if io-is-would-block rc then
+          let _a = ops-arm-fd st.ops-kq sqe.sqe-fd evfilt-write sqe.sqe-token in
+          deque-push-back st.ops-parked (DarwinBoxedSqe sqe)
+        else if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpReadDirect ->
+        let rc = sys-pread fd64 addr len64 (wrapping-u64-to-i64 sqe.sqe-off) in
+        if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpWriteDirect ->
+        let rc = sys-pwrite fd64 addr len64 (wrapping-u64-to-i64 sqe.sqe-off) in
+        if io-is-err rc then
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc))) 0))
+        else
+          deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (wrapping-i64-to-i32 rc) 0))
+      OpFsync ->
+        let rc = sys-fsync fd64 in
+        let res = if io-is-err rc then neg-io-err-i32 (darwin-errno-to-io-error (io-errno rc)) else 0 in
+        deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok res 0))
+      _ ->
+        deque-push-back st.ops-cqes (DarwinBoxedCqe (completion-make tok (neg-io-err-i32 IoUnsupported) 0))
+
+  -- | Drain all queued SQEs and return the flushed count.
+  ops-flush-loop :: forall r. using (io :: Io r) => DarwinOpsState r -> I32 ->{IO r, Mut r} I32
+  ops-flush-loop st count =
+    case rx-dq-pop st.ops-sqes of
+      None -> count
+      Some boxed ->
+        case boxed of
+          DarwinBoxedSqe sqe ->
+            let _ = ops-exec-sqe st sqe in
+            ops-flush-loop st (wrapping-add-i32 count 1)
+
+  -- | Retry all parked `EAGAIN` SQEs once `kevent` reports readiness.
+  ops-retry-parked :: forall r. using (io :: Io r) => DarwinOpsState r -> Nat ->{IO r, Mut r} Unit
+  ops-retry-parked st remaining =
+    if remaining == 0 then ()
+    else
+      case rx-dq-pop st.ops-parked of
+        None -> ()
+        Some boxed ->
+          case boxed of
+            DarwinBoxedSqe sqe ->
+              let _ = ops-exec-sqe st sqe in
+              ops-retry-parked st (remaining - 1)
+
+  -- | Convert a `Nat` queue length into a clamped `U32`.
+  ops-nat-to-u32 :: Nat -> U32
+  ops-nat-to-u32 n =
+    if n < 4294967295 then wrapping-i64-to-u32 (nat-to-i64 n)
+    else 4294967295
+
+  -- | Pop the next `Completion` from `DarwinOpsState`.
+  ops-pop-cqe-impl :: forall r. DarwinOpsState r ->{Mut r} Completion
+  ops-pop-cqe-impl st =
+    case rx-dq-pop st.ops-cqes of
+      Some boxed ->
+        case boxed of
+          DarwinBoxedCqe cqe -> cqe
+      None -> completion-empty ()
+
+  -- | Wait on `kqueue` until at least one parked SQE produces a completion or
+  -- the monotonic deadline `deadline-ns` expires.
+  ops-wait-loop :: forall r. using (io :: Io r) => DarwinOpsState r -> U64 ->{IO r, Mut r} I32
+  ops-wait-loop st deadline-ns =
+    if not (deque-is-empty st.ops-cqes) then
+      wrapping-u32-to-i32 (ops-nat-to-u32 (deque-length st.ops-cqes))
+    else if deque-is-empty st.ops-parked then
+      0
+    else
+      let now = raw-mono-ns-r () in
+      let now-u = if lt-i64 now 0 then 0 else wrapping-i64-to-u64 now in
+      if ge-u64 now-u deadline-ns then 0
+      else
+        let rem = wrapping-sub-u64 deadline-ns now-u in
+        let ev-buf = bytes-new 256 in
+        let ts = bytes-new 16 in
+        let _s = bytes-store-le64 ts 0 (div-u64 rem 1000000000) in
+        let _n = bytes-store-le64 ts 8 (rem-u64 rem 1000000000) in
+        let nev = sys-held ev-buf (sys-held ts (sys-kevent (i32-to-i64 st.ops-kq) 0 0 (bytes-data ev-buf) 8 (bytes-data ts))) in
+        let _retry = ops-retry-parked st (deque-length st.ops-parked) in
+        if not (deque-is-empty st.ops-cqes) then
+          wrapping-u32-to-i32 (ops-nat-to-u32 (deque-length st.ops-cqes))
+        else if le-i64 nev 0 && not (io-is-interrupted nev) then
+          0
+        else
+          ops-wait-loop st deadline-ns
+
+  -- | Build an `Engine.Types.ReactorOps r` capability dictionary backed by a
+  -- live `DarwinReactor`'s `kqueue` descriptor, allowing zero-drift execution
+  -- of generic protocol code across live macOS I/O and `Engine.Sim`.
+  darwin-reactor-ops :: forall (r :: Region). DarwinReactor ->{Mut r} ReactorOps r
+  darwin-reactor-ops rx =
+    let st = DarwinOpsState rx.kq-fd (deque-new ()) (deque-new ()) (deque-new ()) (var-new False) in
+    ReactorOps {
+      reactor-submit = (\sqe ->
+        if var-read st.ops-closed then IoBadFd
+        else
+          let _ = deque-push-back st.ops-sqes (DarwinBoxedSqe sqe) in
+          IoOk),
+      reactor-flush = (\_ ->
+        if var-read st.ops-closed then neg-io-err-i32 IoBadFd
+        else with (io = newIO ()) in ops-flush-loop st 0),
+      reactor-wait = (\timeout-ns ->
+        if var-read st.ops-closed then neg-io-err-i32 IoBadFd
+        else with (io = newIO ()) in
+          let _f = ops-flush-loop st 0 in
+          if not (deque-is-empty st.ops-cqes) then
+            wrapping-u32-to-i32 (ops-nat-to-u32 (deque-length st.ops-cqes))
+          else
+            let now = raw-mono-ns-r () in
+            let now-u = if lt-i64 now 0 then 0 else wrapping-i64-to-u64 now in
+            let deadline = saturating-add-u64 now-u (time-ns-value timeout-ns) in
+            ops-wait-loop st deadline),
+      reactor-cqe-count = (\_ -> ops-nat-to-u32 (deque-length st.ops-cqes)),
+      reactor-pop-cqe = (\_ -> ops-pop-cqe-impl st),
+      reactor-close = (\_ ->
+        let _ = var-write st.ops-closed True in
+        IoOk)
+    }
+
+  -- | Build an `Engine.Types.ClockOps r` capability dictionary backed by live
+  -- macOS monotonic and wall-clock timestamps.
+  darwin-clock-ops :: forall (r :: Region). ClockOps r
+  darwin-clock-ops = ClockOps {
+    clock-mono-ns = (\u ->
+      let ns = raw-mono-ns-r u in
+      time-ns-of (if lt-i64 ns 0 then 0 else wrapping-i64-to-u64 ns)),
+    clock-wall-ns = (\u ->
+      let ns = raw-wall-ns-r u in
+      time-ns-of (if lt-i64 ns 0 then 0 else wrapping-i64-to-u64 ns))
+  }
