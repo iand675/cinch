@@ -1777,6 +1777,7 @@
     "Engine.Reactor.Spec",
     "Engine.Reactor.Darwin",
     "Net.Http.Types",
-    "Net.Http.Priority"
+    "Net.Http.Priority",
+    "Net.Http.Router"
   ]
 }

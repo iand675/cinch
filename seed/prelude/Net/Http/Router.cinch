@@ -1,0 +1,1098 @@
+-- | Startup-frozen flat-array compressed radix trie HTTP router.
+--
+-- Architecture & allocation contract:
+--   * Startup (`RouterBuilder`): collects `(method :: U8, pattern :: String,
+--     handler-id :: U32)` routes across HTTP methods `0..8`, validates patterns
+--     (must begin with `'/'`, rejects query/fragment characters, rejects empty
+--     `:param` / `*wildcard` names, rejects non-terminal `*wildcard`, enforces
+--     `<= 8` parameters per route, and detects duplicate or conflicting static,
+--     parameter, and wildcard routes), builds per-method compressed radix tries
+--     splitting common static prefixes cleanly, and freezes the entire router
+--     into one contiguous 4 KiB-aligned DMA slab (`RouterFrozen`).
+--   * Hot path (`router-match-dma`, `router-param-get`): 100% `#[no-alloc]`
+--     with zero heap allocations and zero atomic reference-counting traffic.
+--     Uses 8-byte `raw-load-u64` SWAR prefix comparison, SWAR `'?'` query-string
+--     stripping, SWAR `'/'` segment scanning, first-byte linear/binary search
+--     over contiguous sorted static children, full backtracking with priority
+--     order `exact static > :param > *wildcard`, and `405 Method Not Allowed`
+--     `Allow` bitmask computation by probing other populated method roots.
+--   * Zero-copy parameter capture: caller supplies a pre-allocated 64-byte
+--     DMA/scratch address (`params-out-addr :: I64`) holding up to 8 unboxed
+--     8-byte `ParamSpan { param-off :: U32; param-len :: U32 }` spans pointing
+--     directly into the caller's request path buffer.
+--   * Non-empty parameter & wildcard semantics: both `:param` and `*wildcard`
+--     capture at least 1 byte (`param-len >= 1`).
+module Net.Http.Router where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.List
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Data.String
+  import Engine.Types
+  import Prim.Atomic
+
+  -- Method index constants (0..8) & match/node kind constants
+  export route-method-get, route-method-head, route-method-post, route-method-put
+  export route-method-delete, route-method-patch, route-method-options
+  export route-method-connect, route-method-trace, router-max-methods, router-max-params
+  export route-not-found, route-matched, route-method-not-allowed
+  export node-kind-static, node-kind-param, node-kind-wildcard
+
+  -- POD match & frozen router handle types
+  export ParamSpan, RouteMatch, RouterFrozen, RouterBuilder
+  export param-span-make, route-match-none, router-method-bit, router-allow-has
+
+  -- Startup builder & lifecycle API
+  export router-builder-new, router-add, router-freeze, router-destroy
+
+  -- Frozen metadata & zero-alloc hot-path matching API
+  export router-is-valid, router-node-count, router-pool-len
+  export router-match-dma, router-match-bytes, router-param-get
+
+  -- =========================================================================
+  -- 1. Constants & POD types
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-get :: U8
+  route-method-get = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-head :: U8
+  route-method-head = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-post :: U8
+  route-method-post = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-put :: U8
+  route-method-put = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-delete :: U8
+  route-method-delete = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-patch :: U8
+  route-method-patch = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-options :: U8
+  route-method-options = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-connect :: U8
+  route-method-connect = 7
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-trace :: U8
+  route-method-trace = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  router-max-methods :: U8
+  router-max-methods = 9
+
+  #[inline(always)]
+  #[no-alloc]
+  router-max-params :: U32
+  router-max-params = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  route-not-found :: U8
+  route-not-found = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  route-matched :: U8
+  route-matched = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  route-method-not-allowed :: U8
+  route-method-not-allowed = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  node-kind-static :: U8
+  node-kind-static = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  node-kind-param :: U8
+  node-kind-param = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  node-kind-wildcard :: U8
+  node-kind-wildcard = 2
+
+  -- Sentinel flat node index meaning "absent".
+  #[inline(always)]
+  #[no-alloc]
+  no-node :: U32
+  no-node = 4294967295
+
+  -- Frozen DMA header geometry (64 bytes, 1 cache line):
+  --   +0..+35 : method-roots[0..8] (9 x U32)
+  --   +36     : node-count (U32)
+  --   +40     : pool-off (U32)
+  --   +44     : pool-len (U32)
+  --   +48     : total-bytes (U64)
+  --   +56     : method-mask (U64)
+  #[inline(always)]
+  #[no-alloc]
+  hdr-bytes :: U64
+  hdr-bytes = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  off-hdr-node-count :: U64
+  off-hdr-node-count = 36
+
+  #[inline(always)]
+  #[no-alloc]
+  off-hdr-pool-off :: U64
+  off-hdr-pool-off = 40
+
+  #[inline(always)]
+  #[no-alloc]
+  off-hdr-pool-len :: U64
+  off-hdr-pool-len = 44
+
+  #[inline(always)]
+  #[no-alloc]
+  off-hdr-total-bytes :: U64
+  off-hdr-total-bytes = 48
+
+  #[inline(always)]
+  #[no-alloc]
+  off-hdr-method-mask :: U64
+  off-hdr-method-mask = 56
+
+  -- | 8-byte POD parameter capture span (byte offset and length into input path).
+  #[repr(C, value)]
+  record ParamSpan where
+    param-off :: U32
+    param-len :: U32
+
+  -- | 8-byte POD route match result (`match-kind`: 0=NotFound, 1=Matched, 2=MethodNotAllowed).
+  #[repr(C, value)]
+  record RouteMatch where
+    match-kind :: U8
+    match-param-count :: U8
+    match-allow-mask :: U16
+    match-handler-id :: U32
+
+  -- | Handle to the single contiguous frozen DMA router slab.
+  -- Allocated once at startup in `router-freeze`; all hot-path lookups read
+  -- `router-base` and `router-pool-addr` with zero heap allocation and zero
+  -- atomic reference-counting traffic.
+  record RouterFrozen where
+    router-base :: U64
+    router-pool-addr :: U64
+
+  -- Pack `(next-node-idx :: U32, pool-cur :: U32)` into one unboxed `U64` for
+  -- startup flattening (`(node << 32) | pool`).
+  #[inline(always)]
+  #[no-alloc]
+  pack-cursor :: U32 -> U32 -> U64
+  pack-cursor node-idx pool-cur =
+    bit-or-u64 (wrapping-shl-u64 (u32-to-u64 node-idx) 32) (u32-to-u64 pool-cur)
+
+  #[inline(always)]
+  #[no-alloc]
+  cursor-node :: U64 -> U32
+  cursor-node c = wrapping-u64-to-u32 (wrapping-shr-u64 c 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  cursor-pool :: U64 -> U32
+  cursor-pool c = wrapping-u64-to-u32 c
+
+  #[inline(always)]
+  #[no-alloc]
+  param-span-make :: U32 -> U32 -> ParamSpan
+  param-span-make off len = ParamSpan off len
+
+  #[inline(always)]
+  #[no-alloc]
+  route-match-none :: Unit -> RouteMatch
+  route-match-none _ = RouteMatch route-not-found 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  router-method-bit :: U8 -> U16
+  router-method-bit m =
+    if ge-u8 m router-max-methods then 0
+    else wrapping-shl-u16 1 (u8-to-u32 m)
+
+  #[inline(always)]
+  #[no-alloc]
+  router-allow-has :: U16 -> U8 -> Bool
+  router-allow-has mask m =
+    let bit = router-method-bit m in
+    if eq-u16 bit 0 then eq-u32 0 1
+    else ne-u16 (bit-and-u16 mask bit) 0
+
+  #[inline(always)]
+  #[no-alloc]
+  router-is-valid :: RouterFrozen -> Bool
+  router-is-valid r = ne-u64 r.router-base 0
+
+  #[inline(always)]
+  #[no-alloc]
+  router-node-count :: RouterFrozen ->{MVar} U32
+  router-node-count r =
+    if eq-u64 r.router-base 0 then 0
+    else raw-load-u32 (addr-at r.router-base off-hdr-node-count)
+
+  #[inline(always)]
+  #[no-alloc]
+  router-pool-len :: RouterFrozen ->{MVar} U32
+  router-pool-len r =
+    if eq-u64 r.router-base 0 then 0
+    else raw-load-u32 (addr-at r.router-base off-hdr-pool-len)
+
+  -- =========================================================================
+  -- 2. Low-level #[no-alloc] raw DMA memory & SWAR helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  bool-true :: Bool
+  bool-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  bool-false :: Bool
+  bool-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  -- Flat node address: base + 64 + idx * 32.
+  -- 32-byte flat node layout:
+  --   +0  kind        : U8  (0=Static, 1=Param, 2=Wildcard)
+  --   +1  has-handler : U8  (0 or 1)
+  --   +2  child-count : U16 (sorted static children count)
+  --   +4  prefix-off  : U32 (offset into byte pool)
+  --   +8  prefix-len  : U32 (length of prefix / param name)
+  --   +12 handler-id  : U32
+  --   +16 first-child : U32 (start index of contiguous static children)
+  --   +20 param-child : U32 (index of :param child, or no-node)
+  --   +24 wild-child  : U32 (index of *wildcard child, or no-node)
+  --   +28 allow-mask  : U16
+  --   +30 first-byte  : U8  (cached prefix[0] for static children)
+  --   +31 pad         : U8  (0)
+  #[inline(always)]
+  #[no-alloc]
+  node-addr :: U64 -> U32 -> I64
+  node-addr base idx =
+    wrapping-u64-to-i64 (wrapping-add-u64 (wrapping-add-u64 base hdr-bytes) (wrapping-shl-u64 (u32-to-u64 idx) 5))
+
+  #[inline(always)]
+  #[no-alloc]
+  raw-load-u16 :: I64 ->{MVar} U16
+  raw-load-u16 addr =
+    let lo = u8-to-u16 (raw-load-u8 addr) in
+    let hi = u8-to-u16 (raw-load-u8 (wrapping-add-i64 addr 1)) in
+    bit-or-u16 lo (wrapping-shl-u16 hi 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  raw-store-u16 :: I64 -> U16 ->{MVar} Unit
+  raw-store-u16 addr val =
+    let _ = raw-store-u8 addr (wrapping-u16-to-u8 val) in
+    raw-store-u8 (wrapping-add-i64 addr 1) (wrapping-u16-to-u8 (wrapping-shr-u16 val 8))
+
+  #[no-alloc]
+  align-up-u64 :: U64 -> U64 -> U64
+  align-up-u64 v align =
+    let mask = wrapping-sub-u64 align 1 in
+    if gt-u64 v (wrapping-sub-u64 18446744073709551615 mask) then 0
+    else bit-and-u64 (wrapping-add-u64 v mask) (bit-not-u64 mask)
+
+  -- 8-byte SWAR + 4-byte + scalar tail byte equality between two raw addresses.
+  #[no-alloc]
+  prefix-eq-tail :: I64 -> I64 -> U32 ->{MVar} Bool
+  prefix-eq-tail a b rem =
+    if eq-u32 rem 0 then bool-true
+    else if ne-u8 (raw-load-u8 a) (raw-load-u8 b) then bool-false
+    else prefix-eq-tail (wrapping-add-i64 a 1) (wrapping-add-i64 b 1) (wrapping-sub-u32 rem 1)
+
+  #[no-alloc]
+  prefix-eq-swar :: I64 -> I64 -> U32 ->{MVar} Bool
+  prefix-eq-swar a b rem =
+    if ge-u32 rem 8 then
+      if ne-u64 (raw-load-u64 a) (raw-load-u64 b) then bool-false
+      else prefix-eq-swar (wrapping-add-i64 a 8) (wrapping-add-i64 b 8) (wrapping-sub-u32 rem 8)
+    else if ge-u32 rem 4 then
+      if ne-u32 (raw-load-u32 a) (raw-load-u32 b) then bool-false
+      else prefix-eq-tail (wrapping-add-i64 a 4) (wrapping-add-i64 b 4) (wrapping-sub-u32 rem 4)
+    else
+      prefix-eq-tail a b rem
+
+  -- SWAR byte scanner: returns first index in `[pos, end)` where `mem[base + i] == needle`,
+  -- or `end` if `needle` is not present.
+  -- `splat` must be `needle` repeated across all 8 bytes of a U64.
+  #[no-alloc]
+  find-byte-tail :: I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  find-byte-tail base pos end needle =
+    if ge-u32 pos end then end
+    else if eq-u8 (raw-load-u8 (wrapping-add-i64 base (u32-to-i64 pos))) needle then pos
+    else find-byte-tail base (wrapping-add-u32 pos 1) end needle
+
+  #[no-alloc]
+  find-byte-swar :: I64 -> U32 -> U32 -> U8 -> U64 ->{MVar} U32
+  find-byte-swar base pos end needle splat =
+    let rem = wrapping-sub-u32 end pos in
+    if ge-u32 rem 8 then
+      let w = raw-load-u64 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      let x = bit-xor-u64 w splat in
+      let ones = 0x0101010101010101 in
+      let highs = 0x8080808080808080 in
+      let has-zero = bit-and-u64 (bit-and-u64 (wrapping-sub-u64 x ones) (bit-not-u64 x)) highs in
+      if ne-u64 has-zero 0 then
+        wrapping-add-u32 pos (wrapping-shr-u32 (trailing-zeros-u64 has-zero) 3)
+      else
+        find-byte-swar base (wrapping-add-u32 pos 8) end needle splat
+    else
+      find-byte-tail base pos end needle
+
+  -- Strip `?query` from `[0, len)` in O(len/8) using 8-byte SWAR.
+  #[inline(always)]
+  #[no-alloc]
+  find-query-end :: I64 -> U32 ->{MVar} U32
+  find-query-end path-addr path-len =
+    find-byte-swar path-addr 0 path-len 63 0x3F3F3F3F3F3F3F3F
+
+  -- Find next `'/'` starting at `pos` within `[pos, end)` using 8-byte SWAR.
+  #[inline(always)]
+  #[no-alloc]
+  find-next-slash :: I64 -> U32 -> U32 ->{MVar} U32
+  find-next-slash path-addr pos end =
+    find-byte-swar path-addr pos end 47 0x2F2F2F2F2F2F2F2F
+
+  -- Linear scan over <= 8 first-byte-sorted contiguous static children.
+  #[no-alloc]
+  find-child-linear :: U64 -> U32 -> U32 -> U8 ->{MVar} U32
+  find-child-linear base cur end want =
+    if ge-u32 cur end then no-node
+    else
+      let fb = raw-load-u8 (wrapping-add-i64 (node-addr base cur) 30) in
+      if eq-u8 fb want then cur
+      else if gt-u8 fb want then no-node
+      else find-child-linear base (wrapping-add-u32 cur 1) end want
+
+  -- Binary search over > 8 first-byte-sorted contiguous static children.
+  #[no-alloc]
+  find-child-bsearch :: U64 -> U32 -> U32 -> U32 -> U8 ->{MVar} U32
+  find-child-bsearch base first lo hi want =
+    if ge-u32 lo hi then no-node
+    else
+      let mid = wrapping-add-u32 lo (wrapping-shr-u32 (wrapping-sub-u32 hi lo) 1) in
+      let idx = wrapping-add-u32 first mid in
+      let fb = raw-load-u8 (wrapping-add-i64 (node-addr base idx) 30) in
+      if eq-u8 fb want then idx
+      else if lt-u8 fb want then find-child-bsearch base first (wrapping-add-u32 mid 1) hi want
+      else find-child-bsearch base first lo mid want
+
+  #[inline(always)]
+  #[no-alloc]
+  find-static-child :: U64 -> U32 -> U16 -> U8 ->{MVar} U32
+  find-static-child base first count want =
+    let c32 = u16-to-u32 count in
+    if eq-u32 c32 0 then no-node
+    else if le-u32 c32 8 then find-child-linear base first (wrapping-add-u32 first c32) want
+    else find-child-bsearch base first 0 c32 want
+
+  -- =========================================================================
+  -- 3. Zero-alloc hot-path matching (`router-match-dma`, `router-match-bytes`, `router-param-get`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  store-param-span :: I64 -> U8 -> U32 -> U32 ->{MVar} Unit
+  store-param-span params-out pidx off len =
+    if eq-i64 params-out 0 then ()
+    else if ge-u8 pidx 8 then ()
+    else
+      let slot = wrapping-add-i64 params-out (u32-to-i64 (wrapping-shl-u32 (u8-to-u32 pidx) 3)) in
+      let _ = raw-store-u32 slot off in
+      raw-store-u32 (wrapping-add-i64 slot 4) len
+
+  -- Match subtree rooted at `node-idx` starting at `path-addr + pos`.
+  -- Single self-recursive function (one stack frame per trie depth, 100% #[no-alloc])
+  -- trying children in strict priority order: static > :param > *wildcard.
+  #[no-alloc]
+  match-node :: U64 -> U64 -> U32 -> I64 -> U32 -> U32 -> I64 -> U8 ->{MVar} RouteMatch
+  match-node base pool node-idx path-addr path-len pos params-out pidx =
+    let naddr = node-addr base node-idx in
+    let kind = raw-load-u8 naddr in
+    if eq-u8 kind node-kind-wildcard then
+      -- Wildcard catch-all: captures non-empty remainder `[pos, path-len)`.
+      if ge-u32 pos path-len then route-match-none ()
+      else
+        let has-h = raw-load-u8 (wrapping-add-i64 naddr 1) in
+        if eq-u8 has-h 0 then route-match-none ()
+        else
+          let seg-len = wrapping-sub-u32 path-len pos in
+          let _ = store-param-span params-out pidx pos seg-len in
+          let next-pidx = if lt-u8 pidx 8 then wrapping-add-u8 pidx 1 else pidx in
+          let hid = raw-load-u32 (wrapping-add-i64 naddr 12) in
+          let amask = raw-load-u16 (wrapping-add-i64 naddr 28) in
+          RouteMatch route-matched next-pidx amask hid
+    else
+      -- Determine `(matched, next-pos, next-pidx)` for Static vs Param without allocating.
+      let ok-static = (if eq-u8 kind node-kind-static then
+          let plen = raw-load-u32 (wrapping-add-i64 naddr 8) in
+          let rem = wrapping-sub-u32 path-len pos in
+          if gt-u32 plen rem then bool-false
+          else
+            let poff = raw-load-u32 (wrapping-add-i64 naddr 4) in
+            let src-addr = wrapping-add-i64 path-addr (u32-to-i64 pos) in
+            let pref-addr = addr-at pool (u32-to-u64 poff) in
+            prefix-eq-swar src-addr pref-addr plen
+        else
+          if ge-u32 pos path-len then bool-false
+          else ne-u8 (raw-load-u8 (wrapping-add-i64 path-addr (u32-to-i64 pos))) 47) in
+      if eq-u8 (if ok-static then 1 else 0) 0 then route-match-none ()
+      else
+        let next-pos = (if eq-u8 kind node-kind-static then
+            wrapping-add-u32 pos (raw-load-u32 (wrapping-add-i64 naddr 8))
+          else
+            let seg-end = find-next-slash path-addr pos path-len in
+            let seg-len = wrapping-sub-u32 seg-end pos in
+            let _ = store-param-span params-out pidx pos seg-len in
+            seg-end) in
+        let next-pidx = (if eq-u8 kind node-kind-static then pidx
+          else if lt-u8 pidx 8 then wrapping-add-u8 pidx 1 else pidx) in
+        if eq-u32 next-pos path-len then
+          let has-h = raw-load-u8 (wrapping-add-i64 naddr 1) in
+          if ne-u8 has-h 0 then
+            let hid = raw-load-u32 (wrapping-add-i64 naddr 12) in
+            let amask = raw-load-u16 (wrapping-add-i64 naddr 28) in
+            RouteMatch route-matched next-pidx amask hid
+          else
+            route-match-none ()
+        else
+          let cc = raw-load-u16 (wrapping-add-i64 naddr 2) in
+          let static-res = (if ne-u16 cc 0 then
+              let fc = raw-load-u32 (wrapping-add-i64 naddr 16) in
+              let next-b = raw-load-u8 (wrapping-add-i64 path-addr (u32-to-i64 next-pos)) in
+              let child = find-static-child base fc cc next-b in
+              if ne-u32 child no-node then
+                match-node base pool child path-addr path-len next-pos params-out next-pidx
+              else
+                route-match-none ()
+            else
+              route-match-none ()) in
+          if eq-u8 static-res.match-kind route-matched then static-res
+          else
+            let pc = raw-load-u32 (wrapping-add-i64 naddr 20) in
+            let param-res = (if ne-u32 pc no-node then
+                match-node base pool pc path-addr path-len next-pos params-out next-pidx
+              else
+                route-match-none ()) in
+            if eq-u8 param-res.match-kind route-matched then param-res
+            else
+              let wc = raw-load-u32 (wrapping-add-i64 naddr 24) in
+              if ne-u32 wc no-node then
+                match-node base pool wc path-addr path-len next-pos params-out next-pidx
+              else
+                route-match-none ()
+
+  -- Probe all populated method trees `m /= skip-method` to build the `405 Allow` bitmask.
+  #[no-alloc]
+  probe-allow-mask :: U64 -> U64 -> U64 -> U8 -> U8 -> I64 -> U32 -> U16 ->{MVar} U16
+  probe-allow-mask base pool mmask skip-m cur-m path-addr eff-len acc =
+    if ge-u8 cur-m router-max-methods then acc
+    else
+      let next-m = wrapping-add-u8 cur-m 1 in
+      if eq-u8 cur-m skip-m then
+        probe-allow-mask base pool mmask skip-m next-m path-addr eff-len acc
+      else
+        let mbit64 = wrapping-shl-u64 1 (u8-to-u32 cur-m) in
+        if eq-u64 (bit-and-u64 mmask mbit64) 0 then
+          probe-allow-mask base pool mmask skip-m next-m path-addr eff-len acc
+        else
+          let root = raw-load-u32 (addr-at base (wrapping-shl-u64 (u8-to-u64 cur-m) 2)) in
+          if eq-u32 root no-node then
+            probe-allow-mask base pool mmask skip-m next-m path-addr eff-len acc
+          else
+            let probe = match-node base pool root path-addr eff-len 0 0 0 in
+            let acc1 = (if eq-u8 probe.match-kind route-matched then
+                bit-or-u16 acc (wrapping-shl-u16 1 (u8-to-u32 cur-m))
+              else acc) in
+            probe-allow-mask base pool mmask skip-m next-m path-addr eff-len acc1
+
+  -- | Match an HTTP request path stored at raw DMA/memory address `path-addr`
+  -- of byte length `path-len` for `method` (`0..8`), writing up to 8 captured
+  -- `ParamSpan`s into `params-out-addr` (64-byte scratch buffer, or `0` to ignore).
+  --
+  -- Strips query strings (`?foo=bar`) in-place via SWAR scanning, matches static
+  -- prefixes via 8-byte `raw-load-u64` SWAR comparison, and computes `405 Method
+  -- Not Allowed` with exact `match-allow-mask` if the path matches another method.
+  -- 100% `#[no-alloc]` with zero heap allocations and zero atomic RC ops.
+  #[no-alloc]
+  router-match-dma :: RouterFrozen -> U8 -> I64 -> U32 -> I64 ->{MVar} RouteMatch
+  router-match-dma router method path-addr path-len params-out-addr =
+    let base = router.router-base in
+    if eq-u64 base 0 then route-match-none ()
+    else if eq-i64 path-addr 0 then route-match-none ()
+    else if eq-u32 path-len 0 then route-match-none ()
+    else
+      let pool = router.router-pool-addr in
+      let eff-len = find-query-end path-addr path-len in
+      if eq-u32 eff-len 0 then route-match-none ()
+      else
+        let direct = (if lt-u8 method router-max-methods then
+            let root = raw-load-u32 (addr-at base (wrapping-shl-u64 (u8-to-u64 method) 2)) in
+            if ne-u32 root no-node then
+              match-node base pool root path-addr eff-len 0 params-out-addr 0
+            else
+              route-match-none ()
+          else
+            route-match-none ()) in
+        if eq-u8 direct.match-kind route-matched then direct
+        else
+          let mmask = raw-load-u64 (addr-at base off-hdr-method-mask) in
+          let allow = probe-allow-mask base pool mmask method 0 path-addr eff-len 0 in
+          if ne-u16 allow 0 then RouteMatch route-method-not-allowed 0 allow 0
+          else route-match-none ()
+
+  -- | Convenience wrapper matching a `Bytes` path buffer with zero heap allocation.
+  -- Keeps `path` alive across `router-match-dma` so Perceus RC cannot free its
+  -- backing buffer before raw DMA reads complete.
+  router-match-bytes :: RouterFrozen -> U8 -> Bytes -> I64 ->{MVar} RouteMatch
+  router-match-bytes router method path params-out-addr =
+    let addr = bytes-data path in
+    let len64 = bytes-len-i64 path in
+    if gt-i64 len64 4294967295 then route-match-none ()
+    else
+      let res = router-match-dma router method addr (wrapping-i64-to-u32 len64) params-out-addr in
+      let _ = bytes-len-i64 path in
+      res
+
+  -- | Read the `idx`-th captured `ParamSpan` (`0..7`) from `params-out-addr`.
+  -- Returns `ParamSpan 0 0` if `params-out-addr == 0` or `idx >= 8`.
+  #[inline(always)]
+  #[no-alloc]
+  router-param-get :: I64 -> U32 ->{MVar} ParamSpan
+  router-param-get params-out-addr idx =
+    if eq-i64 params-out-addr 0 then ParamSpan 0 0
+    else if ge-u32 idx router-max-params then ParamSpan 0 0
+    else
+      let slot = wrapping-add-i64 params-out-addr (u32-to-i64 (wrapping-shl-u32 idx 3)) in
+      let off = raw-load-u32 slot in
+      let len = raw-load-u32 (wrapping-add-i64 slot 4) in
+      ParamSpan off len
+
+  -- =========================================================================
+  -- 4. Startup builder: pattern tokenization, compressed radix trie, freezing
+  -- =========================================================================
+
+  data RouteSeg where
+    SegStatic :: Bytes -> RouteSeg
+    SegParam :: Bytes -> RouteSeg
+    SegWild :: Bytes -> RouteSeg
+
+  -- Self-recursive compressed radix trie node (Left-Child Right-Sibling for
+  -- first-byte-sorted static children; no nested List/Option or mutual recursion).
+  data BuildNode where
+    BEmpty :: BuildNode
+    BNode
+      :: U8         -- kind (0=Static, 1=Param, 2=Wildcard)
+      -> Bytes      -- prefix (static bytes or param/wild name)
+      -> Bool       -- has-handler
+      -> U32        -- handler-id
+      -> U16        -- allow-mask
+      -> BuildNode  -- first-child (head of sorted static children list)
+      -> BuildNode  -- next-sibling (next static sibling)
+      -> BuildNode  -- param-child (:param child)
+      -> BuildNode  -- wild-child (*wildcard child)
+      -> BuildNode
+
+  -- | Startup route builder holding per-method (`0..8`) compressed radix tries.
+  record RouterBuilder where
+    rb-m0 :: BuildNode
+    rb-m1 :: BuildNode
+    rb-m2 :: BuildNode
+    rb-m3 :: BuildNode
+    rb-m4 :: BuildNode
+    rb-m5 :: BuildNode
+    rb-m6 :: BuildNode
+    rb-m7 :: BuildNode
+    rb-m8 :: BuildNode
+
+  -- | Create an empty startup `RouterBuilder`.
+  router-builder-new :: Unit -> RouterBuilder
+  router-builder-new _ =
+    RouterBuilder BEmpty BEmpty BEmpty BEmpty BEmpty BEmpty BEmpty BEmpty BEmpty
+
+  -- Copy `[start, end)` from `src` into a fresh `Bytes` buffer.
+  slice-bytes :: Bytes -> I64 -> I64 -> Bytes
+  slice-bytes src start end =
+    if le-i64 end start || lt-i64 start 0 then bytes-new 0
+    else
+      let len64 = wrapping-sub-i64 end start in
+      let src-len = bytes-len-i64 src in
+      if gt-i64 end src-len then bytes-new 0
+      else if 0 <= start && 0 <= len64 then
+        let s-nat = nat-from-i64 start in
+        let n-nat = nat-from-i64 len64 in
+        let out = bytes-new n-nat in
+        if n-nat <= bytes-len out && s-nat + n-nat <= bytes-len src then
+          let _ = bytes-copy-range out src 0 s-nat n-nat in
+          out
+        else out
+      else bytes-new 0
+
+  -- Safe byte read at I64 offset (0 if out of range).
+  byte-at :: Bytes -> I64 -> U8
+  byte-at b pos =
+    if 0 <= pos && pos < bytes-len-i64 b then bytes-get-u8-at b pos else 0
+
+  -- Longest common byte prefix length of `a` and `b`.
+  common-prefix-from :: Bytes -> Bytes -> I64 -> I64 -> I64
+  common-prefix-from a b pos limit =
+    if ge-i64 pos limit then pos
+    else if eq-u8 (byte-at a pos) (byte-at b pos) then
+      common-prefix-from a b (wrapping-add-i64 pos 1) limit
+    else pos
+
+  common-prefix-len :: Bytes -> Bytes -> I64
+  common-prefix-len a b =
+    let la = bytes-len-i64 a in
+    let lb = bytes-len-i64 b in
+    let lim = if lt-i64 la lb then la else lb in
+    common-prefix-from a b 0 lim
+
+  -- Reverse a `List RouteSeg`.
+  rev-segs-acc :: List RouteSeg -> List RouteSeg -> List RouteSeg
+  rev-segs-acc xs acc = case xs of
+    Nil -> acc
+    Cons h t -> rev-segs-acc t (Cons h acc)
+
+  -- Scan `:param` name ending at `'/'` or end of buffer.
+  scan-param-end :: Bytes -> I64 -> I64 -> Result String I64
+  scan-param-end b i n =
+    if ge-i64 i n then Ok i
+    else
+      let ch = byte-at b i in
+      if eq-u8 ch 47 then Ok i
+      else if eq-u8 ch 63 || eq-u8 ch 35 then Err "route pattern must not contain '?' or '#'"
+      else if eq-u8 ch 58 || eq-u8 ch 42 then Err "invalid ':' or '*' inside parameter name"
+      else scan-param-end b (wrapping-add-i64 i 1) n
+
+  -- Scan `*wildcard` name to end of buffer (must be final segment).
+  scan-wild-end :: Bytes -> I64 -> I64 -> Result String I64
+  scan-wild-end b i n =
+    if ge-i64 i n then Ok i
+    else
+      let ch = byte-at b i in
+      if eq-u8 ch 47 then Err "wildcard segment must be the last segment in pattern"
+      else if eq-u8 ch 63 || eq-u8 ch 35 then Err "route pattern must not contain '?' or '#'"
+      else if eq-u8 ch 58 || eq-u8 ch 42 then Err "invalid ':' or '*' inside wildcard name"
+      else scan-wild-end b (wrapping-add-i64 i 1) n
+
+  -- Scan static run `[seg-start .. i)` until `:`, `*`, or end of buffer.
+  parse-static-run :: Bytes -> I64 -> I64 -> I64 -> U32 -> List RouteSeg -> Result String (List RouteSeg)
+  parse-static-run b seg-start i n pcount acc =
+    if ge-i64 i n then
+      let acc1 = (if gt-i64 i seg-start then Cons (SegStatic (slice-bytes b seg-start i)) acc else acc) in
+      Ok (rev-segs-acc acc1 Nil)
+    else
+      let ch = byte-at b i in
+      if eq-u8 ch 63 || eq-u8 ch 35 then Err "route pattern must not contain '?' or '#'"
+      else if eq-u8 ch 58 then
+        -- ':' must immediately follow '/'
+        if le-i64 i seg-start || ne-u8 (byte-at b (wrapping-sub-i64 i 1)) 47 then
+          Err "parameter ':' must immediately follow '/'"
+        else if ge-u32 pcount router-max-params then
+          Err "route pattern exceeds maximum of 8 parameters"
+        else
+          let static-seg = SegStatic (slice-bytes b seg-start i) in
+          let name-start = wrapping-add-i64 i 1 in
+          case scan-param-end b name-start n of
+            Err e -> Err e
+            Ok name-end ->
+              if le-i64 name-end name-start then Err "empty parameter name after ':'"
+              else
+                let param-seg = SegParam (slice-bytes b name-start name-end) in
+                let acc1 = Cons param-seg (Cons static-seg acc) in
+                parse-static-run b name-end name-end n (wrapping-add-u32 pcount 1) acc1
+      else if eq-u8 ch 42 then
+        -- '*' must immediately follow '/' and be the final segment
+        if le-i64 i seg-start || ne-u8 (byte-at b (wrapping-sub-i64 i 1)) 47 then
+          Err "wildcard '*' must immediately follow '/'"
+        else if ge-u32 pcount router-max-params then
+          Err "route pattern exceeds maximum of 8 parameters"
+        else
+          let static-seg = SegStatic (slice-bytes b seg-start i) in
+          let name-start = wrapping-add-i64 i 1 in
+          case scan-wild-end b name-start n of
+            Err e -> Err e
+            Ok name-end ->
+              if le-i64 name-end name-start then Err "empty wildcard name after '*'"
+              else
+                let wild-seg = SegWild (slice-bytes b name-start name-end) in
+                Ok (rev-segs-acc (Cons wild-seg (Cons static-seg acc)) Nil)
+      else
+        parse-static-run b seg-start (wrapping-add-i64 i 1) n pcount acc
+
+  parse-pattern :: String -> Result String (List RouteSeg)
+  parse-pattern pattern =
+    let b = string-to-bytes pattern in
+    let n = bytes-len-i64 b in
+    if le-i64 n 0 then Err "route pattern must not be empty"
+    else if ne-u8 (byte-at b 0) 47 then Err "route pattern must start with '/'"
+    else parse-static-run b 0 0 n 0 Nil
+
+  set-next-sibling :: BuildNode -> BuildNode -> BuildNode
+  set-next-sibling node sib = case node of
+    BEmpty -> BEmpty
+    BNode k pref has-h hid amask fc _ pc wc -> BNode k pref has-h hid amask fc sib pc wc
+
+  -- Construct a fresh chain of `BuildNode`s from a non-empty `List RouteSeg`.
+  make-chain :: List RouteSeg -> U32 -> U16 -> BuildNode
+  make-chain segs hid amask = case segs of
+    Nil -> BEmpty
+    Cons seg rest -> case seg of
+      SegStatic p -> case rest of
+        Nil -> BNode node-kind-static p True hid amask BEmpty BEmpty BEmpty BEmpty
+        Cons next-seg _ -> case next-seg of
+          SegStatic _ -> BNode node-kind-static p False 0 0 (make-chain rest hid amask) BEmpty BEmpty BEmpty
+          SegParam _ -> BNode node-kind-static p False 0 0 BEmpty BEmpty (make-chain rest hid amask) BEmpty
+          SegWild _ -> BNode node-kind-static p False 0 0 BEmpty BEmpty BEmpty (make-chain rest hid amask)
+      SegParam name -> case rest of
+        Nil -> BNode node-kind-param name True hid amask BEmpty BEmpty BEmpty BEmpty
+        Cons _ _ -> BNode node-kind-param name False 0 0 (make-chain rest hid amask) BEmpty BEmpty BEmpty
+      SegWild name ->
+        BNode node-kind-wildcard name True hid amask BEmpty BEmpty BEmpty BEmpty
+
+  -- Pair two distinct-first-byte static child nodes in ascending first-byte order.
+  pair-sorted-children :: BuildNode -> U8 -> BuildNode -> U8 -> BuildNode
+  pair-sorted-children a ab b bb =
+    if lt-u8 ab bb then set-next-sibling a (set-next-sibling b BEmpty)
+    else set-next-sibling b (set-next-sibling a BEmpty)
+
+  -- Insert remaining tokens after a `:param` node.
+  insert-after-param :: BuildNode -> List RouteSeg -> U32 -> U16 -> Result String BuildNode
+  insert-after-param pnode rest hid amask = case pnode of
+    BEmpty -> Err "internal: empty param node"
+    BNode pk pname has-h cur-hid cur-amask fc ns pc wc -> case rest of
+      Nil ->
+        if has-h then Err "duplicate parameter route"
+        else Ok (BNode pk pname True hid amask fc ns pc wc)
+      Cons seg rest2 -> case seg of
+        SegStatic s ->
+          case insert-into-children fc s rest2 hid amask of
+            Err e -> Err e
+            Ok fc1 -> Ok (BNode pk pname has-h cur-hid cur-amask fc1 ns pc wc)
+        SegParam _ -> Err "adjacent parameters must be separated by '/'"
+        SegWild _ -> Err "wildcard after parameter must be separated by '/'"
+
+  -- Insert `(seg-bytes, rest-segs)` into a first-byte-sorted static-children linked list.
+  insert-into-children :: BuildNode -> Bytes -> List RouteSeg -> U32 -> U16 -> Result String BuildNode
+  insert-into-children children seg-bytes rest-segs hid amask =
+    let b0 = byte-at seg-bytes 0 in
+    case children of
+      BEmpty -> Ok (make-chain (Cons (SegStatic seg-bytes) rest-segs) hid amask)
+      BNode k pref has-h cur-hid cur-amask fc ns pc wc ->
+        let c0 = byte-at pref 0 in
+        if lt-u8 b0 c0 then
+          let fresh = make-chain (Cons (SegStatic seg-bytes) rest-segs) hid amask in
+          Ok (set-next-sibling fresh children)
+        else if eq-u8 b0 c0 then
+          insert-static-into-node children seg-bytes rest-segs hid amask
+        else
+          case insert-into-children ns seg-bytes rest-segs hid amask of
+            Err e -> Err e
+            Ok ns1 -> Ok (BNode k pref has-h cur-hid cur-amask fc ns1 pc wc)
+
+  -- Insert `(seg-bytes, rest-segs)` into a matching `Static` node, splitting its
+  -- prefix cleanly if `common-prefix-len < bytes-len pref`.
+  insert-static-into-node :: BuildNode -> Bytes -> List RouteSeg -> U32 -> U16 -> Result String BuildNode
+  insert-static-into-node node seg-bytes rest-segs hid amask = case node of
+    BEmpty -> Ok (make-chain (Cons (SegStatic seg-bytes) rest-segs) hid amask)
+    BNode k pref has-h cur-hid cur-amask fc ns pc wc ->
+      let plen = bytes-len-i64 pref in
+      let slen = bytes-len-i64 seg-bytes in
+      let lcp = common-prefix-len pref seg-bytes in
+      if lt-i64 lcp plen then
+        -- Split this static node at `lcp`: old handler, children, param, and wild move to `old-child`.
+        let common = slice-bytes pref 0 lcp in
+        let old-suf = slice-bytes pref lcp plen in
+        let old-child = BNode node-kind-static old-suf has-h cur-hid cur-amask fc BEmpty pc wc in
+        if eq-i64 lcp slen then
+          case rest-segs of
+            Nil ->
+              Ok (BNode node-kind-static common True hid amask old-child ns BEmpty BEmpty)
+            Cons next-seg rest2 -> case next-seg of
+              SegParam _ ->
+                let new-pc = make-chain rest-segs hid amask in
+                Ok (BNode node-kind-static common False 0 0 old-child ns new-pc BEmpty)
+              SegWild _ ->
+                let new-wc = make-chain rest-segs hid amask in
+                Ok (BNode node-kind-static common False 0 0 old-child ns BEmpty new-wc)
+              SegStatic s2 ->
+                case insert-into-children old-child s2 rest2 hid amask of
+                  Err e -> Err e
+                  Ok merged -> Ok (BNode node-kind-static common False 0 0 merged ns BEmpty BEmpty)
+        else
+          let new-suf = slice-bytes seg-bytes lcp slen in
+          let new-child = make-chain (Cons (SegStatic new-suf) rest-segs) hid amask in
+          let both-kids = pair-sorted-children old-child (byte-at old-suf 0) new-child (byte-at new-suf 0) in
+          Ok (BNode node-kind-static common False 0 0 both-kids ns BEmpty BEmpty)
+      else
+        -- Full prefix match (`lcp == plen`).
+        if lt-i64 lcp slen then
+          let rem-static = slice-bytes seg-bytes lcp slen in
+          case insert-into-children fc rem-static rest-segs hid amask of
+            Err e -> Err e
+            Ok fc1 -> Ok (BNode k pref has-h cur-hid cur-amask fc1 ns pc wc)
+        else
+          -- Exact match of `pref` and `seg-bytes`; dispatch on `rest-segs`.
+          case rest-segs of
+            Nil ->
+              if has-h then Err "duplicate route"
+              else Ok (BNode k pref True hid amask fc ns pc wc)
+            Cons seg rest2 -> case seg of
+              SegStatic s2 ->
+                case insert-into-children fc s2 rest2 hid amask of
+                  Err e -> Err e
+                  Ok fc1 -> Ok (BNode k pref has-h cur-hid cur-amask fc1 ns pc wc)
+              SegParam pname -> case pc of
+                BEmpty ->
+                  let pc1 = make-chain rest-segs hid amask in
+                  Ok (BNode k pref has-h cur-hid cur-amask fc ns pc1 wc)
+                BNode _ cur-pname _ _ _ _ _ _ _ ->
+                  if ne-i64 (bytes-compare cur-pname pname) 0 then
+                    Err "conflicting parameter names at same route segment"
+                  else
+                    case insert-after-param pc rest2 hid amask of
+                      Err e -> Err e
+                      Ok pc1 -> Ok (BNode k pref has-h cur-hid cur-amask fc ns pc1 wc)
+              SegWild wname -> case wc of
+                BEmpty ->
+                  let wc1 = BNode node-kind-wildcard wname True hid amask BEmpty BEmpty BEmpty BEmpty in
+                  Ok (BNode k pref has-h cur-hid cur-amask fc ns pc wc1)
+                BNode _ _ _ _ _ _ _ _ _ ->
+                  Err "duplicate or conflicting wildcard route"
+
+  insert-into-root :: BuildNode -> List RouteSeg -> U32 -> U16 -> Result String BuildNode
+  insert-into-root root segs hid amask = case segs of
+    Nil -> Err "empty route segments"
+    Cons seg rest -> case seg of
+      SegStatic s -> insert-static-into-node root s rest hid amask
+      SegParam _ -> Err "route pattern must start with '/'"
+      SegWild _ -> Err "route pattern must start with '/'"
+
+  builder-get-root :: RouterBuilder -> U8 -> BuildNode
+  builder-get-root b m =
+    if eq-u8 m 0 then b.rb-m0
+    else if eq-u8 m 1 then b.rb-m1
+    else if eq-u8 m 2 then b.rb-m2
+    else if eq-u8 m 3 then b.rb-m3
+    else if eq-u8 m 4 then b.rb-m4
+    else if eq-u8 m 5 then b.rb-m5
+    else if eq-u8 m 6 then b.rb-m6
+    else if eq-u8 m 7 then b.rb-m7
+    else b.rb-m8
+
+  builder-set-root :: RouterBuilder -> U8 -> BuildNode -> RouterBuilder
+  builder-set-root b m r =
+    if eq-u8 m 0 then RouterBuilder r b.rb-m1 b.rb-m2 b.rb-m3 b.rb-m4 b.rb-m5 b.rb-m6 b.rb-m7 b.rb-m8
+    else if eq-u8 m 1 then RouterBuilder b.rb-m0 r b.rb-m2 b.rb-m3 b.rb-m4 b.rb-m5 b.rb-m6 b.rb-m7 b.rb-m8
+    else if eq-u8 m 2 then RouterBuilder b.rb-m0 b.rb-m1 r b.rb-m3 b.rb-m4 b.rb-m5 b.rb-m6 b.rb-m7 b.rb-m8
+    else if eq-u8 m 3 then RouterBuilder b.rb-m0 b.rb-m1 b.rb-m2 r b.rb-m4 b.rb-m5 b.rb-m6 b.rb-m7 b.rb-m8
+    else if eq-u8 m 4 then RouterBuilder b.rb-m0 b.rb-m1 b.rb-m2 b.rb-m3 r b.rb-m5 b.rb-m6 b.rb-m7 b.rb-m8
+    else if eq-u8 m 5 then RouterBuilder b.rb-m0 b.rb-m1 b.rb-m2 b.rb-m3 b.rb-m4 r b.rb-m6 b.rb-m7 b.rb-m8
+    else if eq-u8 m 6 then RouterBuilder b.rb-m0 b.rb-m1 b.rb-m2 b.rb-m3 b.rb-m4 b.rb-m5 r b.rb-m7 b.rb-m8
+    else if eq-u8 m 7 then RouterBuilder b.rb-m0 b.rb-m1 b.rb-m2 b.rb-m3 b.rb-m4 b.rb-m5 b.rb-m6 r b.rb-m8
+    else RouterBuilder b.rb-m0 b.rb-m1 b.rb-m2 b.rb-m3 b.rb-m4 b.rb-m5 b.rb-m6 b.rb-m7 r
+
+  -- | Register `(method, pattern, handler-id)` into `builder`.
+  -- Validates `method <= 8`, pattern syntax, and detects duplicate/conflicting
+  -- static, `:param`, and `*wildcard` routes immediately.
+  router-add :: RouterBuilder -> U8 -> String -> U32 -> Result String RouterBuilder
+  router-add builder method pattern handler-id =
+    if ge-u8 method router-max-methods then Err "HTTP method index out of range (expected 0..8)"
+    else
+      case parse-pattern pattern of
+        Err e -> Err e
+        Ok segs ->
+          let root = builder-get-root builder method in
+          let amask = router-method-bit method in
+          case insert-into-root root segs handler-id amask of
+            Err e -> Err e
+            Ok root1 -> Ok (builder-set-root builder method root1)
+
+  -- =========================================================================
+  -- 5. Startup flattening (`router-freeze`) & DMA teardown (`router-destroy`)
+  -- =========================================================================
+
+  is-bempty :: BuildNode -> Bool
+  is-bempty n = case n of
+    BEmpty -> True
+    BNode _ _ _ _ _ _ _ _ _ -> False
+
+  count-siblings :: BuildNode -> U32 -> U32
+  count-siblings n acc = case n of
+    BEmpty -> acc
+    BNode _ _ _ _ _ _ ns _ _ -> count-siblings ns (wrapping-add-u32 acc 1)
+
+  count-nodes :: BuildNode -> U32
+  count-nodes n = case n of
+    BEmpty -> 0
+    BNode _ _ _ _ _ fc ns pc wc ->
+      let c1 = wrapping-add-u32 1 (count-nodes fc) in
+      let c2 = wrapping-add-u32 c1 (count-nodes ns) in
+      let c3 = wrapping-add-u32 c2 (count-nodes pc) in
+      wrapping-add-u32 c3 (count-nodes wc)
+
+  count-pool :: BuildNode -> U64
+  count-pool n = case n of
+    BEmpty -> 0
+    BNode _ pref _ _ _ fc ns pc wc ->
+      let p0 = wrapping-i64-to-u64 (bytes-len-i64 pref) in
+      let p1 = wrapping-add-u64 p0 (count-pool fc) in
+      let p2 = wrapping-add-u64 p1 (count-pool ns) in
+      let p3 = wrapping-add-u64 p2 (count-pool pc) in
+      wrapping-add-u64 p3 (count-pool wc)
+
+  copy-bytes-to-dma :: U64 -> Bytes -> I64 -> I64 ->{MVar} Unit
+  copy-bytes-to-dma dst-base src idx len =
+    if ge-i64 idx len then ()
+    else
+      let b = byte-at src idx in
+      let _ = raw-store-u8 (addr-at dst-base (wrapping-i64-to-u64 idx)) b in
+      copy-bytes-to-dma dst-base src (wrapping-add-i64 idx 1) len
+
+  emit-siblings :: U64 -> U64 -> U32 -> BuildNode -> U64 ->{MVar} U64
+  emit-siblings base pool-addr slot-idx sib cur = case sib of
+    BEmpty -> cur
+    BNode _ _ _ _ _ _ ns _ _ ->
+      let cur1 = emit-node base pool-addr slot-idx sib cur in
+      emit-siblings base pool-addr (wrapping-add-u32 slot-idx 1) ns cur1
+
+  emit-node :: U64 -> U64 -> U32 -> BuildNode -> U64 ->{MVar} U64
+  emit-node base pool-addr my-idx node cur = case node of
+    BEmpty -> cur
+    BNode kind pref has-h hid amask fc _ pc wc ->
+      let plen64 = bytes-len-i64 pref in
+      let plen = wrapping-i64-to-u32 plen64 in
+      let poff = cursor-pool cur in
+      let cur-node-idx = cursor-node cur in
+      let _ = copy-bytes-to-dma (wrapping-add-u64 pool-addr (u32-to-u64 poff)) pref 0 plen64 in
+      let pool1 = wrapping-add-u32 poff plen in
+      let fb = if gt-u32 plen 0 then byte-at pref 0 else 0 in
+      let cc = count-siblings fc 0 in
+      let first-child = if gt-u32 cc 0 then cur-node-idx else no-node in
+      let n1 = wrapping-add-u32 cur-node-idx cc in
+      let has-pc = not (is-bempty pc) in
+      let param-idx = if has-pc then n1 else no-node in
+      let n2 = if has-pc then wrapping-add-u32 n1 1 else n1 in
+      let has-wc = not (is-bempty wc) in
+      let wild-idx = if has-wc then n2 else no-node in
+      let n3 = if has-wc then wrapping-add-u32 n2 1 else n2 in
+      let naddr = node-addr base my-idx in
+      let _ = raw-store-u8 naddr kind in
+      let _ = raw-store-u8 (wrapping-add-i64 naddr 1) (if has-h then 1 else 0) in
+      let _ = raw-store-u16 (wrapping-add-i64 naddr 2) (wrapping-u32-to-u16 cc) in
+      let _ = raw-store-u32 (wrapping-add-i64 naddr 4) poff in
+      let _ = raw-store-u32 (wrapping-add-i64 naddr 8) plen in
+      let _ = raw-store-u32 (wrapping-add-i64 naddr 12) hid in
+      let _ = raw-store-u32 (wrapping-add-i64 naddr 16) first-child in
+      let _ = raw-store-u32 (wrapping-add-i64 naddr 20) param-idx in
+      let _ = raw-store-u32 (wrapping-add-i64 naddr 24) wild-idx in
+      let _ = raw-store-u16 (wrapping-add-i64 naddr 28) amask in
+      let _ = raw-store-u8 (wrapping-add-i64 naddr 30) fb in
+      let _ = raw-store-u8 (wrapping-add-i64 naddr 31) 0 in
+      let cur2 = emit-siblings base pool-addr first-child fc (pack-cursor n3 pool1) in
+      let cur3 = if has-pc then emit-node base pool-addr param-idx pc cur2 else cur2 in
+      if has-wc then emit-node base pool-addr wild-idx wc cur3 else cur3
+
+  emit-all-methods :: RouterBuilder -> U64 -> U64 -> U8 -> U64 -> U64 ->{MVar} U64
+  emit-all-methods builder base pool-addr m cur mmask =
+    if ge-u8 m router-max-methods then mmask
+    else
+      let root = builder-get-root builder m in
+      let next-m = wrapping-add-u8 m 1 in
+      let hdr-slot = addr-at base (wrapping-shl-u64 (u8-to-u64 m) 2) in
+      if is-bempty root then
+        let _ = raw-store-u32 hdr-slot no-node in
+        emit-all-methods builder base pool-addr next-m cur mmask
+      else
+        let root-idx = cursor-node cur in
+        let _ = raw-store-u32 hdr-slot root-idx in
+        let cur1 = emit-node base pool-addr root-idx root (pack-cursor (wrapping-add-u32 root-idx 1) (cursor-pool cur)) in
+        let mmask1 = bit-or-u64 mmask (wrapping-shl-u64 1 (u8-to-u32 m)) in
+        emit-all-methods builder base pool-addr next-m cur1 mmask1
+
+  count-all-nodes :: RouterBuilder -> U8 -> U32 -> U32
+  count-all-nodes builder m acc =
+    if ge-u8 m router-max-methods then acc
+    else count-all-nodes builder (wrapping-add-u8 m 1) (wrapping-add-u32 acc (count-nodes (builder-get-root builder m)))
+
+  count-all-pool :: RouterBuilder -> U8 -> U64 -> U64
+  count-all-pool builder m acc =
+    if ge-u8 m router-max-methods then acc
+    else count-all-pool builder (wrapping-add-u8 m 1) (wrapping-add-u64 acc (count-pool (builder-get-root builder m)))
+
+  -- | Freeze `builder` into a single contiguous 4 KiB-aligned DMA slab (`RouterFrozen`).
+  -- Header (64B) + flat 32B node table + contiguous byte pool live in one mapping.
+  router-freeze :: RouterBuilder ->{IO, MVar} Result String RouterFrozen
+  router-freeze builder =
+    let total-nodes = count-all-nodes builder 0 0 in
+    let total-pool64 = count-all-pool builder 0 0 in
+    let nodes-bytes = wrapping-shl-u64 (u32-to-u64 total-nodes) 5 in
+    let pool-off64 = wrapping-add-u64 hdr-bytes nodes-bytes in
+    if gt-u64 pool-off64 4294967295 || gt-u64 total-pool64 4294967295 then
+      Err "frozen router exceeds 4 GiB offset limit"
+    else
+      -- Extra 8 zero-pad bytes at tail so all loads remain well inside mapped memory.
+      let raw-total = wrapping-add-u64 (wrapping-add-u64 pool-off64 total-pool64) 8 in
+      let total-bytes = align-up-u64 raw-total 4096 in
+      if eq-u64 total-bytes 0 then Err "router DMA size overflow"
+      else
+        let base = engine-dma-alloc total-bytes 4096 in
+        if eq-u64 base 0 then Err "failed to allocate DMA slab for frozen router"
+        else
+          let pool-addr = wrapping-add-u64 base pool-off64 in
+          let mmask = emit-all-methods builder base pool-addr 0 (pack-cursor 0 0) 0 in
+          let _ = raw-store-u32 (addr-at base off-hdr-node-count) total-nodes in
+          let _ = raw-store-u32 (addr-at base off-hdr-pool-off) (wrapping-u64-to-u32 pool-off64) in
+          let _ = raw-store-u32 (addr-at base off-hdr-pool-len) (wrapping-u64-to-u32 total-pool64) in
+          let _ = raw-store-u64 (addr-at base off-hdr-total-bytes) total-bytes in
+          let _ = raw-store-u64 (addr-at base off-hdr-method-mask) mmask in
+          Ok (RouterFrozen base pool-addr)
+
+  -- | Unmap the DMA slab backing `router`.
+  router-destroy :: RouterFrozen ->{IO, MVar} Unit
+  router-destroy router =
+    if eq-u64 router.router-base 0 then ()
+    else
+      let total-bytes = raw-load-u64 (addr-at router.router-base off-hdr-total-bytes) in
+      let _ = engine-dma-free router.router-base total-bytes in
+      ()
