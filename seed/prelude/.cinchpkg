@@ -1519,6 +1519,18 @@
     {
       "name": "Net.Quic.Pacer",
       "path": "Net/Quic/Pacer.cinch"
+    },
+    {
+      "name": "Store.Wal.Format",
+      "path": "Store/Wal/Format.cinch"
+    },
+    {
+      "name": "Store.Wal.Engine",
+      "path": "Store/Wal/Engine.cinch"
+    },
+    {
+      "name": "Store.Wal.Spec",
+      "path": "Store/Wal/Spec.cinch"
     }
   ],
   "order": [
@@ -1900,6 +1912,9 @@
     "Net.Quic.AckMap",
     "Net.Quic.Recovery",
     "Net.Quic.Bbr",
-    "Net.Quic.Pacer"
+    "Net.Quic.Pacer",
+    "Store.Wal.Format",
+    "Store.Wal.Engine",
+    "Store.Wal.Spec"
   ]
 }

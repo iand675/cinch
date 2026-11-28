@@ -1,0 +1,837 @@
+-- | Zero-allocation (`#[no-alloc]` hot-path) 4 KiB-aligned `O_DIRECT` /
+-- `F_NOCACHE` Group-Commit Write-Ahead Log engine (`Store.Wal.Engine`).
+--
+-- Built over `Engine.Mem.DmaPool` and `Store.Wal.Format`, with a clean
+-- `WalDiskOps` abstraction so the EXACT SAME group-commit, segment-rotation,
+-- and crash-recovery engine executes unmodified against:
+--   * **Live macOS direct disk** (`Engine.Reactor.Darwin` `F_NOCACHE`
+--     `darwin-open-direct`, `darwin-pwrite-dma`, `darwin-pread-dma`,
+--     `darwin-fsync-fd`) with Linux `O_DIRECT`-compatible 4 KiB alignment;
+--   * **Deterministic Simulation Disk** (`Engine.Sim` fault-injecting virtual
+--     disks with volatile write cache, power-loss crash wipe, 512B/4 KiB torn
+--     sectors, and silent bit-flips);
+--   * **Generic `Engine.Types.ReactorOps`** (`OpWriteDirect` / `OpReadDirect` /
+--     `OpFsync`) for zero-drift reactor integration.
+--
+-- Core durability & zero-allocation guarantees:
+--   * `wal-append-dma` stages records into a 4 KiB-aligned DMA batch buffer
+--     with 0 heap allocations and 0 atomic RC ops, assigning monotonic LSNs and
+--     chaining LRAT-verified Castagnoli CRC32C checksums across every record.
+--   * `wal-group-commit` pads the batch to a strict 4 KiB boundary, rotates
+--     segments when `segment-size` would be exceeded, issues ONE 4 KiB-aligned
+--     write + ONE `fsync`, and advances `durable-lsn` ONLY AFTER `fsync`
+--     returns `IoOk`. Previously committed blocks are immutable forever.
+--   * `wal-recover` / `wal-recover-with` validates the 4096-byte segment header
+--     and scans 4 KiB blocks atomically (two-pass verify-then-replay), cleanly
+--     discarding any torn/corrupted tail block while restoring exact
+--     `durable-lsn`, `chain-crc`, and 4 KiB `write-offset` for continued writes.
+module Store.Wal.Engine where
+
+  import Data.Bool
+  import Data.Bytes
+  import Data.Core
+  import Data.Machine
+  import Data.Nat
+  import Data.Option
+  import Data.Result
+  import Engine.Mem.DmaPool
+  import Engine.Reactor.Darwin
+  import Engine.Sim
+  import Engine.Types
+  import Prim.Atomic
+  import Store.Wal.Format
+
+  -- Disk backend abstraction & built-in adapters
+  export WalDiskOps
+  export wal-darwin-disk-ops, wal-sim-disk-ops, wal-reactor-disk-ops
+
+  -- WAL engine handle, recovery report, lifecycle & telemetry
+  export WalEngine, WalRecoveryReport
+  export wal-engine-new, wal-engine-destroy
+  export wal-init-segment
+  export wal-durable-lsn, wal-staged-lsn, wal-durable-chain-crc, wal-stage-chain-crc
+  export wal-write-offset, wal-segment-id, wal-segment-size
+  export wal-batch-used, wal-batch-count, wal-batch-cap, wal-batch-addr
+  export wal-commit-count, wal-rotation-count, wal-active-fd, wal-epoch
+
+  -- Zero-alloc staging, group commit, unflushed simulation write, and recovery
+  export wal-append-dma, wal-append, wal-stage-reset
+  export wal-group-commit, wal-flush-unfsynced
+  export wal-recover, wal-recover-with
+
+  -- =========================================================================
+  -- 1. DMA Metadata Header Layout & ABI Barriers
+  -- =========================================================================
+
+  -- 4096-byte DMA header slab field byte offsets:
+  --   +0  : fd-raw            :: I32
+  --   +4  : destroyed         :: U32  (0 = live, 1 = destroyed)
+  --   +8  : segment-id        :: U64
+  --   +16 : segment-size      :: U64  (multiple of 4096, >= 8192)
+  --   +24 : write-offset      :: U64  (current 4 KiB-aligned durable cursor)
+  --   +32 : durable-lsn       :: U64
+  --   +40 : staged-lsn        :: U64
+  --   +48 : durable-chain-crc :: U32
+  --   +52 : stage-chain-crc   :: U32
+  --   +56 : batch-used        :: U32
+  --   +60 : batch-count       :: U32
+  --   +64 : epoch             :: U32
+  --   +68 : batch-cap         :: U32
+  --   +72 : read-cap          :: U32
+  --   +76 : rotations         :: U32
+  --   +80 : commits           :: U64
+  --   +88 : first-lsn         :: U64
+
+  -- | Header offset of the active segment raw descriptor.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-fd :: I64
+  wh-off-fd = 0
+
+  -- | Header offset of the destroyed sentinel flag.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-destroyed :: I64
+  wh-off-destroyed = 4
+
+  -- | Header offset of the active monotonic segment ID.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-seg-id :: I64
+  wh-off-seg-id = 8
+
+  -- | Header offset of the configured maximum segment size in bytes.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-seg-size :: I64
+  wh-off-seg-size = 16
+
+  -- | Header offset of the current 4 KiB-aligned durable file write cursor.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-write-off :: I64
+  wh-off-write-off = 24
+
+  -- | Header offset of the highest `fsync`-confirmed durable LSN.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-durable-lsn :: I64
+  wh-off-durable-lsn = 32
+
+  -- | Header offset of the highest LSN staged in the batch buffer.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-staged-lsn :: I64
+  wh-off-staged-lsn = 40
+
+  -- | Header offset of the durable hash-chain CRC32C at `durable-lsn`.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-durable-crc :: I64
+  wh-off-durable-crc = 48
+
+  -- | Header offset of the staged hash-chain CRC32C at `staged-lsn`.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-stage-crc :: I64
+  wh-off-stage-crc = 52
+
+  -- | Header offset of the staged byte length inside the DMA batch buffer.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-batch-used :: I64
+  wh-off-batch-used = 56
+
+  -- | Header offset of the number of staged records in the active batch.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-batch-count :: I64
+  wh-off-batch-count = 60
+
+  -- | Header offset of the writer epoch.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-epoch :: I64
+  wh-off-epoch = 64
+
+  -- | Header offset of the DMA write batch buffer capacity.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-batch-cap :: I64
+  wh-off-batch-cap = 68
+
+  -- | Header offset of the DMA recovery read buffer capacity.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-read-cap :: I64
+  wh-off-read-cap = 72
+
+  -- | Header offset of the total segment rotation count.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-rotations :: I64
+  wh-off-rotations = 76
+
+  -- | Header offset of the total successful group-commit count.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-commits :: I64
+  wh-off-commits = 80
+
+  -- | Header offset of the first LSN recorded in the active segment.
+  #[inline(always)]
+  #[no-alloc]
+  wh-off-first-lsn :: I64
+  wh-off-first-lsn = 88
+
+  -- | Non-inlined `Result` identity barrier keeping boxed `Result` ABI uniform
+  -- across callers that unpack `#[repr(value)]` values such as `Fd`.
+  #[inline(never)]
+  id-res :: forall e a. Result e a -> Result e a
+  id-res r = r
+
+  -- | Non-inlined `Option` identity barrier keeping `Fd`-taking functions on
+  -- the uniform boxed `Option` ABI.
+  #[inline(never)]
+  id-opt :: forall a. Option a -> Option a
+  id-opt o = o
+
+  -- | Convert a `Nat` to a clamped `U32`.
+  nat-to-u32-clamped :: Nat -> U32
+  nat-to-u32-clamped n =
+    if n < 4294967295 then wrapping-i64-to-u32 (nat-to-i64 n)
+    else 4294967295
+
+  -- | Copy `len` raw DMA bytes from `src-addr` into a freshly allocated `Bytes`
+  -- buffer (used by the deterministic simulation adapter `wal-sim-disk-ops`).
+  dma-to-bytes-loop :: Bytes -> I64 -> Nat -> Nat ->{MVar} Unit
+  dma-to-bytes-loop dst src pos rem =
+    if rem == 0 then ()
+    else if 8 <= rem && pos + 8 <= bytes-len dst then
+      let w = raw-load-u64 src in
+      let _ = bytes-store-le64 dst pos w in
+      dma-to-bytes-loop dst (wrapping-add-i64 src 8) (pos + 8) (rem - 8)
+    else if pos < bytes-len dst then
+      let b = raw-load-u8 src in
+      let _ = bytes-set-u8 dst pos b in
+      dma-to-bytes-loop dst (wrapping-add-i64 src 1) (pos + 1) (rem - 1)
+    else ()
+
+  -- | Materialize `len` bytes from raw DMA address `src-addr` as a `Bytes` buffer.
+  dma-to-bytes :: I64 -> U32 ->{MVar} Bytes
+  dma-to-bytes src-addr len =
+    let n = u32-to-nat len in
+    let out = bytes-new n in
+    let _ = dma-to-bytes-loop out src-addr 0 n in
+    out
+
+  -- | Copy bytes from `src` into raw DMA address `dst-addr`.
+  bytes-to-dma-loop :: I64 -> Bytes -> Nat -> Nat ->{MVar} Unit
+  bytes-to-dma-loop dst src pos rem =
+    if rem == 0 then ()
+    else if 8 <= rem && pos + 8 <= bytes-len src then
+      let w = bytes-load-le64 src pos in
+      let _ = raw-store-u64 dst w in
+      bytes-to-dma-loop (wrapping-add-i64 dst 8) src (pos + 8) (rem - 8)
+    else if pos < bytes-len src then
+      let b = bytes-get-u8 src pos in
+      let _ = raw-store-u8 dst b in
+      bytes-to-dma-loop (wrapping-add-i64 dst 1) src (pos + 1) (rem - 1)
+    else ()
+
+  -- | Copy up to `max-len` bytes from `src` into raw DMA address `dst-addr`.
+  -- Returns the number of bytes copied.
+  bytes-to-dma :: I64 -> U32 -> Bytes ->{MVar} U32
+  bytes-to-dma dst-addr max-len src =
+    let slen = nat-to-u32-clamped (bytes-len src) in
+    let n = if lt-u32 slen max-len then slen else max-len in
+    let _ = bytes-to-dma-loop dst-addr src 0 (u32-to-nat n) in
+    n
+
+  -- =========================================================================
+  -- 2. Disk I/O Abstraction (`WalDiskOps`) & Live / DST / Reactor Adapters
+  -- =========================================================================
+
+  -- | Direct-disk I/O abstraction shared identically between live OS direct
+  -- storage (`F_NOCACHE` / `O_DIRECT`), `Engine.Sim` fault-injecting virtual
+  -- disks, and `Engine.Types.ReactorOps`.
+  record WalDiskOps (r :: Region) where
+    -- | Positioned 4 KiB-aligned write from DMA address `addr` (`len` bytes) at `offset`.
+    -- Returns bytes written (`>= 0`) or negated error code (`< 0`).
+    wal-disk-pwrite-dma :: Fd -> I64 -> U32 -> U64 ->{IO, IO r, MVar, Mut r} I32
+    -- | Positioned 4 KiB-aligned read into DMA address `addr` (`len` bytes) at `offset`.
+    -- Returns bytes read (`>= 0`) or negated error code (`< 0`).
+    wal-disk-pread-dma :: Fd -> I64 -> U32 -> U64 ->{IO, IO r, MVar, Mut r} I32
+    -- | Flush volatile writes to durable media (`fsync` / `fdatasync`).
+    wal-disk-fsync :: Fd ->{IO, IO r, MVar, Mut r} IoError
+    -- | Open/allocate a fresh WAL segment descriptor for `next-segment-id`.
+    -- Returns a non-negative raw descriptor (`>= 0`) or a negated error code (`< 0`).
+    wal-disk-rotate :: U64 ->{IO, IO r, MVar, Mut r} I32
+
+  -- | Construct a `WalDiskOps` backed by live macOS `F_NOCACHE` direct disk
+  -- syscalls (`Engine.Reactor.Darwin`: `darwin-pwrite-dma`, `darwin-pread-dma`,
+  -- `darwin-fsync-fd`) with caller-supplied segment opener `open-seg`.
+  wal-darwin-disk-ops :: forall (r :: Region). (U64 ->{IO, IO r, MVar, Mut r} I32) -> WalDiskOps r
+  wal-darwin-disk-ops open-seg = WalDiskOps {
+    wal-disk-pwrite-dma = (\fd addr len off -> darwin-pwrite-dma fd addr len off),
+    wal-disk-pread-dma = (\fd addr len off -> darwin-pread-dma fd addr len off),
+    wal-disk-fsync = (\fd -> darwin-fsync-fd fd),
+    wal-disk-rotate = open-seg
+  }
+
+  -- | Construct a `WalDiskOps` backed by an `Engine.Sim.SimWorld r` virtual
+  -- `O_DIRECT` disk (supporting volatile write cache, power-loss crash wipes,
+  -- 512B/4 KiB torn sectors, and silent bit-flips).
+  -- `sec-size` (e.g. `512` or `4096`) and `sec-count` control newly rotated
+  -- virtual disk segments.
+  wal-sim-disk-ops :: forall (r :: Region). SimWorld r -> U32 -> U64 -> WalDiskOps r
+  wal-sim-disk-ops w sec-size sec-count = WalDiskOps {
+    wal-disk-pwrite-dma = (\fd addr len off ->
+      let payload = dma-to-bytes addr len in
+      case sim-disk-pwrite w fd off payload of
+        Ok n -> wrapping-u32-to-i32 n
+        Err err ->
+          let c = u8-to-i32 (io-error-to-u8 err) in
+          if eq-i32 c 0 then -1 else wrapping-neg-i32 c),
+    wal-disk-pread-dma = (\fd addr len off ->
+      case sim-disk-pread w fd off len of
+        Ok buf ->
+          let copied = bytes-to-dma addr len buf in
+          wrapping-u32-to-i32 copied
+        Err err ->
+          let c = u8-to-i32 (io-error-to-u8 err) in
+          if eq-i32 c 0 then -1 else wrapping-neg-i32 c),
+    wal-disk-fsync = (\fd -> sim-disk-fsync w fd),
+    wal-disk-rotate = (\_seg-id ->
+      let new-fd = sim-disk-open w sec-size sec-count in
+      new-fd.fd-raw)
+  }
+
+  -- | Submit one synchronous direct disk SQE through `ReactorOps r`, flush,
+  -- wait for completion, and return the resulting `Completion.cqe-res`.
+  reactor-exec-disk-sqe :: forall (r :: Region). ReactorOps r -> IoSqe ->{IO r, Mut r} I32
+  reactor-exec-disk-sqe rx sqe =
+    let err = rx.reactor-submit sqe in
+    if not (io-error-is-ok err) then
+      wrapping-neg-i32 (u8-to-i32 (io-error-to-u8 err))
+    else
+      let _fl = rx.reactor-flush () in
+      let _wt = rx.reactor-wait (time-ns-of 5000000000) in
+      let cqe = rx.reactor-pop-cqe () in
+      cqe.cqe-res
+
+  -- | Construct a `WalDiskOps` dispatching `OpWriteDirect`, `OpReadDirect`,
+  -- and `OpFsync` through an `Engine.Types.ReactorOps r` capability dictionary
+  -- (works uniformly across `sim-reactor-ops`, `darwin-reactor-ops`, and
+  -- Linux `io_uring`).
+  wal-reactor-disk-ops :: forall (r :: Region). ReactorOps r -> (U64 ->{IO, IO r, MVar, Mut r} I32) -> WalDiskOps r
+  wal-reactor-disk-ops rx open-seg = WalDiskOps {
+    wal-disk-pwrite-dma = (\fd addr len off ->
+      let tok = io-token-pack op-code-write-direct 1 1 in
+      let sqe = IoSqe op-code-write-direct 0 0 fd.fd-raw (wrapping-i64-to-u64 addr) len 0 off tok.io-token-raw in
+      reactor-exec-disk-sqe rx sqe),
+    wal-disk-pread-dma = (\fd addr len off ->
+      let tok = io-token-pack op-code-read-direct 1 2 in
+      let sqe = IoSqe op-code-read-direct 0 0 fd.fd-raw (wrapping-i64-to-u64 addr) len 0 off tok.io-token-raw in
+      reactor-exec-disk-sqe rx sqe),
+    wal-disk-fsync = (\fd ->
+      let tok = io-token-pack op-code-fsync 1 3 in
+      let sqe = IoSqe op-code-fsync 0 0 fd.fd-raw 0 0 0 0 tok.io-token-raw in
+      let res = reactor-exec-disk-sqe rx sqe in
+      if eq-i32 res 0 then IoOk
+      else io-error-from-u8 (wrapping-i32-to-u8 (wrapping-neg-i32 res))),
+    wal-disk-rotate = open-seg
+  }
+
+  -- =========================================================================
+  -- 3. `WalEngine` Handle, `WalRecoveryReport`, Lifecycle & Telemetry
+  -- =========================================================================
+
+  -- | Group-commit WAL engine handle backed by a 4 KiB-aligned DMA metadata
+  -- slab and a 2-buffer 4 KiB-aligned `DmaPool` (buffer 0 = staged group-commit
+  -- write batch, buffer 1 = recovery/header read buffer).
+  --
+  -- All hot-path state mutations (`wal-append-dma`, `wal-stage-reset`, telemetry
+  -- loads) operate in-place on the DMA header slab with zero heap allocations
+  -- and zero atomic reference-counting traffic.
+  record WalEngine where
+    -- | Base address of the 4 KiB-aligned DMA metadata slab.
+    wal-hdr-addr :: I64
+    -- | Pre-allocated 4 KiB-aligned `DmaPool` owning write batch and read buffers.
+    wal-pool :: DmaPool
+    -- | 4 KiB-aligned base address of the group-commit staging batch buffer (`buf 0`).
+    wal-batch-ptr :: I64
+    -- | 4 KiB-aligned base address of the recovery/header scratch buffer (`buf 1`).
+    wal-read-ptr :: I64
+
+  -- | Summary returned by `wal-recover` / `wal-recover-with`.
+  record WalRecoveryReport where
+    -- | Highest contiguous durable LSN recovered (`0` if segment has no valid records).
+    rec-durable-lsn :: U64
+    -- | Total number of valid records recovered in this segment.
+    rec-record-count :: U64
+    -- | Total validated record bytes recovered across all valid blocks.
+    rec-valid-bytes :: U64
+    -- | Next 4 KiB-aligned write cursor on disk where new commits safely resume.
+    rec-next-write-offset :: U64
+    -- | Hash-chain CRC32C at `rec-durable-lsn` (or segment initial chain seed).
+    rec-chain-crc :: U32
+    -- | Terminal scan status (`wal-status-eof` on clean tail, or error code if torn tail stopped scan).
+    rec-stop-status :: U32
+
+  -- | Internal scalar-parameter worker for `wal-engine-new`.
+  #[inline(never)]
+  wal-engine-new-raw :: I32 -> U64 -> U32 -> U32 ->{IO, MVar} Option WalEngine
+  wal-engine-new-raw fd-raw seg-size batch-buf-size epoch =
+    if lt-u64 seg-size 8192 || not (wal-is-aligned4k seg-size) then None
+    else
+      case dma-pool-new batch-buf-size 2 of
+        None -> None
+        Some pool ->
+          let hdr-u64 = engine-dma-alloc 4096 4096 in
+          if eq-u64 hdr-u64 0 then
+            let _ = dma-pool-destroy pool in
+            None
+          else
+            let hdr = wrapping-u64-to-i64 hdr-u64 in
+            let batch-addr = dma-pool-buf-addr pool 0 in
+            let read-addr = dma-pool-buf-addr pool 1 in
+            let _0 = raw-store-u32 (wrapping-add-i64 hdr wh-off-fd) (wrapping-i32-to-u32 fd-raw) in
+            let _1 = raw-store-u32 (wrapping-add-i64 hdr wh-off-destroyed) 0 in
+            let _2 = raw-store-u64 (wrapping-add-i64 hdr wh-off-seg-id) 0 in
+            let _3 = raw-store-u64 (wrapping-add-i64 hdr wh-off-seg-size) seg-size in
+            let _4 = raw-store-u64 (wrapping-add-i64 hdr wh-off-write-off) wal-sector-size-u64 in
+            let _5 = raw-store-u64 (wrapping-add-i64 hdr wh-off-durable-lsn) 0 in
+            let _6 = raw-store-u64 (wrapping-add-i64 hdr wh-off-staged-lsn) 0 in
+            let _7 = raw-store-u32 (wrapping-add-i64 hdr wh-off-durable-crc) wal-initial-chain-seed in
+            let _8 = raw-store-u32 (wrapping-add-i64 hdr wh-off-stage-crc) wal-initial-chain-seed in
+            let _9 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-used) 0 in
+            let _10 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-count) 0 in
+            let _11 = raw-store-u32 (wrapping-add-i64 hdr wh-off-epoch) epoch in
+            let _12 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-cap) batch-buf-size in
+            let _13 = raw-store-u32 (wrapping-add-i64 hdr wh-off-read-cap) batch-buf-size in
+            let _14 = raw-store-u32 (wrapping-add-i64 hdr wh-off-rotations) 0 in
+            let _15 = raw-store-u64 (wrapping-add-i64 hdr wh-off-commits) 0 in
+            let _16 = raw-store-u64 (wrapping-add-i64 hdr wh-off-first-lsn) 1 in
+            Some (WalEngine hdr pool batch-addr read-addr)
+
+  -- | Allocate and initialize a `WalEngine` bound to active segment descriptor
+  -- `fd`, maximum `segment-size` (must be a multiple of `4096` and `>= 8192`),
+  -- DMA batch buffer capacity `batch-buf-size` (power of two `>= 4096`, e.g.
+  -- `16384` or `65536`), and writer `epoch`.
+  -- Returns `None` on invalid geometry or DMA allocation failure.
+  wal-engine-new :: Fd -> U64 -> U32 -> U32 ->{IO, MVar} Option WalEngine
+  wal-engine-new fd seg-size batch-buf-size epoch =
+    id-opt (wal-engine-new-raw fd.fd-raw seg-size batch-buf-size epoch)
+
+  -- | Release the engine's DMA header slab and `DmaPool`. Idempotent.
+  wal-engine-destroy :: WalEngine ->{IO, MVar} Unit
+  wal-engine-destroy eng =
+    let hdr = eng.wal-hdr-addr in
+    if eq-i64 hdr 0 then ()
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 hdr wh-off-destroyed) in
+      if ne-u32 dead 0 then ()
+      else
+        let _0 = raw-store-u32 (wrapping-add-i64 hdr wh-off-destroyed) 1 in
+        let _1 = dma-pool-destroy eng.wal-pool in
+        let _2 = engine-dma-free (wrapping-i64-to-u64 hdr) 4096 in
+        ()
+
+  -- | Return the highest `fsync`-confirmed durable LSN (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-durable-lsn :: WalEngine ->{MVar} U64
+  wal-durable-lsn eng = raw-load-u64 (wrapping-add-i64 eng.wal-hdr-addr wh-off-durable-lsn)
+
+  -- | Return the highest staged (possibly uncommitted) LSN (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-staged-lsn :: WalEngine ->{MVar} U64
+  wal-staged-lsn eng = raw-load-u64 (wrapping-add-i64 eng.wal-hdr-addr wh-off-staged-lsn)
+
+  -- | Return the durable hash-chain CRC32C at `wal-durable-lsn` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-durable-chain-crc :: WalEngine ->{MVar} U32
+  wal-durable-chain-crc eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-durable-crc)
+
+  -- | Return the staged hash-chain CRC32C at `wal-staged-lsn` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-stage-chain-crc :: WalEngine ->{MVar} U32
+  wal-stage-chain-crc eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-stage-crc)
+
+  -- | Return the current 4 KiB-aligned durable write cursor on disk (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-write-offset :: WalEngine ->{MVar} U64
+  wal-write-offset eng = raw-load-u64 (wrapping-add-i64 eng.wal-hdr-addr wh-off-write-off)
+
+  -- | Return the active monotonic segment identifier (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-segment-id :: WalEngine ->{MVar} U64
+  wal-segment-id eng = raw-load-u64 (wrapping-add-i64 eng.wal-hdr-addr wh-off-seg-id)
+
+  -- | Return the configured maximum segment size in bytes (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-segment-size :: WalEngine ->{MVar} U64
+  wal-segment-size eng = raw-load-u64 (wrapping-add-i64 eng.wal-hdr-addr wh-off-seg-size)
+
+  -- | Return the number of staged bytes currently buffered for group commit (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-batch-used :: WalEngine ->{MVar} U32
+  wal-batch-used eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-batch-used)
+
+  -- | Return the number of staged records pending in the active batch (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-batch-count :: WalEngine ->{MVar} U32
+  wal-batch-count eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-batch-count)
+
+  -- | Return the byte capacity of the DMA group-commit batch buffer (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-batch-cap :: WalEngine ->{MVar} U32
+  wal-batch-cap eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-batch-cap)
+
+  -- | Return the 4 KiB-aligned raw address of the DMA batch buffer (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-batch-addr :: WalEngine -> I64
+  wal-batch-addr eng = eng.wal-batch-ptr
+
+  -- | Return the cumulative number of successful `wal-group-commit` operations (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-commit-count :: WalEngine ->{MVar} U64
+  wal-commit-count eng = raw-load-u64 (wrapping-add-i64 eng.wal-hdr-addr wh-off-commits)
+
+  -- | Return the cumulative number of segment rotations performed (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-rotation-count :: WalEngine ->{MVar} U32
+  wal-rotation-count eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-rotations)
+
+  -- | Return the active segment file/disk descriptor (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-active-fd :: WalEngine ->{MVar} Fd
+  wal-active-fd eng =
+    fd-of (wrapping-u32-to-i32 (raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-fd)))
+
+  -- | Return the active writer epoch (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-epoch :: WalEngine ->{MVar} U32
+  wal-epoch eng = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-epoch)
+
+  -- =========================================================================
+  -- 4. Segment Initialization, Zero-Alloc Staging & Group Commit
+  -- =========================================================================
+
+  -- | Write and `fsync` a 4096-byte Segment Header at byte offset `0` of `fd`.
+  write-and-sync-segment-header :: forall (r :: Region). WalDiskOps r -> WalEngine -> Fd -> U64 -> U64 -> U32 -> U32 ->{IO, IO r, MVar, Mut r} IoError
+  write-and-sync-segment-header ops eng fd seg-id first-lsn init-crc epoch =
+    let _crc = wal-write-segment-header-raw eng.wal-read-ptr seg-id first-lsn init-crc epoch in
+    let nw = ops.wal-disk-pwrite-dma fd eng.wal-read-ptr wal-sector-size 0 in
+    if ne-i32 nw 4096 then IoOther
+    else ops.wal-disk-fsync fd
+
+  -- | Format and `fsync` the 4096-byte Segment Header on the engine's initial
+  -- segment (`offset 0`), preparing it for 4 KiB-aligned group-commit appends
+  -- starting at byte offset `4096`.
+  wal-init-segment :: forall (r :: Region). WalDiskOps r -> WalEngine ->{IO, IO r, MVar, Mut r} IoError
+  wal-init-segment ops eng =
+    let hdr = eng.wal-hdr-addr in
+    let fd = wal-active-fd eng in
+    let seg-id = raw-load-u64 (wrapping-add-i64 hdr wh-off-seg-id) in
+    let first-lsn = raw-load-u64 (wrapping-add-i64 hdr wh-off-first-lsn) in
+    let init-crc = raw-load-u32 (wrapping-add-i64 hdr wh-off-durable-crc) in
+    let epoch = raw-load-u32 (wrapping-add-i64 hdr wh-off-epoch) in
+    let err = write-and-sync-segment-header ops eng fd seg-id first-lsn init-crc epoch in
+    if io-error-is-ok err then
+      let _w = raw-store-u64 (wrapping-add-i64 hdr wh-off-write-off) wal-sector-size-u64 in
+      IoOk
+    else err
+
+  -- | Discard any uncommitted staged records in the DMA batch buffer, rewinding
+  -- `staged-lsn` and `stage-chain-crc` back to the last durable commit point.
+  -- Zero heap allocations (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-stage-reset :: WalEngine ->{MVar} Unit
+  wal-stage-reset eng =
+    let hdr = eng.wal-hdr-addr in
+    let d-lsn = raw-load-u64 (wrapping-add-i64 hdr wh-off-durable-lsn) in
+    let d-crc = raw-load-u32 (wrapping-add-i64 hdr wh-off-durable-crc) in
+    let _0 = raw-store-u64 (wrapping-add-i64 hdr wh-off-staged-lsn) d-lsn in
+    let _1 = raw-store-u32 (wrapping-add-i64 hdr wh-off-stage-crc) d-crc in
+    let _2 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-used) 0 in
+    raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-count) 0
+
+  -- | Stage one record into the 4 KiB-aligned DMA group-commit batch buffer
+  -- with zero heap allocations and zero atomic RC ops (`#[no-alloc]`).
+  --
+  -- Assigns the next monotonic LSN (`staged-lsn + 1`), chains `prev-chain-crc`,
+  -- computes hardware Castagnoli CRC32C over header + chain + payload, and
+  -- keeps records `<= 4096` bytes self-contained within a single 4 KiB page
+  -- (zero-padding any page tail too small for the record).
+  --
+  -- Returns the assigned pending `lsn` (`> 0`), or `0` if the batch buffer does
+  -- not have enough space remaining (caller should flush via `wal-group-commit`).
+  #[no-alloc]
+  wal-append-dma :: WalEngine -> U16 -> I64 -> U32 ->{MVar} U64
+  wal-append-dma eng flags payload-addr payload-len =
+    let hdr = eng.wal-hdr-addr in
+    let cap = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-cap) in
+    let used = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-used) in
+    -- Guard against U32 overflow on oversized payloads
+    if gt-u32 payload-len cap then 0
+    else
+      let rec-len = wal-record-total-len payload-len in
+      let in-page = bit-and-u32 used 4095 in
+      let need-page-pad = (if eq-u32 in-page 0 then eq-u32 0 1 else if gt-u32 rec-len wal-sector-size then eq-u32 0 0 else gt-u32 (wrapping-add-u32 in-page rec-len) wal-sector-size) in
+      let start = if need-page-pad then wal-align4k-u32 used else used in
+      let end-raw = wrapping-add-u32 start rec-len in
+      let end-pos = if gt-u32 rec-len wal-sector-size then wal-align4k-u32 end-raw else end-raw in
+      if gt-u32 end-pos cap then 0
+      else
+        let _pad0 = (if gt-u32 start used then wal-zero-dma (wrapping-add-i64 eng.wal-batch-ptr (u32-to-i64 used)) (wrapping-sub-u32 start used) else ()) in
+        let lsn = wrapping-add-u64 (raw-load-u64 (wrapping-add-i64 hdr wh-off-staged-lsn)) 1 in
+        let prev-crc = raw-load-u32 (wrapping-add-i64 hdr wh-off-stage-crc) in
+        let epoch = raw-load-u32 (wrapping-add-i64 hdr wh-off-epoch) in
+        let dst = wrapping-add-i64 eng.wal-batch-ptr (u32-to-i64 start) in
+        let crc = wal-write-record-raw dst flags lsn prev-crc epoch payload-addr payload-len in
+        let _pad1 = (if gt-u32 end-pos end-raw then wal-zero-dma (wrapping-add-i64 eng.wal-batch-ptr (u32-to-i64 end-raw)) (wrapping-sub-u32 end-pos end-raw) else ()) in
+        let cnt = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-count) in
+        let _u0 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-used) end-pos in
+        let _u1 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-count) (wrapping-add-u32 cnt 1) in
+        let _u2 = raw-store-u64 (wrapping-add-i64 hdr wh-off-staged-lsn) lsn in
+        let _u3 = raw-store-u32 (wrapping-add-i64 hdr wh-off-stage-crc) crc in
+        lsn
+
+  -- | Stage a `Bytes` payload as a WAL data record (`wal-flag-data`) into the
+  -- 4 KiB-aligned group-commit batch buffer, returning its pending LSN (`0` if
+  -- batch buffer is full).
+  wal-append :: WalEngine -> Bytes ->{MVar} U64
+  wal-append eng payload =
+    let plen = nat-to-u32-clamped (bytes-len payload) in
+    let lsn = wal-append-dma eng wal-flag-data (bytes-data payload) plen in
+    let _keep = bytes-len payload in
+    lsn
+
+  -- | Rotate to a fresh segment when the next 4 KiB-aligned group-commit batch
+  -- would exceed `segment-size`. Writes and `fsync`s the new segment's 4096-byte
+  -- header chaining from `(durable-lsn + 1, durable-chain-crc)`.
+  rotate-segment-if-needed :: forall (r :: Region). WalDiskOps r -> WalEngine -> U32 ->{IO, IO r, MVar, Mut r} IoError
+  rotate-segment-if-needed ops eng aligned-len =
+    let hdr = eng.wal-hdr-addr in
+    let cur-off = raw-load-u64 (wrapping-add-i64 hdr wh-off-write-off) in
+    let seg-sz = raw-load-u64 (wrapping-add-i64 hdr wh-off-seg-size) in
+    let need-end = saturating-add-u64 cur-off (u32-to-u64 aligned-len) in
+    if le-u64 need-end seg-sz then IoOk
+    else
+      let next-seg-id = wrapping-add-u64 (raw-load-u64 (wrapping-add-i64 hdr wh-off-seg-id)) 1 in
+      let raw-fd = ops.wal-disk-rotate next-seg-id in
+      if lt-i32 raw-fd 0 then IoOther
+      else
+        let new-fd = fd-of raw-fd in
+        let first-lsn = wrapping-add-u64 (raw-load-u64 (wrapping-add-i64 hdr wh-off-durable-lsn)) 1 in
+        let init-crc = raw-load-u32 (wrapping-add-i64 hdr wh-off-durable-crc) in
+        let epoch = raw-load-u32 (wrapping-add-i64 hdr wh-off-epoch) in
+        let err = write-and-sync-segment-header ops eng new-fd next-seg-id first-lsn init-crc epoch in
+        if not (io-error-is-ok err) then err
+        else
+          let rots = raw-load-u32 (wrapping-add-i64 hdr wh-off-rotations) in
+          let _0 = raw-store-u32 (wrapping-add-i64 hdr wh-off-fd) (wrapping-i32-to-u32 new-fd.fd-raw) in
+          let _1 = raw-store-u64 (wrapping-add-i64 hdr wh-off-seg-id) next-seg-id in
+          let _2 = raw-store-u64 (wrapping-add-i64 hdr wh-off-first-lsn) first-lsn in
+          let _3 = raw-store-u64 (wrapping-add-i64 hdr wh-off-write-off) wal-sector-size-u64 in
+          let _4 = raw-store-u32 (wrapping-add-i64 hdr wh-off-rotations) (wrapping-add-u32 rots 1) in
+          IoOk
+
+  -- | Group-commit all currently staged records in ONE 4 KiB-aligned direct
+  -- write + ONE `fsync`, rotating segments first if `segment-size` would be
+  -- exceeded.
+  --
+  -- Advances `durable-lsn`, `durable-chain-crc`, and `write-offset` ONLY AFTER
+  -- both the aligned write AND `fsync` succeed. Returns `Ok durable-lsn`.
+  wal-group-commit :: forall (r :: Region). WalDiskOps r -> WalEngine ->{IO, IO r, MVar, Mut r} Result IoError U64
+  wal-group-commit ops eng =
+    let hdr = eng.wal-hdr-addr in
+    let used = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-used) in
+    if eq-u32 used 0 then
+      id-res (Ok (raw-load-u64 (wrapping-add-i64 hdr wh-off-durable-lsn)))
+    else
+      let cap = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-cap) in
+      let aligned-len = wal-format-block-raw eng.wal-batch-ptr used cap in
+      if eq-u32 aligned-len 0 then id-res (Err IoOther)
+      else
+        let rot-err = rotate-segment-if-needed ops eng aligned-len in
+        if not (io-error-is-ok rot-err) then id-res (Err rot-err)
+        else
+          let fd = wal-active-fd eng in
+          let write-off = raw-load-u64 (wrapping-add-i64 hdr wh-off-write-off) in
+          let nw = ops.wal-disk-pwrite-dma fd eng.wal-batch-ptr aligned-len write-off in
+          if ne-i32 nw (wrapping-u32-to-i32 aligned-len) then
+            id-res (Err IoOther)
+          else
+            let sync-err = ops.wal-disk-fsync fd in
+            if not (io-error-is-ok sync-err) then
+              id-res (Err sync-err)
+            else
+              let new-durable-lsn = raw-load-u64 (wrapping-add-i64 hdr wh-off-staged-lsn) in
+              let new-durable-crc = raw-load-u32 (wrapping-add-i64 hdr wh-off-stage-crc) in
+              let next-off = wrapping-add-u64 write-off (u32-to-u64 aligned-len) in
+              let commits = raw-load-u64 (wrapping-add-i64 hdr wh-off-commits) in
+              let _0 = raw-store-u64 (wrapping-add-i64 hdr wh-off-write-off) next-off in
+              let _1 = raw-store-u64 (wrapping-add-i64 hdr wh-off-durable-lsn) new-durable-lsn in
+              let _2 = raw-store-u32 (wrapping-add-i64 hdr wh-off-durable-crc) new-durable-crc in
+              let _3 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-used) 0 in
+              let _4 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-count) 0 in
+              let _5 = raw-store-u64 (wrapping-add-i64 hdr wh-off-commits) (wrapping-add-u64 commits 1) in
+              id-res (Ok new-durable-lsn)
+
+  -- | Issue the 4 KiB-aligned `pwrite` for the staged batch into the disk's
+  -- volatile cache WITHOUT calling `fsync` and WITHOUT advancing `durable-lsn`.
+  --
+  -- Intended for deterministic power-loss & torn-sector chaos testing: allows
+  -- simulating an abrupt crash between `pwrite` and `fsync` so `wal-recover`
+  -- can be verified against both clean cache drops and half-written torn tail
+  -- sectors. Returns the aligned byte count written (`0` if batch empty or error).
+  wal-flush-unfsynced :: forall (r :: Region). WalDiskOps r -> WalEngine ->{IO, IO r, MVar, Mut r} U32
+  wal-flush-unfsynced ops eng =
+    let hdr = eng.wal-hdr-addr in
+    let used = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-used) in
+    if eq-u32 used 0 then 0
+    else
+      let cap = raw-load-u32 (wrapping-add-i64 hdr wh-off-batch-cap) in
+      let aligned-len = wal-format-block-raw eng.wal-batch-ptr used cap in
+      if eq-u32 aligned-len 0 then 0
+      else
+        let fd = wal-active-fd eng in
+        let write-off = raw-load-u64 (wrapping-add-i64 hdr wh-off-write-off) in
+        let seg-sz = raw-load-u64 (wrapping-add-i64 hdr wh-off-seg-size) in
+        if gt-u64 (saturating-add-u64 write-off (u32-to-u64 aligned-len)) seg-sz then 0
+        else
+          let nw = ops.wal-disk-pwrite-dma fd eng.wal-batch-ptr aligned-len write-off in
+          if eq-i32 nw (wrapping-u32-to-i32 aligned-len) then aligned-len else 0
+
+  -- =========================================================================
+  -- 5. Sequential Two-Pass Crash Recovery (`wal-recover-with` & `wal-recover`)
+  -- =========================================================================
+
+  -- | Replay all validated records in `[0 .. valid-bytes)` of a block buffer
+  -- through the caller callback `on-rec hdr payload-addr`.
+  replay-validated-block :: forall (r :: Region). I64 -> U32 -> U32 -> (WalRecordHeader -> I64 ->{IO, IO r, MVar, Mut r} Unit) ->{IO, IO r, MVar, Mut r} Unit
+  replay-validated-block block-addr off valid-bytes on-rec =
+    if ge-u32 off valid-bytes then ()
+    else
+      let cur = wrapping-add-i64 block-addr (u32-to-i64 off) in
+      let hdr = wal-read-record-header-raw cur in
+      let payload-addr = wrapping-add-i64 cur 32 in
+      let _cb = on-rec hdr payload-addr in
+      let total = wal-record-total-len hdr.wal-payload-len in
+      replay-validated-block block-addr (wrapping-add-u32 off total) valid-bytes on-rec
+
+  -- | Block-by-block recovery loop starting at 4 KiB-aligned `pos`.
+  recover-blocks-loop :: forall (r :: Region). WalDiskOps r -> WalEngine -> Fd -> U64 -> U64 -> U64 -> U32 -> U64 -> U64 -> (WalRecordHeader -> I64 ->{IO, IO r, MVar, Mut r} Unit) ->{IO, IO r, MVar, Mut r} WalRecoveryReport
+  recover-blocks-loop ops eng fd pos seg-sz expected-lsn prev-crc rec-count valid-bytes on-rec =
+    if gt-u64 (saturating-add-u64 pos wal-sector-size-u64) seg-sz then
+      WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc wal-status-eof
+    else
+      let rbuf = eng.wal-read-ptr in
+      let rcap = raw-load-u32 (wrapping-add-i64 eng.wal-hdr-addr wh-off-read-cap) in
+      let nr = ops.wal-disk-pread-dma fd rbuf wal-sector-size pos in
+      if lt-i32 nr 4096 then
+        WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc wal-status-eof
+      else
+        let magic = raw-load-u32 rbuf in
+        if eq-u32 magic 0 then
+          WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc wal-status-eof
+        else
+          -- Check if the first record spans multiple 4 KiB blocks (> 4096B framed).
+          let first-hdr = wal-read-record-header-raw rbuf in
+          let first-plen = first-hdr.wal-payload-len in
+          let is-multi = eq-u32 magic wal-record-magic && le-u32 first-plen rcap && gt-u32 (wal-record-total-len first-plen) wal-sector-size in
+          if is-multi then
+            let span-len = wal-align4k-u32 (wal-record-total-len first-plen) in
+            if gt-u32 span-len rcap || gt-u64 (saturating-add-u64 pos (u32-to-u64 span-len)) seg-sz then
+              WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc wal-status-truncated
+            else
+              let extra = wrapping-sub-u32 span-len wal-sector-size in
+              let nr2 = ops.wal-disk-pread-dma fd (wrapping-add-i64 rbuf 4096) extra (wrapping-add-u64 pos wal-sector-size-u64) in
+              if ne-i32 nr2 (wrapping-u32-to-i32 extra) then
+                WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc wal-status-truncated
+              else
+                let scan = wal-scan-block-raw rbuf span-len expected-lsn prev-crc in
+                if ne-u32 scan.scan-status wal-status-ok then
+                  WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc scan.scan-status
+                else
+                  let _rep = replay-validated-block rbuf 0 scan.scan-valid-bytes on-rec in
+                  recover-blocks-loop ops eng fd
+                    (wrapping-add-u64 pos (u32-to-u64 span-len))
+                    seg-sz
+                    (wrapping-add-u64 scan.scan-last-lsn 1)
+                    scan.scan-last-crc
+                    (wrapping-add-u64 rec-count (u32-to-u64 scan.scan-records))
+                    (wrapping-add-u64 valid-bytes (u32-to-u64 scan.scan-valid-bytes))
+                    on-rec
+          else
+            -- Standard single 4 KiB block: Pass 1 validates every record + zero tail,
+            -- Pass 2 replays validated records only if the entire block is intact.
+            let scan = wal-scan-block-raw rbuf wal-sector-size expected-lsn prev-crc in
+            if ne-u32 scan.scan-status wal-status-ok then
+              WalRecoveryReport (wrapping-sub-u64 expected-lsn 1) rec-count valid-bytes pos prev-crc scan.scan-status
+            else
+              let _rep = replay-validated-block rbuf 0 scan.scan-valid-bytes on-rec in
+              recover-blocks-loop ops eng fd
+                (wrapping-add-u64 pos wal-sector-size-u64)
+                seg-sz
+                (wrapping-add-u64 scan.scan-last-lsn 1)
+                scan.scan-last-crc
+                (wrapping-add-u64 rec-count (u32-to-u64 scan.scan-records))
+                (wrapping-add-u64 valid-bytes (u32-to-u64 scan.scan-valid-bytes))
+                on-rec
+
+  -- | Recover a WAL segment from `fd` starting at its 4096-byte Segment Header,
+  -- validating magic, monotonic contiguous LSNs, `prev-chain-crc` hash chain,
+  -- and Castagnoli CRC32C on every record, invoking `on-rec` ONLY for records
+  -- inside fully validated blocks, cleanly stopping at the first torn or
+  -- corrupted tail block, and restoring `eng`'s `durable-lsn`, `chain-crc`,
+  -- `write-offset`, and active `fd` so new appends can resume immediately.
+  wal-recover-with :: forall (r :: Region). WalDiskOps r -> WalEngine -> Fd -> (WalRecordHeader -> I64 ->{IO, IO r, MVar, Mut r} Unit) ->{IO, IO r, MVar, Mut r} Result IoError WalRecoveryReport
+  wal-recover-with ops eng fd on-rec =
+    let rbuf = eng.wal-read-ptr in
+    let nr = ops.wal-disk-pread-dma fd rbuf wal-sector-size 0 in
+    if lt-i32 nr 4096 then id-res (Err IoEof)
+    else
+      let hdr-st = wal-validate-segment-header-raw rbuf in
+      if ne-u32 hdr-st wal-status-ok then id-res (Err IoOther)
+      else
+        let sh = wal-read-segment-header-raw rbuf in
+        let hdr = eng.wal-hdr-addr in
+        let seg-sz = raw-load-u64 (wrapping-add-i64 hdr wh-off-seg-size) in
+        let report = recover-blocks-loop ops eng fd wal-sector-size-u64 seg-sz sh.seg-first-lsn sh.seg-init-crc 0 0 on-rec in
+        let _0 = raw-store-u32 (wrapping-add-i64 hdr wh-off-fd) (wrapping-i32-to-u32 fd.fd-raw) in
+        let _1 = raw-store-u64 (wrapping-add-i64 hdr wh-off-seg-id) sh.seg-id in
+        let _2 = raw-store-u64 (wrapping-add-i64 hdr wh-off-first-lsn) sh.seg-first-lsn in
+        let _3 = raw-store-u64 (wrapping-add-i64 hdr wh-off-write-off) report.rec-next-write-offset in
+        let _4 = raw-store-u64 (wrapping-add-i64 hdr wh-off-durable-lsn) report.rec-durable-lsn in
+        let _5 = raw-store-u64 (wrapping-add-i64 hdr wh-off-staged-lsn) report.rec-durable-lsn in
+        let _6 = raw-store-u32 (wrapping-add-i64 hdr wh-off-durable-crc) report.rec-chain-crc in
+        let _7 = raw-store-u32 (wrapping-add-i64 hdr wh-off-stage-crc) report.rec-chain-crc in
+        let _8 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-used) 0 in
+        let _9 = raw-store-u32 (wrapping-add-i64 hdr wh-off-batch-count) 0 in
+        let _10 = raw-store-u32 (wrapping-add-i64 hdr wh-off-epoch) sh.seg-epoch in
+        id-res (Ok report)
+
+  -- | Recover a WAL segment from `fd` without per-record callback, restoring
+  -- `eng`'s exact durable prefix (`durable-lsn`, `chain-crc`, `write-offset`).
+  wal-recover :: forall (r :: Region). WalDiskOps r -> WalEngine -> Fd ->{IO, IO r, MVar, Mut r} Result IoError WalRecoveryReport
+  wal-recover ops eng fd =
+    wal-recover-with ops eng fd (\_hdr _addr -> ())

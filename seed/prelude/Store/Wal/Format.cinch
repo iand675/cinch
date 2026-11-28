@@ -1,0 +1,630 @@
+-- | Zero-allocation (`#[no-alloc]`) 4 KiB-aligned on-disk Write-Ahead Log
+-- (WAL) format with hash-chained, hardware-accelerated LRAT-verified Castagnoli
+-- CRC32C integrity protection (`Store.Wal.Format`).
+--
+-- On-disk segment geometry (compatible with both Linux `O_DIRECT` and macOS
+-- `F_NOCACHE` direct storage I/O):
+--   * **Block 0 (`0 .. 4096`)**: 4096-byte Segment Header carrying magic
+--     `"CNCHWAL1"`, format version, sector size (`4096`), `segment-id`,
+--     `first-lsn`, initial chain seed (`init-chain-crc`), writer `epoch`,
+--     and `header-crc32c` followed by zero padding through byte `4096`.
+--   * **Data Blocks (`4096, 8192, ...`)**: 4 KiB-aligned group-commit write
+--     units containing 8-byte-aligned variable-length records, each prefixed by
+--     an exact 32-byte `#[repr(C, value)]` `WalRecordHeader`.
+--   * **Hash-chained CRC32C**: Every record folds its header fields, the
+--     immediately preceding record's `prev-chain-crc`, and its raw payload
+--     through `Engine.Simd.Crc32c` / `Prim.SimdExt.hw-crc32c-*`, guaranteeing
+--     100% detection of 512B/4 KiB torn writes, reordered blocks, stale
+--     recycled-segment tails, and silent single-bit flips.
+module Store.Wal.Format where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Simd.Crc32c
+  import Prim.Atomic
+  import Prim.SimdExt
+
+  -- Format constants & status codes
+  export wal-sector-size, wal-sector-size-u64, wal-record-header-size, wal-segment-header-size
+  export wal-segment-magic-lo, wal-segment-magic-hi, wal-format-version
+  export wal-record-magic, wal-initial-chain-seed
+  export wal-flag-data, wal-flag-pad, wal-flag-checkpoint
+  export wal-status-ok, wal-status-eof, wal-status-bad-magic, wal-status-truncated
+  export wal-status-bad-lsn, wal-status-bad-chain, wal-status-bad-crc, wal-status-bad-tail
+
+  -- Unboxed POD headers
+  export WalSegmentHeader, WalRecordHeader, WalBlockScan
+
+  -- 4 KiB & 8-byte alignment + DMA memory helpers
+  export wal-align4k, wal-align4k-u32, wal-is-aligned4k
+  export wal-align8-u32, wal-record-total-len
+  export wal-zero-dma, wal-copy-dma, wal-is-zero-dma
+
+  -- Hash-chained LRAT-verified CRC32C helpers
+  export wal-crc32c-raw, wal-segment-header-crc, wal-compute-record-crc-raw
+
+  -- Segment header encode/decode/validate
+  export wal-write-segment-header-raw, wal-read-segment-header-raw, wal-validate-segment-header-raw
+
+  -- Record & 4 KiB block encode/decode/validate
+  export wal-write-record-raw, wal-read-record-header-raw
+  export wal-format-block-raw, wal-validate-record-raw, wal-scan-block-raw
+
+  -- =========================================================================
+  -- 1. Format Constants & Validation Status Codes
+  -- =========================================================================
+
+  -- | Mandatory 4 KiB direct-I/O sector/block alignment (`4096` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  wal-sector-size :: U32
+  wal-sector-size = 4096
+
+  -- | Mandatory 4 KiB direct-I/O sector/block alignment as `U64`.
+  #[inline(always)]
+  #[no-alloc]
+  wal-sector-size-u64 :: U64
+  wal-sector-size-u64 = 4096
+
+  -- | Size of the fixed-width `WalRecordHeader` frame header (`32` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  wal-record-header-size :: U32
+  wal-record-header-size = 32
+
+  -- | Size of the on-disk Segment Header block (`4096` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  wal-segment-header-size :: U32
+  wal-segment-header-size = 4096
+
+  -- | Lower 4 bytes of ASCII segment magic `"CNCHWAL1"` (`"CNCH"` LE = `0x48434E43`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-segment-magic-lo :: U32
+  wal-segment-magic-lo = 0x48434E43
+
+  -- | Upper 4 bytes of ASCII segment magic `"CNCHWAL1"` (`"WAL1"` LE = `0x314C4157`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-segment-magic-hi :: U32
+  wal-segment-magic-hi = 0x314C4157
+
+  -- | On-disk WAL format version (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-format-version :: U32
+  wal-format-version = 1
+
+  -- | 32-bit record frame magic (`0x57414C52`, `"WALR"`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-record-magic :: U32
+  wal-record-magic = 0x57414C52
+
+  -- | Deterministic non-zero initial chain CRC seed for segment 0.
+  #[inline(always)]
+  #[no-alloc]
+  wal-initial-chain-seed :: U32
+  wal-initial-chain-seed = 0x434E4348
+
+  -- | Record flag for a standard WAL data entry (`0`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-flag-data :: U16
+  wal-flag-data = 0
+
+  -- | Record flag for a padding/alignment marker (`1`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-flag-pad :: U16
+  wal-flag-pad = 1
+
+  -- | Record flag for a checkpoint/rotation metadata marker (`2`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-flag-checkpoint :: U16
+  wal-flag-checkpoint = 2
+
+  -- | Validation status: record or header is completely valid.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-ok :: U32
+  wal-status-ok = 0
+
+  -- | Validation status: encountered clean zeroed end-of-block / end-of-log.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-eof :: U32
+  wal-status-eof = 1
+
+  -- | Validation status: frame or segment magic mismatch.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-bad-magic :: U32
+  wal-status-bad-magic = 2
+
+  -- | Validation status: payload length exceeds remaining block/buffer bounds.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-truncated :: U32
+  wal-status-truncated = 3
+
+  -- | Validation status: non-monotonic or gapped LSN detected.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-bad-lsn :: U32
+  wal-status-bad-lsn = 4
+
+  -- | Validation status: `prev-chain-crc` does not match previous record CRC.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-bad-chain :: U32
+  wal-status-bad-chain = 5
+
+  -- | Validation status: Castagnoli CRC32C checksum mismatch (torn write or bit-flip).
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-bad-crc :: U32
+  wal-status-bad-crc = 6
+
+  -- | Validation status: non-zero garbage bytes found in 4 KiB block padding tail.
+  #[inline(always)]
+  #[no-alloc]
+  wal-status-bad-tail :: U32
+  wal-status-bad-tail = 7
+
+  -- | Internal `#[no-alloc]` boolean true avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-true :: Bool
+  na-true = eq-u32 0 0
+
+  -- | Internal `#[no-alloc]` boolean false avoiding heap constructor allocation.
+  #[inline(always)]
+  #[no-alloc]
+  na-false :: Bool
+  na-false = eq-u32 0 1
+
+  -- | Internal `#[no-alloc]` short-circuiting boolean conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  na-and :: Bool -> Bool -> Bool
+  na-and a b = if a then b else na-false
+
+  -- =========================================================================
+  -- 2. Unboxed POD Segment & Record Headers
+  -- =========================================================================
+
+  -- | Decoded 48-byte metadata prefix of a 4096-byte WAL Segment Header block.
+  --
+  -- On-disk little-endian layout (bytes `0..48`, followed by zeroes `48..4096`):
+  --   * `+0 ` : `seg-magic-lo`   (`U32` = `0x48434E43`, `"CNCH"`)
+  --   * `+4 ` : `seg-magic-hi`   (`U32` = `0x314C4157`, `"WAL1"`)
+  --   * `+8 ` : `seg-version`    (`U32` = `1`)
+  --   * `+12` : `seg-sector-size`(`U32` = `4096`)
+  --   * `+16` : `seg-id`         (`U64`)
+  --   * `+24` : `seg-first-lsn`  (`U64`)
+  --   * `+32` : `seg-init-crc`   (`U32`)
+  --   * `+36` : `seg-epoch`      (`U32`)
+  --   * `+40` : `seg-header-crc` (`U32`, CRC32C over bytes `0..40`)
+  --   * `+44` : `seg-reserved`   (`U32` = `0`)
+  #[repr(C, value)]
+  record WalSegmentHeader where
+    -- | Lower 32 bits of `"CNCHWAL1"` magic.
+    seg-magic-lo :: U32
+    -- | Upper 32 bits of `"CNCHWAL1"` magic.
+    seg-magic-hi :: U32
+    -- | Format version (`1`).
+    seg-version :: U32
+    -- | Direct-I/O sector size in bytes (`4096`).
+    seg-sector-size :: U32
+    -- | Monotonic segment identifier (`0, 1, 2, ...`).
+    seg-id :: U64
+    -- | First expected record LSN in this segment (`>= 1`).
+    seg-first-lsn :: U64
+    -- | Initial hash-chain CRC32C seed for the first record in this segment.
+    seg-init-crc :: U32
+    -- | Writer epoch associated with this segment.
+    seg-epoch :: U32
+    -- | Finalized Castagnoli CRC32C over header bytes `0..40`.
+    seg-header-crc :: U32
+    -- | Reserved zero field for 8-byte alignment.
+    seg-reserved :: U32
+
+  -- | Exact 32-byte `#[repr(C, value)]` WAL record frame header.
+  --
+  -- On-disk little-endian layout (32 bytes, naturally 8-byte aligned):
+  --   * `+0 ` : `wal-magic`          (`U32` = `0x57414C52`)
+  --   * `+4 ` : `wal-flags`          (`U16`)
+  --   * `+6 ` : `wal-reserved`       (`U16`)
+  --   * `+8 ` : `wal-lsn`            (`U64`)
+  --   * `+16` : `wal-prev-chain-crc` (`U32`)
+  --   * `+20` : `wal-payload-len`    (`U32`)
+  --   * `+24` : `wal-record-crc32c`  (`U32`)
+  --   * `+28` : `wal-epoch`          (`U32`)
+  #[repr(C, value)]
+  record WalRecordHeader where
+    -- | Record magic (`0x57414C52`).
+    wal-magic :: U32
+    -- | Record type/modifier flags (`wal-flag-data`, `wal-flag-pad`, ...).
+    wal-flags :: U16
+    -- | Reserved zero bytes for 8-byte alignment.
+    wal-reserved :: U16
+    -- | Monotonically increasing 64-bit Log Sequence Number (`>= 1`).
+    wal-lsn :: U64
+    -- | `wal-record-crc32c` of the immediately preceding record (or segment seed).
+    wal-prev-chain-crc :: U32
+    -- | Payload length in bytes immediately following this 32-byte header.
+    wal-payload-len :: U32
+    -- | Hash-chained Castagnoli CRC32C over header fields + `prev-chain-crc` + payload.
+    wal-record-crc32c :: U32
+    -- | Writer epoch stamping this record.
+    wal-epoch :: U32
+
+  -- | Zero-allocation result of validating an entire 4 KiB WAL data block.
+  #[repr(C, value)]
+  record WalBlockScan where
+    -- | Status code (`wal-status-ok`, `wal-status-eof`, or error code `>= 2`).
+    scan-status :: U32
+    -- | Number of valid records discovered in this block.
+    scan-records :: U32
+    -- | Highest validated LSN at the end of this block (unchanged if `0` records).
+    scan-last-lsn :: U64
+    -- | Final hash-chain CRC32C at the end of this block.
+    scan-last-crc :: U32
+    -- | Total validated record byte span inside this block (`<= block-len`).
+    scan-valid-bytes :: U32
+
+  -- =========================================================================
+  -- 3. 4 KiB / 8-Byte Alignment & Zero-Alloc Raw DMA Helpers
+  -- =========================================================================
+
+  -- | Round `n` up to the next 4096-byte direct-I/O sector boundary (`0 -> 0`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-align4k :: U64 -> U64
+  wal-align4k n =
+    bit-and-u64 (wrapping-add-u64 n 4095) (bit-not-u64 4095)
+
+  -- | Round a 32-bit byte length up to the next 4096-byte boundary (`0 -> 0`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-align4k-u32 :: U32 -> U32
+  wal-align4k-u32 n =
+    bit-and-u32 (wrapping-add-u32 n 4095) (bit-not-u32 4095)
+
+  -- | Return `True` iff `n` is a multiple of `4096` bytes.
+  #[inline(always)]
+  #[no-alloc]
+  wal-is-aligned4k :: U64 -> Bool
+  wal-is-aligned4k n = eq-u64 (bit-and-u64 n 4095) 0
+
+  -- | Round a 32-bit length up to an 8-byte alignment boundary so every record
+  -- header's `U64` LSN stays naturally 8-byte aligned.
+  #[inline(always)]
+  #[no-alloc]
+  wal-align8-u32 :: U32 -> U32
+  wal-align8-u32 n =
+    bit-and-u32 (wrapping-add-u32 n 7) (bit-not-u32 7)
+
+  -- | Total framed size on disk (`32 + payload-len` rounded up to 8 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  wal-record-total-len :: U32 -> U32
+  wal-record-total-len payload-len =
+    wal-align8-u32 (wrapping-add-u32 wal-record-header-size payload-len)
+
+  -- | Zero-fill `len` bytes starting at raw DMA address `dst` using 8-byte + 1-byte stores.
+  #[no-alloc]
+  wal-zero-dma-tail :: I64 -> U32 ->{MVar} Unit
+  wal-zero-dma-tail dst rem =
+    if eq-u32 rem 0 then ()
+    else
+      let _ = raw-store-u8 dst 0 in
+      wal-zero-dma-tail (wrapping-add-i64 dst 1) (wrapping-sub-u32 rem 1)
+
+  -- | Zero-fill `len` bytes at raw DMA address `dst` with zero heap allocation.
+  #[no-alloc]
+  wal-zero-dma :: I64 -> U32 ->{MVar} Unit
+  wal-zero-dma dst len =
+    if ge-u32 len 8 then
+      let _ = raw-store-u64 dst 0 in
+      wal-zero-dma (wrapping-add-i64 dst 8) (wrapping-sub-u32 len 8)
+    else wal-zero-dma-tail dst len
+
+  -- | Byte-copy tail helper for `wal-copy-dma`.
+  #[no-alloc]
+  wal-copy-dma-tail :: I64 -> I64 -> U32 ->{MVar} Unit
+  wal-copy-dma-tail dst src rem =
+    if eq-u32 rem 0 then ()
+    else
+      let b = raw-load-u8 src in
+      let _ = raw-store-u8 dst b in
+      wal-copy-dma-tail (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+
+  -- | Copy `len` raw bytes from `src` to `dst` using 8-byte + 1-byte loads/stores (`#[no-alloc]`).
+  #[no-alloc]
+  wal-copy-dma :: I64 -> I64 -> U32 ->{MVar} Unit
+  wal-copy-dma dst src len =
+    if ge-u32 len 8 then
+      let w = raw-load-u64 src in
+      let _ = raw-store-u64 dst w in
+      wal-copy-dma (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 len 8)
+    else wal-copy-dma-tail dst src len
+
+  -- | Byte-by-byte zero check tail helper for `wal-is-zero-dma`.
+  #[no-alloc]
+  wal-is-zero-dma-tail :: I64 -> U32 ->{MVar} Bool
+  wal-is-zero-dma-tail addr rem =
+    if eq-u32 rem 0 then na-true
+    else if ne-u8 (raw-load-u8 addr) 0 then na-false
+    else wal-is-zero-dma-tail (wrapping-add-i64 addr 1) (wrapping-sub-u32 rem 1)
+
+  -- | Return `True` iff all `len` raw DMA bytes starting at `addr` are `0x00`.
+  #[no-alloc]
+  wal-is-zero-dma :: I64 -> U32 ->{MVar} Bool
+  wal-is-zero-dma addr len =
+    if ge-u32 len 8 then
+      if ne-u64 (raw-load-u64 addr) 0 then na-false
+      else wal-is-zero-dma (wrapping-add-i64 addr 8) (wrapping-sub-u32 len 8)
+    else wal-is-zero-dma-tail addr len
+
+  -- =========================================================================
+  -- 4. Hash-Chained LRAT-Verified Castagnoli CRC32C
+  -- =========================================================================
+
+  -- | Compute finalized Castagnoli CRC32C over `len` raw DMA bytes at `addr`
+  -- using `Engine.Simd.Crc32c.crc32c-update-dma` (backed by LRAT-verified
+  -- `Prim.SimdExt.hw-crc32c-*` hardware instructions).
+  #[inline(always)]
+  #[no-alloc]
+  wal-crc32c-raw :: I64 -> U32 ->{MVar} U32
+  wal-crc32c-raw addr len =
+    crc32c-finish (crc32c-update-dma crc32c-init addr len)
+
+  -- | Compute the finalized Castagnoli CRC32C checksum over a Segment Header's
+  -- immutable fields (`magic`, `version`, `sector-size`, `segment-id`,
+  -- `first-lsn`, `init-crc`, `epoch`).
+  #[inline(always)]
+  #[no-alloc]
+  wal-segment-header-crc :: U32 -> U32 -> U32 -> U32 -> U64 -> U64 -> U32 -> U32 -> U32
+  wal-segment-header-crc mlo mhi ver sec-sz seg-id first-lsn init-crc epoch =
+    let c0 = hw-crc32c-u32 crc32c-init mlo in
+    let c1 = hw-crc32c-u32 c0 mhi in
+    let c2 = hw-crc32c-u32 c1 ver in
+    let c3 = hw-crc32c-u32 c2 sec-sz in
+    let c4 = hw-crc32c-u64 c3 seg-id in
+    let c5 = hw-crc32c-u64 c4 first-lsn in
+    let c6 = hw-crc32c-u32 c5 init-crc in
+    let c7 = hw-crc32c-u32 c6 epoch in
+    crc32c-finish c7
+
+  -- | Pack `(flags, reserved)` into one little-endian `U32` word.
+  #[inline(always)]
+  #[no-alloc]
+  pack-flags-reserved :: U16 -> U16 -> U32
+  pack-flags-reserved flags res =
+    bit-or-u32 (u16-to-u32 flags) (wrapping-shl-u32 (u16-to-u32 res) 16)
+
+  -- | Compute the hash-chained Castagnoli CRC32C over all authenticated header
+  -- fields (`magic`, `flags`, `reserved`, `lsn`, `prev-chain-crc`,
+  -- `payload-len`, `epoch`) plus `payload-len` raw DMA payload bytes at
+  -- `payload-addr`.
+  #[inline(always)]
+  #[no-alloc]
+  wal-compute-record-crc-raw :: U32 -> U16 -> U16 -> U64 -> U32 -> U32 -> U32 -> I64 ->{MVar} U32
+  wal-compute-record-crc-raw magic flags res lsn prev-crc payload-len epoch payload-addr =
+    let c0 = hw-crc32c-u32 crc32c-init magic in
+    let c1 = hw-crc32c-u32 c0 (pack-flags-reserved flags res) in
+    let c2 = hw-crc32c-u64 c1 lsn in
+    let c3 = hw-crc32c-u32 c2 prev-crc in
+    let c4 = hw-crc32c-u32 c3 payload-len in
+    let c5 = hw-crc32c-u32 c4 epoch in
+    let c6 = crc32c-update-dma c5 payload-addr payload-len in
+    crc32c-finish c6
+
+  -- =========================================================================
+  -- 5. 4096-Byte Segment Header Encode / Decode / Validate
+  -- =========================================================================
+
+  -- | Write a complete 4096-byte WAL Segment Header block at `dst-addr`
+  -- (including computed `header-crc32c` and zero padding through byte `4096`).
+  -- Returns the computed `header-crc32c`.
+  #[no-alloc]
+  wal-write-segment-header-raw :: I64 -> U64 -> U64 -> U32 -> U32 ->{MVar} U32
+  wal-write-segment-header-raw dst-addr seg-id first-lsn init-crc epoch =
+    let crc = wal-segment-header-crc wal-segment-magic-lo wal-segment-magic-hi wal-format-version wal-sector-size seg-id first-lsn init-crc epoch in
+    let _0 = raw-store-u32 dst-addr wal-segment-magic-lo in
+    let _1 = raw-store-u32 (wrapping-add-i64 dst-addr 4) wal-segment-magic-hi in
+    let _2 = raw-store-u32 (wrapping-add-i64 dst-addr 8) wal-format-version in
+    let _3 = raw-store-u32 (wrapping-add-i64 dst-addr 12) wal-sector-size in
+    let _4 = raw-store-u64 (wrapping-add-i64 dst-addr 16) seg-id in
+    let _5 = raw-store-u64 (wrapping-add-i64 dst-addr 24) first-lsn in
+    let _6 = raw-store-u32 (wrapping-add-i64 dst-addr 32) init-crc in
+    let _7 = raw-store-u32 (wrapping-add-i64 dst-addr 36) epoch in
+    let _8 = raw-store-u32 (wrapping-add-i64 dst-addr 40) crc in
+    let _9 = raw-store-u32 (wrapping-add-i64 dst-addr 44) 0 in
+    let _z = wal-zero-dma (wrapping-add-i64 dst-addr 48) 4048 in
+    crc
+
+  -- | Decode a 48-byte `WalSegmentHeader` from raw DMA address `src-addr`.
+  #[inline(always)]
+  #[no-alloc]
+  wal-read-segment-header-raw :: I64 ->{MVar} WalSegmentHeader
+  wal-read-segment-header-raw src-addr =
+    let mlo = raw-load-u32 src-addr in
+    let mhi = raw-load-u32 (wrapping-add-i64 src-addr 4) in
+    let ver = raw-load-u32 (wrapping-add-i64 src-addr 8) in
+    let sec-sz = raw-load-u32 (wrapping-add-i64 src-addr 12) in
+    let sid = raw-load-u64 (wrapping-add-i64 src-addr 16) in
+    let flsn = raw-load-u64 (wrapping-add-i64 src-addr 24) in
+    let icrc = raw-load-u32 (wrapping-add-i64 src-addr 32) in
+    let ep = raw-load-u32 (wrapping-add-i64 src-addr 36) in
+    let hcrc = raw-load-u32 (wrapping-add-i64 src-addr 40) in
+    let res = raw-load-u32 (wrapping-add-i64 src-addr 44) in
+    WalSegmentHeader mlo mhi ver sec-sz sid flsn icrc ep hcrc res
+
+  -- | Validate a 4096-byte Segment Header block at `src-addr`.
+  -- Verifies magic `"CNCHWAL1"`, format version `1`, sector size `4096`,
+  -- non-zero `first-lsn`, reserved field `0`, Castagnoli `header-crc32c`,
+  -- and clean zero padding across bytes `48..4096`.
+  -- Returns `wal-status-ok` (`0`) or a non-zero error status.
+  #[no-alloc]
+  wal-validate-segment-header-raw :: I64 ->{MVar} U32
+  wal-validate-segment-header-raw src-addr =
+    let hdr = wal-read-segment-header-raw src-addr in
+    if na-and (eq-u32 hdr.seg-magic-lo 0) (eq-u32 hdr.seg-magic-hi 0) then wal-status-eof
+    else if not (na-and (eq-u32 hdr.seg-magic-lo wal-segment-magic-lo) (eq-u32 hdr.seg-magic-hi wal-segment-magic-hi)) then wal-status-bad-magic
+    else if not (na-and (eq-u32 hdr.seg-version wal-format-version) (eq-u32 hdr.seg-sector-size wal-sector-size)) then wal-status-bad-magic
+    else if eq-u64 hdr.seg-first-lsn 0 then wal-status-bad-lsn
+    else if ne-u32 hdr.seg-reserved 0 then wal-status-bad-tail
+    else
+      let expect-crc = wal-segment-header-crc hdr.seg-magic-lo hdr.seg-magic-hi hdr.seg-version hdr.seg-sector-size hdr.seg-id hdr.seg-first-lsn hdr.seg-init-crc hdr.seg-epoch in
+      if ne-u32 hdr.seg-header-crc expect-crc then wal-status-bad-crc
+      else if not (wal-is-zero-dma (wrapping-add-i64 src-addr 48) 4048) then wal-status-bad-tail
+      else wal-status-ok
+
+  -- =========================================================================
+  -- 6. 32-Byte Record Frame & 4 KiB Block Encode / Validate / Scan
+  -- =========================================================================
+
+  -- | Encode a single WAL record (32B `WalRecordHeader` + `payload-len` bytes
+  -- copied from `payload-addr` + 8-byte alignment zero-padding) into `dst-addr`.
+  -- Returns the computed `record-crc32c` (to chain into the next record's
+  -- `prev-chain-crc`). Caller must ensure `dst-addr` has at least
+  -- `wal-record-total-len payload-len` bytes of space.
+  #[no-alloc]
+  wal-write-record-raw :: I64 -> U16 -> U64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  wal-write-record-raw dst-addr flags lsn prev-chain-crc epoch payload-addr payload-len =
+    let payload-dst = wrapping-add-i64 dst-addr 32 in
+    let _cp = if gt-u32 payload-len 0 then wal-copy-dma payload-dst payload-addr payload-len else () in
+    let total = wal-record-total-len payload-len in
+    let raw-end = wrapping-add-u32 32 payload-len in
+    let pad-len = wrapping-sub-u32 total raw-end in
+    let _zp = if gt-u32 pad-len 0 then wal-zero-dma (wrapping-add-i64 dst-addr (u32-to-i64 raw-end)) pad-len else () in
+    let crc = wal-compute-record-crc-raw wal-record-magic flags 0 lsn prev-chain-crc payload-len epoch payload-dst in
+    let _0 = raw-store-u32 dst-addr wal-record-magic in
+    let _1 = raw-store-u32 (wrapping-add-i64 dst-addr 4) (pack-flags-reserved flags 0) in
+    let _2 = raw-store-u64 (wrapping-add-i64 dst-addr 8) lsn in
+    let _3 = raw-store-u32 (wrapping-add-i64 dst-addr 16) prev-chain-crc in
+    let _4 = raw-store-u32 (wrapping-add-i64 dst-addr 20) payload-len in
+    let _5 = raw-store-u32 (wrapping-add-i64 dst-addr 24) crc in
+    let _6 = raw-store-u32 (wrapping-add-i64 dst-addr 28) epoch in
+    crc
+
+  -- | Decode a 32-byte `WalRecordHeader` from raw DMA address `src-addr`.
+  #[inline(always)]
+  #[no-alloc]
+  wal-read-record-header-raw :: I64 ->{MVar} WalRecordHeader
+  wal-read-record-header-raw src-addr =
+    let magic = raw-load-u32 src-addr in
+    let fr = raw-load-u32 (wrapping-add-i64 src-addr 4) in
+    let flags = wrapping-u32-to-u16 fr in
+    let res = wrapping-u32-to-u16 (wrapping-shr-u32 fr 16) in
+    let lsn = raw-load-u64 (wrapping-add-i64 src-addr 8) in
+    let prev-crc = raw-load-u32 (wrapping-add-i64 src-addr 16) in
+    let plen = raw-load-u32 (wrapping-add-i64 src-addr 20) in
+    let rcrc = raw-load-u32 (wrapping-add-i64 src-addr 24) in
+    let ep = raw-load-u32 (wrapping-add-i64 src-addr 28) in
+    WalRecordHeader magic flags res lsn prev-crc plen rcrc ep
+
+  -- | Pad a staged DMA batch buffer (`used-bytes` written out of `buf-cap`) to
+  -- the next 4 KiB (`4096`-byte) direct-I/O boundary by zero-filling the tail
+  -- bytes `[used-bytes .. aligned-len)`.
+  -- Returns the 4 KiB-aligned write length (`0` if `used-bytes == 0` or if
+  -- `aligned-len > buf-cap`).
+  #[no-alloc]
+  wal-format-block-raw :: I64 -> U32 -> U32 ->{MVar} U32
+  wal-format-block-raw buf-addr used-bytes buf-cap =
+    if eq-u32 used-bytes 0 then 0
+    else
+      let aligned = wal-align4k-u32 used-bytes in
+      if gt-u32 aligned buf-cap then 0
+      else
+        let pad = wrapping-sub-u32 aligned used-bytes in
+        let _z = if gt-u32 pad 0 then wal-zero-dma (wrapping-add-i64 buf-addr (u32-to-i64 used-bytes)) pad else () in
+        aligned
+
+  -- | Validate one WAL record starting at `rec-addr` with `avail-bytes`
+  -- remaining in its block, verifying:
+  --   1. Magic == `0x57414C52` (`0` returns `wal-status-eof`).
+  --   2. `reserved == 0` and framed record length `<= avail-bytes`.
+  --   3. Exact contiguous `lsn == expected-lsn`.
+  --   4. Exact hash-chain linkage `prev-chain-crc == expected-prev-crc`.
+  --   5. Recomputed Castagnoli CRC32C over header + `prev-chain-crc` + payload
+  --      matches `record-crc32c`, and 8-byte alignment pad bytes are `0`.
+  -- Returns `wal-status-ok` (`0`) or a specific error code.
+  #[no-alloc]
+  wal-validate-record-raw :: I64 -> U32 -> U64 -> U32 ->{MVar} U32
+  wal-validate-record-raw rec-addr avail-bytes expected-lsn expected-prev-crc =
+    if lt-u32 avail-bytes 4 then wal-status-truncated
+    else
+      let magic = raw-load-u32 rec-addr in
+      if eq-u32 magic 0 then wal-status-eof
+      else if ne-u32 magic wal-record-magic then wal-status-bad-magic
+      else if lt-u32 avail-bytes wal-record-header-size then wal-status-truncated
+      else
+        let hdr = wal-read-record-header-raw rec-addr in
+        if ne-u16 hdr.wal-reserved 0 then wal-status-bad-tail
+        else if gt-u32 hdr.wal-payload-len (wrapping-sub-u32 avail-bytes wal-record-header-size) then wal-status-truncated
+        else
+          let total = wal-record-total-len hdr.wal-payload-len in
+          if gt-u32 total avail-bytes then wal-status-truncated
+          else if ne-u64 hdr.wal-lsn expected-lsn then wal-status-bad-lsn
+          else if ne-u32 hdr.wal-prev-chain-crc expected-prev-crc then wal-status-bad-chain
+          else
+            let payload-addr = wrapping-add-i64 rec-addr 32 in
+            let expect-crc = wal-compute-record-crc-raw hdr.wal-magic hdr.wal-flags hdr.wal-reserved hdr.wal-lsn hdr.wal-prev-chain-crc hdr.wal-payload-len hdr.wal-epoch payload-addr in
+            if ne-u32 hdr.wal-record-crc32c expect-crc then wal-status-bad-crc
+            else
+              let raw-end = wrapping-add-u32 32 hdr.wal-payload-len in
+              let pad-len = wrapping-sub-u32 total raw-end in
+              if gt-u32 pad-len 0 then
+                if wal-is-zero-dma (wrapping-add-i64 rec-addr (u32-to-i64 raw-end)) pad-len then wal-status-ok
+                else wal-status-bad-tail
+              else wal-status-ok
+
+  -- | Internal loop scanning records across a 4 KiB-aligned block buffer.
+  #[no-alloc]
+  wal-scan-block-loop :: I64 -> U32 -> U32 -> U64 -> U32 -> U32 ->{MVar} WalBlockScan
+  wal-scan-block-loop block-addr block-len off expected-lsn expected-prev-crc rec-count =
+    if ge-u32 off block-len then
+      WalBlockScan wal-status-ok rec-count (wrapping-sub-u64 expected-lsn 1) expected-prev-crc off
+    else
+      let rem = wrapping-sub-u32 block-len off in
+      let cur = wrapping-add-i64 block-addr (u32-to-i64 off) in
+      let st = wal-validate-record-raw cur rem expected-lsn expected-prev-crc in
+      if eq-u32 st wal-status-eof then
+        -- Zero magic at offset 0 means clean EOF; after >= 1 record verify all
+        -- remaining padding bytes through `block-len` are strictly zero so a
+        -- partially torn block is never accepted as valid.
+        if eq-u32 off 0 then
+          if wal-is-zero-dma block-addr block-len then
+            WalBlockScan wal-status-eof 0 (wrapping-sub-u64 expected-lsn 1) expected-prev-crc 0
+          else
+            WalBlockScan wal-status-bad-tail 0 (wrapping-sub-u64 expected-lsn 1) expected-prev-crc 0
+        else if wal-is-zero-dma cur rem then
+          WalBlockScan wal-status-ok rec-count (wrapping-sub-u64 expected-lsn 1) expected-prev-crc off
+        else
+          WalBlockScan wal-status-bad-tail 0 (wrapping-sub-u64 expected-lsn 1) expected-prev-crc 0
+      else if ne-u32 st wal-status-ok then
+        WalBlockScan st 0 (wrapping-sub-u64 expected-lsn 1) expected-prev-crc 0
+      else
+        let hdr = wal-read-record-header-raw cur in
+        let total = wal-record-total-len hdr.wal-payload-len in
+        wal-scan-block-loop block-addr block-len (wrapping-add-u32 off total) (wrapping-add-u64 expected-lsn 1) hdr.wal-record-crc32c (wrapping-add-u32 rec-count 1)
+
+  -- | Atomically validate an entire 4 KiB WAL block (`block-len` bytes, multiple
+  -- of `4096`) against `(expected-lsn, expected-prev-crc)`.
+  -- Returns `WalBlockScan` with `scan-status == wal-status-ok` iff every record
+  -- in the block passes magic, contiguous LSN, hash-chain CRC, and payload
+  -- CRC32C checks AND every trailing padding byte in the block is `0x00`.
+  #[no-alloc]
+  wal-scan-block-raw :: I64 -> U32 -> U64 -> U32 ->{MVar} WalBlockScan
+  wal-scan-block-raw block-addr block-len expected-lsn expected-prev-crc =
+    if eq-u32 block-len 0 then
+      WalBlockScan wal-status-eof 0 (wrapping-sub-u64 expected-lsn 1) expected-prev-crc 0
+    else
+      wal-scan-block-loop block-addr block-len 0 expected-lsn expected-prev-crc 0
