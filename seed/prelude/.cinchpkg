@@ -1519,6 +1519,22 @@
     {
       "name": "Net.Quic.Pacer",
       "path": "Net/Quic/Pacer.cinch"
+    },
+    {
+      "name": "Net.Quic.Stream",
+      "path": "Net/Quic/Stream.cinch"
+    },
+    {
+      "name": "Net.Quic.Conn",
+      "path": "Net/Quic/Conn.cinch"
+    },
+    {
+      "name": "Net.Quic.Endpoint",
+      "path": "Net/Quic/Endpoint.cinch"
+    },
+    {
+      "name": "Net.Quic.Spec",
+      "path": "Net/Quic/Spec.cinch"
     }
   ],
   "order": [
@@ -1900,6 +1916,10 @@
     "Net.Quic.AckMap",
     "Net.Quic.Recovery",
     "Net.Quic.Bbr",
-    "Net.Quic.Pacer"
+    "Net.Quic.Pacer",
+    "Net.Quic.Stream",
+    "Net.Quic.Conn",
+    "Net.Quic.Endpoint",
+    "Net.Quic.Spec"
   ]
 }

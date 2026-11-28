@@ -1,0 +1,1413 @@
+-- | Zero-allocation (`#[no-alloc]`) DMA-backed QUIC RFC 9000 §2-§4 bidirectional
+-- & unidirectional stream manager (`Net.Quic.Stream`).
+--
+-- Memory & performance contract:
+--   * `QuicStreamTable` is an 8-byte `#[repr(C, value)]` POD handle pointing to
+--     a single page-aligned DMA slab (`engine-dma-alloc`) containing:
+--       - Table header (512B): connection-level flow control (`MAX_DATA`),
+--         stream-count limits (`MAX_STREAMS` bidi/uni), round-robin TX cursor.
+--       - Fixed `max-slots` stream metadata entries (512B stride each):
+--         RFC 9000 §3 send/recv states, flow-control offsets, and three inline
+--         8-segment sorted disjoint range tables (`recv-segs`, `rtx-segs`,
+--         `acked-segs`) for exact out-of-order receive reassembly, lost-range
+--         retransmission, and out-of-order ACK compaction with zero heap allocs.
+--       - Per-slot power-of-two send & receive byte ring buffers (`2 * buf-cap`
+--         bytes per slot) enabling zero-copy in-place offset reassembly.
+--   * Every steady-state operation (`quic-stream-open-local`,
+--     `quic-stream-get-or-open-remote`, `quic-stream-write-raw`,
+--     `quic-stream-read-raw`, `quic-stream-on-recv-frame`,
+--     `quic-stream-on-reset-frame`, `quic-stream-poll-tx`,
+--     `quic-stream-copy-send-raw`, `quic-stream-mark-acked`,
+--     `quic-stream-mark-lost`, `quic-stream-poll-flow-control`) is `#[no-alloc]`.
+module Net.Quic.Stream where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Types
+  import Net.Quic.Types
+  import Prim.Atomic
+
+  -- RFC 9000 §3 Stream state constants & auto-niched enums
+  export stream-send-ready, stream-send-send, stream-send-data-sent
+  export stream-send-reset-sent, stream-send-data-recvd, stream-send-reset-recvd, stream-send-closed
+  export stream-recv-recv, stream-recv-size-known, stream-recv-data-recvd
+  export stream-recv-reset-recvd, stream-recv-data-read, stream-recv-reset-read, stream-recv-closed
+  export QuicStreamSendState, StreamSendReady, StreamSendSend, StreamSendDataSent
+  export StreamSendResetSent, StreamSendDataRecvd, StreamSendResetRecvd, StreamSendClosed
+  export QuicStreamRecvState, StreamRecvRecv, StreamRecvSizeKnown, StreamRecvDataRecvd
+  export StreamRecvResetRecvd, StreamRecvDataRead, StreamRecvResetRead, StreamRecvClosed
+  export stream-send-state-from-u8, stream-recv-state-from-u8
+
+  -- Frame ingress status codes
+  export stream-rx-ok, stream-rx-flow-control-err, stream-rx-final-size-err
+  export stream-rx-state-err, stream-rx-limit-err, stream-rx-buf-full
+  export stream-slot-none
+
+  -- Flow control update kinds
+  export fc-kind-none, fc-kind-max-data, fc-kind-max-stream-data
+  export fc-kind-max-streams-bidi, fc-kind-max-streams-uni, fc-kind-reset-stream
+
+  -- POD handles & views
+  export QuicStreamTable, quic-stream-table-empty, quic-stream-table-is-valid
+  export QuicStreamTxChunk, quic-stream-tx-chunk-empty, quic-stream-tx-chunk-ok
+  export QuicFlowCtrlUpdate, quic-flow-ctrl-none
+
+  -- Lifecycle & configuration
+  export quic-stream-table-new, quic-stream-table-destroy
+  export quic-stream-table-set-peer-limits
+  export quic-stream-table-on-max-data, quic-stream-table-on-max-stream-data
+  export quic-stream-table-on-max-streams
+
+  -- Stream lookup, open, write, read, reset (#[no-alloc])
+  export quic-stream-find-slot, quic-stream-open-local, quic-stream-get-or-open-remote
+  export quic-stream-write-raw, quic-stream-read-raw, quic-stream-reset
+
+  -- Frame ingress, TX scheduling, ACK & loss recovery (#[no-alloc])
+  export quic-stream-on-recv-frame, quic-stream-on-reset-frame, quic-stream-on-stop-sending
+  export quic-stream-poll-tx, quic-stream-copy-send-raw
+  export quic-stream-mark-acked, quic-stream-mark-lost
+  export quic-stream-poll-flow-control, quic-stream-mark-max-data-dirty
+  export quic-stream-mark-stream-fc-dirty, quic-stream-mark-reset-pending
+  export quic-stream-has-pending-tx, quic-stream-requeue-unacked-probe
+
+  -- Telemetry & accessors (#[no-alloc])
+  export quic-stream-active-count, quic-stream-id-at
+  export quic-stream-send-state, quic-stream-recv-state
+  export quic-stream-send-write-off, quic-stream-send-sent-off, quic-stream-send-acked-off
+  export quic-stream-send-max-data, quic-stream-recv-read-off, quic-stream-recv-contig-off
+  export quic-stream-recv-max-data, quic-stream-readable-bytes, quic-stream-recv-fin-reached
+  export quic-stream-conn-send-data, quic-stream-conn-send-max-data
+  export quic-stream-conn-recv-data, quic-stream-conn-recv-max-data
+  export quic-stream-rtx-count, quic-stream-recv-seg-count
+
+  -- =========================================================================
+  -- 0. Constants & internal #[no-alloc] helpers
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)] #[no-alloc] b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)] #[no-alloc] both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)] #[no-alloc] either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)] #[no-alloc] u64-unset :: U64
+  u64-unset = 18446744073709551615
+
+  #[inline(always)] #[no-alloc] stream-slot-none :: U32
+  stream-slot-none = 4294967295
+
+  #[inline(always)] #[no-alloc] addr-at :: U64 -> U64 -> I64
+  addr-at base off = wrapping-u64-to-i64 (wrapping-add-u64 base off)
+
+  #[inline(always)] #[no-alloc] min-u64 :: U64 -> U64 -> U64
+  min-u64 a b = if lt-u64 a b then a else b
+
+  #[inline(always)] #[no-alloc] max-u64 :: U64 -> U64 -> U64
+  max-u64 a b = if gt-u64 a b then a else b
+
+  #[inline(always)] #[no-alloc] is-pow2-u32 :: U32 -> Bool
+  is-pow2-u32 n =
+    if lt-u32 n 1024 then b-false
+    else eq-u32 (bit-and-u32 n (wrapping-sub-u32 n 1)) 0
+
+  -- RFC 9000 §3.1 Sending Stream States
+  #[inline(always)] #[no-alloc] stream-send-ready :: U8
+  stream-send-ready = 0
+  #[inline(always)] #[no-alloc] stream-send-send :: U8
+  stream-send-send = 1
+  #[inline(always)] #[no-alloc] stream-send-data-sent :: U8
+  stream-send-data-sent = 2
+  #[inline(always)] #[no-alloc] stream-send-reset-sent :: U8
+  stream-send-reset-sent = 3
+  #[inline(always)] #[no-alloc] stream-send-data-recvd :: U8
+  stream-send-data-recvd = 4
+  #[inline(always)] #[no-alloc] stream-send-reset-recvd :: U8
+  stream-send-reset-recvd = 5
+  #[inline(always)] #[no-alloc] stream-send-closed :: U8
+  stream-send-closed = 6
+
+  -- RFC 9000 §3.2 Receiving Stream States
+  #[inline(always)] #[no-alloc] stream-recv-recv :: U8
+  stream-recv-recv = 0
+  #[inline(always)] #[no-alloc] stream-recv-size-known :: U8
+  stream-recv-size-known = 1
+  #[inline(always)] #[no-alloc] stream-recv-data-recvd :: U8
+  stream-recv-data-recvd = 2
+  #[inline(always)] #[no-alloc] stream-recv-reset-recvd :: U8
+  stream-recv-reset-recvd = 3
+  #[inline(always)] #[no-alloc] stream-recv-data-read :: U8
+  stream-recv-data-read = 4
+  #[inline(always)] #[no-alloc] stream-recv-reset-read :: U8
+  stream-recv-reset-read = 5
+  #[inline(always)] #[no-alloc] stream-recv-closed :: U8
+  stream-recv-closed = 6
+
+  data QuicStreamSendState where
+    StreamSendReady :: QuicStreamSendState
+    StreamSendSend :: QuicStreamSendState
+    StreamSendDataSent :: QuicStreamSendState
+    StreamSendResetSent :: QuicStreamSendState
+    StreamSendDataRecvd :: QuicStreamSendState
+    StreamSendResetRecvd :: QuicStreamSendState
+    StreamSendClosed :: QuicStreamSendState
+
+  data QuicStreamRecvState where
+    StreamRecvRecv :: QuicStreamRecvState
+    StreamRecvSizeKnown :: QuicStreamRecvState
+    StreamRecvDataRecvd :: QuicStreamRecvState
+    StreamRecvResetRecvd :: QuicStreamRecvState
+    StreamRecvDataRead :: QuicStreamRecvState
+    StreamRecvResetRead :: QuicStreamRecvState
+    StreamRecvClosed :: QuicStreamRecvState
+
+  stream-send-state-from-u8 :: U8 -> QuicStreamSendState
+  stream-send-state-from-u8 s =
+    if eq-u8 s 0 then StreamSendReady
+    else if eq-u8 s 1 then StreamSendSend
+    else if eq-u8 s 2 then StreamSendDataSent
+    else if eq-u8 s 3 then StreamSendResetSent
+    else if eq-u8 s 4 then StreamSendDataRecvd
+    else if eq-u8 s 5 then StreamSendResetRecvd
+    else StreamSendClosed
+
+  stream-recv-state-from-u8 :: U8 -> QuicStreamRecvState
+  stream-recv-state-from-u8 s =
+    if eq-u8 s 0 then StreamRecvRecv
+    else if eq-u8 s 1 then StreamRecvSizeKnown
+    else if eq-u8 s 2 then StreamRecvDataRecvd
+    else if eq-u8 s 3 then StreamRecvResetRecvd
+    else if eq-u8 s 4 then StreamRecvDataRead
+    else if eq-u8 s 5 then StreamRecvResetRead
+    else StreamRecvClosed
+
+  -- Frame ingress status codes
+  #[inline(always)] #[no-alloc] stream-rx-ok :: U8
+  stream-rx-ok = 0
+  #[inline(always)] #[no-alloc] stream-rx-flow-control-err :: U8
+  stream-rx-flow-control-err = 1
+  #[inline(always)] #[no-alloc] stream-rx-final-size-err :: U8
+  stream-rx-final-size-err = 2
+  #[inline(always)] #[no-alloc] stream-rx-state-err :: U8
+  stream-rx-state-err = 3
+  #[inline(always)] #[no-alloc] stream-rx-limit-err :: U8
+  stream-rx-limit-err = 4
+  #[inline(always)] #[no-alloc] stream-rx-buf-full :: U8
+  stream-rx-buf-full = 5
+
+  -- Flow control update kinds
+  #[inline(always)] #[no-alloc] fc-kind-none :: U8
+  fc-kind-none = 0
+  #[inline(always)] #[no-alloc] fc-kind-max-data :: U8
+  fc-kind-max-data = 1
+  #[inline(always)] #[no-alloc] fc-kind-max-stream-data :: U8
+  fc-kind-max-stream-data = 2
+  #[inline(always)] #[no-alloc] fc-kind-max-streams-bidi :: U8
+  fc-kind-max-streams-bidi = 3
+  #[inline(always)] #[no-alloc] fc-kind-max-streams-uni :: U8
+  fc-kind-max-streams-uni = 4
+  #[inline(always)] #[no-alloc] fc-kind-reset-stream :: U8
+  fc-kind-reset-stream = 5
+
+  -- =========================================================================
+  -- 1. POD Types & DMA Slab Layout
+  -- =========================================================================
+
+  #[repr(C, value)]
+  record QuicStreamTable where
+    qst-base :: U64
+
+  #[inline(always)] #[no-alloc] quic-stream-table-empty :: Unit -> QuicStreamTable
+  quic-stream-table-empty _ = QuicStreamTable 0
+
+  #[inline(always)] #[no-alloc] quic-stream-table-is-valid :: QuicStreamTable -> Bool
+  quic-stream-table-is-valid t = ne-u64 t.qst-base 0
+
+  #[repr(C, value)]
+  record QuicStreamTxChunk where
+    stx-stream-id :: U64
+    stx-offset :: U64
+    stx-slot :: U32
+    stx-len :: U32
+    stx-fin :: U8
+    stx-is-rtx :: U8
+    stx-ok :: U8
+    stx-pad0 :: U8
+    stx-pad1 :: U32
+
+  #[inline(always)] #[no-alloc] quic-stream-tx-chunk-empty :: Unit -> QuicStreamTxChunk
+  quic-stream-tx-chunk-empty _ = QuicStreamTxChunk 0 0 stream-slot-none 0 0 0 0 0 0
+
+  #[inline(always)] #[no-alloc] quic-stream-tx-chunk-ok :: QuicStreamTxChunk -> Bool
+  quic-stream-tx-chunk-ok c = ne-u8 c.stx-ok 0
+
+  #[repr(C, value)]
+  record QuicFlowCtrlUpdate where
+    qfc-stream-id :: U64
+    qfc-limit :: U64
+    qfc-slot :: U32
+    qfc-kind :: U8
+    qfc-pad0 :: U8
+    qfc-pad1 :: U16
+
+  #[inline(always)] #[no-alloc] quic-flow-ctrl-none :: Unit -> QuicFlowCtrlUpdate
+  quic-flow-ctrl-none _ = QuicFlowCtrlUpdate 0 0 stream-slot-none fc-kind-none 0 0
+
+  -- Table header offsets (bytes 0..511)
+  #[inline(always)] #[no-alloc] t-off-slab :: U64
+  t-off-slab = 0
+  #[inline(always)] #[no-alloc] t-off-max-slots :: U64
+  t-off-max-slots = 8
+  #[inline(always)] #[no-alloc] t-off-buf-cap :: U64
+  t-off-buf-cap = 12
+  #[inline(always)] #[no-alloc] t-off-buf-mask :: U64
+  t-off-buf-mask = 16
+  #[inline(always)] #[no-alloc] t-off-active :: U64
+  t-off-active = 20
+  #[inline(always)] #[no-alloc] t-off-is-server :: U64
+  t-off-is-server = 24
+  #[inline(always)] #[no-alloc] t-off-max-data-dirty :: U64
+  t-off-max-data-dirty = 25
+  #[inline(always)] #[no-alloc] t-off-ms-bidi-dirty :: U64
+  t-off-ms-bidi-dirty = 26
+  #[inline(always)] #[no-alloc] t-off-ms-uni-dirty :: U64
+  t-off-ms-uni-dirty = 27
+  #[inline(always)] #[no-alloc] t-off-rr-cursor :: U64
+  t-off-rr-cursor = 28
+  #[inline(always)] #[no-alloc] t-off-conn-send :: U64
+  t-off-conn-send = 32
+  #[inline(always)] #[no-alloc] t-off-conn-send-max :: U64
+  t-off-conn-send-max = 40
+  #[inline(always)] #[no-alloc] t-off-conn-recv :: U64
+  t-off-conn-recv = 48
+  #[inline(always)] #[no-alloc] t-off-conn-consumed :: U64
+  t-off-conn-consumed = 56
+  #[inline(always)] #[no-alloc] t-off-conn-recv-max :: U64
+  t-off-conn-recv-max = 64
+  #[inline(always)] #[no-alloc] t-off-init-sd-local :: U64
+  t-off-init-sd-local = 72
+  #[inline(always)] #[no-alloc] t-off-init-sd-remote :: U64
+  t-off-init-sd-remote = 80
+  #[inline(always)] #[no-alloc] t-off-init-sd-uni :: U64
+  t-off-init-sd-uni = 88
+  #[inline(always)] #[no-alloc] t-off-next-bidi :: U64
+  t-off-next-bidi = 96
+  #[inline(always)] #[no-alloc] t-off-next-uni :: U64
+  t-off-next-uni = 104
+  #[inline(always)] #[no-alloc] t-off-peer-ms-bidi :: U64
+  t-off-peer-ms-bidi = 112
+  #[inline(always)] #[no-alloc] t-off-peer-ms-uni :: U64
+  t-off-peer-ms-uni = 120
+  #[inline(always)] #[no-alloc] t-off-local-ms-bidi :: U64
+  t-off-local-ms-bidi = 128
+  #[inline(always)] #[no-alloc] t-off-local-ms-uni :: U64
+  t-off-local-ms-uni = 136
+  #[inline(always)] #[no-alloc] t-off-rings-off :: U64
+  t-off-rings-off = 144
+  #[inline(always)] #[no-alloc] t-off-local-sd-win :: U64
+  t-off-local-sd-win = 152
+  #[inline(always)] #[no-alloc] t-off-conn-recv-win :: U64
+  t-off-conn-recv-win = 160
+  #[inline(always)] #[no-alloc] t-off-slots :: U64
+  t-off-slots = 512
+
+  -- Per-stream slot stride = 512 bytes
+  #[inline(always)] #[no-alloc] slot-stride :: U64
+  slot-stride = 512
+
+  #[inline(always)] #[no-alloc] s-off-id :: U64
+  s-off-id = 0
+  #[inline(always)] #[no-alloc] s-off-in-use :: U64
+  s-off-in-use = 8
+  #[inline(always)] #[no-alloc] s-off-send-st :: U64
+  s-off-send-st = 9
+  #[inline(always)] #[no-alloc] s-off-recv-st :: U64
+  s-off-recv-st = 10
+  #[inline(always)] #[no-alloc] s-off-is-local :: U64
+  s-off-is-local = 11
+  #[inline(always)] #[no-alloc] s-off-is-uni :: U64
+  s-off-is-uni = 12
+  #[inline(always)] #[no-alloc] s-off-fin-sent :: U64
+  s-off-fin-sent = 13
+  #[inline(always)] #[no-alloc] s-off-has-recv-fin :: U64
+  s-off-has-recv-fin = 14
+  #[inline(always)] #[no-alloc] s-off-reset-pend :: U64
+  s-off-reset-pend = 15
+  #[inline(always)] #[no-alloc] s-off-send-write :: U64
+  s-off-send-write = 16
+  #[inline(always)] #[no-alloc] s-off-send-sent :: U64
+  s-off-send-sent = 24
+  #[inline(always)] #[no-alloc] s-off-send-acked :: U64
+  s-off-send-acked = 32
+  #[inline(always)] #[no-alloc] s-off-send-max :: U64
+  s-off-send-max = 40
+  #[inline(always)] #[no-alloc] s-off-send-fin-off :: U64
+  s-off-send-fin-off = 48
+  #[inline(always)] #[no-alloc] s-off-send-reset-err :: U64
+  s-off-send-reset-err = 56
+  #[inline(always)] #[no-alloc] s-off-fin-acked :: U64
+  s-off-fin-acked = 64
+  #[inline(always)] #[no-alloc] s-off-fin-rtx :: U64
+  s-off-fin-rtx = 65
+  #[inline(always)] #[no-alloc] s-off-fc-dirty :: U64
+  s-off-fc-dirty = 66
+  #[inline(always)] #[no-alloc] s-off-stop-send :: U64
+  s-off-stop-send = 67
+  #[inline(always)] #[no-alloc] s-off-rtx-cnt :: U64
+  s-off-rtx-cnt = 68
+  #[inline(always)] #[no-alloc] s-off-acked-cnt :: U64
+  s-off-acked-cnt = 72
+  #[inline(always)] #[no-alloc] s-off-recv-cnt :: U64
+  s-off-recv-cnt = 76
+  #[inline(always)] #[no-alloc] s-off-recv-read :: U64
+  s-off-recv-read = 80
+  #[inline(always)] #[no-alloc] s-off-recv-contig :: U64
+  s-off-recv-contig = 88
+  #[inline(always)] #[no-alloc] s-off-recv-max-off :: U64
+  s-off-recv-max-off = 96
+  #[inline(always)] #[no-alloc] s-off-recv-fin-off :: U64
+  s-off-recv-fin-off = 104
+  #[inline(always)] #[no-alloc] s-off-recv-max-data :: U64
+  s-off-recv-max-data = 112
+  #[inline(always)] #[no-alloc] s-off-recv-reset-err :: U64
+  s-off-recv-reset-err = 120
+  #[inline(always)] #[no-alloc] s-off-recv-segs :: U64
+  s-off-recv-segs = 128
+  #[inline(always)] #[no-alloc] s-off-rtx-segs :: U64
+  s-off-rtx-segs = 256
+  #[inline(always)] #[no-alloc] s-off-acked-segs :: U64
+  s-off-acked-segs = 384
+
+  #[inline(always)] #[no-alloc] max-segs :: U32
+  max-segs = 8
+
+  #[inline(always)] #[no-alloc] slot-base :: U64 -> U32 -> U64
+  slot-base base idx = wrapping-add-u64 (wrapping-add-u64 base t-off-slots) (wrapping-shl-u64 (u32-to-u64 idx) 9)
+
+  #[inline(always)] #[no-alloc] send-ring-base :: U64 -> U32 ->{MVar} U64
+  send-ring-base base idx =
+    let roff = raw-load-u64 (addr-at base t-off-rings-off) in
+    let bcap = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-cap)) in
+    let pair-sz = wrapping-shl-u64 bcap 1 in
+    wrapping-add-u64 (wrapping-add-u64 base roff) (wrapping-mul-u64 (u32-to-u64 idx) pair-sz)
+
+  #[inline(always)] #[no-alloc] recv-ring-base :: U64 -> U32 ->{MVar} U64
+  recv-ring-base base idx =
+    let bcap = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-cap)) in
+    wrapping-add-u64 (send-ring-base base idx) bcap
+
+  -- =========================================================================
+  -- 2. Lifecycle & Configuration
+  -- =========================================================================
+
+  -- | Allocate a DMA-backed `QuicStreamTable` for up to `max-slots` concurrent
+  -- streams (`1..=64`), each with power-of-two `buf-cap` (`>= 1024`) send and
+  -- receive ring buffers. `is-server`: `0` = client, `1` = server.
+  quic-stream-table-new :: U8 -> U32 -> U32 ->{IO, MVar} QuicStreamTable
+  quic-stream-table-new is-server max-slots buf-cap =
+    if eq-u32 max-slots 0 || gt-u32 max-slots 64 then quic-stream-table-empty ()
+    else if not (is-pow2-u32 buf-cap) then quic-stream-table-empty ()
+    else
+      let slots-bytes = wrapping-shl-u64 (u32-to-u64 max-slots) 9 in
+      let rings-off = wrapping-add-u64 t-off-slots slots-bytes in
+      let rings-bytes = wrapping-mul-u64 (u32-to-u64 max-slots) (wrapping-shl-u64 (u32-to-u64 buf-cap) 1) in
+      let raw-bytes = wrapping-add-u64 rings-off rings-bytes in
+      let aligned = bit-and-u64 (wrapping-add-u64 raw-bytes 4095) (bit-not-u64 4095) in
+      let base = engine-dma-alloc aligned 4096 in
+      if eq-u64 base 0 then quic-stream-table-empty ()
+      else
+        let init-sd = u32-to-u64 buf-cap in
+        let init-cd = wrapping-mul-u64 init-sd (u32-to-u64 max-slots) in
+        let _ = raw-store-u64 (addr-at base t-off-slab) aligned in
+        let _ = raw-store-u32 (addr-at base t-off-max-slots) max-slots in
+        let _ = raw-store-u32 (addr-at base t-off-buf-cap) buf-cap in
+        let _ = raw-store-u32 (addr-at base t-off-buf-mask) (wrapping-sub-u32 buf-cap 1) in
+        let _ = raw-store-u32 (addr-at base t-off-active) 0 in
+        let _ = raw-store-u8 (addr-at base t-off-is-server) (if ne-u8 is-server 0 then 1 else 0) in
+        let _ = raw-store-u8 (addr-at base t-off-max-data-dirty) 0 in
+        let _ = raw-store-u8 (addr-at base t-off-ms-bidi-dirty) 0 in
+        let _ = raw-store-u8 (addr-at base t-off-ms-uni-dirty) 0 in
+        let _ = raw-store-u32 (addr-at base t-off-rr-cursor) 0 in
+        let _ = raw-store-u64 (addr-at base t-off-conn-send) 0 in
+        let _ = raw-store-u64 (addr-at base t-off-conn-send-max) init-cd in
+        let _ = raw-store-u64 (addr-at base t-off-conn-recv) 0 in
+        let _ = raw-store-u64 (addr-at base t-off-conn-consumed) 0 in
+        let _ = raw-store-u64 (addr-at base t-off-conn-recv-max) init-cd in
+        let _ = raw-store-u64 (addr-at base t-off-init-sd-local) init-sd in
+        let _ = raw-store-u64 (addr-at base t-off-init-sd-remote) init-sd in
+        let _ = raw-store-u64 (addr-at base t-off-init-sd-uni) init-sd in
+        let _ = raw-store-u64 (addr-at base t-off-next-bidi) 0 in
+        let _ = raw-store-u64 (addr-at base t-off-next-uni) 0 in
+        let _ = raw-store-u64 (addr-at base t-off-peer-ms-bidi) (u32-to-u64 max-slots) in
+        let _ = raw-store-u64 (addr-at base t-off-peer-ms-uni) (u32-to-u64 max-slots) in
+        let _ = raw-store-u64 (addr-at base t-off-local-ms-bidi) (u32-to-u64 max-slots) in
+        let _ = raw-store-u64 (addr-at base t-off-local-ms-uni) (u32-to-u64 max-slots) in
+        let _ = raw-store-u64 (addr-at base t-off-rings-off) rings-off in
+        let _ = raw-store-u64 (addr-at base t-off-local-sd-win) init-sd in
+        let _ = raw-store-u64 (addr-at base t-off-conn-recv-win) init-cd in
+        QuicStreamTable base
+
+  quic-stream-table-destroy :: QuicStreamTable ->{IO, MVar} Unit
+  quic-stream-table-destroy tbl =
+    if eq-u64 tbl.qst-base 0 then ()
+    else
+      let sz = raw-load-u64 (addr-at tbl.qst-base t-off-slab) in
+      let _ = engine-dma-free tbl.qst-base sz in
+      ()
+
+  -- | Apply peer's transport parameter flow-control and stream-count limits.
+  #[no-alloc]
+  quic-stream-table-set-peer-limits :: QuicStreamTable -> U64 -> U64 -> U64 -> U64 -> U64 -> U64 ->{MVar} Unit
+  quic-stream-table-set-peer-limits tbl max-data sd-bidi-local sd-bidi-remote sd-uni max-bidi max-uni =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then ()
+    else
+      let _ = raw-store-u64 (addr-at base t-off-conn-send-max) (max-u64 (raw-load-u64 (addr-at base t-off-conn-send-max)) max-data) in
+      let _ = raw-store-u64 (addr-at base t-off-init-sd-local) sd-bidi-local in
+      let _ = raw-store-u64 (addr-at base t-off-init-sd-remote) sd-bidi-remote in
+      let _ = raw-store-u64 (addr-at base t-off-init-sd-uni) sd-uni in
+      let _ = raw-store-u64 (addr-at base t-off-peer-ms-bidi) max-bidi in
+      let _ = raw-store-u64 (addr-at base t-off-peer-ms-uni) max-uni in
+      ()
+
+  -- =========================================================================
+  -- 3. Ring Buffer Copy & Inline Sorted Disjoint Range Table Helpers (#[no-alloc])
+  -- =========================================================================
+
+  -- Copy `len` bytes from flat `src-addr` into power-of-two ring `ring-base`
+  -- starting at logical byte offset `byte-off`.
+  #[no-alloc]
+  ring-write-loop :: U64 -> U64 -> I64 -> U64 -> U32 ->{MVar} Unit
+  ring-write-loop ring-base mask src-addr byte-off rem =
+    if eq-u32 rem 0 then ()
+    else
+      let pos = bit-and-u64 byte-off mask in
+      let b = raw-load-u8 src-addr in
+      let _ = raw-store-u8 (addr-at ring-base pos) b in
+      ring-write-loop ring-base mask (wrapping-add-i64 src-addr 1) (wrapping-add-u64 byte-off 1) (wrapping-sub-u32 rem 1)
+
+  -- Copy `len` bytes from power-of-two ring `ring-base` starting at logical
+  -- byte offset `byte-off` into flat `dst-addr`.
+  #[no-alloc]
+  ring-read-loop :: U64 -> U64 -> I64 -> U64 -> U32 ->{MVar} Unit
+  ring-read-loop ring-base mask dst-addr byte-off rem =
+    if eq-u32 rem 0 then ()
+    else
+      let pos = bit-and-u64 byte-off mask in
+      let b = raw-load-u8 (addr-at ring-base pos) in
+      let _ = raw-store-u8 dst-addr b in
+      ring-read-loop ring-base mask (wrapping-add-i64 dst-addr 1) (wrapping-add-u64 byte-off 1) (wrapping-sub-u32 rem 1)
+
+  #[inline(always)] #[no-alloc] seg-start :: U64 -> U32 ->{MVar} U64
+  seg-start arr i = raw-load-u64 (addr-at arr (wrapping-shl-u64 (u32-to-u64 i) 4))
+
+  #[inline(always)] #[no-alloc] seg-end :: U64 -> U32 ->{MVar} U64
+  seg-end arr i = raw-load-u64 (addr-at arr (wrapping-add-u64 (wrapping-shl-u64 (u32-to-u64 i) 4) 8))
+
+  #[inline(always)] #[no-alloc] seg-store :: U64 -> U32 -> U64 -> U64 ->{MVar} Unit
+  seg-store arr i s e =
+    let off = wrapping-shl-u64 (u32-to-u64 i) 4 in
+    let _ = raw-store-u64 (addr-at arr off) s in
+    raw-store-u64 (addr-at arr (wrapping-add-u64 off 8)) e
+
+  -- Shift segments left: `arr[dst..dst+len) = arr[src..src+len)` where `dst < src`.
+  #[no-alloc]
+  seg-shift-left :: U64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  seg-shift-left arr dst src count =
+    if ge-u32 src count then ()
+    else
+      let _ = seg-store arr dst (seg-start arr src) (seg-end arr src) in
+      seg-shift-left arr (wrapping-add-u32 dst 1) (wrapping-add-u32 src 1) count
+
+  -- Shift segments right by 1 from `idx` up to `count - 1` (backwards from `last`).
+  #[no-alloc]
+  seg-shift-right1 :: U64 -> U32 -> U32 ->{MVar} Unit
+  seg-shift-right1 arr idx cur =
+    if lt-u32 cur idx then ()
+    else
+      let _ = seg-store arr (wrapping-add-u32 cur 1) (seg-start arr cur) (seg-end arr cur) in
+      if eq-u32 cur 0 then ()
+      else seg-shift-right1 arr idx (wrapping-sub-u32 cur 1)
+
+  -- Find first index `i` where `seg-end arr i >= new-s` (so `i` may overlap/touch or lie after `[new-s, new-e)`).
+  #[no-alloc]
+  seg-find-first :: U64 -> U32 -> U32 -> U64 ->{MVar} U32
+  seg-find-first arr i count new-s =
+    if ge-u32 i count then count
+    else if ge-u64 (seg-end arr i) new-s then i
+    else seg-find-first arr (wrapping-add-u32 i 1) count new-s
+
+  -- Find first index `i >= start-i` where `seg-start arr i > new-e` (strictly past merge region).
+  #[no-alloc]
+  seg-find-after :: U64 -> U32 -> U32 -> U64 ->{MVar} U32
+  seg-find-after arr i count new-e =
+    if ge-u32 i count then count
+    else if gt-u64 (seg-start arr i) new-e then i
+    else seg-find-after arr (wrapping-add-u32 i 1) count new-e
+
+  -- Insert `[new-s, new-e)` into sorted disjoint `arr[0..*cnt-addr)` (max 8 entries),
+  -- merging any overlapping or adjacent segments. Returns updated count.
+  #[no-alloc]
+  seg-insert-merge :: U64 -> U64 -> U64 -> U64 ->{MVar} U32
+  seg-insert-merge arr cnt-addr new-s new-e =
+    let cnt = raw-load-u32 (addr-at cnt-addr 0) in
+    if ge-u64 new-s new-e then cnt
+    else
+      let first = seg-find-first arr 0 cnt new-s in
+      let after = seg-find-after arr first cnt new-e in
+      if eq-u32 first after then
+        -- Disjoint insert at `first`
+        if ge-u32 cnt max-segs then
+          -- Table full: keep lowest-offset segments by dropping highest if `first < max-segs`
+          if lt-u32 first max-segs then
+            let last = wrapping-sub-u32 max-segs 2 in
+            let _ = if le-u32 first last then seg-shift-right1 arr first last else () in
+            let _ = seg-store arr first new-s new-e in
+            cnt
+          else cnt
+        else
+          let _ = if lt-u32 first cnt then seg-shift-right1 arr first (wrapping-sub-u32 cnt 1) else () in
+          let _ = seg-store arr first new-s new-e in
+          let ncnt = wrapping-add-u32 cnt 1 in
+          let _ = raw-store-u32 (addr-at cnt-addr 0) ncnt in
+          ncnt
+      else
+        -- Merge `[first .. after)` with `[new-s, new-e)`
+        let ms = min-u64 new-s (seg-start arr first) in
+        let me = max-u64 new-e (seg-end arr (wrapping-sub-u32 after 1)) in
+        let _ = seg-store arr first ms me in
+        let dst = wrapping-add-u32 first 1 in
+        let _ = if lt-u32 dst after then seg-shift-left arr dst after cnt else () in
+        let absorbed = wrapping-sub-u32 after first in
+        let ncnt = wrapping-add-u32 (wrapping-sub-u32 cnt absorbed) 1 in
+        let _ = raw-store-u32 (addr-at cnt-addr 0) ncnt in
+        ncnt
+
+  -- Pop segment 0 from `arr[0..*cnt-addr)`.
+  #[no-alloc]
+  seg-pop-front :: U64 -> U64 ->{MVar} U32
+  seg-pop-front arr cnt-addr =
+    let cnt = raw-load-u32 (addr-at cnt-addr 0) in
+    if eq-u32 cnt 0 then 0
+    else
+      let _ = seg-shift-left arr 0 1 cnt in
+      let ncnt = wrapping-sub-u32 cnt 1 in
+      let _ = raw-store-u32 (addr-at cnt-addr 0) ncnt in
+      ncnt
+
+  -- Remove `[rem-s, rem-e)` from all segments in `arr[0..*cnt-addr)`.
+  #[no-alloc]
+  seg-remove-loop :: U64 -> U64 -> U32 -> U64 -> U64 ->{MVar} Unit
+  seg-remove-loop arr cnt-addr i rem-s rem-e =
+    let cnt = raw-load-u32 (addr-at cnt-addr 0) in
+    if ge-u32 i cnt then ()
+    else
+      let s = seg-start arr i in
+      let e = seg-end arr i in
+      if le-u64 e rem-s then
+        seg-remove-loop arr cnt-addr (wrapping-add-u32 i 1) rem-s rem-e
+      else if ge-u64 s rem-e then ()
+      else if both (ge-u64 s rem-s) (le-u64 e rem-e) then
+        -- Entire segment covered: delete at i
+        let _ = seg-shift-left arr i (wrapping-add-u32 i 1) cnt in
+        let _ = raw-store-u32 (addr-at cnt-addr 0) (wrapping-sub-u32 cnt 1) in
+        seg-remove-loop arr cnt-addr i rem-s rem-e
+      else if both (lt-u64 s rem-s) (gt-u64 e rem-e) then
+        -- Strictly inside segment: split into [s, rem-s) and [rem-e, e)
+        let _ = seg-store arr i s rem-s in
+        let _ = (if lt-u32 cnt max-segs then
+          let ins = wrapping-add-u32 i 1 in
+          let _ = if lt-u32 ins cnt then seg-shift-right1 arr ins (wrapping-sub-u32 cnt 1) else () in
+          let _ = seg-store arr ins rem-e e in
+          raw-store-u32 (addr-at cnt-addr 0) (wrapping-add-u32 cnt 1)
+        else ()) in
+        ()
+      else if lt-u64 s rem-s then
+        -- Trim right end to rem-s
+        let _ = seg-store arr i s rem-s in
+        seg-remove-loop arr cnt-addr (wrapping-add-u32 i 1) rem-s rem-e
+      else
+        -- Trim left end to rem-e
+        let _ = seg-store arr i rem-e e in
+        ()
+
+  -- =========================================================================
+  -- 4. Stream Lookup & Allocation (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  find-slot-loop :: U64 -> U32 -> U32 -> U64 ->{MVar} U32
+  find-slot-loop base i max-slots sid-raw =
+    if ge-u32 i max-slots then stream-slot-none
+    else
+      let sb = slot-base base i in
+      let used = raw-load-u8 (addr-at sb s-off-in-use) in
+      if both (ne-u8 used 0) (eq-u64 (raw-load-u64 (addr-at sb s-off-id)) sid-raw) then i
+      else find-slot-loop base (wrapping-add-u32 i 1) max-slots sid-raw
+
+  #[no-alloc]
+  find-free-slot-loop :: U64 -> U32 -> U32 ->{MVar} U32
+  find-free-slot-loop base i max-slots =
+    if ge-u32 i max-slots then stream-slot-none
+    else
+      let sb = slot-base base i in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then i
+      else find-free-slot-loop base (wrapping-add-u32 i 1) max-slots
+
+  #[no-alloc]
+  quic-stream-find-slot :: QuicStreamTable -> StreamId ->{MVar} U32
+  quic-stream-find-slot tbl sid =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then stream-slot-none
+    else find-slot-loop base 0 (raw-load-u32 (addr-at base t-off-max-slots)) sid.stream-id-raw
+
+  #[no-alloc]
+  init-stream-slot :: U64 -> U32 -> StreamId -> U8 -> U8 ->{MVar} U32
+  init-stream-slot base slot sid is-local is-uni =
+    let sb = slot-base base slot in
+    let send-max = (
+      if ne-u8 is-uni 0 then
+        if ne-u8 is-local 0 then raw-load-u64 (addr-at base t-off-init-sd-uni) else 0
+      else if ne-u8 is-local 0 then raw-load-u64 (addr-at base t-off-init-sd-remote)
+      else raw-load-u64 (addr-at base t-off-init-sd-local)) in
+    let recv-max = (
+      if both (ne-u8 is-uni 0) (ne-u8 is-local 0) then 0
+      else raw-load-u64 (addr-at base t-off-local-sd-win)) in
+    let init-send-st = if both (ne-u8 is-uni 0) (eq-u8 is-local 0) then stream-send-closed else stream-send-ready in
+    let init-recv-st = if both (ne-u8 is-uni 0) (ne-u8 is-local 0) then stream-recv-closed else stream-recv-recv in
+    let _ = raw-store-u64 (addr-at sb s-off-id) sid.stream-id-raw in
+    let _ = raw-store-u8 (addr-at sb s-off-in-use) 1 in
+    let _ = raw-store-u8 (addr-at sb s-off-send-st) init-send-st in
+    let _ = raw-store-u8 (addr-at sb s-off-recv-st) init-recv-st in
+    let _ = raw-store-u8 (addr-at sb s-off-is-local) is-local in
+    let _ = raw-store-u8 (addr-at sb s-off-is-uni) is-uni in
+    let _ = raw-store-u8 (addr-at sb s-off-fin-sent) 0 in
+    let _ = raw-store-u8 (addr-at sb s-off-has-recv-fin) 0 in
+    let _ = raw-store-u8 (addr-at sb s-off-reset-pend) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-send-write) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-send-sent) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-send-acked) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-send-max) send-max in
+    let _ = raw-store-u64 (addr-at sb s-off-send-fin-off) u64-unset in
+    let _ = raw-store-u64 (addr-at sb s-off-send-reset-err) 0 in
+    let _ = raw-store-u8 (addr-at sb s-off-fin-acked) 0 in
+    let _ = raw-store-u8 (addr-at sb s-off-fin-rtx) 0 in
+    let _ = raw-store-u8 (addr-at sb s-off-fc-dirty) 0 in
+    let _ = raw-store-u8 (addr-at sb s-off-stop-send) 0 in
+    let _ = raw-store-u32 (addr-at sb s-off-rtx-cnt) 0 in
+    let _ = raw-store-u32 (addr-at sb s-off-acked-cnt) 0 in
+    let _ = raw-store-u32 (addr-at sb s-off-recv-cnt) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-recv-read) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-recv-contig) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-recv-max-off) 0 in
+    let _ = raw-store-u64 (addr-at sb s-off-recv-fin-off) u64-unset in
+    let _ = raw-store-u64 (addr-at sb s-off-recv-max-data) recv-max in
+    let _ = raw-store-u64 (addr-at sb s-off-recv-reset-err) 0 in
+    let act = raw-load-u32 (addr-at base t-off-active) in
+    let _ = raw-store-u32 (addr-at base t-off-active) (wrapping-add-u32 act 1) in
+    slot
+
+  -- | Open the next locally-initiated bidirectional (`is-uni = 0`) or
+  -- unidirectional (`is-uni = 1`) stream respecting peer's `MAX_STREAMS`.
+  -- Returns the stream slot index, or `stream-slot-none` if blocked/full.
+  #[no-alloc]
+  quic-stream-open-local :: QuicStreamTable -> U8 ->{MVar} U32
+  quic-stream-open-local tbl is-uni =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then stream-slot-none
+    else
+      let uni = ne-u8 is-uni 0 in
+      let seq-off = if uni then t-off-next-uni else t-off-next-bidi in
+      let lim-off = if uni then t-off-peer-ms-uni else t-off-peer-ms-bidi in
+      let seq = raw-load-u64 (addr-at base seq-off) in
+      let lim = raw-load-u64 (addr-at base lim-off) in
+      if ge-u64 seq lim then stream-slot-none
+      else
+        let max-slots = raw-load-u32 (addr-at base t-off-max-slots) in
+        let slot = find-free-slot-loop base 0 max-slots in
+        if eq-u32 slot stream-slot-none then stream-slot-none
+        else
+          let is-srv = ne-u8 (raw-load-u8 (addr-at base t-off-is-server)) 0 in
+          let sid = stream-id-make seq is-srv uni in
+          let _ = raw-store-u64 (addr-at base seq-off) (wrapping-add-u64 seq 1) in
+          init-stream-slot base slot sid 1 (if uni then 1 else 0)
+
+  -- | Look up an existing stream or open a remote-initiated stream if `sid`
+  -- obeys RFC 9000 §2.1 directionality and `local-max-streams`.
+  #[no-alloc]
+  quic-stream-get-or-open-remote :: QuicStreamTable -> StreamId ->{MVar} U32
+  quic-stream-get-or-open-remote tbl sid =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then stream-slot-none
+    else
+      let existing = quic-stream-find-slot tbl sid in
+      if ne-u32 existing stream-slot-none then existing
+      else
+        let is-srv = ne-u8 (raw-load-u8 (addr-at base t-off-is-server)) 0 in
+        let sid-is-srv = stream-id-is-server sid in
+        -- Remote stream must be initiated by the peer (not us)
+        let is-remote = if is-srv then (if sid-is-srv then b-false else b-true) else sid-is-srv in
+        if is-remote then
+          let uni = stream-id-is-uni sid in
+          let seq = stream-id-seq sid in
+          let lim = raw-load-u64 (addr-at base (if uni then t-off-local-ms-uni else t-off-local-ms-bidi)) in
+          if ge-u64 seq lim then stream-slot-none
+          else
+            let max-slots = raw-load-u32 (addr-at base t-off-max-slots) in
+            let slot = find-free-slot-loop base 0 max-slots in
+            if eq-u32 slot stream-slot-none then stream-slot-none
+            else init-stream-slot base slot sid 0 (if uni then 1 else 0)
+        else stream-slot-none
+
+  -- =========================================================================
+  -- 5. Application Write / Read / Reset (#[no-alloc])
+  -- =========================================================================
+
+  -- | Append up to `len` bytes from `src-addr` into stream `slot`'s send ring
+  -- buffer, optionally marking FIN (`fin /= 0`). Returns bytes queued (`0..=len`).
+  #[no-alloc]
+  quic-stream-write-raw :: QuicStreamTable -> U32 -> I64 -> U32 -> U8 ->{MVar} U32
+  quic-stream-write-raw tbl slot src-addr len fin =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then 0
+    else if ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots)) then 0
+    else
+      let sb = slot-base base slot in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then 0
+      else
+        let st = raw-load-u8 (addr-at sb s-off-send-st) in
+        -- Can only write in Ready or Send states
+        if gt-u8 st stream-send-send then 0
+        else
+          let write-off = raw-load-u64 (addr-at sb s-off-send-write) in
+          let acked-off = raw-load-u64 (addr-at sb s-off-send-acked) in
+          let bcap = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-cap)) in
+          let bmask = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-mask)) in
+          let used = saturating-sub-u64 write-off acked-off in
+          let free = saturating-sub-u64 bcap used in
+          let take = wrapping-u64-to-u32 (min-u64 (u32-to-u64 len) free) in
+          let _ = (if gt-u32 take 0 then
+            ring-write-loop (send-ring-base base slot) bmask src-addr write-off take
+          else ()) in
+          let new-write = wrapping-add-u64 write-off (u32-to-u64 take) in
+          let _ = raw-store-u64 (addr-at sb s-off-send-write) new-write in
+          let all-written = eq-u32 take len in
+          let _ = (if both (ne-u8 fin 0) all-written then
+            let _0 = raw-store-u64 (addr-at sb s-off-send-fin-off) new-write in
+            raw-store-u8 (addr-at sb s-off-send-st) stream-send-data-sent
+          else if eq-u8 st stream-send-ready then
+            raw-store-u8 (addr-at sb s-off-send-st) stream-send-send
+          else ()) in
+          take
+
+  -- | Read up to `out-cap` contiguous, in-order reassembled bytes from stream
+  -- `slot` into `out-addr`. Automatically replenishes `MAX_STREAM_DATA` and
+  -- `MAX_DATA` when >= 50% of the receive window has been consumed.
+  #[no-alloc]
+  quic-stream-read-raw :: QuicStreamTable -> U32 -> I64 -> U32 ->{MVar} U32
+  quic-stream-read-raw tbl slot out-addr out-cap =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then 0
+    else if ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots)) then 0
+    else
+      let sb = slot-base base slot in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then 0
+      else
+        let read-off = raw-load-u64 (addr-at sb s-off-recv-read) in
+        let contig = raw-load-u64 (addr-at sb s-off-recv-contig) in
+        let avail = saturating-sub-u64 contig read-off in
+        let take = wrapping-u64-to-u32 (min-u64 (u32-to-u64 out-cap) avail) in
+        let bmask = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-mask)) in
+        let _ = (if gt-u32 take 0 then
+          ring-read-loop (recv-ring-base base slot) bmask out-addr read-off take
+        else ()) in
+        let new-read = wrapping-add-u64 read-off (u32-to-u64 take) in
+        let _ = raw-store-u64 (addr-at sb s-off-recv-read) new-read in
+        -- Transition DataRecvd -> DataRead once all bytes up to final size are read
+        let rst = raw-load-u8 (addr-at sb s-off-recv-st) in
+        let fin-off = raw-load-u64 (addr-at sb s-off-recv-fin-off) in
+        let _ = (if both (eq-u8 rst stream-recv-data-recvd) (both (ne-u8 (raw-load-u8 (addr-at sb s-off-has-recv-fin)) 0) (ge-u64 new-read fin-off)) then
+          raw-store-u8 (addr-at sb s-off-recv-st) stream-recv-data-read
+        else ()) in
+        -- Auto-advance per-stream MAX_STREAM_DATA when >= 50% of window consumed
+        let sd-win = raw-load-u64 (addr-at base t-off-local-sd-win) in
+        let cur-smax = raw-load-u64 (addr-at sb s-off-recv-max-data) in
+        let new-smax = saturating-add-u64 new-read sd-win in
+        let half-sd = wrapping-shr-u64 sd-win 1 in
+        let _ = (if both (eq-u8 (raw-load-u8 (addr-at sb s-off-has-recv-fin)) 0) (ge-u64 (saturating-sub-u64 new-smax cur-smax) half-sd) then
+          let _0 = raw-store-u64 (addr-at sb s-off-recv-max-data) new-smax in
+          raw-store-u8 (addr-at sb s-off-fc-dirty) 1
+        else ()) in
+        -- Auto-advance connection MAX_DATA when >= 50% of connection window consumed
+        let consumed = saturating-add-u64 (raw-load-u64 (addr-at base t-off-conn-consumed)) (u32-to-u64 take) in
+        let _ = raw-store-u64 (addr-at base t-off-conn-consumed) consumed in
+        let cwin = raw-load-u64 (addr-at base t-off-conn-recv-win) in
+        let cur-cmax = raw-load-u64 (addr-at base t-off-conn-recv-max) in
+        let new-cmax = saturating-add-u64 consumed cwin in
+        let half-cw = wrapping-shr-u64 cwin 1 in
+        let _ = (if ge-u64 (saturating-sub-u64 new-cmax cur-cmax) half-cw then
+          let _0 = raw-store-u64 (addr-at base t-off-conn-recv-max) new-cmax in
+          raw-store-u8 (addr-at base t-off-max-data-dirty) 1
+        else ()) in
+        take
+
+  -- | Initiate RFC 9000 §3.1 local `RESET_STREAM` on `slot` with `app-err`.
+  #[no-alloc]
+  quic-stream-reset :: QuicStreamTable -> U32 -> U64 ->{MVar} Bool
+  quic-stream-reset tbl slot app-err =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then b-false
+    else if ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots)) then b-false
+    else
+      let sb = slot-base base slot in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then b-false
+      else
+        let st = raw-load-u8 (addr-at sb s-off-send-st) in
+        if ge-u8 st stream-send-reset-sent then b-false
+        else
+          let _ = raw-store-u64 (addr-at sb s-off-send-reset-err) app-err in
+          let _ = raw-store-u8 (addr-at sb s-off-send-st) stream-send-reset-sent in
+          let _ = raw-store-u8 (addr-at sb s-off-reset-pend) 1 in
+          let _ = raw-store-u32 (addr-at sb s-off-rtx-cnt) 0 in
+          b-true
+
+  -- =========================================================================
+  -- 6. Incoming Frame Handlers (STREAM, RESET_STREAM, STOP_SENDING, Flow Ctrl)
+  -- =========================================================================
+
+  -- Absorb any leading `recv-segs` overlapping/touching `recv-contig-off`.
+  #[no-alloc]
+  advance-recv-contig :: U64 ->{MVar} Unit
+  advance-recv-contig sb =
+    let cnt = raw-load-u32 (addr-at sb s-off-recv-cnt) in
+    if eq-u32 cnt 0 then ()
+    else
+      let arr = wrapping-add-u64 sb s-off-recv-segs in
+      let contig = raw-load-u64 (addr-at sb s-off-recv-contig) in
+      let s0 = seg-start arr 0 in
+      if le-u64 s0 contig then
+        let e0 = seg-end arr 0 in
+        let _ = raw-store-u64 (addr-at sb s-off-recv-contig) (max-u64 contig e0) in
+        let _ = seg-pop-front arr (wrapping-add-u64 sb s-off-recv-cnt) in
+        advance-recv-contig sb
+      else ()
+
+  -- | Process an incoming RFC 9000 `STREAM` frame (`sid`, `offset`, `data-addr`,
+  -- `data-len`, `is-fin`). Performs flow-control validation, final-size checks,
+  -- and exact zero-alloc out-of-order reassembly.
+  #[no-alloc]
+  quic-stream-on-recv-frame :: QuicStreamTable -> StreamId -> U64 -> I64 -> U32 -> U8 ->{MVar} U8
+  quic-stream-on-recv-frame tbl sid off data-addr data-len is-fin =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then stream-rx-state-err
+    else
+      let slot = quic-stream-get-or-open-remote tbl sid in
+      if eq-u32 slot stream-slot-none then stream-rx-limit-err
+      else
+        let sb = slot-base base slot in
+        let rst = raw-load-u8 (addr-at sb s-off-recv-st) in
+        if eq-u8 rst stream-recv-closed then stream-rx-state-err
+        else
+          let end-off = saturating-add-u64 off (u32-to-u64 data-len) in
+          -- RFC 9000 §4.5 final size validation
+          let had-fin = ne-u8 (raw-load-u8 (addr-at sb s-off-has-recv-fin)) 0 in
+          let prev-fin = raw-load-u64 (addr-at sb s-off-recv-fin-off) in
+          let prev-max = raw-load-u64 (addr-at sb s-off-recv-max-off) in
+          if both had-fin (gt-u64 end-off prev-fin) then stream-rx-final-size-err
+          else if both (ne-u8 is-fin 0) (both had-fin (ne-u64 end-off prev-fin)) then stream-rx-final-size-err
+          else if both (ne-u8 is-fin 0) (lt-u64 end-off prev-max) then stream-rx-final-size-err
+          else
+            -- Stream & connection flow control checks
+            let smax = raw-load-u64 (addr-at sb s-off-recv-max-data) in
+            if gt-u64 end-off smax then stream-rx-flow-control-err
+            else
+              let new-bytes = if gt-u64 end-off prev-max then wrapping-sub-u64 end-off prev-max else 0 in
+              let cur-crecv = raw-load-u64 (addr-at base t-off-conn-recv) in
+              let next-crecv = saturating-add-u64 cur-crecv new-bytes in
+              let cmax = raw-load-u64 (addr-at base t-off-conn-recv-max) in
+              if gt-u64 next-crecv cmax then stream-rx-flow-control-err
+              else
+                -- Check receive ring buffer capacity relative to unread tail
+                let read-off = raw-load-u64 (addr-at sb s-off-recv-read) in
+                let bcap = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-cap)) in
+                if gt-u64 (saturating-sub-u64 end-off read-off) bcap then stream-rx-buf-full
+                else
+                  let _ = (if gt-u64 new-bytes 0 then
+                    let _0 = raw-store-u64 (addr-at sb s-off-recv-max-off) end-off in
+                    raw-store-u64 (addr-at base t-off-conn-recv) next-crecv
+                  else ()) in
+                  let _ = (if ne-u8 is-fin 0 then
+                    let _0 = raw-store-u8 (addr-at sb s-off-has-recv-fin) 1 in
+                    let _1 = raw-store-u64 (addr-at sb s-off-recv-fin-off) end-off in
+                    if eq-u8 rst stream-recv-recv then raw-store-u8 (addr-at sb s-off-recv-st) stream-recv-size-known else ()
+                  else ()) in
+                  -- Copy only bytes at or above `recv-contig-off` into receive ring
+                  let contig = raw-load-u64 (addr-at sb s-off-recv-contig) in
+                  let _ = (if gt-u64 end-off contig then
+                    let skip = if lt-u64 off contig then wrapping-sub-u64 contig off else 0 in
+                    let copy-off = wrapping-add-u64 off skip in
+                    let copy-len = wrapping-u64-to-u32 (wrapping-sub-u64 end-off copy-off) in
+                    let src-p = wrapping-add-i64 data-addr (wrapping-u64-to-i64 skip) in
+                    let bmask = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-mask)) in
+                    let _c = ring-write-loop (recv-ring-base base slot) bmask src-p copy-off copy-len in
+                    if eq-u64 copy-off contig then
+                      let _a = raw-store-u64 (addr-at sb s-off-recv-contig) end-off in
+                      advance-recv-contig sb
+                    else
+                      let _i = seg-insert-merge (wrapping-add-u64 sb s-off-recv-segs) (wrapping-add-u64 sb s-off-recv-cnt) copy-off end-off in
+                      advance-recv-contig sb
+                  else ()) in
+                  -- Transition SizeKnown -> DataRecvd once contig == fin-off
+                  let contig2 = raw-load-u64 (addr-at sb s-off-recv-contig) in
+                  let has-f2 = ne-u8 (raw-load-u8 (addr-at sb s-off-has-recv-fin)) 0 in
+                  let fin2 = raw-load-u64 (addr-at sb s-off-recv-fin-off) in
+                  let rst2 = raw-load-u8 (addr-at sb s-off-recv-st) in
+                  let _ = (if both has-f2 (both (eq-u64 contig2 fin2) (le-u8 rst2 stream-recv-size-known)) then
+                    raw-store-u8 (addr-at sb s-off-recv-st) stream-recv-data-recvd
+                  else ()) in
+                  stream-rx-ok
+
+  -- | Process incoming `RESET_STREAM` frame (`sid`, `app-err`, `final-size`).
+  #[no-alloc]
+  quic-stream-on-reset-frame :: QuicStreamTable -> StreamId -> U64 -> U64 ->{MVar} U8
+  quic-stream-on-reset-frame tbl sid app-err final-size =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then stream-rx-state-err
+    else
+      let slot = quic-stream-get-or-open-remote tbl sid in
+      if eq-u32 slot stream-slot-none then stream-rx-limit-err
+      else
+        let sb = slot-base base slot in
+        let prev-max = raw-load-u64 (addr-at sb s-off-recv-max-off) in
+        let smax = raw-load-u64 (addr-at sb s-off-recv-max-data) in
+        if lt-u64 final-size prev-max then stream-rx-final-size-err
+        else if gt-u64 final-size smax then stream-rx-flow-control-err
+        else
+          let had-fin = ne-u8 (raw-load-u8 (addr-at sb s-off-has-recv-fin)) 0 in
+          let prev-fin = raw-load-u64 (addr-at sb s-off-recv-fin-off) in
+          if both had-fin (ne-u64 final-size prev-fin) then stream-rx-final-size-err
+          else
+            let _ = raw-store-u64 (addr-at sb s-off-recv-reset-err) app-err in
+            let _ = raw-store-u64 (addr-at sb s-off-recv-fin-off) final-size in
+            let _ = raw-store-u8 (addr-at sb s-off-has-recv-fin) 1 in
+            let _ = raw-store-u8 (addr-at sb s-off-recv-st) stream-recv-reset-recvd in
+            stream-rx-ok
+
+  -- | Process incoming `STOP_SENDING` frame: trigger `RESET_STREAM` on send side.
+  #[no-alloc]
+  quic-stream-on-stop-sending :: QuicStreamTable -> StreamId -> U64 ->{MVar} Unit
+  quic-stream-on-stop-sending tbl sid app-err =
+    let slot = quic-stream-find-slot tbl sid in
+    if eq-u32 slot stream-slot-none then ()
+    else
+      let _ = quic-stream-reset tbl slot app-err in
+      ()
+
+  -- | Process incoming `MAX_DATA` frame.
+  #[no-alloc]
+  quic-stream-table-on-max-data :: QuicStreamTable -> U64 ->{MVar} Unit
+  quic-stream-table-on-max-data tbl new-max =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then ()
+    else
+      let cur = raw-load-u64 (addr-at base t-off-conn-send-max) in
+      if gt-u64 new-max cur then raw-store-u64 (addr-at base t-off-conn-send-max) new-max else ()
+
+  -- | Process incoming `MAX_STREAM_DATA` frame.
+  #[no-alloc]
+  quic-stream-table-on-max-stream-data :: QuicStreamTable -> StreamId -> U64 ->{MVar} Unit
+  quic-stream-table-on-max-stream-data tbl sid new-max =
+    let slot = quic-stream-find-slot tbl sid in
+    if eq-u32 slot stream-slot-none then ()
+    else
+      let sb = slot-base tbl.qst-base slot in
+      let cur = raw-load-u64 (addr-at sb s-off-send-max) in
+      if gt-u64 new-max cur then raw-store-u64 (addr-at sb s-off-send-max) new-max else ()
+
+  -- | Process incoming `MAX_STREAMS` (`is-uni`: `0` = bidi, `1` = uni) frame.
+  #[no-alloc]
+  quic-stream-table-on-max-streams :: QuicStreamTable -> U8 -> U64 ->{MVar} Unit
+  quic-stream-table-on-max-streams tbl is-uni new-max =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then ()
+    else
+      let off = if ne-u8 is-uni 0 then t-off-peer-ms-uni else t-off-peer-ms-bidi in
+      let cur = raw-load-u64 (addr-at base off) in
+      if gt-u64 new-max cur then raw-store-u64 (addr-at base off) new-max else ()
+
+  -- =========================================================================
+  -- 7. Round-Robin Stream TX Scheduler, Retransmission & ACK Compaction (#[no-alloc])
+  -- =========================================================================
+
+  -- Try to pull one TX chunk (prioritizing `rtx-segs` over fresh data) from `slot`.
+  #[no-alloc]
+  try-poll-slot-tx :: U64 -> U32 -> U32 ->{MVar} QuicStreamTxChunk
+  try-poll-slot-tx base slot max-len =
+    let sb = slot-base base slot in
+    if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then quic-stream-tx-chunk-empty ()
+    else
+      let st = raw-load-u8 (addr-at sb s-off-send-st) in
+      if ge-u8 st stream-send-reset-sent then quic-stream-tx-chunk-empty ()
+      else
+        let sid-raw = raw-load-u64 (addr-at sb s-off-id) in
+        let fin-off = raw-load-u64 (addr-at sb s-off-send-fin-off) in
+        let has-fin = eq-u8 st stream-send-data-sent in
+        -- 1. Retransmission ranges take strict priority (already counted in flow control)
+        let rtx-cnt = raw-load-u32 (addr-at sb s-off-rtx-cnt) in
+        if gt-u32 rtx-cnt 0 then
+          let arr = wrapping-add-u64 sb s-off-rtx-segs in
+          let s0 = seg-start arr 0 in
+          let e0 = seg-end arr 0 in
+          let seg-len = saturating-sub-u64 e0 s0 in
+          let take = wrapping-u64-to-u32 (min-u64 seg-len (u32-to-u64 max-len)) in
+          let next-s = wrapping-add-u64 s0 (u32-to-u64 take) in
+          let _ = (if ge-u64 next-s e0 then
+            let _p = seg-pop-front arr (wrapping-add-u64 sb s-off-rtx-cnt) in
+            ()
+          else seg-store arr 0 next-s e0) in
+          let is-fin = (if both has-fin (eq-u64 next-s fin-off) then
+            let _f = raw-store-u8 (addr-at sb s-off-fin-rtx) 0 in
+            (1 :: U8)
+          else 0) in
+          QuicStreamTxChunk sid-raw s0 slot take is-fin 1 1 0 0
+        else if ne-u8 (raw-load-u8 (addr-at sb s-off-fin-rtx)) 0 then
+          let _f = raw-store-u8 (addr-at sb s-off-fin-rtx) 0 in
+          QuicStreamTxChunk sid-raw fin-off slot 0 1 1 1 0 0
+        else
+          -- 2. Fresh unsent stream data bounded by stream MAX_STREAM_DATA & connection MAX_DATA
+          let sent-off = raw-load-u64 (addr-at sb s-off-send-sent) in
+          let write-off = raw-load-u64 (addr-at sb s-off-send-write) in
+          let smax = raw-load-u64 (addr-at sb s-off-send-max) in
+          let conn-sent = raw-load-u64 (addr-at base t-off-conn-send) in
+          let conn-max = raw-load-u64 (addr-at base t-off-conn-send-max) in
+          let avail-data = saturating-sub-u64 write-off sent-off in
+          let avail-sfc = saturating-sub-u64 smax sent-off in
+          let avail-cfc = saturating-sub-u64 conn-max conn-sent in
+          let budget = min-u64 avail-data (min-u64 avail-sfc avail-cfc) in
+          let take = wrapping-u64-to-u32 (min-u64 budget (u32-to-u64 max-len)) in
+          let new-sent = wrapping-add-u64 sent-off (u32-to-u64 take) in
+          let send-fin-now = both has-fin (both (eq-u8 (raw-load-u8 (addr-at sb s-off-fin-sent)) 0) (eq-u64 new-sent fin-off)) in
+          if either (gt-u32 take 0) send-fin-now then
+            let _0 = raw-store-u64 (addr-at sb s-off-send-sent) new-sent in
+            let _1 = raw-store-u64 (addr-at base t-off-conn-send) (saturating-add-u64 conn-sent (u32-to-u64 take)) in
+            let _2 = if send-fin-now then raw-store-u8 (addr-at sb s-off-fin-sent) 1 else () in
+            QuicStreamTxChunk sid-raw sent-off slot take (if send-fin-now then 1 else 0) 0 1 0 0
+          else quic-stream-tx-chunk-empty ()
+
+  #[no-alloc]
+  poll-tx-rr-loop :: U64 -> U32 -> U32 -> U32 -> U32 ->{MVar} QuicStreamTxChunk
+  poll-tx-rr-loop base start tried max-slots max-len =
+    if ge-u32 tried max-slots then quic-stream-tx-chunk-empty ()
+    else
+      let raw-s = wrapping-add-u32 start tried in
+      let slot = if ge-u32 raw-s max-slots then wrapping-sub-u32 raw-s max-slots else raw-s in
+      let chunk = try-poll-slot-tx base slot max-len in
+      if ne-u8 chunk.stx-ok 0 then
+        let nxt0 = wrapping-add-u32 slot 1 in
+        let nxt = if ge-u32 nxt0 max-slots then 0 else nxt0 in
+        let _ = raw-store-u32 (addr-at base t-off-rr-cursor) nxt in
+        chunk
+      else poll-tx-rr-loop base start (wrapping-add-u32 tried 1) max-slots max-len
+
+  -- | Round-robin schedule the next `STREAM` chunk (up to `max-len` bytes)
+  -- ready for transmission or retransmission across all active streams.
+  #[no-alloc]
+  quic-stream-poll-tx :: QuicStreamTable -> U32 ->{MVar} QuicStreamTxChunk
+  quic-stream-poll-tx tbl max-len =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then quic-stream-tx-chunk-empty ()
+    else
+      let max-slots = raw-load-u32 (addr-at base t-off-max-slots) in
+      let cursor0 = raw-load-u32 (addr-at base t-off-rr-cursor) in
+      let cursor = if ge-u32 cursor0 max-slots then 0 else cursor0 in
+      poll-tx-rr-loop base cursor 0 max-slots max-len
+
+  -- | Copy `len` bytes from stream `slot`'s send ring at logical `offset` into `dst-addr`.
+  #[no-alloc]
+  quic-stream-copy-send-raw :: QuicStreamTable -> U32 -> U64 -> I64 -> U32 ->{MVar} Unit
+  quic-stream-copy-send-raw tbl slot offset dst-addr len =
+    let base = tbl.qst-base in
+    if either (eq-u64 base 0) (eq-u32 len 0) then ()
+    else
+      let bmask = u32-to-u64 (raw-load-u32 (addr-at base t-off-buf-mask)) in
+      ring-read-loop (send-ring-base base slot) bmask dst-addr offset len
+
+  -- Absorb leading `acked-segs` touching `send-acked-off`.
+  #[no-alloc]
+  advance-send-acked :: U64 ->{MVar} Unit
+  advance-send-acked sb =
+    let cnt = raw-load-u32 (addr-at sb s-off-acked-cnt) in
+    if eq-u32 cnt 0 then ()
+    else
+      let arr = wrapping-add-u64 sb s-off-acked-segs in
+      let acked = raw-load-u64 (addr-at sb s-off-send-acked) in
+      let s0 = seg-start arr 0 in
+      if le-u64 s0 acked then
+        let e0 = seg-end arr 0 in
+        let _ = raw-store-u64 (addr-at sb s-off-send-acked) (max-u64 acked e0) in
+        let _ = seg-pop-front arr (wrapping-add-u64 sb s-off-acked-cnt) in
+        advance-send-acked sb
+      else ()
+
+  -- | Mark range `[offset, offset + len)` (and optional `fin`) on `slot` as
+  -- acknowledged. Removes it from `rtx-segs`, advances `send-acked-off` across
+  -- contiguous acked prefixes, and transitions `DataSent -> DataRecvd`.
+  #[no-alloc]
+  quic-stream-mark-acked :: QuicStreamTable -> U32 -> U64 -> U32 -> U8 ->{MVar} Unit
+  quic-stream-mark-acked tbl slot offset len fin =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then ()
+    else if ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots)) then ()
+    else
+      let sb = slot-base base slot in
+      let end-off = wrapping-add-u64 offset (u32-to-u64 len) in
+      let _ = (if gt-u32 len 0 then
+        let _r = seg-remove-loop (wrapping-add-u64 sb s-off-rtx-segs) (wrapping-add-u64 sb s-off-rtx-cnt) 0 offset end-off in
+        let acked = raw-load-u64 (addr-at sb s-off-send-acked) in
+        if gt-u64 end-off acked then
+          let s = max-u64 offset acked in
+          let _i = seg-insert-merge (wrapping-add-u64 sb s-off-acked-segs) (wrapping-add-u64 sb s-off-acked-cnt) s end-off in
+          advance-send-acked sb
+        else ()
+      else ()) in
+      let _ = (if ne-u8 fin 0 then
+        let _0 = raw-store-u8 (addr-at sb s-off-fin-acked) 1 in
+        raw-store-u8 (addr-at sb s-off-fin-rtx) 0
+      else ()) in
+      -- Transition DataSent -> DataRecvd once all bytes up to fin-off and FIN are acked
+      let st = raw-load-u8 (addr-at sb s-off-send-st) in
+      let fin-acked = ne-u8 (raw-load-u8 (addr-at sb s-off-fin-acked)) 0 in
+      let fin-off = raw-load-u64 (addr-at sb s-off-send-fin-off) in
+      let acked2 = raw-load-u64 (addr-at sb s-off-send-acked) in
+      if both (eq-u8 st stream-send-data-sent) (both fin-acked (ge-u64 acked2 fin-off)) then
+        raw-store-u8 (addr-at sb s-off-send-st) stream-send-data-recvd
+      else ()
+
+  -- | Queue lost `STREAM` range `[offset, offset + len)` (and optional `fin`)
+  -- on `slot` for immediate retransmission.
+  #[no-alloc]
+  quic-stream-mark-lost :: QuicStreamTable -> U32 -> U64 -> U32 -> U8 ->{MVar} Unit
+  quic-stream-mark-lost tbl slot offset len fin =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then ()
+    else if ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots)) then ()
+    else
+      let sb = slot-base base slot in
+      let st = raw-load-u8 (addr-at sb s-off-send-st) in
+      if ge-u8 st stream-send-reset-sent then ()
+      else
+        let acked = raw-load-u64 (addr-at sb s-off-send-acked) in
+        let end-off = wrapping-add-u64 offset (u32-to-u64 len) in
+        let _ = (if gt-u64 end-off acked then
+          let s = max-u64 offset acked in
+          let _i = seg-insert-merge (wrapping-add-u64 sb s-off-rtx-segs) (wrapping-add-u64 sb s-off-rtx-cnt) s end-off in
+          ()
+        else ()) in
+        if both (ne-u8 fin 0) (eq-u8 (raw-load-u8 (addr-at sb s-off-fin-acked)) 0) then
+          raw-store-u8 (addr-at sb s-off-fin-rtx) 1
+        else ()
+
+  -- | Re-queue the oldest unacknowledged range on any active stream for a PTO probe
+  -- when `rtx-segs` is empty, preventing tail-loss stalls.
+  #[no-alloc]
+  requeue-probe-loop :: U64 -> U32 -> U32 ->{MVar} U8
+  requeue-probe-loop base i max-slots =
+    if ge-u32 i max-slots then 0
+    else
+      let sb = slot-base base i in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then
+        requeue-probe-loop base (wrapping-add-u32 i 1) max-slots
+      else
+        let st = raw-load-u8 (addr-at sb s-off-send-st) in
+        if ge-u8 st stream-send-reset-sent then
+          requeue-probe-loop base (wrapping-add-u32 i 1) max-slots
+        else
+          let acked = raw-load-u64 (addr-at sb s-off-send-acked) in
+          let sent = raw-load-u64 (addr-at sb s-off-send-sent) in
+          let need-fin = both (eq-u8 st stream-send-data-sent) (both (ne-u8 (raw-load-u8 (addr-at sb s-off-fin-sent)) 0) (eq-u8 (raw-load-u8 (addr-at sb s-off-fin-acked)) 0)) in
+          if gt-u64 sent acked then
+            let probe-end = min-u64 sent (wrapping-add-u64 acked 1024) in
+            let _0 = seg-insert-merge (wrapping-add-u64 sb s-off-rtx-segs) (wrapping-add-u64 sb s-off-rtx-cnt) acked probe-end in
+            let _1 = if need-fin then raw-store-u8 (addr-at sb s-off-fin-rtx) 1 else () in
+            1
+          else if need-fin then
+            let _ = raw-store-u8 (addr-at sb s-off-fin-rtx) 1 in
+            1
+          else requeue-probe-loop base (wrapping-add-u32 i 1) max-slots
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-stream-requeue-unacked-probe :: QuicStreamTable ->{MVar} U8
+  quic-stream-requeue-unacked-probe tbl =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then 0
+    else requeue-probe-loop base 0 (raw-load-u32 (addr-at base t-off-max-slots))
+
+  -- =========================================================================
+  -- 8. Flow-Control & Control-Frame Polling (#[no-alloc])
+  -- =========================================================================
+
+  #[no-alloc]
+  poll-slot-fc-loop :: U64 -> U32 -> U32 ->{MVar} QuicFlowCtrlUpdate
+  poll-slot-fc-loop base i max-slots =
+    if ge-u32 i max-slots then quic-flow-ctrl-none ()
+    else
+      let sb = slot-base base i in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then
+        poll-slot-fc-loop base (wrapping-add-u32 i 1) max-slots
+      else if ne-u8 (raw-load-u8 (addr-at sb s-off-reset-pend)) 0 then
+        let _ = raw-store-u8 (addr-at sb s-off-reset-pend) 0 in
+        QuicFlowCtrlUpdate (raw-load-u64 (addr-at sb s-off-id)) (raw-load-u64 (addr-at sb s-off-send-reset-err)) i fc-kind-reset-stream 0 0
+      else if ne-u8 (raw-load-u8 (addr-at sb s-off-fc-dirty)) 0 then
+        let _ = raw-store-u8 (addr-at sb s-off-fc-dirty) 0 in
+        QuicFlowCtrlUpdate (raw-load-u64 (addr-at sb s-off-id)) (raw-load-u64 (addr-at sb s-off-recv-max-data)) i fc-kind-max-stream-data 0 0
+      else poll-slot-fc-loop base (wrapping-add-u32 i 1) max-slots
+
+  -- | Poll the next pending `MAX_DATA`, `MAX_STREAM_DATA`, `MAX_STREAMS`, or
+  -- `RESET_STREAM` control update to emit.
+  #[no-alloc]
+  quic-stream-poll-flow-control :: QuicStreamTable ->{MVar} QuicFlowCtrlUpdate
+  quic-stream-poll-flow-control tbl =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then quic-flow-ctrl-none ()
+    else if ne-u8 (raw-load-u8 (addr-at base t-off-max-data-dirty)) 0 then
+      let _ = raw-store-u8 (addr-at base t-off-max-data-dirty) 0 in
+      QuicFlowCtrlUpdate 0 (raw-load-u64 (addr-at base t-off-conn-recv-max)) stream-slot-none fc-kind-max-data 0 0
+    else if ne-u8 (raw-load-u8 (addr-at base t-off-ms-bidi-dirty)) 0 then
+      let _ = raw-store-u8 (addr-at base t-off-ms-bidi-dirty) 0 in
+      QuicFlowCtrlUpdate 0 (raw-load-u64 (addr-at base t-off-local-ms-bidi)) stream-slot-none fc-kind-max-streams-bidi 0 0
+    else if ne-u8 (raw-load-u8 (addr-at base t-off-ms-uni-dirty)) 0 then
+      let _ = raw-store-u8 (addr-at base t-off-ms-uni-dirty) 0 in
+      QuicFlowCtrlUpdate 0 (raw-load-u64 (addr-at base t-off-local-ms-uni)) stream-slot-none fc-kind-max-streams-uni 0 0
+    else poll-slot-fc-loop base 0 (raw-load-u32 (addr-at base t-off-max-slots))
+
+  #[no-alloc]
+  quic-stream-mark-max-data-dirty :: QuicStreamTable ->{MVar} Unit
+  quic-stream-mark-max-data-dirty tbl =
+    if eq-u64 tbl.qst-base 0 then ()
+    else raw-store-u8 (addr-at tbl.qst-base t-off-max-data-dirty) 1
+
+  #[no-alloc]
+  quic-stream-mark-stream-fc-dirty :: QuicStreamTable -> U32 ->{MVar} Unit
+  quic-stream-mark-stream-fc-dirty tbl slot =
+    let base = tbl.qst-base in
+    if either (eq-u64 base 0) (ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots))) then ()
+    else raw-store-u8 (addr-at (slot-base base slot) s-off-fc-dirty) 1
+
+  #[no-alloc]
+  quic-stream-mark-reset-pending :: QuicStreamTable -> U32 ->{MVar} Unit
+  quic-stream-mark-reset-pending tbl slot =
+    let base = tbl.qst-base in
+    if either (eq-u64 base 0) (ge-u32 slot (raw-load-u32 (addr-at base t-off-max-slots))) then ()
+    else raw-store-u8 (addr-at (slot-base base slot) s-off-reset-pend) 1
+
+  #[no-alloc]
+  has-pending-tx-loop :: U64 -> U32 -> U32 ->{MVar} U8
+  has-pending-tx-loop base i max-slots =
+    if ge-u32 i max-slots then 0
+    else
+      let sb = slot-base base i in
+      if eq-u8 (raw-load-u8 (addr-at sb s-off-in-use)) 0 then
+        has-pending-tx-loop base (wrapping-add-u32 i 1) max-slots
+      else if either (ne-u8 (raw-load-u8 (addr-at sb s-off-reset-pend)) 0) (ne-u8 (raw-load-u8 (addr-at sb s-off-fc-dirty)) 0) then 1
+      else
+        let st = raw-load-u8 (addr-at sb s-off-send-st) in
+        if ge-u8 st stream-send-reset-sent then
+          has-pending-tx-loop base (wrapping-add-u32 i 1) max-slots
+        else if either (gt-u32 (raw-load-u32 (addr-at sb s-off-rtx-cnt)) 0) (ne-u8 (raw-load-u8 (addr-at sb s-off-fin-rtx)) 0) then 1
+        else
+          let sent-off = raw-load-u64 (addr-at sb s-off-send-sent) in
+          let write-off = raw-load-u64 (addr-at sb s-off-send-write) in
+          let smax = raw-load-u64 (addr-at sb s-off-send-max) in
+          let conn-sent = raw-load-u64 (addr-at base t-off-conn-send) in
+          let conn-max = raw-load-u64 (addr-at base t-off-conn-send-max) in
+          let can-fresh = both (gt-u64 write-off sent-off) (both (gt-u64 smax sent-off) (gt-u64 conn-max conn-sent)) in
+          let fin-off = raw-load-u64 (addr-at sb s-off-send-fin-off) in
+          let can-fin = both (eq-u8 st stream-send-data-sent) (both (eq-u8 (raw-load-u8 (addr-at sb s-off-fin-sent)) 0) (eq-u64 sent-off fin-off)) in
+          if either can-fresh can-fin then 1
+          else has-pending-tx-loop base (wrapping-add-u32 i 1) max-slots
+
+  #[inline(always)]
+  #[no-alloc]
+  quic-stream-has-pending-tx :: QuicStreamTable ->{MVar} U8
+  quic-stream-has-pending-tx tbl =
+    let base = tbl.qst-base in
+    if eq-u64 base 0 then 0
+    else if either (ne-u8 (raw-load-u8 (addr-at base t-off-max-data-dirty)) 0)
+      (either (ne-u8 (raw-load-u8 (addr-at base t-off-ms-bidi-dirty)) 0) (ne-u8 (raw-load-u8 (addr-at base t-off-ms-uni-dirty)) 0)) then 1
+    else has-pending-tx-loop base 0 (raw-load-u32 (addr-at base t-off-max-slots))
+
+  -- =========================================================================
+  -- 9. Accessors & Telemetry (#[no-alloc])
+  -- =========================================================================
+
+  #[inline(always)] #[no-alloc] quic-stream-active-count :: QuicStreamTable ->{MVar} U32
+  quic-stream-active-count tbl = raw-load-u32 (addr-at tbl.qst-base t-off-active)
+
+  #[inline(always)] #[no-alloc] quic-stream-id-at :: QuicStreamTable -> U32 ->{MVar} StreamId
+  quic-stream-id-at tbl slot = StreamId (raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-id))
+
+  #[inline(always)] #[no-alloc] quic-stream-send-state :: QuicStreamTable -> U32 ->{MVar} U8
+  quic-stream-send-state tbl slot = raw-load-u8 (addr-at (slot-base tbl.qst-base slot) s-off-send-st)
+
+  #[inline(always)] #[no-alloc] quic-stream-recv-state :: QuicStreamTable -> U32 ->{MVar} U8
+  quic-stream-recv-state tbl slot = raw-load-u8 (addr-at (slot-base tbl.qst-base slot) s-off-recv-st)
+
+  #[inline(always)] #[no-alloc] quic-stream-send-write-off :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-send-write-off tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-send-write)
+
+  #[inline(always)] #[no-alloc] quic-stream-send-sent-off :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-send-sent-off tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-send-sent)
+
+  #[inline(always)] #[no-alloc] quic-stream-send-acked-off :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-send-acked-off tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-send-acked)
+
+  #[inline(always)] #[no-alloc] quic-stream-send-max-data :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-send-max-data tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-send-max)
+
+  #[inline(always)] #[no-alloc] quic-stream-recv-read-off :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-recv-read-off tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-recv-read)
+
+  #[inline(always)] #[no-alloc] quic-stream-recv-contig-off :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-recv-contig-off tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-recv-contig)
+
+  #[inline(always)] #[no-alloc] quic-stream-recv-max-data :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-recv-max-data tbl slot = raw-load-u64 (addr-at (slot-base tbl.qst-base slot) s-off-recv-max-data)
+
+  #[inline(always)] #[no-alloc] quic-stream-readable-bytes :: QuicStreamTable -> U32 ->{MVar} U64
+  quic-stream-readable-bytes tbl slot =
+    let sb = slot-base tbl.qst-base slot in
+    saturating-sub-u64 (raw-load-u64 (addr-at sb s-off-recv-contig)) (raw-load-u64 (addr-at sb s-off-recv-read))
+
+  #[inline(always)] #[no-alloc] quic-stream-recv-fin-reached :: QuicStreamTable -> U32 ->{MVar} Bool
+  quic-stream-recv-fin-reached tbl slot =
+    let sb = slot-base tbl.qst-base slot in
+    let has-fin = ne-u8 (raw-load-u8 (addr-at sb s-off-has-recv-fin)) 0 in
+    let fin-off = raw-load-u64 (addr-at sb s-off-recv-fin-off) in
+    let read-off = raw-load-u64 (addr-at sb s-off-recv-read) in
+    both has-fin (ge-u64 read-off fin-off)
+
+  #[inline(always)] #[no-alloc] quic-stream-conn-send-data :: QuicStreamTable ->{MVar} U64
+  quic-stream-conn-send-data tbl = raw-load-u64 (addr-at tbl.qst-base t-off-conn-send)
+
+  #[inline(always)] #[no-alloc] quic-stream-conn-send-max-data :: QuicStreamTable ->{MVar} U64
+  quic-stream-conn-send-max-data tbl = raw-load-u64 (addr-at tbl.qst-base t-off-conn-send-max)
+
+  #[inline(always)] #[no-alloc] quic-stream-conn-recv-data :: QuicStreamTable ->{MVar} U64
+  quic-stream-conn-recv-data tbl = raw-load-u64 (addr-at tbl.qst-base t-off-conn-recv)
+
+  #[inline(always)] #[no-alloc] quic-stream-conn-recv-max-data :: QuicStreamTable ->{MVar} U64
+  quic-stream-conn-recv-max-data tbl = raw-load-u64 (addr-at tbl.qst-base t-off-conn-recv-max)
+
+  #[inline(always)] #[no-alloc] quic-stream-rtx-count :: QuicStreamTable -> U32 ->{MVar} U32
+  quic-stream-rtx-count tbl slot = raw-load-u32 (addr-at (slot-base tbl.qst-base slot) s-off-rtx-cnt)
+
+  #[inline(always)] #[no-alloc] quic-stream-recv-seg-count :: QuicStreamTable -> U32 ->{MVar} U32
+  quic-stream-recv-seg-count tbl slot = raw-load-u32 (addr-at (slot-base tbl.qst-base slot) s-off-recv-cnt)
