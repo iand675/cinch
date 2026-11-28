@@ -1519,6 +1519,22 @@
     {
       "name": "Net.Quic.Pacer",
       "path": "Net/Quic/Pacer.cinch"
+    },
+    {
+      "name": "Net.Http.V2.Frame",
+      "path": "Net/Http/V2/Frame.cinch"
+    },
+    {
+      "name": "Net.Http.V2.Stream",
+      "path": "Net/Http/V2/Stream.cinch"
+    },
+    {
+      "name": "Net.Http.V2.Conn",
+      "path": "Net/Http/V2/Conn.cinch"
+    },
+    {
+      "name": "Net.Http.V2.Spec",
+      "path": "Net/Http/V2/Spec.cinch"
     }
   ],
   "order": [
@@ -1900,6 +1916,10 @@
     "Net.Quic.AckMap",
     "Net.Quic.Recovery",
     "Net.Quic.Bbr",
-    "Net.Quic.Pacer"
+    "Net.Quic.Pacer",
+    "Net.Http.V2.Frame",
+    "Net.Http.V2.Stream",
+    "Net.Http.V2.Conn",
+    "Net.Http.V2.Spec"
   ]
 }

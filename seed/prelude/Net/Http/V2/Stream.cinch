@@ -1,0 +1,945 @@
+-- | RFC 9113 §5.1 Flat DMA-Backed HTTP/2 Stream Table & Flow-Control Engine.
+--
+-- Memory & performance contract:
+--   * `H2StreamTable` is a 24-byte `#[repr(C, value)]` POD handle backed by a
+--     single 4 KiB-aligned DMA slab (`engine-dma-alloc` / `engine-dma-free`).
+--   * Flat array of fixed 64-byte cache-line stream records + open-addressed
+--     linear-probing `U32 -> slot` hash index with Knuth Algorithm R
+--     backward-shift deletion (zero tombstones, O(1) lookup forever across
+--     millions of open/close cycles, zero heap allocation).
+--   * Signed `I64` per-stream send/recv flow-control windows supporting
+--     `SETTINGS_INITIAL_WINDOW_SIZE` decreases per RFC 9113 §6.9.2 while
+--     strictly rejecting overflow `> 0x7FFFFFFF` with `FLOW_CONTROL_ERROR`.
+--   * Stores RFC 9218 `StreamPriority` (`urgency`, `incremental`) and
+--     header/body/outbound-TX span metadata in each 64-byte slot.
+module Net.Http.V2.Stream where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Net.Http.Priority
+  import Net.Http.V2.Frame
+  import Prim.Atomic
+
+  -- Stream state codes & auto-niched enum (RFC 9113 §5.1)
+  export h2-st-idle, h2-st-open, h2-st-half-closed-local
+  export h2-st-half-closed-remote, h2-st-closed, h2-st-invalid
+  export H2StreamState, H2Idle, H2Open, H2HalfClosedLocal, H2HalfClosedRemote, H2Closed
+  export h2-stream-state-to-u8, h2-stream-state-from-u8, h2-stream-state-eq
+
+  -- Stream transition event codes & pure RFC 9113 §5.1 transition function
+  export h2-sev-recv-headers, h2-sev-recv-headers-es, h2-sev-recv-end-stream
+  export h2-sev-send-headers, h2-sev-send-headers-es, h2-sev-send-end-stream, h2-sev-rst
+  export h2-stream-transition
+
+  -- Stream flag bits
+  export h2-sflag-headers-recv, h2-sflag-end-stream-recv, h2-sflag-end-stream-sent
+  export h2-sflag-rst-recv, h2-sflag-sched-queued
+
+  -- Sentinel & table handle
+  export h2-slot-none, H2StreamTable
+  export h2-stream-table-empty, h2-stream-table-new, h2-stream-table-destroy
+  export h2-stream-table-valid, h2-stream-table-active-count, h2-stream-table-capacity
+  export h2-stream-table-total-opened, h2-stream-table-total-closed
+
+  -- O(1) #[no-alloc] open / lookup / close
+  export h2-stream-open, h2-stream-lookup, h2-stream-close
+
+  -- Per-slot accessors & mutators (`#[no-alloc]`)
+  export h2-stream-slot-id, h2-stream-slot-state, h2-stream-slot-set-state
+  export h2-stream-slot-flags, h2-stream-slot-set-flags
+  export h2-stream-slot-priority, h2-stream-slot-set-priority
+  export h2-stream-slot-send-window, h2-stream-slot-set-send-window
+  export h2-stream-slot-recv-window, h2-stream-slot-set-recv-window
+  export h2-stream-slot-recv-consumed, h2-stream-slot-set-recv-consumed
+  export h2-stream-slot-hdr-off, h2-stream-slot-hdr-len, h2-stream-slot-set-hdr-span
+  export h2-stream-slot-body-off, h2-stream-slot-body-len, h2-stream-slot-set-body-span
+  export h2-stream-slot-tx-addr, h2-stream-slot-tx-rem, h2-stream-slot-set-tx-pending
+  export h2-stream-slot-error, h2-stream-slot-set-error
+
+  -- RFC 9113 §6.9 Flow-Control Window Operations (`#[no-alloc]`)
+  export h2-stream-add-send-window, h2-stream-consume-send-window
+  export h2-stream-consume-recv-window, h2-stream-credit-recv-window
+  export h2-stream-adjust-all-send-windows
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] helpers & layout offsets
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-slot-none :: U32
+  h2-slot-none = 4294967295
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-max-window-i64 :: I64
+  h2-max-window-i64 = 2147483647
+
+  -- Stream states (`U8`)
+  #[inline(always)]
+  #[no-alloc]
+  h2-st-idle :: U8
+  h2-st-idle = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-st-open :: U8
+  h2-st-open = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-st-half-closed-local :: U8
+  h2-st-half-closed-local = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-st-half-closed-remote :: U8
+  h2-st-half-closed-remote = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-st-closed :: U8
+  h2-st-closed = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-st-invalid :: U8
+  h2-st-invalid = 255
+
+  -- | Auto-niched single-word RFC 9113 §5.1 stream state enum.
+  data H2StreamState where
+    H2Idle :: H2StreamState
+    H2Open :: H2StreamState
+    H2HalfClosedLocal :: H2StreamState
+    H2HalfClosedRemote :: H2StreamState
+    H2Closed :: H2StreamState
+
+  #[no-alloc]
+  h2-stream-state-to-u8 :: H2StreamState -> U8
+  h2-stream-state-to-u8 st = case st of
+    H2Idle -> h2-st-idle
+    H2Open -> h2-st-open
+    H2HalfClosedLocal -> h2-st-half-closed-local
+    H2HalfClosedRemote -> h2-st-half-closed-remote
+    H2Closed -> h2-st-closed
+
+  h2-stream-state-from-u8 :: U8 -> H2StreamState
+  h2-stream-state-from-u8 c =
+    if eq-u8 c 0 then H2Idle
+    else if eq-u8 c 1 then H2Open
+    else if eq-u8 c 2 then H2HalfClosedLocal
+    else if eq-u8 c 3 then H2HalfClosedRemote
+    else H2Closed
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-state-eq :: H2StreamState -> H2StreamState -> Bool
+  h2-stream-state-eq a b = eq-u8 (h2-stream-state-to-u8 a) (h2-stream-state-to-u8 b)
+
+  -- Transition event codes
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-recv-headers :: U8
+  h2-sev-recv-headers = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-recv-headers-es :: U8
+  h2-sev-recv-headers-es = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-recv-end-stream :: U8
+  h2-sev-recv-end-stream = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-send-headers :: U8
+  h2-sev-send-headers = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-send-headers-es :: U8
+  h2-sev-send-headers-es = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-send-end-stream :: U8
+  h2-sev-send-end-stream = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sev-rst :: U8
+  h2-sev-rst = 6
+
+  -- | Pure RFC 9113 §5.1 stream state transition table.
+  -- Returns the next state `U8` or `h2-st-invalid` (255) if illegal.
+  #[no-alloc]
+  h2-stream-transition :: U8 -> U8 -> U8
+  h2-stream-transition st ev =
+    if eq-u8 st h2-st-idle then
+      if eq-u8 ev h2-sev-recv-headers then h2-st-open
+      else if eq-u8 ev h2-sev-recv-headers-es then h2-st-half-closed-remote
+      else if eq-u8 ev h2-sev-send-headers then h2-st-open
+      else if eq-u8 ev h2-sev-send-headers-es then h2-st-half-closed-local
+      else h2-st-invalid
+    else if eq-u8 st h2-st-open then
+      if eq-u8 ev h2-sev-recv-end-stream then h2-st-half-closed-remote
+      else if eq-u8 ev h2-sev-send-end-stream then h2-st-half-closed-local
+      else if eq-u8 ev h2-sev-rst then h2-st-closed
+      else h2-st-invalid
+    else if eq-u8 st h2-st-half-closed-local then
+      if eq-u8 ev h2-sev-recv-end-stream then h2-st-closed
+      else if eq-u8 ev h2-sev-rst then h2-st-closed
+      else h2-st-invalid
+    else if eq-u8 st h2-st-half-closed-remote then
+      if eq-u8 ev h2-sev-send-end-stream then h2-st-closed
+      else if eq-u8 ev h2-sev-rst then h2-st-closed
+      else h2-st-invalid
+    else
+      -- Closed is strictly absorbing: no reopening!
+      h2-st-invalid
+
+  -- Stream slot flags
+  #[inline(always)]
+  #[no-alloc]
+  h2-sflag-headers-recv :: U8
+  h2-sflag-headers-recv = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sflag-end-stream-recv :: U8
+  h2-sflag-end-stream-recv = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sflag-end-stream-sent :: U8
+  h2-sflag-end-stream-sent = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sflag-rst-recv :: U8
+  h2-sflag-rst-recv = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-sflag-sched-queued :: U8
+  h2-sflag-sched-queued = 16
+
+  -- Header slab layout (64 bytes, cache line 0):
+  --   +0  : max-streams  :: U32
+  --   +4  : hash-cap     :: U32 (power-of-two >= 2 * max-streams)
+  --   +8  : hash-mask    :: U32 (hash-cap - 1)
+  --   +12 : active-count :: U32
+  --   +16 : free-head    :: U32
+  --   +20 : hash-off     :: U32
+  --   +24 : free-off     :: U32
+  --   +28 : slots-off    :: U32
+  --   +32 : total-opened :: U64
+  --   +40 : total-closed :: U64
+  --   +48 : slab-bytes   :: U64
+  --
+  -- Per-stream 64-byte slot layout:
+  --   +0  : stream-id        :: U32 (0 when free)
+  --   +4  : state            :: U8
+  --   +5  : prio-urgency     :: U8  (0..7, default 3)
+  --   +6  : prio-incremental :: U8  (0 or 1, default 0)
+  --   +7  : flags            :: U8
+  --   +8  : send-window      :: I64
+  --   +16 : recv-window      :: I64
+  --   +24 : recv-consumed    :: U32
+  --   +28 : error-code       :: U32
+  --   +32 : hdr-off          :: U32
+  --   +36 : hdr-len          :: U32
+  --   +40 : body-off         :: U32
+  --   +44 : body-len         :: U32
+  --   +48 : tx-addr          :: I64 (pointer to pending outbound body bytes)
+  --   +56 : tx-rem           :: U32 (remaining outbound body bytes)
+  --   +60 : reserved         :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-max-streams :: I64
+  st-off-max-streams = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-hash-cap :: I64
+  st-off-hash-cap = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-hash-mask :: I64
+  st-off-hash-mask = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-active-count :: I64
+  st-off-active-count = 12
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-free-head :: I64
+  st-off-free-head = 16
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-hash-off :: I64
+  st-off-hash-off = 20
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-free-off :: I64
+  st-off-free-off = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-slots-off :: I64
+  st-off-slots-off = 28
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-total-opened :: I64
+  st-off-total-opened = 32
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-total-closed :: I64
+  st-off-total-closed = 40
+
+  #[inline(always)]
+  #[no-alloc]
+  st-off-slab-bytes :: I64
+  st-off-slab-bytes = 48
+
+  -- =========================================================================
+  -- 1. H2StreamTable POD Handle & Allocation / Destruction
+  -- =========================================================================
+
+  -- | 24-byte POD handle to a flat DMA-backed HTTP/2 stream table.
+  #[repr(C, value)]
+  record H2StreamTable where
+    st-slab-addr :: U64
+    st-slab-bytes :: U64
+    st-max-streams :: U32
+    st-hash-cap :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-table-empty :: Unit -> H2StreamTable
+  h2-stream-table-empty _ = H2StreamTable 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-table-valid :: H2StreamTable -> Bool
+  h2-stream-table-valid tbl =
+    both (ne-u64 tbl.st-slab-addr 0) (gt-u32 tbl.st-max-streams 0)
+
+  #[no-alloc]
+  next-pow2-u32 :: U32 -> U32 -> U32
+  next-pow2-u32 goal cur =
+    if ge-u32 cur goal then cur
+    else if ge-u32 cur 1073741824 then 2147483648
+    else next-pow2-u32 goal (wrapping-shl-u32 cur 1)
+
+  #[inline(always)]
+  #[no-alloc]
+  align-up64 :: U64 -> U64 -> U64
+  align-up64 v align =
+    let mask = wrapping-sub-u64 align 1 in
+    bit-and-u64 (wrapping-add-u64 v mask) (bit-not-u64 mask)
+
+  #[inline(always)]
+  #[no-alloc]
+  bucket-addr :: I64 -> U32 -> U32 -> I64
+  bucket-addr base hash-off bidx =
+    wrapping-add-i64 (wrapping-add-i64 base (u32-to-i64 hash-off)) (wrapping-shl-i64 (u32-to-i64 bidx) 3)
+
+  #[inline(always)]
+  #[no-alloc]
+  free-addr :: I64 -> U32 -> U32 -> I64
+  free-addr base free-off slot =
+    wrapping-add-i64 (wrapping-add-i64 base (u32-to-i64 free-off)) (wrapping-shl-i64 (u32-to-i64 slot) 2)
+
+  #[inline(always)]
+  #[no-alloc]
+  slot-base :: I64 -> U32 -> U32 -> I64
+  slot-base base slots-off slot =
+    wrapping-add-i64 (wrapping-add-i64 base (u32-to-i64 slots-off)) (wrapping-shl-i64 (u32-to-i64 slot) 6)
+
+  #[inline(always)]
+  #[no-alloc]
+  hash-sid :: U32 -> U32 -> U32
+  hash-sid sid mask =
+    let x0 = bit-xor-u32 sid (wrapping-shr-u32 sid 16) in
+    let x1 = wrapping-mul-u32 x0 2654435761 in
+    bit-and-u32 (bit-xor-u32 x1 (wrapping-shr-u32 x1 16)) mask
+
+  #[no-alloc]
+  init-freelist :: I64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  init-freelist base free-off i cap =
+    if ge-u32 i cap then ()
+    else
+      let nxt = wrapping-add-u32 i 1 in
+      let v = if ge-u32 nxt cap then h2-slot-none else nxt in
+      let _ = raw-store-u32 (free-addr base free-off i) v in
+      init-freelist base free-off nxt cap
+
+  -- | Allocate a flat DMA-backed HTTP/2 stream table supporting up to
+  -- `max-streams` concurrent active streams (`1 .. 65536`).
+  -- Check validity with `h2-stream-table-valid`.
+  h2-stream-table-new :: U32 ->{IO, MVar} H2StreamTable
+  h2-stream-table-new max-streams =
+    if eq-u32 max-streams 0 then h2-stream-table-empty ()
+    else if gt-u32 max-streams 65536 then h2-stream-table-empty ()
+    else
+      let hash-cap = next-pow2-u32 (wrapping-shl-u32 max-streams 1) 16 in
+      let hash-off = 64 in
+      let hash-bytes = wrapping-shl-u64 (u32-to-u64 hash-cap) 3 in
+      let free-off-u64 = align-up64 (wrapping-add-u64 64 hash-bytes) 64 in
+      let free-bytes = wrapping-shl-u64 (u32-to-u64 max-streams) 2 in
+      let slots-off-u64 = align-up64 (wrapping-add-u64 free-off-u64 free-bytes) 64 in
+      let slots-bytes = wrapping-shl-u64 (u32-to-u64 max-streams) 6 in
+      let total-bytes = align-up64 (wrapping-add-u64 slots-off-u64 slots-bytes) 4096 in
+      let slab-u64 = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 slab-u64 0 then h2-stream-table-empty ()
+      else
+        let base = wrapping-u64-to-i64 slab-u64 in
+        let free-off = wrapping-u64-to-u32 free-off-u64 in
+        let slots-off = wrapping-u64-to-u32 slots-off-u64 in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-max-streams) max-streams in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-hash-cap) hash-cap in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-hash-mask) (wrapping-sub-u32 hash-cap 1) in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-active-count) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-free-head) 0 in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-hash-off) hash-off in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-free-off) free-off in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-slots-off) slots-off in
+        let _ = raw-store-u64 (wrapping-add-i64 base st-off-total-opened) 0 in
+        let _ = raw-store-u64 (wrapping-add-i64 base st-off-total-closed) 0 in
+        let _ = raw-store-u64 (wrapping-add-i64 base st-off-slab-bytes) total-bytes in
+        let _ = init-freelist base free-off 0 max-streams in
+        H2StreamTable slab-u64 total-bytes max-streams hash-cap
+
+  -- | Destroy and unmap the DMA slab backing `tbl`.
+  h2-stream-table-destroy :: H2StreamTable ->{IO, MVar} Unit
+  h2-stream-table-destroy tbl =
+    if eq-u64 tbl.st-slab-addr 0 then ()
+    else
+      let _ = engine-dma-free tbl.st-slab-addr tbl.st-slab-bytes in
+      ()
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-table-active-count :: H2StreamTable ->{MVar} U32
+  h2-stream-table-active-count tbl =
+    if h2-stream-table-valid tbl then
+      raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.st-slab-addr) st-off-active-count)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-table-capacity :: H2StreamTable -> U32
+  h2-stream-table-capacity tbl = tbl.st-max-streams
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-table-total-opened :: H2StreamTable ->{MVar} U64
+  h2-stream-table-total-opened tbl =
+    if h2-stream-table-valid tbl then
+      raw-load-u64 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.st-slab-addr) st-off-total-opened)
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-table-total-closed :: H2StreamTable ->{MVar} U64
+  h2-stream-table-total-closed tbl =
+    if h2-stream-table-valid tbl then
+      raw-load-u64 (wrapping-add-i64 (wrapping-u64-to-i64 tbl.st-slab-addr) st-off-total-closed)
+    else 0
+
+  -- =========================================================================
+  -- 2. Open-Addressed Hash Index with Backward-Shift Deletion (Zero Tombstones)
+  -- =========================================================================
+
+  #[no-alloc]
+  hash-lookup-loop :: I64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  hash-lookup-loop base hash-off mask sid idx steps =
+    if gt-u32 steps mask then h2-slot-none
+    else
+      let ba = bucket-addr base hash-off idx in
+      let k = raw-load-u32 ba in
+      if eq-u32 k 0 then h2-slot-none
+      else if eq-u32 k sid then raw-load-u32 (wrapping-add-i64 ba 4)
+      else hash-lookup-loop base hash-off mask sid (bit-and-u32 (wrapping-add-u32 idx 1) mask) (wrapping-add-u32 steps 1)
+
+  #[no-alloc]
+  hash-insert-loop :: I64 -> U32 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} Bool
+  hash-insert-loop base hash-off mask sid slot idx steps =
+    if gt-u32 steps mask then b-false
+    else
+      let ba = bucket-addr base hash-off idx in
+      let k = raw-load-u32 ba in
+      if eq-u32 k 0 then
+        let _ = raw-store-u32 ba sid in
+        let _ = raw-store-u32 (wrapping-add-i64 ba 4) slot in
+        b-true
+      else if eq-u32 k sid then
+        let _ = raw-store-u32 (wrapping-add-i64 ba 4) slot in
+        b-true
+      else hash-insert-loop base hash-off mask sid slot (bit-and-u32 (wrapping-add-u32 idx 1) mask) (wrapping-add-u32 steps 1)
+
+  -- Knuth Algorithm R backward-shift deletion: preserves probe chains with 0 tombstones.
+  #[no-alloc]
+  hash-backshift-loop :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} Unit
+  hash-backshift-loop base hash-off mask hole cur =
+    let ba = bucket-addr base hash-off cur in
+    let k = raw-load-u32 ba in
+    if eq-u32 k 0 then
+      let ha = bucket-addr base hash-off hole in
+      let _ = raw-store-u32 ha 0 in
+      raw-store-u32 (wrapping-add-i64 ha 4) h2-slot-none
+    else
+      let home = hash-sid k mask in
+      let d-hole = bit-and-u32 (wrapping-sub-u32 hole home) mask in
+      let d-cur = bit-and-u32 (wrapping-sub-u32 cur home) mask in
+      let nxt = bit-and-u32 (wrapping-add-u32 cur 1) mask in
+      if lt-u32 d-hole d-cur then
+        let slot = raw-load-u32 (wrapping-add-i64 ba 4) in
+        let ha = bucket-addr base hash-off hole in
+        let _ = raw-store-u32 ha k in
+        let _ = raw-store-u32 (wrapping-add-i64 ha 4) slot in
+        hash-backshift-loop base hash-off mask cur nxt
+      else
+        hash-backshift-loop base hash-off mask hole nxt
+
+  #[no-alloc]
+  hash-delete-find :: I64 -> U32 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  hash-delete-find base hash-off mask sid idx steps =
+    if gt-u32 steps mask then h2-slot-none
+    else
+      let ba = bucket-addr base hash-off idx in
+      let k = raw-load-u32 ba in
+      if eq-u32 k 0 then h2-slot-none
+      else if eq-u32 k sid then
+        let slot = raw-load-u32 (wrapping-add-i64 ba 4) in
+        let nxt = bit-and-u32 (wrapping-add-u32 idx 1) mask in
+        let _ = hash-backshift-loop base hash-off mask idx nxt in
+        slot
+      else hash-delete-find base hash-off mask sid (bit-and-u32 (wrapping-add-u32 idx 1) mask) (wrapping-add-u32 steps 1)
+
+  -- | O(1) lookup of active stream `sid`, returning its slot index `0..cap-1`
+  -- or `h2-slot-none` if not currently active (`#[no-alloc]`).
+  #[no-alloc]
+  h2-stream-lookup :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-lookup tbl sid =
+    if eq-u32 sid 0 then h2-slot-none
+    else if h2-stream-table-valid tbl then
+      let base = wrapping-u64-to-i64 tbl.st-slab-addr in
+      let hash-off = raw-load-u32 (wrapping-add-i64 base st-off-hash-off) in
+      let mask = raw-load-u32 (wrapping-add-i64 base st-off-hash-mask) in
+      let start = hash-sid sid mask in
+      hash-lookup-loop base hash-off mask sid start 0
+    else h2-slot-none
+
+  -- | Open a new stream `sid` in O(1) with zero heap allocation, initialized
+  -- to `H2Open` with `send-win`, `recv-win`, and default RFC 9218 priority
+  -- (`u=3, i=?0`). Returns slot index `0..cap-1`, or `h2-slot-none` if full,
+  -- `sid == 0`, or already active.
+  #[no-alloc]
+  h2-stream-open :: H2StreamTable -> U32 -> I64 -> I64 ->{MVar} U32
+  h2-stream-open tbl sid send-win recv-win =
+    if eq-u32 sid 0 then h2-slot-none
+    else if h2-stream-table-valid tbl then
+      let base = wrapping-u64-to-i64 tbl.st-slab-addr in
+      let hash-off = raw-load-u32 (wrapping-add-i64 base st-off-hash-off) in
+      let mask = raw-load-u32 (wrapping-add-i64 base st-off-hash-mask) in
+      let existing = hash-lookup-loop base hash-off mask sid (hash-sid sid mask) 0 in
+      if ne-u32 existing h2-slot-none then h2-slot-none
+      else
+        let slot = raw-load-u32 (wrapping-add-i64 base st-off-free-head) in
+        if ge-u32 slot tbl.st-max-streams then h2-slot-none
+        else
+          let free-off = raw-load-u32 (wrapping-add-i64 base st-off-free-off) in
+          let slots-off = raw-load-u32 (wrapping-add-i64 base st-off-slots-off) in
+          let next-free = raw-load-u32 (free-addr base free-off slot) in
+          let ok = hash-insert-loop base hash-off mask sid slot (hash-sid sid mask) 0 in
+          if ok then
+            let _ = raw-store-u32 (wrapping-add-i64 base st-off-free-head) next-free in
+            let act = raw-load-u32 (wrapping-add-i64 base st-off-active-count) in
+            let _ = raw-store-u32 (wrapping-add-i64 base st-off-active-count) (wrapping-add-u32 act 1) in
+            let opened = raw-load-u64 (wrapping-add-i64 base st-off-total-opened) in
+            let _ = raw-store-u64 (wrapping-add-i64 base st-off-total-opened) (wrapping-add-u64 opened 1) in
+            let sb = slot-base base slots-off slot in
+            let _ = raw-store-u32 sb sid in
+            let _ = raw-store-u8 (wrapping-add-i64 sb 4) h2-st-open in
+            let _ = raw-store-u8 (wrapping-add-i64 sb 5) 3 in
+            let _ = raw-store-u8 (wrapping-add-i64 sb 6) 0 in
+            let _ = raw-store-u8 (wrapping-add-i64 sb 7) 0 in
+            let _ = raw-store-i64 (wrapping-add-i64 sb 8) send-win in
+            let _ = raw-store-i64 (wrapping-add-i64 sb 16) recv-win in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 24) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 28) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 32) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 36) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 40) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 44) 0 in
+            let _ = raw-store-i64 (wrapping-add-i64 sb 48) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 56) 0 in
+            let _ = raw-store-u32 (wrapping-add-i64 sb 60) 0 in
+            slot
+          else h2-slot-none
+    else h2-slot-none
+
+  -- | Close and reclaim active stream `sid` in O(1) (`#[no-alloc]`), removing
+  -- it from the hash index via backward-shift deletion and pushing its slot
+  -- back onto the intrusive freelist.
+  #[no-alloc]
+  h2-stream-close :: H2StreamTable -> U32 ->{MVar} Bool
+  h2-stream-close tbl sid =
+    if eq-u32 sid 0 then b-false
+    else if h2-stream-table-valid tbl then
+      let base = wrapping-u64-to-i64 tbl.st-slab-addr in
+      let hash-off = raw-load-u32 (wrapping-add-i64 base st-off-hash-off) in
+      let mask = raw-load-u32 (wrapping-add-i64 base st-off-hash-mask) in
+      let slot = hash-delete-find base hash-off mask sid (hash-sid sid mask) 0 in
+      if eq-u32 slot h2-slot-none then b-false
+      else
+        let free-off = raw-load-u32 (wrapping-add-i64 base st-off-free-off) in
+        let slots-off = raw-load-u32 (wrapping-add-i64 base st-off-slots-off) in
+        let sb = slot-base base slots-off slot in
+        let _ = raw-store-u32 sb 0 in
+        let _ = raw-store-u8 (wrapping-add-i64 sb 4) h2-st-closed in
+        let old-head = raw-load-u32 (wrapping-add-i64 base st-off-free-head) in
+        let _ = raw-store-u32 (free-addr base free-off slot) old-head in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-free-head) slot in
+        let act = raw-load-u32 (wrapping-add-i64 base st-off-active-count) in
+        let _ = raw-store-u32 (wrapping-add-i64 base st-off-active-count) (saturating-sub-u32 act 1) in
+        let closed = raw-load-u64 (wrapping-add-i64 base st-off-total-closed) in
+        let _ = raw-store-u64 (wrapping-add-i64 base st-off-total-closed) (wrapping-add-u64 closed 1) in
+        b-true
+    else b-false
+
+  -- =========================================================================
+  -- 3. Per-Slot Field Accessors & Mutators (`#[no-alloc]`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  slot-ptr :: H2StreamTable -> U32 ->{MVar} I64
+  slot-ptr tbl slot =
+    if both (h2-stream-table-valid tbl) (lt-u32 slot tbl.st-max-streams) then
+      let base = wrapping-u64-to-i64 tbl.st-slab-addr in
+      let slots-off = raw-load-u32 (wrapping-add-i64 base st-off-slots-off) in
+      slot-base base slots-off slot
+    else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-id :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-id tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 sb
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-state :: H2StreamTable -> U32 ->{MVar} U8
+  h2-stream-slot-state tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then h2-st-closed else raw-load-u8 (wrapping-add-i64 sb 4)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-state :: H2StreamTable -> U32 -> U8 ->{MVar} Unit
+  h2-stream-slot-set-state tbl slot st =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then () else raw-store-u8 (wrapping-add-i64 sb 4) st
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-flags :: H2StreamTable -> U32 ->{MVar} U8
+  h2-stream-slot-flags tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u8 (wrapping-add-i64 sb 7)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-flags :: H2StreamTable -> U32 -> U8 ->{MVar} Unit
+  h2-stream-slot-set-flags tbl slot fl =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then () else raw-store-u8 (wrapping-add-i64 sb 7) fl
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-priority :: H2StreamTable -> U32 ->{MVar} StreamPriority
+  h2-stream-slot-priority tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then stream-priority-default ()
+    else
+      let u = raw-load-u8 (wrapping-add-i64 sb 5) in
+      let i = raw-load-u8 (wrapping-add-i64 sb 6) in
+      stream-priority-make-raw u i
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-priority :: H2StreamTable -> U32 -> StreamPriority ->{MVar} Unit
+  h2-stream-slot-set-priority tbl slot p =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then ()
+    else
+      let _ = raw-store-u8 (wrapping-add-i64 sb 5) p.prio-urgency in
+      raw-store-u8 (wrapping-add-i64 sb 6) p.prio-incremental
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-send-window :: H2StreamTable -> U32 ->{MVar} I64
+  h2-stream-slot-send-window tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-i64 (wrapping-add-i64 sb 8)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-send-window :: H2StreamTable -> U32 -> I64 ->{MVar} Unit
+  h2-stream-slot-set-send-window tbl slot win =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then () else raw-store-i64 (wrapping-add-i64 sb 8) win
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-recv-window :: H2StreamTable -> U32 ->{MVar} I64
+  h2-stream-slot-recv-window tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-i64 (wrapping-add-i64 sb 16)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-recv-window :: H2StreamTable -> U32 -> I64 ->{MVar} Unit
+  h2-stream-slot-set-recv-window tbl slot win =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then () else raw-store-i64 (wrapping-add-i64 sb 16) win
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-recv-consumed :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-recv-consumed tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 24)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-recv-consumed :: H2StreamTable -> U32 -> U32 ->{MVar} Unit
+  h2-stream-slot-set-recv-consumed tbl slot c =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then () else raw-store-u32 (wrapping-add-i64 sb 24) c
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-error :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-error tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 28)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-error :: H2StreamTable -> U32 -> U32 ->{MVar} Unit
+  h2-stream-slot-set-error tbl slot err =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then () else raw-store-u32 (wrapping-add-i64 sb 28) err
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-hdr-off :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-hdr-off tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-hdr-len :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-hdr-len tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 36)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-hdr-span :: H2StreamTable -> U32 -> U32 -> U32 ->{MVar} Unit
+  h2-stream-slot-set-hdr-span tbl slot off len =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then ()
+    else
+      let _ = raw-store-u32 (wrapping-add-i64 sb 32) off in
+      raw-store-u32 (wrapping-add-i64 sb 36) len
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-body-off :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-body-off tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 40)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-body-len :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-body-len tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 44)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-body-span :: H2StreamTable -> U32 -> U32 -> U32 ->{MVar} Unit
+  h2-stream-slot-set-body-span tbl slot off len =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then ()
+    else
+      let _ = raw-store-u32 (wrapping-add-i64 sb 40) off in
+      raw-store-u32 (wrapping-add-i64 sb 44) len
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-tx-addr :: H2StreamTable -> U32 ->{MVar} I64
+  h2-stream-slot-tx-addr tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-i64 (wrapping-add-i64 sb 48)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-tx-rem :: H2StreamTable -> U32 ->{MVar} U32
+  h2-stream-slot-tx-rem tbl slot =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then 0 else raw-load-u32 (wrapping-add-i64 sb 56)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-slot-set-tx-pending :: H2StreamTable -> U32 -> I64 -> U32 ->{MVar} Unit
+  h2-stream-slot-set-tx-pending tbl slot addr rem =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then ()
+    else
+      let _ = raw-store-i64 (wrapping-add-i64 sb 48) addr in
+      raw-store-u32 (wrapping-add-i64 sb 56) rem
+
+  -- =========================================================================
+  -- 4. RFC 9113 §6.9 Flow-Control Window Operations (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- | Apply a `WINDOW_UPDATE` increment to stream `slot`'s send window.
+  -- Rejects `inc == 0` with `PROTOCOL_ERROR` and overflow `> 0x7FFFFFFF`
+  -- with `FLOW_CONTROL_ERROR`.
+  #[no-alloc]
+  h2-stream-add-send-window :: H2StreamTable -> U32 -> U32 ->{MVar} U32
+  h2-stream-add-send-window tbl slot inc =
+    if eq-u32 inc 0 then h2-err-protocol-error
+    else
+      let sb = slot-ptr tbl slot in
+      if eq-i64 sb 0 then h2-err-stream-closed
+      else
+        let cur = raw-load-i64 (wrapping-add-i64 sb 8) in
+        let next = wrapping-add-i64 cur (u32-to-i64 inc) in
+        if gt-i64 next h2-max-window-i64 then h2-err-flow-control-error
+        else
+          let _ = raw-store-i64 (wrapping-add-i64 sb 8) next in
+          h2-err-no-error
+
+  -- | Consume `bytes` from stream `slot`'s send window before transmitting DATA.
+  -- Returns `FLOW_CONTROL_ERROR` if `send-window < bytes`.
+  #[no-alloc]
+  h2-stream-consume-send-window :: H2StreamTable -> U32 -> U32 ->{MVar} U32
+  h2-stream-consume-send-window tbl slot bytes =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then h2-err-stream-closed
+    else
+      let cur = raw-load-i64 (wrapping-add-i64 sb 8) in
+      let need = u32-to-i64 bytes in
+      if lt-i64 cur need then h2-err-flow-control-error
+      else
+        let _ = raw-store-i64 (wrapping-add-i64 sb 8) (wrapping-sub-i64 cur need) in
+        h2-err-no-error
+
+  -- | Consume `bytes` from stream `slot`'s recv window upon receiving DATA,
+  -- accumulating `recv-consumed` for `WINDOW_UPDATE` auto-tuning.
+  -- Returns `FLOW_CONTROL_ERROR` if `bytes > recv-window`.
+  #[no-alloc]
+  h2-stream-consume-recv-window :: H2StreamTable -> U32 -> U32 ->{MVar} U32
+  h2-stream-consume-recv-window tbl slot bytes =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then h2-err-stream-closed
+    else
+      let cur = raw-load-i64 (wrapping-add-i64 sb 16) in
+      let need = u32-to-i64 bytes in
+      if lt-i64 cur need then h2-err-flow-control-error
+      else
+        let _ = raw-store-i64 (wrapping-add-i64 sb 16) (wrapping-sub-i64 cur need) in
+        let cons = raw-load-u32 (wrapping-add-i64 sb 24) in
+        let _ = raw-store-u32 (wrapping-add-i64 sb 24) (wrapping-add-u32 cons bytes) in
+        h2-err-no-error
+
+  -- | Replenish stream `slot`'s recv window after emitting `WINDOW_UPDATE` and
+  -- reset its `recv-consumed` counter.
+  #[no-alloc]
+  h2-stream-credit-recv-window :: H2StreamTable -> U32 -> U32 ->{MVar} U32
+  h2-stream-credit-recv-window tbl slot inc =
+    let sb = slot-ptr tbl slot in
+    if eq-i64 sb 0 then h2-err-stream-closed
+    else
+      let cur = raw-load-i64 (wrapping-add-i64 sb 16) in
+      let next = wrapping-add-i64 cur (u32-to-i64 inc) in
+      if gt-i64 next h2-max-window-i64 then h2-err-flow-control-error
+      else
+        let _ = raw-store-i64 (wrapping-add-i64 sb 16) next in
+        let _ = raw-store-u32 (wrapping-add-i64 sb 24) 0 in
+        h2-err-no-error
+
+  -- Apply `delta` (`new_initial - old_initial`) to every active stream's send
+  -- window per RFC 9113 §6.9.2. Rejects any resulting window `> 0x7FFFFFFF`
+  -- with `h2-err-flow-control-error`. Signed `I64` permits temporary negative
+  -- send windows when `SETTINGS_INITIAL_WINDOW_SIZE` decreases.
+  #[no-alloc]
+  adjust-all-loop :: I64 -> U32 -> U32 -> U32 -> I64 ->{MVar} U32
+  adjust-all-loop base slots-off i cap delta =
+    if ge-u32 i cap then h2-err-no-error
+    else
+      let sb = slot-base base slots-off i in
+      let sid = raw-load-u32 sb in
+      if eq-u32 sid 0 then
+        adjust-all-loop base slots-off (wrapping-add-u32 i 1) cap delta
+      else
+        let st = raw-load-u8 (wrapping-add-i64 sb 4) in
+        if both (ne-u8 st h2-st-open) (ne-u8 st h2-st-half-closed-remote) then
+          adjust-all-loop base slots-off (wrapping-add-u32 i 1) cap delta
+        else
+          let cur = raw-load-i64 (wrapping-add-i64 sb 8) in
+          let next = wrapping-add-i64 cur delta in
+          if gt-i64 next h2-max-window-i64 then h2-err-flow-control-error
+          else
+            let _ = raw-store-i64 (wrapping-add-i64 sb 8) next in
+            adjust-all-loop base slots-off (wrapping-add-u32 i 1) cap delta
+
+  -- | Adjust all active streams' send windows by `delta` upon receiving a new
+  -- peer `SETTINGS_INITIAL_WINDOW_SIZE` (RFC 9113 §6.9.2).
+  #[no-alloc]
+  h2-stream-adjust-all-send-windows :: H2StreamTable -> I64 ->{MVar} U32
+  h2-stream-adjust-all-send-windows tbl delta =
+    if h2-stream-table-valid tbl then
+      if eq-i64 delta 0 then h2-err-no-error
+      else
+        let base = wrapping-u64-to-i64 tbl.st-slab-addr in
+        let slots-off = raw-load-u32 (wrapping-add-i64 base st-off-slots-off) in
+        adjust-all-loop base slots-off 0 tbl.st-max-streams delta
+    else h2-err-internal-error

@@ -1,0 +1,764 @@
+-- | RFC 9113 HTTP/2 Binary Framing Layer (`#[no-alloc]`).
+--
+-- Provides:
+--   * Zero-allocation 9-byte RFC 9113 frame header encoder/decoder
+--     (`H2FrameHeader`: 24-bit `length`, 8-bit `frame_type`, 8-bit `flags`,
+--     31-bit `stream_id` with reserved bit masked on read and cleared on write).
+--   * Zero-copy 9-byte headroom DMA framing (`h2-frame-write-headroom`) writing
+--     the 9-byte HTTP/2 frame header directly ahead of payload in a `DmaSlice`.
+--   * Complete RFC 9113 & RFC 9218 frame type, flag, SETTINGS identifier, and
+--     error code vocabularies (`NO_ERROR = 0x0` .. `HTTP_1_1_REQUIRED = 0xd`).
+--   * 24-byte HTTP/2 client connection preface (`PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n`)
+--     word-parallel DMA validator and writer.
+--   * Strict RFC 9113 frame-size, stream-id=0, and PADDED payload validation,
+--     plus zero-alloc control frame writers (`SETTINGS`, `PING`, `GOAWAY`,
+--     `RST_STREAM`, `WINDOW_UPDATE`).
+module Net.Http.V2.Frame where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Engine.Mem.DmaPool
+  import Prim.Atomic
+
+  -- Constants & protocol defaults
+  export h2-frame-header-len, h2-client-preface-len
+  export h2-default-max-frame-size, h2-max-allowed-frame-size
+  export h2-default-initial-window-size, h2-max-window-size
+  export h2-default-header-table-size, h2-stream-id-mask
+
+  -- Frame types (RFC 9113 §6 & RFC 9218 §7)
+  export h2-frame-data, h2-frame-headers, h2-frame-priority, h2-frame-rst-stream
+  export h2-frame-settings, h2-frame-push-promise, h2-frame-ping, h2-frame-goaway
+  export h2-frame-window-update, h2-frame-continuation, h2-frame-priority-update
+
+  -- Frame flags
+  export h2-flag-none, h2-flag-end-stream, h2-flag-ack
+  export h2-flag-end-headers, h2-flag-padded, h2-flag-priority
+
+  -- RFC 9113 §7 error codes (`0x0` .. `0xd`)
+  export h2-err-no-error, h2-err-protocol-error, h2-err-internal-error
+  export h2-err-flow-control-error, h2-err-settings-timeout, h2-err-stream-closed
+  export h2-err-frame-size-error, h2-err-refused-stream, h2-err-cancel
+  export h2-err-compression-error, h2-err-connect-error, h2-err-enhance-your-calm
+  export h2-err-inadequate-security, h2-err-http11-required
+
+  -- RFC 9113 §6.5.2 & RFC 8441 SETTINGS identifiers
+  export h2-setting-header-table-size, h2-setting-enable-push
+  export h2-setting-max-concurrent-streams, h2-setting-initial-window-size
+  export h2-setting-max-frame-size, h2-setting-max-header-list-size
+  export h2-setting-enable-connect-protocol
+
+  -- Client preface match results
+  export h2-preface-need-more, h2-preface-ok, h2-preface-mismatch
+
+  -- POD records
+  export H2FrameHeader, h2-frame-header-empty, h2-frame-header-make, h2-frame-header-eq
+  export H2PayloadBounds, h2-payload-bounds-empty
+
+  -- Big-endian DMA scalar helpers
+  export h2-read-be16, h2-read-be24, h2-read-be32
+  export h2-write-be16, h2-write-be24, h2-write-be32
+
+  -- Preface, header codec, zero-copy headroom framing, and validation
+  export h2-preface-write-dma, h2-preface-match-dma
+  export h2-frame-read-header-dma, h2-frame-write-header-dma
+  export h2-frame-write-headroom, h2-frame-write-headroom-raw
+  export h2-frame-validate-header, h2-frame-strip-padding-dma
+
+  -- Control frame writers (`#[no-alloc]`)
+  export h2-write-settings-ack-dma, h2-write-settings-entry-dma
+  export h2-write-ping-dma, h2-write-goaway-dma
+  export h2-write-rst-stream-dma, h2-write-window-update-dma
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] boolean & packing helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le4 :: U8 -> U8 -> U8 -> U8 -> U32
+  pack-le4 c0 c1 c2 c3 =
+    bit-or-u32
+      (bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8))
+      (bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24))
+
+  #[inline(always)]
+  #[no-alloc]
+  pack-le8 :: U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U8 -> U64
+  pack-le8 c0 c1 c2 c3 c4 c5 c6 c7 =
+    let lo = u32-to-u64 (pack-le4 c0 c1 c2 c3) in
+    let hi = u32-to-u64 (pack-le4 c4 c5 c6 c7) in
+    bit-or-u64 lo (wrapping-shl-u64 hi 32)
+
+  -- =========================================================================
+  -- 1. RFC 9113 Constants, Frame Types, Flags, Error Codes, SETTINGS IDs
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-header-len :: U32
+  h2-frame-header-len = 9
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-client-preface-len :: U32
+  h2-client-preface-len = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-default-max-frame-size :: U32
+  h2-default-max-frame-size = 16384
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-max-allowed-frame-size :: U32
+  h2-max-allowed-frame-size = 16777215
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-default-initial-window-size :: U32
+  h2-default-initial-window-size = 65535
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-max-window-size :: U32
+  h2-max-window-size = 2147483647
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-default-header-table-size :: U32
+  h2-default-header-table-size = 4096
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-stream-id-mask :: U32
+  h2-stream-id-mask = 2147483647
+
+  -- Frame types
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-data :: U8
+  h2-frame-data = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-headers :: U8
+  h2-frame-headers = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-priority :: U8
+  h2-frame-priority = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-rst-stream :: U8
+  h2-frame-rst-stream = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-settings :: U8
+  h2-frame-settings = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-push-promise :: U8
+  h2-frame-push-promise = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-ping :: U8
+  h2-frame-ping = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-goaway :: U8
+  h2-frame-goaway = 7
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-window-update :: U8
+  h2-frame-window-update = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-continuation :: U8
+  h2-frame-continuation = 9
+
+  -- RFC 9218 §7.1 PRIORITY_UPDATE frame (`0x10`)
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-priority-update :: U8
+  h2-frame-priority-update = 16
+
+  -- Frame flags
+  #[inline(always)]
+  #[no-alloc]
+  h2-flag-none :: U8
+  h2-flag-none = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-flag-end-stream :: U8
+  h2-flag-end-stream = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-flag-ack :: U8
+  h2-flag-ack = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-flag-end-headers :: U8
+  h2-flag-end-headers = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-flag-padded :: U8
+  h2-flag-padded = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-flag-priority :: U8
+  h2-flag-priority = 32
+
+  -- RFC 9113 §7 Error Codes (`0x0` .. `0xd`)
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-no-error :: U32
+  h2-err-no-error = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-protocol-error :: U32
+  h2-err-protocol-error = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-internal-error :: U32
+  h2-err-internal-error = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-flow-control-error :: U32
+  h2-err-flow-control-error = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-settings-timeout :: U32
+  h2-err-settings-timeout = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-stream-closed :: U32
+  h2-err-stream-closed = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-frame-size-error :: U32
+  h2-err-frame-size-error = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-refused-stream :: U32
+  h2-err-refused-stream = 7
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-cancel :: U32
+  h2-err-cancel = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-compression-error :: U32
+  h2-err-compression-error = 9
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-connect-error :: U32
+  h2-err-connect-error = 10
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-enhance-your-calm :: U32
+  h2-err-enhance-your-calm = 11
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-inadequate-security :: U32
+  h2-err-inadequate-security = 12
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-err-http11-required :: U32
+  h2-err-http11-required = 13
+
+  -- SETTINGS parameter identifiers (RFC 9113 §6.5.2 & RFC 8441)
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-header-table-size :: U16
+  h2-setting-header-table-size = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-enable-push :: U16
+  h2-setting-enable-push = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-max-concurrent-streams :: U16
+  h2-setting-max-concurrent-streams = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-initial-window-size :: U16
+  h2-setting-initial-window-size = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-max-frame-size :: U16
+  h2-setting-max-frame-size = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-max-header-list-size :: U16
+  h2-setting-max-header-list-size = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-setting-enable-connect-protocol :: U16
+  h2-setting-enable-connect-protocol = 8
+
+  -- Preface match status codes
+  #[inline(always)]
+  #[no-alloc]
+  h2-preface-need-more :: U8
+  h2-preface-need-more = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-preface-ok :: U8
+  h2-preface-ok = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-preface-mismatch :: U8
+  h2-preface-mismatch = 2
+
+  -- =========================================================================
+  -- 2. POD Records (`H2FrameHeader` 12B, `H2PayloadBounds` 16B)
+  -- =========================================================================
+
+  -- | Decoded 9-byte RFC 9113 frame header (12-byte POD).
+  -- `fh-length` is 24-bit (`0..16777215`); `fh-stream-id` is 31-bit with R=0.
+  #[repr(C, value)]
+  record H2FrameHeader where
+    fh-length :: U32
+    fh-type :: U8
+    fh-flags :: U8
+    fh-pad :: U16
+    fh-stream-id :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-header-empty :: Unit -> H2FrameHeader
+  h2-frame-header-empty _ = H2FrameHeader 0 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-header-make :: U32 -> U8 -> U8 -> U32 -> H2FrameHeader
+  h2-frame-header-make len ftype flags sid =
+    H2FrameHeader
+      (bit-and-u32 len h2-max-allowed-frame-size)
+      ftype
+      flags
+      0
+      (bit-and-u32 sid h2-stream-id-mask)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-header-eq :: H2FrameHeader -> H2FrameHeader -> Bool
+  h2-frame-header-eq a b =
+    both
+      (both (eq-u32 a.fh-length b.fh-length) (eq-u8 a.fh-type b.fh-type))
+      (both (eq-u8 a.fh-flags b.fh-flags) (eq-u32 a.fh-stream-id b.fh-stream-id))
+
+  -- | Result of stripping optional `PADDED` framing from a DATA/HEADERS payload.
+  #[repr(C, value)]
+  record H2PayloadBounds where
+    pb-err :: U32
+    pb-data-off :: U32
+    pb-data-len :: U32
+    pb-pad-len :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-payload-bounds-empty :: Unit -> H2PayloadBounds
+  h2-payload-bounds-empty _ = H2PayloadBounds 0 0 0 0
+
+  -- =========================================================================
+  -- 3. Big-Endian DMA Scalar Helpers (`#[no-alloc]`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-read-be16 :: I64 ->{MVar} U16
+  h2-read-be16 addr =
+    let b0 = u8-to-u16 (raw-load-u8 addr) in
+    let b1 = u8-to-u16 (raw-load-u8 (wrapping-add-i64 addr 1)) in
+    bit-or-u16 (wrapping-shl-u16 b0 8) b1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-read-be24 :: I64 ->{MVar} U32
+  h2-read-be24 addr =
+    let b0 = u8-to-u32 (raw-load-u8 addr) in
+    let b1 = u8-to-u32 (raw-load-u8 (wrapping-add-i64 addr 1)) in
+    let b2 = u8-to-u32 (raw-load-u8 (wrapping-add-i64 addr 2)) in
+    bit-or-u32 (bit-or-u32 (wrapping-shl-u32 b0 16) (wrapping-shl-u32 b1 8)) b2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-read-be32 :: I64 ->{MVar} U32
+  h2-read-be32 addr =
+    let b0 = u8-to-u32 (raw-load-u8 addr) in
+    let b1 = u8-to-u32 (raw-load-u8 (wrapping-add-i64 addr 1)) in
+    let b2 = u8-to-u32 (raw-load-u8 (wrapping-add-i64 addr 2)) in
+    let b3 = u8-to-u32 (raw-load-u8 (wrapping-add-i64 addr 3)) in
+    bit-or-u32
+      (bit-or-u32 (wrapping-shl-u32 b0 24) (wrapping-shl-u32 b1 16))
+      (bit-or-u32 (wrapping-shl-u32 b2 8) b3)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-write-be16 :: I64 -> U16 ->{MVar} Unit
+  h2-write-be16 addr v =
+    let _ = raw-store-u8 addr (wrapping-u16-to-u8 (wrapping-shr-u16 v 8)) in
+    raw-store-u8 (wrapping-add-i64 addr 1) (wrapping-u16-to-u8 v)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-write-be24 :: I64 -> U32 ->{MVar} Unit
+  h2-write-be24 addr v =
+    let _ = raw-store-u8 addr (wrapping-u32-to-u8 (wrapping-shr-u32 v 16)) in
+    let _ = raw-store-u8 (wrapping-add-i64 addr 1) (wrapping-u32-to-u8 (wrapping-shr-u32 v 8)) in
+    raw-store-u8 (wrapping-add-i64 addr 2) (wrapping-u32-to-u8 v)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-write-be32 :: I64 -> U32 ->{MVar} Unit
+  h2-write-be32 addr v =
+    let _ = raw-store-u8 addr (wrapping-u32-to-u8 (wrapping-shr-u32 v 24)) in
+    let _ = raw-store-u8 (wrapping-add-i64 addr 1) (wrapping-u32-to-u8 (wrapping-shr-u32 v 16)) in
+    let _ = raw-store-u8 (wrapping-add-i64 addr 2) (wrapping-u32-to-u8 (wrapping-shr-u32 v 8)) in
+    raw-store-u8 (wrapping-add-i64 addr 3) (wrapping-u32-to-u8 v)
+
+  -- =========================================================================
+  -- 4. 24-Byte Client Connection Preface (`PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  preface-w0 :: U64
+  preface-w0 = pack-le8 80 82 73 32 42 32 72 84
+
+  #[inline(always)]
+  #[no-alloc]
+  preface-w1 :: U64
+  preface-w1 = pack-le8 84 80 47 50 46 48 13 10
+
+  #[inline(always)]
+  #[no-alloc]
+  preface-w2 :: U64
+  preface-w2 = pack-le8 13 10 83 77 13 10 13 10
+
+  -- | Write the 24-byte RFC 9113 §3.4 client connection preface into
+  -- `[dst + pos, dst + cap)`. Returns `pos + 24`, or `0` on insufficient space.
+  #[no-alloc]
+  h2-preface-write-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  h2-preface-write-dma dst pos cap =
+    if eq-i64 dst 0 then 0
+    else if lt-u32 (saturating-sub-u32 cap pos) h2-client-preface-len then 0
+    else
+      let p = wrapping-add-i64 dst (u32-to-i64 pos) in
+      let _ = raw-store-u64 p preface-w0 in
+      let _ = raw-store-u64 (wrapping-add-i64 p 8) preface-w1 in
+      let _ = raw-store-u64 (wrapping-add-i64 p 16) preface-w2 in
+      wrapping-add-u32 pos h2-client-preface-len
+
+  -- | Validate the 24-byte HTTP/2 client connection preface at `[src + off, src + end)`.
+  -- Returns `h2-preface-need-more` if `< 24` bytes available, `h2-preface-ok`
+  -- on exact match, or `h2-preface-mismatch` on invalid bytes.
+  #[no-alloc]
+  h2-preface-match-dma :: I64 -> U32 -> U32 ->{MVar} U8
+  h2-preface-match-dma src off end =
+    if eq-i64 src 0 then h2-preface-mismatch
+    else
+      let avail = saturating-sub-u32 end off in
+      if lt-u32 avail h2-client-preface-len then h2-preface-need-more
+      else
+        let p = wrapping-add-i64 src (u32-to-i64 off) in
+        let m0 = eq-u64 (raw-load-u64 p) preface-w0 in
+        let m1 = eq-u64 (raw-load-u64 (wrapping-add-i64 p 8)) preface-w1 in
+        let m2 = eq-u64 (raw-load-u64 (wrapping-add-i64 p 16)) preface-w2 in
+        if both m0 (both m1 m2) then h2-preface-ok
+        else h2-preface-mismatch
+
+  -- =========================================================================
+  -- 5. 9-Byte Frame Header Codec & Zero-Copy Headroom Framing (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- | Decode a 9-byte RFC 9113 frame header at `src + off`.
+  -- Masks the reserved high bit (R) of `stream_id` to `0` per RFC 9113 §4.1.
+  -- Caller must ensure at least 9 bytes are readable at `src + off`.
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-read-header-dma :: I64 -> U32 ->{MVar} H2FrameHeader
+  h2-frame-read-header-dma src off =
+    let p = wrapping-add-i64 src (u32-to-i64 off) in
+    let len = h2-read-be24 p in
+    let ftype = raw-load-u8 (wrapping-add-i64 p 3) in
+    let flags = raw-load-u8 (wrapping-add-i64 p 4) in
+    let sid = bit-and-u32 (h2-read-be32 (wrapping-add-i64 p 5)) h2-stream-id-mask in
+    H2FrameHeader len ftype flags 0 sid
+
+  -- | Encode a 9-byte RFC 9113 frame header into `[dst + pos, dst + cap)`,
+  -- clearing the reserved bit (R=0) and masking length to 24 bits.
+  -- Returns `pos + 9` on success, or `0` if insufficient buffer capacity.
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-write-header-dma :: I64 -> U32 -> U32 -> H2FrameHeader ->{MVar} U32
+  h2-frame-write-header-dma dst pos cap hdr =
+    if eq-i64 dst 0 then 0
+    else if lt-u32 (saturating-sub-u32 cap pos) h2-frame-header-len then 0
+    else
+      let p = wrapping-add-i64 dst (u32-to-i64 pos) in
+      let _ = h2-write-be24 p (bit-and-u32 hdr.fh-length h2-max-allowed-frame-size) in
+      let _ = raw-store-u8 (wrapping-add-i64 p 3) hdr.fh-type in
+      let _ = raw-store-u8 (wrapping-add-i64 p 4) hdr.fh-flags in
+      let _ = h2-write-be32 (wrapping-add-i64 p 5) (bit-and-u32 hdr.fh-stream-id h2-stream-id-mask) in
+      wrapping-add-u32 pos h2-frame-header-len
+
+  -- | Zero-copy 9-byte headroom DMA framing directly ahead of payload in a
+  -- raw buffer where `payload-addr` has at least 9 leading headroom bytes.
+  #[inline(always)]
+  #[no-alloc]
+  h2-frame-write-headroom-raw :: I64 -> U8 -> U8 -> U32 -> U32 ->{MVar} Bool
+  h2-frame-write-headroom-raw payload-addr ftype flags sid payload-len =
+    if eq-i64 payload-addr 0 then b-false
+    else if gt-u32 payload-len h2-max-allowed-frame-size then b-false
+    else
+      let hdr-addr = wrapping-sub-i64 payload-addr 9 in
+      let _ = h2-write-be24 hdr-addr payload-len in
+      let _ = raw-store-u8 (wrapping-add-i64 hdr-addr 3) ftype in
+      let _ = raw-store-u8 (wrapping-add-i64 hdr-addr 4) flags in
+      let _ = h2-write-be32 (wrapping-add-i64 hdr-addr 5) (bit-and-u32 sid h2-stream-id-mask) in
+      b-true
+
+  -- | Zero-copy 9-byte headroom DMA framing on a `DmaSlice` (from
+  -- `dma-slice-reserve-headroom`). Writes the 9-byte RFC 9113 frame header
+  -- directly at `payload-slice.slice-addr - 9` without copying payload bytes,
+  -- returning the combined `DmaSlice` spanning `[hdr-off, hdr-off + 9 + payload-len)`.
+  -- Returns `dma-slice-empty ()` if `payload-slice.slice-off < 9`,
+  -- `payload-len > payload-slice.slice-cap`, or `payload-len > 0xFFFFFF`.
+  #[no-alloc]
+  h2-frame-write-headroom :: DmaSlice -> U8 -> U8 -> U32 -> U32 ->{MVar} DmaSlice
+  h2-frame-write-headroom payload-slice ftype flags sid payload-len =
+    if eq-i64 payload-slice.slice-addr 0 then dma-slice-empty ()
+    else if lt-u32 payload-slice.slice-off h2-frame-header-len then dma-slice-empty ()
+    else if gt-u32 payload-len payload-slice.slice-cap then dma-slice-empty ()
+    else if gt-u32 payload-len h2-max-allowed-frame-size then dma-slice-empty ()
+    else
+      let hdr-addr = wrapping-sub-i64 payload-slice.slice-addr 9 in
+      let hdr-off = wrapping-sub-u32 payload-slice.slice-off h2-frame-header-len in
+      let _ = h2-write-be24 hdr-addr payload-len in
+      let _ = raw-store-u8 (wrapping-add-i64 hdr-addr 3) ftype in
+      let _ = raw-store-u8 (wrapping-add-i64 hdr-addr 4) flags in
+      let _ = h2-write-be32 (wrapping-add-i64 hdr-addr 5) (bit-and-u32 sid h2-stream-id-mask) in
+      DmaSlice
+        payload-slice.slice-buf-id
+        hdr-off
+        (wrapping-add-u32 payload-len h2-frame-header-len)
+        (wrapping-add-u32 payload-slice.slice-cap h2-frame-header-len)
+        hdr-addr
+
+  -- =========================================================================
+  -- 6. Strict RFC 9113 Frame-Size, Stream-ID=0, & Padding Validation
+  -- =========================================================================
+
+  -- | Validate an `H2FrameHeader` against `max-frame-size` and RFC 9113 §6
+  -- frame-size and stream-identifier rules. Returns `h2-err-no-error` (0) if
+  -- valid, or the exact RFC 9113 error code (`FRAME_SIZE_ERROR` / `PROTOCOL_ERROR`).
+  #[no-alloc]
+  h2-frame-validate-header :: H2FrameHeader -> U32 -> U32
+  h2-frame-validate-header hdr max-frame-size =
+    let len = hdr.fh-length in
+    let ftype = hdr.fh-type in
+    let flags = hdr.fh-flags in
+    let sid = hdr.fh-stream-id in
+    if gt-u32 len max-frame-size then h2-err-frame-size-error
+    else if eq-u8 ftype h2-frame-data then
+      if eq-u32 sid 0 then h2-err-protocol-error else h2-err-no-error
+    else if eq-u8 ftype h2-frame-headers then
+      if eq-u32 sid 0 then h2-err-protocol-error else h2-err-no-error
+    else if eq-u8 ftype h2-frame-priority then
+      if eq-u32 sid 0 then h2-err-protocol-error
+      else if ne-u32 len 5 then h2-err-frame-size-error
+      else h2-err-no-error
+    else if eq-u8 ftype h2-frame-rst-stream then
+      if eq-u32 sid 0 then h2-err-protocol-error
+      else if ne-u32 len 4 then h2-err-frame-size-error
+      else h2-err-no-error
+    else if eq-u8 ftype h2-frame-settings then
+      if ne-u32 sid 0 then h2-err-protocol-error
+      else if ne-u8 (bit-and-u8 flags h2-flag-ack) 0 then
+        if ne-u32 len 0 then h2-err-frame-size-error else h2-err-no-error
+      else if ne-u32 (rem-u32 len 6) 0 then h2-err-frame-size-error
+      else h2-err-no-error
+    else if eq-u8 ftype h2-frame-push-promise then
+      if eq-u32 sid 0 then h2-err-protocol-error
+      else if lt-u32 len 4 then h2-err-frame-size-error
+      else h2-err-no-error
+    else if eq-u8 ftype h2-frame-ping then
+      if ne-u32 sid 0 then h2-err-protocol-error
+      else if ne-u32 len 8 then h2-err-frame-size-error
+      else h2-err-no-error
+    else if eq-u8 ftype h2-frame-goaway then
+      if ne-u32 sid 0 then h2-err-protocol-error
+      else if lt-u32 len 8 then h2-err-frame-size-error
+      else h2-err-no-error
+    else if eq-u8 ftype h2-frame-window-update then
+      if ne-u32 len 4 then h2-err-frame-size-error else h2-err-no-error
+    else if eq-u8 ftype h2-frame-continuation then
+      if eq-u32 sid 0 then h2-err-protocol-error else h2-err-no-error
+    else if eq-u8 ftype h2-frame-priority-update then
+      if ne-u32 sid 0 then h2-err-protocol-error
+      else if lt-u32 len 4 then h2-err-frame-size-error
+      else h2-err-no-error
+    else h2-err-no-error
+
+  -- | Strip optional RFC 9113 `PADDED` framing from a payload at `[base + off, base + off + len)`.
+  -- Per RFC 9113 §6.1 / §6.2, if `PADDED` is set and `1 + pad_length > len`,
+  -- returns `pb-err = h2-err-protocol-error`.
+  #[no-alloc]
+  h2-frame-strip-padding-dma :: I64 -> U32 -> U32 -> U8 ->{MVar} H2PayloadBounds
+  h2-frame-strip-padding-dma base payload-off payload-len flags =
+    if eq-u8 (bit-and-u8 flags h2-flag-padded) 0 then
+      H2PayloadBounds h2-err-no-error payload-off payload-len 0
+    else if eq-u32 payload-len 0 then
+      H2PayloadBounds h2-err-protocol-error 0 0 0
+    else
+      let pad-len = u8-to-u32 (raw-load-u8 (wrapping-add-i64 base (u32-to-i64 payload-off))) in
+      let overhead = wrapping-add-u32 pad-len 1 in
+      if gt-u32 overhead payload-len then
+        H2PayloadBounds h2-err-protocol-error 0 0 0
+      else
+        H2PayloadBounds
+          h2-err-no-error
+          (wrapping-add-u32 payload-off 1)
+          (wrapping-sub-u32 payload-len overhead)
+          pad-len
+
+  -- =========================================================================
+  -- 7. Zero-Alloc Control Frame Writers (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- | Write a 9-byte `SETTINGS` ACK frame (stream 0, flags=ACK, length=0).
+  -- Returns `pos + 9`, or `0` on insufficient capacity.
+  #[inline(always)]
+  #[no-alloc]
+  h2-write-settings-ack-dma :: I64 -> U32 -> U32 ->{MVar} U32
+  h2-write-settings-ack-dma dst pos cap =
+    h2-frame-write-header-dma dst pos cap (H2FrameHeader 0 h2-frame-settings h2-flag-ack 0 0)
+
+  -- | Write one 6-byte `(setting-id :: U16, value :: U32)` SETTINGS payload entry.
+  -- Returns `pos + 6`, or `0` on insufficient capacity.
+  #[inline(always)]
+  #[no-alloc]
+  h2-write-settings-entry-dma :: I64 -> U32 -> U32 -> U16 -> U32 ->{MVar} U32
+  h2-write-settings-entry-dma dst pos cap sid val =
+    if lt-u32 (saturating-sub-u32 cap pos) 6 then 0
+    else
+      let p = wrapping-add-i64 dst (u32-to-i64 pos) in
+      let _ = h2-write-be16 p sid in
+      let _ = h2-write-be32 (wrapping-add-i64 p 2) val in
+      wrapping-add-u32 pos 6
+
+  -- | Write a 17-byte `PING` frame (stream 0, 8-byte opaque payload copied from `opaque-addr`).
+  -- Returns `pos + 17`, or `0` on insufficient capacity.
+  #[no-alloc]
+  h2-write-ping-dma :: I64 -> U32 -> U32 -> U8 -> I64 ->{MVar} U32
+  h2-write-ping-dma dst pos cap flags opaque-addr =
+    if lt-u32 (saturating-sub-u32 cap pos) 17 then 0
+    else
+      let p1 = h2-frame-write-header-dma dst pos cap (H2FrameHeader 8 h2-frame-ping flags 0 0) in
+      if eq-u32 p1 0 then 0
+      else
+        let v = raw-load-u64 opaque-addr in
+        let _ = raw-store-u64 (wrapping-add-i64 dst (u32-to-i64 p1)) v in
+        wrapping-add-u32 p1 8
+
+  -- | Write a 17-byte `GOAWAY` frame (stream 0, 31-bit `last-stream-id`, 32-bit `error-code`).
+  -- Returns `pos + 17`, or `0` on insufficient capacity.
+  #[no-alloc]
+  h2-write-goaway-dma :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  h2-write-goaway-dma dst pos cap last-sid err-code =
+    if lt-u32 (saturating-sub-u32 cap pos) 17 then 0
+    else
+      let p1 = h2-frame-write-header-dma dst pos cap (H2FrameHeader 8 h2-frame-goaway h2-flag-none 0 0) in
+      if eq-u32 p1 0 then 0
+      else
+        let p = wrapping-add-i64 dst (u32-to-i64 p1) in
+        let _ = h2-write-be32 p (bit-and-u32 last-sid h2-stream-id-mask) in
+        let _ = h2-write-be32 (wrapping-add-i64 p 4) err-code in
+        wrapping-add-u32 p1 8
+
+  -- | Write a 13-byte `RST_STREAM` frame (`sid`, 32-bit `error-code`).
+  -- Returns `pos + 13`, or `0` on insufficient capacity.
+  #[no-alloc]
+  h2-write-rst-stream-dma :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  h2-write-rst-stream-dma dst pos cap sid err-code =
+    if lt-u32 (saturating-sub-u32 cap pos) 13 then 0
+    else
+      let p1 = h2-frame-write-header-dma dst pos cap (H2FrameHeader 4 h2-frame-rst-stream h2-flag-none 0 sid) in
+      if eq-u32 p1 0 then 0
+      else
+        let _ = h2-write-be32 (wrapping-add-i64 dst (u32-to-i64 p1)) err-code in
+        wrapping-add-u32 p1 4
+
+  -- | Write a 13-byte `WINDOW_UPDATE` frame (`sid`, 31-bit `increment`).
+  -- Returns `pos + 13`, or `0` on insufficient capacity or zero increment.
+  #[no-alloc]
+  h2-write-window-update-dma :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U32
+  h2-write-window-update-dma dst pos cap sid inc =
+    let masked = bit-and-u32 inc h2-max-window-size in
+    if eq-u32 masked 0 then 0
+    else if lt-u32 (saturating-sub-u32 cap pos) 13 then 0
+    else
+      let p1 = h2-frame-write-header-dma dst pos cap (H2FrameHeader 4 h2-frame-window-update h2-flag-none 0 sid) in
+      if eq-u32 p1 0 then 0
+      else
+        let _ = h2-write-be32 (wrapping-add-i64 dst (u32-to-i64 p1)) masked in
+        wrapping-add-u32 p1 4

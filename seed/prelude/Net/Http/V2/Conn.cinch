@@ -1,0 +1,1505 @@
+-- | RFC 9113 Zero-Allocation HTTP/2 Server & Client Multiplexing Connection Engine.
+--
+-- Features:
+--   * 100% `#[no-alloc]` steady-state hot path (`h2-conn-feed`,
+--     `h2-conn-send-response`, `h2-conn-queue-body`, `h2-conn-flush-data`,
+--     `h2-conn-frame-data-slice`).
+--   * Full 24-byte client preface validation + `SETTINGS` negotiation
+--     (`HEADER_TABLE_SIZE`, `ENABLE_PUSH`, `MAX_CONCURRENT_STREAMS`,
+--     `INITIAL_WINDOW_SIZE`, `MAX_FRAME_SIZE`, `MAX_HEADER_LIST_SIZE`,
+--     `ENABLE_CONNECT_PROTOCOL` RFC 8441) + automatic `SETTINGS ACK` & `PING ACK`.
+--   * Strict `CONTINUATION` lock: any interleaved frame or mismatched
+--     `stream_id` while awaiting `END_HEADERS` immediately emits
+--     `GOAWAY(PROTOCOL_ERROR)` and enters `H2ConnGoAway`.
+--   * Integrated `Net.Http.Hpack.Codec` (header block decode/encode) and
+--     `Net.Http.Priority` (`PriorityScheduler` for fair RFC 9218 outbound
+--     `DATA` scheduling across concurrent active streams).
+--   * Connection-level & stream-level flow-control enforcement + automatic
+--     `WINDOW_UPDATE` emission whenever consumed bytes reach half window.
+--   * **CVE-2023-44487 Rapid-Reset & Control-Frame Flood Defense**: bounded
+--     sliding budgets for `RST_STREAM`, `PING`, `SETTINGS`, `WINDOW_UPDATE`,
+--     and empty `DATA` frames — exceeding threshold immediately emits
+--     `GOAWAY(ENHANCE_YOUR_CALM)` and closes cleanly.
+module Net.Http.V2.Conn where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Types
+  import Engine.Mem.DmaPool
+  import Net.Http.Types
+  import Net.Http.Priority
+  import Net.Http.Hpack.StaticTable
+  import Net.Http.Hpack.Huffman
+  import Net.Http.Hpack.Codec
+  import Net.Http.V2.Frame
+  import Net.Http.V2.Stream
+  import Prim.Atomic
+
+  -- Connection roles & states
+  export h2-role-server, h2-role-client
+  export h2-conn-preface, h2-conn-open, h2-conn-goaway, h2-conn-closed
+
+  -- Feed status codes
+  export h2-feed-ok, h2-feed-need-more, h2-feed-headers-ready
+  export h2-feed-data-ready, h2-feed-stream-reset, h2-feed-goaway, h2-feed-error
+
+  -- Default flood-defense budgets
+  export h2-default-rst-budget, h2-default-ctrl-budget
+
+  -- POD handles & results
+  export H2Conn, H2FeedResult, H2WriteResult
+  export h2-conn-empty, h2-conn-valid, h2-conn-new, h2-conn-destroy
+
+  -- Connection state & sub-component accessors (`#[no-alloc]`)
+  export h2-conn-state, h2-conn-streams, h2-conn-priority-sched
+  export h2-conn-hpack-encoder, h2-conn-hpack-decoder
+  export h2-conn-send-window, h2-conn-recv-window
+  export h2-conn-peer-initial-window, h2-conn-peer-max-frame-size
+  export h2-conn-peer-max-concurrent, h2-conn-peer-connect-enabled
+  export h2-conn-cont-stream-id, h2-conn-last-peer-sid, h2-conn-goaway-error
+  export h2-conn-rst-count, h2-conn-ctrl-count
+  export h2-conn-set-flood-limits, h2-conn-refill-budgets
+  export h2-conn-decoded-hdrs-addr, h2-conn-decoded-text-addr
+  export h2-conn-decoded-hdr-count, h2-conn-decoded-text-len
+  export h2-conn-last-data-off, h2-conn-last-data-len
+
+  -- Outbound framing & incremental RX dispatcher (`#[no-alloc]`)
+  export h2-conn-write-initial-settings
+  export h2-conn-feed
+  export h2-conn-send-response
+  export h2-conn-queue-body
+  export h2-conn-flush-data
+  export h2-conn-frame-data-slice
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] helpers & control slab offsets
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-role-server :: U8
+  h2-role-server = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-role-client :: U8
+  h2-role-client = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-preface :: U8
+  h2-conn-preface = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-open :: U8
+  h2-conn-open = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-goaway :: U8
+  h2-conn-goaway = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-closed :: U8
+  h2-conn-closed = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-ok :: U32
+  h2-feed-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-need-more :: U32
+  h2-feed-need-more = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-headers-ready :: U32
+  h2-feed-headers-ready = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-data-ready :: U32
+  h2-feed-data-ready = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-stream-reset :: U32
+  h2-feed-stream-reset = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-goaway :: U32
+  h2-feed-goaway = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-feed-error :: U32
+  h2-feed-error = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-default-rst-budget :: U32
+  h2-default-rst-budget = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-default-ctrl-budget :: U32
+  h2-default-ctrl-budget = 256
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-max-window-i64 :: I64
+  h2-max-window-i64 = 2147483647
+
+  -- Control slab (24 KiB, 4 KiB-aligned):
+  --   +0   .. +255  : Connection state header (4 cache lines)
+  --   +256 .. +2815 : Decoded HpackHeader[128] array (128 * 20 = 2560B)
+  --   +4096..+12287 : Header-block reassembly buffer (8192B)
+  --   +12288..+20479: Decoded header text buffer (8192B)
+  --   +20480..+24575: Outbound HPACK scratch buffer (4096B)
+  #[inline(always)]
+  #[no-alloc]
+  conn-slab-size :: U64
+  conn-slab-size = 24576
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-off-hdrs :: I64
+  conn-off-hdrs = 256
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-max-decoded-hdrs :: U32
+  conn-max-decoded-hdrs = 128
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-off-hblock :: I64
+  conn-off-hblock = 4096
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-hblock-cap :: U32
+  conn-hblock-cap = 8192
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-off-text :: I64
+  conn-off-text = 12288
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-text-cap :: U32
+  conn-text-cap = 8192
+
+  #[inline(always)]
+  #[no-alloc]
+  conn-off-tx-scratch :: I64
+  conn-off-tx-scratch = 20480
+
+  -- Header field offsets inside 0..255:
+  #[inline(always)]
+  #[no-alloc]
+  c-off-role :: I64
+  c-off-role = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-state :: I64
+  c-off-state = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-cont-es :: I64
+  c-off-cont-es = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-peer-connect :: I64
+  c-off-peer-connect = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-cont-sid :: I64
+  c-off-cont-sid = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-hblock-len :: I64
+  c-off-hblock-len = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-last-peer-sid :: I64
+  c-off-last-peer-sid = 12
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-send-win :: I64
+  c-off-send-win = 16
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-recv-win :: I64
+  c-off-recv-win = 24
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-recv-consumed :: I64
+  c-off-recv-consumed = 32
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-recv-target :: I64
+  c-off-recv-target = 36
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-local-init-win :: I64
+  c-off-local-init-win = 40
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-peer-init-win :: I64
+  c-off-peer-init-win = 44
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-local-max-frame :: I64
+  c-off-local-max-frame = 48
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-peer-max-frame :: I64
+  c-off-peer-max-frame = 52
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-local-max-conc :: I64
+  c-off-local-max-conc = 56
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-peer-max-conc :: I64
+  c-off-peer-max-conc = 60
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-rst-count :: I64
+  c-off-rst-count = 64
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-rst-budget :: I64
+  c-off-rst-budget = 68
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-ctrl-count :: I64
+  c-off-ctrl-count = 72
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-ctrl-budget :: I64
+  c-off-ctrl-budget = 76
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-goaway-err :: I64
+  c-off-goaway-err = 80
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-decoded-hcount :: I64
+  c-off-decoded-hcount = 84
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-decoded-tlen :: I64
+  c-off-decoded-tlen = 88
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-last-data-off :: I64
+  c-off-last-data-off = 92
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-last-data-len :: I64
+  c-off-last-data-len = 96
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-peer-max-hdr-list :: I64
+  c-off-peer-max-hdr-list = 100
+
+  -- Sub-handle storage (bytes 104..223):
+  #[inline(always)]
+  #[no-alloc]
+  c-off-st-addr :: I64
+  c-off-st-addr = 104
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-st-bytes :: I64
+  c-off-st-bytes = 112
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-st-max :: I64
+  c-off-st-max = 120
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-st-hcap :: I64
+  c-off-st-hcap = 124
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-ps-base :: I64
+  c-off-ps-base = 128
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-huff-addr :: I64
+  c-off-huff-addr = 136
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-huff-bytes :: I64
+  c-off-huff-bytes = 144
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-enc-addr :: I64
+  c-off-enc-addr = 152
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-enc-bytes :: I64
+  c-off-enc-bytes = 160
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-dec-addr :: I64
+  c-off-dec-addr = 168
+
+  #[inline(always)]
+  #[no-alloc]
+  c-off-dec-bytes :: I64
+  c-off-dec-bytes = 176
+
+  #[no-alloc]
+  dma-copy :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- =========================================================================
+  -- 1. POD Handles & Results
+  -- =========================================================================
+
+  -- | Handle to a DMA-backed HTTP/2 connection engine (allocated once in
+  -- `h2-conn-new`; all steady-state operations mutate backing DMA slabs in
+  -- place with 0 heap allocations and 0 atomic RC traffic).
+  record H2Conn where
+    h2-slab-addr :: U64
+    h2-slab-bytes :: U64
+    h2-sched :: PriorityScheduler
+
+  -- | 24-byte POD result returned by `h2-conn-feed`.
+  #[repr(C, value)]
+  record H2FeedResult where
+    fr-status :: U32
+    fr-consumed :: U32
+    fr-tx-pos :: U32
+    fr-stream-id :: U32
+    fr-error :: U32
+    fr-aux :: U32
+
+  -- | 16-byte POD result returned by `h2-conn-send-response` and `h2-conn-flush-data`.
+  #[repr(C, value)]
+  record H2WriteResult where
+    wr-error :: U32
+    wr-tx-pos :: U32
+    wr-stream-id :: U32
+    wr-bytes-sent :: U32
+
+  h2-conn-empty :: Unit -> H2Conn
+  h2-conn-empty _ = H2Conn 0 0 (PriorityScheduler 0)
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-valid :: H2Conn -> Bool
+  h2-conn-valid c = both (ne-u64 c.h2-slab-addr 0) (ge-u64 c.h2-slab-bytes conn-slab-size)
+
+  -- =========================================================================
+  -- 2. Connection Creation & Teardown
+  -- =========================================================================
+
+  -- | Allocate and initialize an HTTP/2 connection (`role`: `h2-role-server`
+  -- or `h2-role-client`, `max-streams`: `1..65536`). Pre-allocates all DMA
+  -- slabs (`H2StreamTable`, `PriorityScheduler`, shared `HpackHuffmanTable`,
+  -- `HpackEncoder`, `HpackDecoder`, and control/reassembly buffers) so every
+  -- steady-state frame/stream operation runs with 0 heap allocations.
+  h2-conn-new :: U8 -> U32 ->{IO, MVar} H2Conn
+  h2-conn-new role max-streams =
+    let st = h2-stream-table-new max-streams in
+    if not (h2-stream-table-valid st) then h2-conn-empty ()
+    else
+      case prio-sched-new max-streams of
+        None ->
+          let _ = h2-stream-table-destroy st in
+          h2-conn-empty ()
+        Some ps ->
+          let huff = hpack-huffman-table-new () in
+          if not (hpack-huffman-table-valid huff) then
+            let _ = prio-sched-destroy ps in
+            let _ = h2-stream-table-destroy st in
+            h2-conn-empty ()
+          else
+            let enc = hpack-encoder-new-with-huff h2-default-header-table-size hpack-str-auto huff in
+            if not (hpack-encoder-valid enc) then
+              let _ = hpack-huffman-table-destroy huff in
+              let _ = prio-sched-destroy ps in
+              let _ = h2-stream-table-destroy st in
+              h2-conn-empty ()
+            else
+              let dec = hpack-decoder-new-with-huff h2-default-header-table-size huff in
+              if not (hpack-decoder-valid dec) then
+                let _ = hpack-encoder-destroy enc in
+                let _ = hpack-huffman-table-destroy huff in
+                let _ = prio-sched-destroy ps in
+                let _ = h2-stream-table-destroy st in
+                h2-conn-empty ()
+              else
+                let slab-u64 = engine-dma-alloc conn-slab-size 4096 in
+                if eq-u64 slab-u64 0 then
+                  let _ = hpack-decoder-destroy dec in
+                  let _ = hpack-encoder-destroy enc in
+                  let _ = hpack-huffman-table-destroy huff in
+                  let _ = prio-sched-destroy ps in
+                  let _ = h2-stream-table-destroy st in
+                  h2-conn-empty ()
+                else
+                  let base = wrapping-u64-to-i64 slab-u64 in
+                  let init-state = if eq-u8 role h2-role-server then h2-conn-preface else h2-conn-open in
+                  let _ = raw-store-u8 (wrapping-add-i64 base c-off-role) role in
+                  let _ = raw-store-u8 (wrapping-add-i64 base c-off-state) init-state in
+                  let _ = raw-store-u8 (wrapping-add-i64 base c-off-cont-es) 0 in
+                  let _ = raw-store-u8 (wrapping-add-i64 base c-off-peer-connect) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-cont-sid) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-hblock-len) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-last-peer-sid) 0 in
+                  let _ = raw-store-i64 (wrapping-add-i64 base c-off-send-win) (u32-to-i64 h2-default-initial-window-size) in
+                  let _ = raw-store-i64 (wrapping-add-i64 base c-off-recv-win) (u32-to-i64 h2-default-initial-window-size) in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-recv-consumed) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-recv-target) h2-default-initial-window-size in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-local-init-win) h2-default-initial-window-size in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-init-win) h2-default-initial-window-size in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-local-max-frame) h2-default-max-frame-size in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-max-frame) h2-default-max-frame-size in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-local-max-conc) max-streams in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-max-conc) max-streams in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-rst-count) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-rst-budget) h2-default-rst-budget in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-ctrl-count) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-ctrl-budget) h2-default-ctrl-budget in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-goaway-err) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-decoded-hcount) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-decoded-tlen) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-last-data-off) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-last-data-len) 0 in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-max-hdr-list) 65536 in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-st-addr) st.st-slab-addr in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-st-bytes) st.st-slab-bytes in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-st-max) st.st-max-streams in
+                  let _ = raw-store-u32 (wrapping-add-i64 base c-off-st-hcap) st.st-hash-cap in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-ps-base) ps.ps-base in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-huff-addr) huff.huff-slab-addr in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-huff-bytes) huff.huff-slab-bytes in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-enc-addr) enc.enc-dyn-addr in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-enc-bytes) enc.enc-dyn-bytes in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-dec-addr) dec.dec-dyn-addr in
+                  let _ = raw-store-u64 (wrapping-add-i64 base c-off-dec-bytes) dec.dec-dyn-bytes in
+                  H2Conn slab-u64 conn-slab-size ps
+
+  -- | Destroy and unmap all DMA resources owned by `conn`.
+  h2-conn-destroy :: H2Conn ->{IO, MVar} Unit
+  h2-conn-destroy conn =
+    if not (h2-conn-valid conn) then ()
+    else
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let st = h2-conn-streams conn in
+      let ps = h2-conn-priority-sched conn in
+      let enc = h2-conn-hpack-encoder conn in
+      let dec = h2-conn-hpack-decoder conn in
+      let huff = HpackHuffmanTable (raw-load-u64 (wrapping-add-i64 base c-off-huff-addr)) (raw-load-u64 (wrapping-add-i64 base c-off-huff-bytes)) in
+      let _ = hpack-decoder-destroy dec in
+      let _ = hpack-encoder-destroy enc in
+      let _ = hpack-huffman-table-destroy huff in
+      let _ = prio-sched-destroy ps in
+      let _ = h2-stream-table-destroy st in
+      let _ = engine-dma-free conn.h2-slab-addr conn.h2-slab-bytes in
+      ()
+
+  -- =========================================================================
+  -- 3. Connection Accessors & Budget Controls (`#[no-alloc]`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-state :: H2Conn ->{MVar} U8
+  h2-conn-state conn =
+    if h2-conn-valid conn then raw-load-u8 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-state)
+    else h2-conn-closed
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-streams :: H2Conn ->{MVar} H2StreamTable
+  h2-conn-streams conn =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      H2StreamTable
+        (raw-load-u64 (wrapping-add-i64 base c-off-st-addr))
+        (raw-load-u64 (wrapping-add-i64 base c-off-st-bytes))
+        (raw-load-u32 (wrapping-add-i64 base c-off-st-max))
+        (raw-load-u32 (wrapping-add-i64 base c-off-st-hcap))
+    else h2-stream-table-empty ()
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-priority-sched :: H2Conn ->{MVar} PriorityScheduler
+  h2-conn-priority-sched conn = conn.h2-sched
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-hpack-encoder :: H2Conn ->{MVar} HpackEncoder
+  h2-conn-hpack-encoder conn =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      HpackEncoder
+        (raw-load-u64 (wrapping-add-i64 base c-off-enc-addr))
+        (raw-load-u64 (wrapping-add-i64 base c-off-enc-bytes))
+        (raw-load-u64 (wrapping-add-i64 base c-off-huff-addr))
+        (raw-load-u64 (wrapping-add-i64 base c-off-huff-bytes))
+    else HpackEncoder 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-hpack-decoder :: H2Conn ->{MVar} HpackDecoder
+  h2-conn-hpack-decoder conn =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      HpackDecoder
+        (raw-load-u64 (wrapping-add-i64 base c-off-dec-addr))
+        (raw-load-u64 (wrapping-add-i64 base c-off-dec-bytes))
+        (raw-load-u64 (wrapping-add-i64 base c-off-huff-addr))
+        (raw-load-u64 (wrapping-add-i64 base c-off-huff-bytes))
+    else HpackDecoder 0 0 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-send-window :: H2Conn ->{MVar} I64
+  h2-conn-send-window conn =
+    if h2-conn-valid conn then raw-load-i64 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-send-win) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-recv-window :: H2Conn ->{MVar} I64
+  h2-conn-recv-window conn =
+    if h2-conn-valid conn then raw-load-i64 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-recv-win) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-peer-initial-window :: H2Conn ->{MVar} U32
+  h2-conn-peer-initial-window conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-peer-init-win) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-peer-max-frame-size :: H2Conn ->{MVar} U32
+  h2-conn-peer-max-frame-size conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-peer-max-frame) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-peer-max-concurrent :: H2Conn ->{MVar} U32
+  h2-conn-peer-max-concurrent conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-peer-max-conc) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-peer-connect-enabled :: H2Conn ->{MVar} Bool
+  h2-conn-peer-connect-enabled conn =
+    if h2-conn-valid conn then
+      ne-u8 (raw-load-u8 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-peer-connect)) 0
+    else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-cont-stream-id :: H2Conn ->{MVar} U32
+  h2-conn-cont-stream-id conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-cont-sid) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-last-peer-sid :: H2Conn ->{MVar} U32
+  h2-conn-last-peer-sid conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-last-peer-sid) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-goaway-error :: H2Conn ->{MVar} U32
+  h2-conn-goaway-error conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-goaway-err) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-rst-count :: H2Conn ->{MVar} U32
+  h2-conn-rst-count conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-rst-count) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-ctrl-count :: H2Conn ->{MVar} U32
+  h2-conn-ctrl-count conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-ctrl-count) else 0
+
+  -- | Configure CVE-2023-44487 Rapid-Reset (`rst-budget`) and control-frame
+  -- flood (`ctrl-budget`) limits.
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-set-flood-limits :: H2Conn -> U32 -> U32 ->{MVar} Unit
+  h2-conn-set-flood-limits conn rst-budget ctrl-budget =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let _ = raw-store-u32 (wrapping-add-i64 base c-off-rst-budget) rst-budget in
+      raw-store-u32 (wrapping-add-i64 base c-off-ctrl-budget) ctrl-budget
+    else ()
+
+  -- | Refill / decay sliding-window flood counters (call on periodic tick or
+  -- healthy request completion).
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-refill-budgets :: H2Conn -> U32 -> U32 ->{MVar} Unit
+  h2-conn-refill-budgets conn rst-credit ctrl-credit =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let r = raw-load-u32 (wrapping-add-i64 base c-off-rst-count) in
+      let c = raw-load-u32 (wrapping-add-i64 base c-off-ctrl-count) in
+      let _ = raw-store-u32 (wrapping-add-i64 base c-off-rst-count) (saturating-sub-u32 r rst-credit) in
+      raw-store-u32 (wrapping-add-i64 base c-off-ctrl-count) (saturating-sub-u32 c ctrl-credit)
+    else ()
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-decoded-hdrs-addr :: H2Conn -> I64
+  h2-conn-decoded-hdrs-addr conn =
+    if h2-conn-valid conn then wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) conn-off-hdrs else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-decoded-text-addr :: H2Conn -> I64
+  h2-conn-decoded-text-addr conn =
+    if h2-conn-valid conn then wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) conn-off-text else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-decoded-hdr-count :: H2Conn ->{MVar} U32
+  h2-conn-decoded-hdr-count conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-decoded-hcount) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-decoded-text-len :: H2Conn ->{MVar} U32
+  h2-conn-decoded-text-len conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-decoded-tlen) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-last-data-off :: H2Conn ->{MVar} U32
+  h2-conn-last-data-off conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-last-data-off) else 0
+
+  #[inline(always)]
+  #[no-alloc]
+  h2-conn-last-data-len :: H2Conn ->{MVar} U32
+  h2-conn-last-data-len conn =
+    if h2-conn-valid conn then raw-load-u32 (wrapping-add-i64 (wrapping-u64-to-i64 conn.h2-slab-addr) c-off-last-data-len) else 0
+
+  -- =========================================================================
+  -- 4. Internal Helpers: GOAWAY Emission, SETTINGS Parsing, Priority Extraction
+  -- =========================================================================
+
+  #[no-alloc]
+  emit-goaway :: I64 -> I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} H2FeedResult
+  emit-goaway base tx-addr tx-pos tx-cap err-code consumed =
+    let last-sid = raw-load-u32 (wrapping-add-i64 base c-off-last-peer-sid) in
+    let _ = raw-store-u8 (wrapping-add-i64 base c-off-state) h2-conn-goaway in
+    let _ = raw-store-u32 (wrapping-add-i64 base c-off-cont-sid) 0 in
+    let _ = raw-store-u32 (wrapping-add-i64 base c-off-hblock-len) 0 in
+    let _ = raw-store-u32 (wrapping-add-i64 base c-off-goaway-err) err-code in
+    let next-tx = h2-write-goaway-dma tx-addr tx-pos tx-cap last-sid err-code in
+    let out-tx = if eq-u32 next-tx 0 then tx-pos else next-tx in
+    H2FeedResult h2-feed-goaway consumed out-tx last-sid err-code 0
+
+  #[no-alloc]
+  charge-ctrl-budget :: I64 ->{MVar} Bool
+  charge-ctrl-budget base =
+    let cnt = wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 base c-off-ctrl-count)) 1 in
+    let budget = raw-load-u32 (wrapping-add-i64 base c-off-ctrl-budget) in
+    let _ = raw-store-u32 (wrapping-add-i64 base c-off-ctrl-count) cnt in
+    gt-u32 cnt budget
+
+  -- Scan decoded `HpackHeader` list for `hdr-priority` (RFC 9218) and apply it
+  -- to `slot` in `st`.
+  #[no-alloc]
+  apply-priority-from-headers :: H2StreamTable -> U32 -> I64 -> I64 -> U32 -> U32 ->{MVar} Unit
+  apply-priority-from-headers st slot hdrs-addr text-addr i count =
+    if ge-u32 i count then ()
+    else
+      let h = hpack-header-read-at hdrs-addr i in
+      if eq-u8 h.hh-known hdr-priority then
+        let p = parse-priority-header-dma (wrapping-add-i64 text-addr (u32-to-i64 h.hh-val-off)) h.hh-val-len in
+        let _ = h2-stream-slot-set-priority st slot p in
+        apply-priority-from-headers st slot hdrs-addr text-addr (wrapping-add-u32 i 1) count
+      else
+        apply-priority-from-headers st slot hdrs-addr text-addr (wrapping-add-u32 i 1) count
+
+  -- Parse & apply 6-byte SETTINGS entries from `[rx-addr + pos, rx-addr + end)`.
+  -- Returns `h2-err-no-error` (0) or an RFC 9113 connection error code.
+  #[no-alloc]
+  apply-settings-loop :: H2Conn -> I64 -> I64 -> U32 -> U32 ->{MVar} U32
+  apply-settings-loop conn base rx-addr pos end =
+    if ge-u32 pos end then h2-err-no-error
+    else
+      let p = wrapping-add-i64 rx-addr (u32-to-i64 pos) in
+      let sid = h2-read-be16 p in
+      let val = h2-read-be32 (wrapping-add-i64 p 2) in
+      let next-pos = wrapping-add-u32 pos 6 in
+      if eq-u16 sid h2-setting-header-table-size then
+        let enc = h2-conn-hpack-encoder conn in
+        let proto-max = hpack-dyn-protocol-max-size (hpack-encoder-dyn-table enc) in
+        let clamped = if gt-u32 val proto-max then proto-max else val in
+        let _ = hpack-encoder-set-max-table-size enc clamped in
+        apply-settings-loop conn base rx-addr next-pos end
+      else if eq-u16 sid h2-setting-enable-push then
+        if gt-u32 val 1 then h2-err-protocol-error
+        else apply-settings-loop conn base rx-addr next-pos end
+      else if eq-u16 sid h2-setting-max-concurrent-streams then
+        let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-max-conc) val in
+        apply-settings-loop conn base rx-addr next-pos end
+      else if eq-u16 sid h2-setting-initial-window-size then
+        if gt-u32 val h2-max-window-size then h2-err-flow-control-error
+        else
+          let old-w = raw-load-u32 (wrapping-add-i64 base c-off-peer-init-win) in
+          let delta = wrapping-sub-i64 (u32-to-i64 val) (u32-to-i64 old-w) in
+          let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-init-win) val in
+          let adj = h2-stream-adjust-all-send-windows (h2-conn-streams conn) delta in
+          if ne-u32 adj h2-err-no-error then adj
+          else apply-settings-loop conn base rx-addr next-pos end
+      else if eq-u16 sid h2-setting-max-frame-size then
+        if lt-u32 val h2-default-max-frame-size then h2-err-protocol-error
+        else if gt-u32 val h2-max-allowed-frame-size then h2-err-protocol-error
+        else
+          let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-max-frame) val in
+          apply-settings-loop conn base rx-addr next-pos end
+      else if eq-u16 sid h2-setting-max-header-list-size then
+        let _ = raw-store-u32 (wrapping-add-i64 base c-off-peer-max-hdr-list) val in
+        apply-settings-loop conn base rx-addr next-pos end
+      else if eq-u16 sid h2-setting-enable-connect-protocol then
+        if gt-u32 val 1 then h2-err-protocol-error
+        else
+          let _ = raw-store-u8 (wrapping-add-i64 base c-off-peer-connect) (wrapping-u32-to-u8 val) in
+          apply-settings-loop conn base rx-addr next-pos end
+      else
+        -- RFC 9113 §6.5.2: unknown settings identifiers MUST be ignored.
+        apply-settings-loop conn base rx-addr next-pos end
+
+  -- Finish an assembled HPACK header block (`HEADERS` or final `CONTINUATION`).
+  #[no-alloc]
+  finish-header-block :: H2Conn -> I64 -> U32 -> U8 -> I64 -> U32 -> U32 -> U32 ->{MVar} H2FeedResult
+  finish-header-block conn base sid end-stream tx-addr tx-pos tx-cap consumed =
+    let hblock-addr = wrapping-add-i64 base conn-off-hblock in
+    let hblock-len = raw-load-u32 (wrapping-add-i64 base c-off-hblock-len) in
+    let hdrs-addr = wrapping-add-i64 base conn-off-hdrs in
+    let text-addr = wrapping-add-i64 base conn-off-text in
+    let dec = h2-conn-hpack-decoder conn in
+    let dr = hpack-decode-block dec hblock-addr hblock-len hdrs-addr conn-max-decoded-hdrs text-addr conn-text-cap in
+    let _ = raw-store-u32 (wrapping-add-i64 base c-off-cont-sid) 0 in
+    let _ = raw-store-u32 (wrapping-add-i64 base c-off-hblock-len) 0 in
+    let _ = raw-store-u8 (wrapping-add-i64 base c-off-cont-es) 0 in
+    if ne-u32 dr.hd-status hpack-ok then
+      emit-goaway base tx-addr tx-pos tx-cap h2-err-compression-error consumed
+    else
+      let _ = raw-store-u32 (wrapping-add-i64 base c-off-decoded-hcount) dr.hd-header-count in
+      let _ = raw-store-u32 (wrapping-add-i64 base c-off-decoded-tlen) dr.hd-bytes-written in
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-internal-error consumed
+      else
+        let _ = h2-stream-slot-set-hdr-span st slot 0 dr.hd-header-count in
+        let _ = apply-priority-from-headers st slot hdrs-addr text-addr 0 dr.hd-header-count in
+        let cur-st = h2-stream-slot-state st slot in
+        let next-st = (
+          if ne-u8 end-stream 0 then
+            if eq-u8 cur-st h2-st-open then h2-st-half-closed-remote
+            else if eq-u8 cur-st h2-st-half-closed-local then h2-st-closed
+            else cur-st
+          else cur-st) in
+        let _ = h2-stream-slot-set-state st slot next-st in
+        let old-fl = h2-stream-slot-flags st slot in
+        let new-fl = bit-or-u8 (bit-or-u8 old-fl h2-sflag-headers-recv) (if ne-u8 end-stream 0 then h2-sflag-end-stream-recv else 0) in
+        let _ = h2-stream-slot-set-flags st slot new-fl in
+        let _ = (if eq-u8 next-st h2-st-closed then let _ = h2-stream-close st sid in () else ()) in
+        H2FeedResult h2-feed-headers-ready consumed tx-pos sid h2-err-no-error dr.hd-header-count
+
+  -- =========================================================================
+  -- 5. Initial SETTINGS Frame Writer (`#[no-alloc]`)
+  -- =========================================================================
+
+  -- | Write the initial `SETTINGS` frame advertising `MAX_CONCURRENT_STREAMS`,
+  -- `INITIAL_WINDOW_SIZE`, and `MAX_FRAME_SIZE` (27 bytes total).
+  #[no-alloc]
+  h2-conn-write-initial-settings :: H2Conn -> I64 -> U32 -> U32 ->{MVar} U32
+  h2-conn-write-initial-settings conn tx-addr tx-pos tx-cap =
+    if h2-conn-valid conn then
+      if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 27 then 0
+      else
+        let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+        let max-conc = raw-load-u32 (wrapping-add-i64 base c-off-local-max-conc) in
+        let init-win = raw-load-u32 (wrapping-add-i64 base c-off-local-init-win) in
+        let max-fr = raw-load-u32 (wrapping-add-i64 base c-off-local-max-frame) in
+        let p0 = h2-frame-write-header-dma tx-addr tx-pos tx-cap (H2FrameHeader 18 h2-frame-settings h2-flag-none 0 0) in
+        let p1 = h2-write-settings-entry-dma tx-addr p0 tx-cap h2-setting-max-concurrent-streams max-conc in
+        let p2 = h2-write-settings-entry-dma tx-addr p1 tx-cap h2-setting-initial-window-size init-win in
+        h2-write-settings-entry-dma tx-addr p2 tx-cap h2-setting-max-frame-size max-fr
+    else 0
+
+  -- =========================================================================
+  -- 6. Incremental Frame Parser & Dispatcher (`h2-conn-feed`, `#[no-alloc]`)
+  -- =========================================================================
+
+  -- Dispatch one validated complete frame (`rx-addr + frame-off`, payload at `payload-off`, length `fh-length`).
+  #[no-alloc]
+  dispatch-frame
+    :: H2Conn -> I64 -> H2FrameHeader
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2FeedResult
+  dispatch-frame conn base hdr rx-addr payload-off consumed tx-addr tx-pos tx-cap =
+    let ftype = hdr.fh-type in
+    let flags = hdr.fh-flags in
+    let sid = hdr.fh-stream-id in
+    let plen = hdr.fh-length in
+    let cont-sid = raw-load-u32 (wrapping-add-i64 base c-off-cont-sid) in
+    -- 1. Strict CONTINUATION Lock (RFC 9113 §6.10)
+    if ne-u32 cont-sid 0 then
+      if both (eq-u8 ftype h2-frame-continuation) (eq-u32 sid cont-sid) then
+        let cur-len = raw-load-u32 (wrapping-add-i64 base c-off-hblock-len) in
+        if gt-u32 (wrapping-add-u32 cur-len plen) conn-hblock-cap then
+          emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+        else
+          let dst = wrapping-add-i64 (wrapping-add-i64 base conn-off-hblock) (u32-to-i64 cur-len) in
+          let src = wrapping-add-i64 rx-addr (u32-to-i64 payload-off) in
+          let _ = if gt-u32 plen 0 then dma-copy dst src plen else () in
+          let _ = raw-store-u32 (wrapping-add-i64 base c-off-hblock-len) (wrapping-add-u32 cur-len plen) in
+          if ne-u8 (bit-and-u8 flags h2-flag-end-headers) 0 then
+            let es = raw-load-u8 (wrapping-add-i64 base c-off-cont-es) in
+            finish-header-block conn base sid es tx-addr tx-pos tx-cap consumed
+          else
+            H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+      else
+        -- Interleaved frame or wrong stream_id during CONTINUATION!
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+    -- 2. Stray CONTINUATION when no HEADERS sequence is open
+    else if eq-u8 ftype h2-frame-continuation then
+      emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+    -- 3. SETTINGS (0x4)
+    else if eq-u8 ftype h2-frame-settings then
+      if charge-ctrl-budget base then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+      else if ne-u8 (bit-and-u8 flags h2-flag-ack) 0 then
+        H2FeedResult h2-feed-ok consumed tx-pos 0 h2-err-no-error 0
+      else
+        let serr = apply-settings-loop conn base rx-addr payload-off (wrapping-add-u32 payload-off plen) in
+        if ne-u32 serr h2-err-no-error then
+          emit-goaway base tx-addr tx-pos tx-cap serr consumed
+        else
+          let next-tx = h2-write-settings-ack-dma tx-addr tx-pos tx-cap in
+          let out-tx = if eq-u32 next-tx 0 then tx-pos else next-tx in
+          H2FeedResult h2-feed-ok consumed out-tx 0 h2-err-no-error 0
+    -- 4. PING (0x6)
+    else if eq-u8 ftype h2-frame-ping then
+      if charge-ctrl-budget base then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+      else if ne-u8 (bit-and-u8 flags h2-flag-ack) 0 then
+        H2FeedResult h2-feed-ok consumed tx-pos 0 h2-err-no-error 0
+      else
+        let ping-addr = wrapping-add-i64 rx-addr (u32-to-i64 payload-off) in
+        let next-tx = h2-write-ping-dma tx-addr tx-pos tx-cap h2-flag-ack ping-addr in
+        let out-tx = if eq-u32 next-tx 0 then tx-pos else next-tx in
+        H2FeedResult h2-feed-ok consumed out-tx 0 h2-err-no-error 0
+    -- 5. WINDOW_UPDATE (0x8)
+    else if eq-u8 ftype h2-frame-window-update then
+      if charge-ctrl-budget base then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+      else
+        let inc = bit-and-u32 (h2-read-be32 (wrapping-add-i64 rx-addr (u32-to-i64 payload-off))) h2-max-window-size in
+        if eq-u32 inc 0 then
+          emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+        else if eq-u32 sid 0 then
+          let cur = raw-load-i64 (wrapping-add-i64 base c-off-send-win) in
+          let next = wrapping-add-i64 cur (u32-to-i64 inc) in
+          if gt-i64 next h2-max-window-i64 then
+            emit-goaway base tx-addr tx-pos tx-cap h2-err-flow-control-error consumed
+          else
+            let _ = raw-store-i64 (wrapping-add-i64 base c-off-send-win) next in
+            H2FeedResult h2-feed-ok consumed tx-pos 0 h2-err-no-error inc
+        else
+          let last-sid = raw-load-u32 (wrapping-add-i64 base c-off-last-peer-sid) in
+          if gt-u32 sid last-sid then
+            emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+          else
+            let st = h2-conn-streams conn in
+            let slot = h2-stream-lookup st sid in
+            if eq-u32 slot h2-slot-none then
+              -- RFC 9113 §5.1: WINDOW_UPDATE on recently closed stream is ignored.
+              H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+            else
+              let werr = h2-stream-add-send-window st slot inc in
+              if ne-u32 werr h2-err-no-error then
+                emit-goaway base tx-addr tx-pos tx-cap werr consumed
+              else
+                H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error inc
+    -- 6. RST_STREAM (0x3) + CVE-2023-44487 Rapid-Reset Defense
+    else if eq-u8 ftype h2-frame-rst-stream then
+      let last-sid = raw-load-u32 (wrapping-add-i64 base c-off-last-peer-sid) in
+      if gt-u32 sid last-sid then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+      else
+        let rst-err = h2-read-be32 (wrapping-add-i64 rx-addr (u32-to-i64 payload-off)) in
+        let st = h2-conn-streams conn in
+        let ps = h2-conn-priority-sched conn in
+        let slot = h2-stream-lookup st sid in
+        let _ = (
+          if ne-u32 slot h2-slot-none then
+            let _ = prio-sched-remove ps slot in
+            let _ = h2-stream-slot-set-error st slot rst-err in
+            let _ = h2-stream-close st sid in
+            ()
+          else ()) in
+        let rcnt = wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 base c-off-rst-count)) 1 in
+        let rbud = raw-load-u32 (wrapping-add-i64 base c-off-rst-budget) in
+        let _ = raw-store-u32 (wrapping-add-i64 base c-off-rst-count) rcnt in
+        if gt-u32 rcnt rbud then
+          emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+        else
+          H2FeedResult h2-feed-stream-reset consumed tx-pos sid rst-err 0
+    -- 7. GOAWAY (0x7)
+    else if eq-u8 ftype h2-frame-goaway then
+      let p = wrapping-add-i64 rx-addr (u32-to-i64 payload-off) in
+      let last-sid = bit-and-u32 (h2-read-be32 p) h2-stream-id-mask in
+      let gerr = h2-read-be32 (wrapping-add-i64 p 4) in
+      let _ = raw-store-u8 (wrapping-add-i64 base c-off-state) h2-conn-goaway in
+      let _ = raw-store-u32 (wrapping-add-i64 base c-off-goaway-err) gerr in
+      H2FeedResult h2-feed-goaway consumed tx-pos last-sid gerr 0
+    -- 8. PRIORITY (0x2)
+    else if eq-u8 ftype h2-frame-priority then
+      let dep = bit-and-u32 (h2-read-be32 (wrapping-add-i64 rx-addr (u32-to-i64 payload-off))) h2-stream-id-mask in
+      if eq-u32 dep sid then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+      else
+        H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+    -- 9. PRIORITY_UPDATE (0x10, RFC 9218)
+    else if eq-u8 ftype h2-frame-priority-update then
+      let p = wrapping-add-i64 rx-addr (u32-to-i64 payload-off) in
+      let target-sid = bit-and-u32 (h2-read-be32 p) h2-stream-id-mask in
+      if eq-u32 target-sid 0 then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+      else
+        let prio = parse-priority-header-dma (wrapping-add-i64 p 4) (wrapping-sub-u32 plen 4) in
+        let st = h2-conn-streams conn in
+        let slot = h2-stream-lookup st target-sid in
+        let _ = (
+          if ne-u32 slot h2-slot-none then
+            let _ = h2-stream-slot-set-priority st slot prio in
+            let _ = prio-sched-reprioritize (h2-conn-priority-sched conn) slot prio in
+            ()
+          else ()) in
+        H2FeedResult h2-feed-ok consumed tx-pos target-sid h2-err-no-error 0
+    -- 10. PUSH_PROMISE (0x5): rejected on server per RFC 9113 §8.4
+    else if eq-u8 ftype h2-frame-push-promise then
+      let role = raw-load-u8 (wrapping-add-i64 base c-off-role) in
+      if eq-u8 role h2-role-server then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+      else
+        H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+    -- 11. HEADERS (0x1)
+    else if eq-u8 ftype h2-frame-headers then
+      let role = raw-load-u8 (wrapping-add-i64 base c-off-role) in
+      let parity-ok = (
+        if eq-u8 role h2-role-server then eq-u32 (bit-and-u32 sid 1) 1
+        else eq-u32 (bit-and-u32 sid 1) 0) in
+      if parity-ok then
+        let pb = h2-frame-strip-padding-dma rx-addr payload-off plen flags in
+        if ne-u32 pb.pb-err h2-err-no-error then
+          emit-goaway base tx-addr tx-pos tx-cap pb.pb-err consumed
+        else
+          let has-prio = ne-u8 (bit-and-u8 flags h2-flag-priority) 0 in
+          if both has-prio (lt-u32 pb.pb-data-len 5) then
+            emit-goaway base tx-addr tx-pos tx-cap h2-err-frame-size-error consumed
+          else
+            let dep-err = (
+              if has-prio then
+                let dep = bit-and-u32 (h2-read-be32 (wrapping-add-i64 rx-addr (u32-to-i64 pb.pb-data-off))) h2-stream-id-mask in
+                eq-u32 dep sid
+              else b-false) in
+            if dep-err then
+              emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+            else
+              let frag-off = if has-prio then wrapping-add-u32 pb.pb-data-off 5 else pb.pb-data-off in
+              let frag-len = if has-prio then wrapping-sub-u32 pb.pb-data-len 5 else pb.pb-data-len in
+              if gt-u32 frag-len conn-hblock-cap then
+                emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+              else
+                let st = h2-conn-streams conn in
+                let last-sid = raw-load-u32 (wrapping-add-i64 base c-off-last-peer-sid) in
+                let existing = h2-stream-lookup st sid in
+                let es-flag = if ne-u8 (bit-and-u8 flags h2-flag-end-stream) 0 then 1 else 0 in
+                if eq-u32 existing h2-slot-none then
+                  -- Attempting to reopen a closed stream (`sid <= last-peer-sid`) -> STREAM_CLOSED!
+                  if le-u32 sid last-sid then
+                    emit-goaway base tx-addr tx-pos tx-cap h2-err-stream-closed consumed
+                  else
+                    let send-init = u32-to-i64 (raw-load-u32 (wrapping-add-i64 base c-off-peer-init-win)) in
+                    let recv-init = u32-to-i64 (raw-load-u32 (wrapping-add-i64 base c-off-local-init-win)) in
+                    let slot = h2-stream-open st sid send-init recv-init in
+                    if eq-u32 slot h2-slot-none then
+                      -- Exceeded MAX_CONCURRENT_STREAMS
+                      let next-tx = h2-write-rst-stream-dma tx-addr tx-pos tx-cap sid h2-err-refused-stream in
+                      let out-tx = if eq-u32 next-tx 0 then tx-pos else next-tx in
+                      H2FeedResult h2-feed-stream-reset consumed out-tx sid h2-err-refused-stream 0
+                    else
+                      let _ = raw-store-u32 (wrapping-add-i64 base c-off-last-peer-sid) sid in
+                      let dst = wrapping-add-i64 base conn-off-hblock in
+                      let src = wrapping-add-i64 rx-addr (u32-to-i64 frag-off) in
+                      let _ = if gt-u32 frag-len 0 then dma-copy dst src frag-len else () in
+                      let _ = raw-store-u32 (wrapping-add-i64 base c-off-hblock-len) frag-len in
+                      if ne-u8 (bit-and-u8 flags h2-flag-end-headers) 0 then
+                        finish-header-block conn base sid es-flag tx-addr tx-pos tx-cap consumed
+                      else
+                        let _ = raw-store-u32 (wrapping-add-i64 base c-off-cont-sid) sid in
+                        let _ = raw-store-u8 (wrapping-add-i64 base c-off-cont-es) es-flag in
+                        H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+                else
+                  -- Existing active stream: only valid as trailers (must carry END_STREAM and not already HalfClosedRemote).
+                  let cur-st = h2-stream-slot-state st existing in
+                  if both (eq-u8 cur-st h2-st-open) (ne-u8 es-flag 0) then
+                    let dst = wrapping-add-i64 base conn-off-hblock in
+                    let src = wrapping-add-i64 rx-addr (u32-to-i64 frag-off) in
+                    let _ = if gt-u32 frag-len 0 then dma-copy dst src frag-len else () in
+                    let _ = raw-store-u32 (wrapping-add-i64 base c-off-hblock-len) frag-len in
+                    if ne-u8 (bit-and-u8 flags h2-flag-end-headers) 0 then
+                      finish-header-block conn base sid es-flag tx-addr tx-pos tx-cap consumed
+                    else
+                      let _ = raw-store-u32 (wrapping-add-i64 base c-off-cont-sid) sid in
+                      let _ = raw-store-u8 (wrapping-add-i64 base c-off-cont-es) es-flag in
+                      H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+                  else
+                    emit-goaway base tx-addr tx-pos tx-cap h2-err-stream-closed consumed
+      else
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+    -- 12. DATA (0x0)
+    else if eq-u8 ftype h2-frame-data then
+      let last-sid = raw-load-u32 (wrapping-add-i64 base c-off-last-peer-sid) in
+      if gt-u32 sid last-sid then
+        emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error consumed
+      else
+        let st = h2-conn-streams conn in
+        let slot = h2-stream-lookup st sid in
+        if eq-u32 slot h2-slot-none then
+          emit-goaway base tx-addr tx-pos tx-cap h2-err-stream-closed consumed
+        else
+          let cur-st = h2-stream-slot-state st slot in
+          if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-local) then
+            emit-goaway base tx-addr tx-pos tx-cap h2-err-stream-closed consumed
+          else
+            let es = ne-u8 (bit-and-u8 flags h2-flag-end-stream) 0 in
+            -- Empty DATA flood check (zero-length DATA without END_STREAM)
+            let flood-hit = (
+              if both (eq-u32 plen 0) (if es then b-false else b-true) then
+                charge-ctrl-budget base
+              else b-false) in
+            if flood-hit then
+              emit-goaway base tx-addr tx-pos tx-cap h2-err-enhance-your-calm consumed
+            else
+              -- Connection-level flow-control check (applies to full payload length per RFC 9113 §6.9.1)
+              let cwin = raw-load-i64 (wrapping-add-i64 base c-off-recv-win) in
+              if lt-i64 cwin (u32-to-i64 plen) then
+                emit-goaway base tx-addr tx-pos tx-cap h2-err-flow-control-error consumed
+              else
+                let serr = h2-stream-consume-recv-window st slot plen in
+                if ne-u32 serr h2-err-no-error then
+                  emit-goaway base tx-addr tx-pos tx-cap serr consumed
+                else
+                  let pb = h2-frame-strip-padding-dma rx-addr payload-off plen flags in
+                  if ne-u32 pb.pb-err h2-err-no-error then
+                    emit-goaway base tx-addr tx-pos tx-cap pb.pb-err consumed
+                  else
+                    -- Commit connection recv window & auto-tune WINDOW_UPDATE when consumed >= target/2
+                    let next-cwin = wrapping-sub-i64 cwin (u32-to-i64 plen) in
+                    let _ = raw-store-i64 (wrapping-add-i64 base c-off-recv-win) next-cwin in
+                    let ccons = wrapping-add-u32 (raw-load-u32 (wrapping-add-i64 base c-off-recv-consumed)) plen in
+                    let ctarg = raw-load-u32 (wrapping-add-i64 base c-off-recv-target) in
+                    let tx1 = (
+                      if ge-u32 ccons (wrapping-shr-u32 ctarg 1) then
+                        let wt = h2-write-window-update-dma tx-addr tx-pos tx-cap 0 ccons in
+                        if ne-u32 wt 0 then
+                          let _ = raw-store-i64 (wrapping-add-i64 base c-off-recv-win) (wrapping-add-i64 next-cwin (u32-to-i64 ccons)) in
+                          let _ = raw-store-u32 (wrapping-add-i64 base c-off-recv-consumed) 0 in
+                          wt
+                        else
+                          let _ = raw-store-u32 (wrapping-add-i64 base c-off-recv-consumed) ccons in
+                          tx-pos
+                      else
+                        let _ = raw-store-u32 (wrapping-add-i64 base c-off-recv-consumed) ccons in
+                        tx-pos) in
+                    -- Stream-level WINDOW_UPDATE auto-tuning (only if stream is not ending)
+                    let tx2 = (
+                      if es then tx1
+                      else
+                        let scons = h2-stream-slot-recv-consumed st slot in
+                        let starg = raw-load-u32 (wrapping-add-i64 base c-off-local-init-win) in
+                        if ge-u32 scons (wrapping-shr-u32 starg 1) then
+                          let wt = h2-write-window-update-dma tx-addr tx1 tx-cap sid scons in
+                          if ne-u32 wt 0 then
+                            let _ = h2-stream-credit-recv-window st slot scons in
+                            wt
+                          else tx1
+                        else tx1) in
+                    let _ = raw-store-u32 (wrapping-add-i64 base c-off-last-data-off) pb.pb-data-off in
+                    let _ = raw-store-u32 (wrapping-add-i64 base c-off-last-data-len) pb.pb-data-len in
+                    let _ = h2-stream-slot-set-body-span st slot pb.pb-data-off pb.pb-data-len in
+                    let _ = (
+                      if es then
+                        let nxt-st = h2-stream-transition cur-st h2-sev-recv-end-stream in
+                        let _ = h2-stream-slot-set-state st slot nxt-st in
+                        if eq-u8 nxt-st h2-st-closed then
+                          let _ = prio-sched-remove (h2-conn-priority-sched conn) slot in
+                          let _ = h2-stream-close st sid in
+                          ()
+                        else ()
+                      else ()) in
+                    H2FeedResult h2-feed-data-ready consumed tx2 sid h2-err-no-error pb.pb-data-len
+    -- 13. Unknown extension frame type (RFC 9113 §4.1: ignored outside CONTINUATION)
+    else
+      H2FeedResult h2-feed-ok consumed tx-pos sid h2-err-no-error 0
+
+  -- | Incrementally parse and dispatch one HTTP/2 preface or frame from RX DMA
+  -- `[rx-addr + rx-off, rx-addr + rx-len)`, writing any protocol responses
+  -- (`SETTINGS ACK`, `PING ACK`, `WINDOW_UPDATE`, `GOAWAY`, `RST_STREAM`) into
+  -- TX DMA `[tx-addr + tx-pos, tx-addr + tx-cap)`. 100% `#[no-alloc]`.
+  #[no-alloc]
+  h2-conn-feed
+    :: H2Conn
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2FeedResult
+  h2-conn-feed conn rx-addr rx-off rx-len tx-addr tx-pos tx-cap =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let st = raw-load-u8 (wrapping-add-i64 base c-off-state) in
+      if ge-u8 st h2-conn-goaway then
+        H2FeedResult h2-feed-goaway 0 tx-pos (raw-load-u32 (wrapping-add-i64 base c-off-last-peer-sid)) (raw-load-u32 (wrapping-add-i64 base c-off-goaway-err)) 0
+      else if eq-u8 st h2-conn-preface then
+        let m = h2-preface-match-dma rx-addr rx-off rx-len in
+        if eq-u8 m h2-preface-need-more then
+          H2FeedResult h2-feed-need-more 0 tx-pos 0 h2-err-no-error 0
+        else if eq-u8 m h2-preface-ok then
+          let _ = raw-store-u8 (wrapping-add-i64 base c-off-state) h2-conn-open in
+          H2FeedResult h2-feed-ok h2-client-preface-len tx-pos 0 h2-err-no-error 0
+        else
+          emit-goaway base tx-addr tx-pos tx-cap h2-err-protocol-error 0
+      else
+        let avail = saturating-sub-u32 rx-len rx-off in
+        if lt-u32 avail h2-frame-header-len then
+          H2FeedResult h2-feed-need-more 0 tx-pos 0 h2-err-no-error 0
+        else
+          let hdr = h2-frame-read-header-dma rx-addr rx-off in
+          let max-fr = raw-load-u32 (wrapping-add-i64 base c-off-local-max-frame) in
+          let verr = h2-frame-validate-header hdr max-fr in
+          if ne-u32 verr h2-err-no-error then
+            emit-goaway base tx-addr tx-pos tx-cap verr 0
+          else
+            let total = wrapping-add-u32 h2-frame-header-len hdr.fh-length in
+            if lt-u32 avail total then
+              H2FeedResult h2-feed-need-more 0 tx-pos 0 h2-err-no-error 0
+            else
+              dispatch-frame conn base hdr rx-addr (wrapping-add-u32 rx-off h2-frame-header-len) total tx-addr tx-pos tx-cap
+    else H2FeedResult h2-feed-error 0 tx-pos 0 h2-err-internal-error 0
+
+  -- =========================================================================
+  -- 7. Zero-Alloc Outbound Response & RFC 9218 Priority DATA Scheduler
+  -- =========================================================================
+
+  -- Encode `:status` header into `[dst + pos, dst + cap)` using static table
+  -- single-byte index for standard HTTP/2 status codes, or literal without
+  -- indexing (name index 8) for arbitrary 3-digit codes.
+  #[no-alloc]
+  encode-status-header :: I64 -> U32 -> U32 -> U16 ->{MVar} HpackWriteResult
+  encode-status-header dst pos cap code =
+    if eq-u16 code 200 then hpack-encode-indexed dst pos cap 8
+    else if eq-u16 code 204 then hpack-encode-indexed dst pos cap 9
+    else if eq-u16 code 206 then hpack-encode-indexed dst pos cap 10
+    else if eq-u16 code 304 then hpack-encode-indexed dst pos cap 11
+    else if eq-u16 code 400 then hpack-encode-indexed dst pos cap 12
+    else if eq-u16 code 404 then hpack-encode-indexed dst pos cap 13
+    else if eq-u16 code 500 then hpack-encode-indexed dst pos cap 14
+    else
+      if lt-u32 (saturating-sub-u32 cap pos) 5 then HpackWriteResult hpack-err-buf-overflow pos
+      else
+        let d0 = wrapping-add-u8 48 (wrapping-u16-to-u8 (div-u16 code 100)) in
+        let r1 = rem-u16 code 100 in
+        let d1 = wrapping-add-u8 48 (wrapping-u16-to-u8 (div-u16 r1 10)) in
+        let d2 = wrapping-add-u8 48 (wrapping-u16-to-u8 (rem-u16 r1 10)) in
+        let p = wrapping-add-i64 dst (u32-to-i64 pos) in
+        let _ = raw-store-u8 p 8 in        -- 0000 1000: literal without indexing, name idx 8 (`:status`)
+        let _ = raw-store-u8 (wrapping-add-i64 p 1) 3 in -- raw string length 3
+        let _ = raw-store-u8 (wrapping-add-i64 p 2) d0 in
+        let _ = raw-store-u8 (wrapping-add-i64 p 3) d1 in
+        let _ = raw-store-u8 (wrapping-add-i64 p 4) d2 in
+        HpackWriteResult hpack-ok (wrapping-add-u32 pos 5)
+
+  -- Emit one DATA chunk for `slot` (`sid`) respecting `conn-send-window`,
+  -- `stream-send-window`, and `peer-max-frame-size`. Uses 9-byte headroom
+  -- framing directly in `tx-addr`.
+  #[no-alloc]
+  emit-data-chunk
+    :: H2Conn -> I64 -> H2StreamTable -> U32 -> U32
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  emit-data-chunk conn base st slot sid body-addr body-len max-chunk tx-addr tx-pos tx-cap =
+    let cwin = raw-load-i64 (wrapping-add-i64 base c-off-send-win) in
+    let swin = h2-stream-slot-send-window st slot in
+    if le-i64 cwin 0 then H2WriteResult h2-err-no-error tx-pos sid 0
+    else if le-i64 swin 0 then H2WriteResult h2-err-no-error tx-pos sid 0
+    else
+      let peer-mfs = raw-load-u32 (wrapping-add-i64 base c-off-peer-max-frame) in
+      let avail-tx = saturating-sub-u32 tx-cap tx-pos in
+      if le-u32 avail-tx h2-frame-header-len then H2WriteResult h2-err-internal-error tx-pos sid 0
+      else
+        let cap-body = wrapping-sub-u32 avail-tx h2-frame-header-len in
+        let w0 = if lt-i64 cwin swin then wrapping-i64-to-u32 cwin else wrapping-i64-to-u32 swin in
+        let w1 = if lt-u32 w0 peer-mfs then w0 else peer-mfs in
+        let w2 = if lt-u32 w1 max-chunk then w1 else max-chunk in
+        let w3 = if lt-u32 w2 cap-body then w2 else cap-body in
+        let chunk = if lt-u32 w3 body-len then w3 else body-len in
+        let is-final = eq-u32 chunk body-len in
+        let flags = if is-final then h2-flag-end-stream else h2-flag-none in
+        let payload-pos = wrapping-add-u32 tx-pos h2-frame-header-len in
+        let payload-addr = wrapping-add-i64 tx-addr (u32-to-i64 payload-pos) in
+        let _ = if gt-u32 chunk 0 then dma-copy payload-addr body-addr chunk else () in
+        let _ = h2-frame-write-headroom-raw payload-addr h2-frame-data flags sid chunk in
+        let _ = raw-store-i64 (wrapping-add-i64 base c-off-send-win) (wrapping-sub-i64 cwin (u32-to-i64 chunk)) in
+        let _ = h2-stream-consume-send-window st slot chunk in
+        let rem = wrapping-sub-u32 body-len chunk in
+        let next-tx = wrapping-add-u32 payload-pos chunk in
+        let _ = (
+          if is-final then
+            let _ = h2-stream-slot-set-tx-pending st slot 0 0 in
+            let _ = prio-sched-remove (h2-conn-priority-sched conn) slot in
+            let cur-st = h2-stream-slot-state st slot in
+            let nxt-st = h2-stream-transition cur-st h2-sev-send-end-stream in
+            let _ = h2-stream-slot-set-state st slot nxt-st in
+            if eq-u8 nxt-st h2-st-closed then
+              let _ = h2-stream-close st sid in
+              ()
+            else ()
+          else
+            let _ = h2-stream-slot-set-tx-pending st slot (wrapping-add-i64 body-addr (u32-to-i64 chunk)) rem in
+            ()) in
+        H2WriteResult h2-err-no-error next-tx sid chunk
+
+  -- | Zero-alloc `h2-conn-send-response`: writes a `HEADERS` frame (using 9-byte
+  -- headroom framing directly inside `[tx-addr + tx-pos, tx-addr + tx-cap)`)
+  -- followed by `DATA` frame(s) for `[body-addr, body-addr + body-len)`.
+  -- If flow-control window is insufficient to send the entire body immediately,
+  -- queues the remainder on `PriorityScheduler` for `h2-conn-flush-data`.
+  #[no-alloc]
+  h2-conn-send-response
+    :: H2Conn -> U32 -> U16
+    -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  h2-conn-send-response conn sid status-code body-addr body-len tx-addr tx-pos tx-cap =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else
+        let cur-st = h2-stream-slot-state st slot in
+        if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-remote) then
+          H2WriteResult h2-err-stream-closed tx-pos sid 0
+        else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 10 then
+          H2WriteResult h2-err-internal-error tx-pos sid 0
+        else
+          -- Reserve 9-byte headroom for HEADERS frame directly in TX buffer
+          let hdr-payload-pos = wrapping-add-u32 tx-pos h2-frame-header-len in
+          let enc = h2-conn-hpack-encoder conn in
+          let r-sz = hpack-encoder-flush-size-updates enc tx-addr hdr-payload-pos tx-cap in
+          if ne-u32 r-sz.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+          else
+            let r-st = encode-status-header tx-addr r-sz.hw-next-pos tx-cap status-code in
+            if ne-u32 r-st.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+            else
+              let hblock-len = wrapping-sub-u32 r-st.hw-next-pos hdr-payload-pos in
+              let hflags = if eq-u32 body-len 0 then bit-or-u8 h2-flag-end-headers h2-flag-end-stream else h2-flag-end-headers in
+              let _ = h2-frame-write-headroom-raw (wrapping-add-i64 tx-addr (u32-to-i64 hdr-payload-pos)) h2-frame-headers hflags sid hblock-len in
+              let after-hdrs = r-st.hw-next-pos in
+              if eq-u32 body-len 0 then
+                let nxt-st = h2-stream-transition cur-st h2-sev-send-end-stream in
+                let _ = h2-stream-slot-set-state st slot nxt-st in
+                let _ = (if eq-u8 nxt-st h2-st-closed then let _ = h2-stream-close st sid in () else ()) in
+                H2WriteResult h2-err-no-error after-hdrs sid 0
+              else
+                let wr = emit-data-chunk conn base st slot sid body-addr body-len body-len tx-addr after-hdrs tx-cap in
+                let _ = (
+                  if lt-u32 wr.wr-bytes-sent body-len then
+                    let _ = prio-sched-enqueue (h2-conn-priority-sched conn) slot (h2-stream-slot-priority st slot) in
+                    ()
+                  else ()) in
+                wr
+    else H2WriteResult h2-err-internal-error tx-pos sid 0
+
+  -- | Send response `HEADERS` and enqueue `[body-addr, body-addr + body-len)`
+  -- into the RFC 9218 `PriorityScheduler` without immediately flushing `DATA`,
+  -- enabling priority-ordered multiplexed draining via `h2-conn-flush-data`.
+  #[no-alloc]
+  h2-conn-queue-body
+    :: H2Conn -> U32 -> U16
+    -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  h2-conn-queue-body conn sid status-code body-addr body-len tx-addr tx-pos tx-cap =
+    if h2-conn-valid conn then
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 10 then H2WriteResult h2-err-internal-error tx-pos sid 0
+      else
+        let hdr-payload-pos = wrapping-add-u32 tx-pos h2-frame-header-len in
+        let enc = h2-conn-hpack-encoder conn in
+        let r-sz = hpack-encoder-flush-size-updates enc tx-addr hdr-payload-pos tx-cap in
+        if ne-u32 r-sz.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+        else
+          let r-st = encode-status-header tx-addr r-sz.hw-next-pos tx-cap status-code in
+          if ne-u32 r-st.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+          else
+            let hblock-len = wrapping-sub-u32 r-st.hw-next-pos hdr-payload-pos in
+            let _ = h2-frame-write-headroom-raw (wrapping-add-i64 tx-addr (u32-to-i64 hdr-payload-pos)) h2-frame-headers h2-flag-end-headers sid hblock-len in
+            let _ = h2-stream-slot-set-tx-pending st slot body-addr body-len in
+            let _ = prio-sched-enqueue (h2-conn-priority-sched conn) slot (h2-stream-slot-priority st slot) in
+            H2WriteResult h2-err-no-error r-st.hw-next-pos sid 0
+    else H2WriteResult h2-err-internal-error tx-pos sid 0
+
+  -- | Select the next active stream from the RFC 9218 `PriorityScheduler` and
+  -- emit up to `quantum` bytes as a `DATA` frame into `[tx-addr + tx-pos, tx-addr + tx-cap)`.
+  -- Returns `wr-stream-id == 0` when no streams are queued or windows are blocked.
+  #[no-alloc]
+  h2-conn-flush-data :: H2Conn -> U32 -> I64 -> U32 -> U32 ->{MVar} H2WriteResult
+  h2-conn-flush-data conn quantum tx-addr tx-pos tx-cap =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let ps = h2-conn-priority-sched conn in
+      let slot = prio-sched-next ps in
+      if eq-u32 slot prio-slot-none then H2WriteResult h2-err-no-error tx-pos 0 0
+      else
+        let st = h2-conn-streams conn in
+        let sid = h2-stream-slot-id st slot in
+        let baddr = h2-stream-slot-tx-addr st slot in
+        let brem = h2-stream-slot-tx-rem st slot in
+        if either (eq-u32 sid 0) (eq-u32 brem 0) then
+          let _ = prio-sched-remove ps slot in
+          H2WriteResult h2-err-no-error tx-pos 0 0
+        else
+          emit-data-chunk conn base st slot sid baddr brem quantum tx-addr tx-pos tx-cap
+    else H2WriteResult h2-err-internal-error tx-pos 0 0
+
+  -- | Zero-copy `DmaSlice` DATA framing: writes the 9-byte DATA header directly
+  -- into the 9-byte headroom of `payload-slice` via `h2-frame-write-headroom`,
+  -- deducting `payload-len` from both connection and stream send windows.
+  -- Returns `dma-slice-empty ()` if headroom `< 9` or flow control blocks.
+  #[no-alloc]
+  h2-conn-frame-data-slice :: H2Conn -> U32 -> DmaSlice -> U32 -> U8 ->{MVar} DmaSlice
+  h2-conn-frame-data-slice conn sid payload-slice payload-len end-stream =
+    if h2-conn-valid conn then
+      let base = wrapping-u64-to-i64 conn.h2-slab-addr in
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then dma-slice-empty ()
+      else
+        let cwin = raw-load-i64 (wrapping-add-i64 base c-off-send-win) in
+        let swin = h2-stream-slot-send-window st slot in
+        let need = u32-to-i64 payload-len in
+        if either (lt-i64 cwin need) (lt-i64 swin need) then dma-slice-empty ()
+        else
+          let flags = if ne-u8 end-stream 0 then h2-flag-end-stream else h2-flag-none in
+          let framed = h2-frame-write-headroom payload-slice h2-frame-data flags sid payload-len in
+          if eq-i64 framed.slice-addr 0 then framed
+          else
+            let _ = raw-store-i64 (wrapping-add-i64 base c-off-send-win) (wrapping-sub-i64 cwin need) in
+            let _ = h2-stream-consume-send-window st slot payload-len in
+            let _ = (
+              if ne-u8 end-stream 0 then
+                let cur-st = h2-stream-slot-state st slot in
+                let nxt-st = h2-stream-transition cur-st h2-sev-send-end-stream in
+                let _ = h2-stream-slot-set-state st slot nxt-st in
+                if eq-u8 nxt-st h2-st-closed then
+                  let _ = h2-stream-close st sid in
+                  ()
+                else ()
+              else ()) in
+            framed
+    else dma-slice-empty ()
