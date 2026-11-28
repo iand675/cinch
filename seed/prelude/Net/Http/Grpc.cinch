@@ -1,0 +1,2399 @@
+-- | Zero-Copy, Zero-Allocation (`#[no-alloc]`) gRPC over HTTP/2 Wire Protocol
+-- (`PROTOCOL-HTTP2.md`) layered cleanly on `Net.Http.V2.{Frame,Stream,Conn}`.
+--
+-- Components & zero-allocation contract:
+--   * All 17 canonical gRPC status codes (`GrpcOk = 0` .. `GrpcUnauthenticated = 16`)
+--     with `grpc-status-to-u8`, `grpc-status-from-u8`, `grpc-status-from-http`,
+--     and HTTP/2 `RST_STREAM` error code mapping.
+--   * 5-byte length-prefixed message framing (`compressed:1B | msg_len:4B BE`)
+--     with zero-copy headroom framing (`grpc-frame-encode-headroom-raw` and
+--     `grpc-frame-encode-headroom` for 14B `9B H2 + 5B gRPC` zero-copy `DmaSlice`),
+--     stateless single-buffer decoding (`grpc-frame-decode-raw`), and incremental
+--     multi-`DATA` reassembly (`GrpcFrameAssembler` + `grpc-frame-decode-incremental`)
+--     enforcing `max_message_size` (`GrpcResourceExhausted = 8`) and invalid
+--     compression flag `> 1` (`GrpcInternal = 13`).
+--   * Full `grpc-timeout` header parser (`H`/`M`/`S`/`m`/`u`/`n` -> `U64` ns with
+--     8-digit & U64 overflow enforcement) and compact wire formatter.
+--   * RFC 3986 / gRPC `grpc-message` percent-encoder and tolerant decoder.
+--   * Strict HTTP/2 gRPC request validation (`POST`, `content-type: application/grpc*`,
+--     `te: trailers`, `/<package>.<Service>/<Method>` span extraction, optional
+--     `grpc-timeout`) and response/trailer header parsing.
+--   * Trailers & Trailers-Only responses over `Net.Http.V2.Conn`
+--     (`grpc-send-request-headers`, `grpc-send-response-headers`, `grpc-send-message`,
+--     `grpc-send-message-slice`, `grpc-send-end-stream`, `grpc-send-trailers`,
+--     `grpc-send-trailers-only`, and `grpc-client-feed`).
+--   * Full client + server call state machine (`GrpcCallState`) covering all 4
+--     gRPC streaming modes (`GrpcUnary`, `GrpcServerStreaming`,
+--     `GrpcClientStreaming`, `GrpcBidiStreaming`).
+module Net.Http.Grpc where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Engine.Types
+  import Engine.Mem.DmaPool
+  import Net.Http.Types
+  import Net.Http.Hpack.Codec
+  import Net.Http.V2.Frame
+  import Net.Http.V2.Stream
+  import Net.Http.V2.Conn
+  import Prim.Atomic
+
+  -- Canonical 17 gRPC status codes (auto-niched enum + U8 codes)
+  export GrpcStatus, GrpcOk, GrpcCancelled, GrpcUnknown, GrpcInvalidArgument
+  export GrpcDeadlineExceeded, GrpcNotFound, GrpcAlreadyExists, GrpcPermissionDenied
+  export GrpcResourceExhausted, GrpcFailedPrecondition, GrpcAborted, GrpcOutOfRange
+  export GrpcUnimplemented, GrpcInternal, GrpcUnavailable, GrpcDataLoss, GrpcUnauthenticated
+  export grpc-code-ok, grpc-code-cancelled, grpc-code-unknown, grpc-code-invalid-argument
+  export grpc-code-deadline-exceeded, grpc-code-not-found, grpc-code-already-exists
+  export grpc-code-permission-denied, grpc-code-resource-exhausted
+  export grpc-code-failed-precondition, grpc-code-aborted, grpc-code-out-of-range
+  export grpc-code-unimplemented, grpc-code-internal, grpc-code-unavailable
+  export grpc-code-data-loss, grpc-code-unauthenticated
+  export grpc-status-to-u8, grpc-status-from-u8, grpc-status-eq, grpc-status-name
+  export grpc-status-code-from-http, grpc-status-from-http, grpc-status-from-rst-error
+
+  -- 5-byte length-prefixed framing constants, POD types & codecs
+  export grpc-frame-header-len, grpc-h2-headroom-len, grpc-default-max-message-size
+  export grpc-decode-ok, grpc-decode-need-more, grpc-decode-error
+  export GrpcFrameWriteResult, GrpcFrameDecodeResult, GrpcFrameAssembler
+  export grpc-frame-encode-raw, grpc-frame-encode-headroom-raw, grpc-frame-encode-headroom
+  export grpc-frame-decode-raw
+  export grpc-assembler-init, grpc-assembler-reset, grpc-assembler-valid
+  export grpc-frame-decode-incremental
+
+  -- grpc-timeout parser & formatter
+  export grpc-timeout-ok, grpc-timeout-err-short, grpc-timeout-err-too-long
+  export grpc-timeout-err-bad-digit, grpc-timeout-err-bad-unit, grpc-timeout-err-overflow
+  export GrpcTimeoutResult, grpc-parse-timeout-dma, grpc-format-timeout-dma
+
+  -- grpc-message percent-encoding / decoding
+  export GrpcCodecResult, grpc-message-encoded-len-dma
+  export grpc-message-encode-dma, grpc-message-decode-dma
+
+  -- Content-Type, path & request/response header validation
+  export grpc-ct-invalid, grpc-ct-default, grpc-ct-proto, grpc-ct-json, grpc-ct-other
+  export GrpcPathSpans, GrpcRequestMeta, GrpcResponseMeta
+  export grpc-validate-content-type-dma, grpc-parse-path-dma
+  export grpc-validate-request-headers, grpc-parse-response-headers
+
+  -- Wire emitters & client HTTP/2 frame dispatcher over Net.Http.V2.Conn
+  export grpc-send-request-headers, grpc-send-response-headers
+  export grpc-send-message, grpc-send-message-slice, grpc-send-end-stream
+  export grpc-send-trailers, grpc-send-trailers-only
+  export grpc-cf-ok, grpc-cf-need-more, grpc-cf-response-headers, grpc-cf-data
+  export grpc-cf-trailers, grpc-cf-trailers-only, grpc-cf-stream-reset
+  export grpc-cf-goaway, grpc-cf-error
+  export GrpcClientFeedResult, grpc-client-feed
+
+  -- All 4 RPC streaming modes & full client+server GrpcCallState machine
+  export GrpcRpcMode, GrpcUnary, GrpcServerStreaming, GrpcClientStreaming, GrpcBidiStreaming
+  export grpc-mode-unary, grpc-mode-server-streaming, grpc-mode-client-streaming, grpc-mode-bidi-streaming
+  export grpc-rpc-mode-to-u8, grpc-rpc-mode-from-u8, grpc-rpc-mode-eq
+  export grpc-role-server, grpc-role-client
+  export grpc-phase-idle, grpc-phase-active, grpc-phase-half-closed-req
+  export grpc-phase-closed, grpc-phase-failed
+  export GrpcCallState, grpc-call-new-server, grpc-call-new-client
+  export grpc-server-accept-call, grpc-server-on-req-message, grpc-server-on-req-end
+  export grpc-server-send-headers, grpc-server-send-message, grpc-server-finish
+  export grpc-client-start-call, grpc-client-send-message, grpc-client-half-close
+  export grpc-client-apply-feed, grpc-client-on-resp-message
+
+  -- =========================================================================
+  -- 0. Internal #[no-alloc] Boolean, Byte-Packing & DMA Helpers
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  b-true :: Bool
+  b-true = eq-u32 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  b-false :: Bool
+  b-false = eq-u32 0 1
+
+  #[inline(always)]
+  #[no-alloc]
+  both :: Bool -> Bool -> Bool
+  both a b = if a then b else b-false
+
+  #[inline(always)]
+  #[no-alloc]
+  either :: Bool -> Bool -> Bool
+  either a b = if a then b-true else b
+
+  #[inline(always)]
+  #[no-alloc]
+  ascii-lower :: U8 -> U8
+  ascii-lower b =
+    if lt-u8 (wrapping-sub-u8 b 65) 26 then bit-or-u8 b 32 else b
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-byte-at :: I64 -> U32 ->{MVar} U8
+  dma-byte-at base off = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 off))
+
+  #[inline(always)]
+  #[no-alloc]
+  dma-put-u8 :: I64 -> U32 -> U8 ->{MVar} U32
+  dma-put-u8 dst pos b =
+    let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 pos)) b in
+    wrapping-add-u32 pos 1
+
+  #[no-alloc]
+  dma-copy :: I64 -> I64 -> U32 ->{MVar} Unit
+  dma-copy dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      dma-copy (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      dma-copy (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      dma-copy (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- =========================================================================
+  -- 1. All 17 Canonical gRPC Status Codes
+  -- =========================================================================
+
+  -- | All 17 canonical gRPC status codes (auto-niched single-word Raw enum).
+  data GrpcStatus where
+    GrpcOk :: GrpcStatus
+    GrpcCancelled :: GrpcStatus
+    GrpcUnknown :: GrpcStatus
+    GrpcInvalidArgument :: GrpcStatus
+    GrpcDeadlineExceeded :: GrpcStatus
+    GrpcNotFound :: GrpcStatus
+    GrpcAlreadyExists :: GrpcStatus
+    GrpcPermissionDenied :: GrpcStatus
+    GrpcResourceExhausted :: GrpcStatus
+    GrpcFailedPrecondition :: GrpcStatus
+    GrpcAborted :: GrpcStatus
+    GrpcOutOfRange :: GrpcStatus
+    GrpcUnimplemented :: GrpcStatus
+    GrpcInternal :: GrpcStatus
+    GrpcUnavailable :: GrpcStatus
+    GrpcDataLoss :: GrpcStatus
+    GrpcUnauthenticated :: GrpcStatus
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-ok :: U8
+  grpc-code-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-cancelled :: U8
+  grpc-code-cancelled = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-unknown :: U8
+  grpc-code-unknown = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-invalid-argument :: U8
+  grpc-code-invalid-argument = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-deadline-exceeded :: U8
+  grpc-code-deadline-exceeded = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-not-found :: U8
+  grpc-code-not-found = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-already-exists :: U8
+  grpc-code-already-exists = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-permission-denied :: U8
+  grpc-code-permission-denied = 7
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-resource-exhausted :: U8
+  grpc-code-resource-exhausted = 8
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-failed-precondition :: U8
+  grpc-code-failed-precondition = 9
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-aborted :: U8
+  grpc-code-aborted = 10
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-out-of-range :: U8
+  grpc-code-out-of-range = 11
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-unimplemented :: U8
+  grpc-code-unimplemented = 12
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-internal :: U8
+  grpc-code-internal = 13
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-unavailable :: U8
+  grpc-code-unavailable = 14
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-data-loss :: U8
+  grpc-code-data-loss = 15
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-code-unauthenticated :: U8
+  grpc-code-unauthenticated = 16
+
+  -- | Convert `GrpcStatus` to its wire `U8` code (`0..16`).
+  #[no-alloc]
+  grpc-status-to-u8 :: GrpcStatus -> U8
+  grpc-status-to-u8 st = case st of
+    GrpcOk -> 0
+    GrpcCancelled -> 1
+    GrpcUnknown -> 2
+    GrpcInvalidArgument -> 3
+    GrpcDeadlineExceeded -> 4
+    GrpcNotFound -> 5
+    GrpcAlreadyExists -> 6
+    GrpcPermissionDenied -> 7
+    GrpcResourceExhausted -> 8
+    GrpcFailedPrecondition -> 9
+    GrpcAborted -> 10
+    GrpcOutOfRange -> 11
+    GrpcUnimplemented -> 12
+    GrpcInternal -> 13
+    GrpcUnavailable -> 14
+    GrpcDataLoss -> 15
+    GrpcUnauthenticated -> 16
+
+  -- | Decode a `U8` code into `GrpcStatus` (unknown codes map to `GrpcUnknown`).
+  -- Auto-niched single-word Raw enum: zero runtime heap allocation.
+  grpc-status-from-u8 :: U8 -> GrpcStatus
+  grpc-status-from-u8 code =
+    if eq-u8 code 0 then GrpcOk
+    else if eq-u8 code 1 then GrpcCancelled
+    else if eq-u8 code 2 then GrpcUnknown
+    else if eq-u8 code 3 then GrpcInvalidArgument
+    else if eq-u8 code 4 then GrpcDeadlineExceeded
+    else if eq-u8 code 5 then GrpcNotFound
+    else if eq-u8 code 6 then GrpcAlreadyExists
+    else if eq-u8 code 7 then GrpcPermissionDenied
+    else if eq-u8 code 8 then GrpcResourceExhausted
+    else if eq-u8 code 9 then GrpcFailedPrecondition
+    else if eq-u8 code 10 then GrpcAborted
+    else if eq-u8 code 11 then GrpcOutOfRange
+    else if eq-u8 code 12 then GrpcUnimplemented
+    else if eq-u8 code 13 then GrpcInternal
+    else if eq-u8 code 14 then GrpcUnavailable
+    else if eq-u8 code 15 then GrpcDataLoss
+    else if eq-u8 code 16 then GrpcUnauthenticated
+    else GrpcUnknown
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-status-eq :: GrpcStatus -> GrpcStatus -> Bool
+  grpc-status-eq a b = eq-u8 (grpc-status-to-u8 a) (grpc-status-to-u8 b)
+
+  -- | Return the canonical gRPC status name as an immortal (`rc == 0`) string.
+  #[no-alloc]
+  grpc-status-name :: GrpcStatus -> String
+  grpc-status-name st = case st of
+    GrpcOk -> "OK"
+    GrpcCancelled -> "CANCELLED"
+    GrpcUnknown -> "UNKNOWN"
+    GrpcInvalidArgument -> "INVALID_ARGUMENT"
+    GrpcDeadlineExceeded -> "DEADLINE_EXCEEDED"
+    GrpcNotFound -> "NOT_FOUND"
+    GrpcAlreadyExists -> "ALREADY_EXISTS"
+    GrpcPermissionDenied -> "PERMISSION_DENIED"
+    GrpcResourceExhausted -> "RESOURCE_EXHAUSTED"
+    GrpcFailedPrecondition -> "FAILED_PRECONDITION"
+    GrpcAborted -> "ABORTED"
+    GrpcOutOfRange -> "OUT_OF_RANGE"
+    GrpcUnimplemented -> "UNIMPLEMENTED"
+    GrpcInternal -> "INTERNAL"
+    GrpcUnavailable -> "UNAVAILABLE"
+    GrpcDataLoss -> "DATA_LOSS"
+    GrpcUnauthenticated -> "UNAUTHENTICATED"
+
+  -- | Official gRPC HTTP-to-gRPC status code mapping (`http-grpc-status-mapping.md`)
+  -- returning the `U8` gRPC status code (`#[no-alloc]`).
+  #[no-alloc]
+  grpc-status-code-from-http :: U16 -> U8
+  grpc-status-code-from-http http-code =
+    if eq-u16 http-code 400 then grpc-code-internal
+    else if eq-u16 http-code 401 then grpc-code-unauthenticated
+    else if eq-u16 http-code 403 then grpc-code-permission-denied
+    else if eq-u16 http-code 404 then grpc-code-unimplemented
+    else if eq-u16 http-code 429 then grpc-code-unavailable
+    else if eq-u16 http-code 502 then grpc-code-unavailable
+    else if eq-u16 http-code 503 then grpc-code-unavailable
+    else if eq-u16 http-code 504 then grpc-code-unavailable
+    else grpc-code-unknown
+
+  -- | Official gRPC HTTP-to-gRPC status code mapping (`http-grpc-status-mapping.md`).
+  grpc-status-from-http :: U16 -> GrpcStatus
+  grpc-status-from-http http-code =
+    grpc-status-from-u8 (grpc-status-code-from-http http-code)
+
+  -- | Official gRPC HTTP/2 `RST_STREAM` error code -> gRPC status code mapping.
+  #[no-alloc]
+  grpc-status-from-rst-error :: U32 -> U8
+  grpc-status-from-rst-error h2-err =
+    if eq-u32 h2-err h2-err-refused-stream then grpc-code-unavailable
+    else if eq-u32 h2-err h2-err-cancel then grpc-code-cancelled
+    else if eq-u32 h2-err h2-err-enhance-your-calm then grpc-code-resource-exhausted
+    else if eq-u32 h2-err h2-err-inadequate-security then grpc-code-permission-denied
+    else grpc-code-internal
+
+  -- =========================================================================
+  -- 2. 5-Byte Length-Prefixed Message Framing (`#[no-alloc]`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-frame-header-len :: U32
+  grpc-frame-header-len = 5
+
+  -- | Combined HTTP/2 (9B) + gRPC (5B) zero-copy headroom bytes.
+  #[inline(always)]
+  #[no-alloc]
+  grpc-h2-headroom-len :: U32
+  grpc-h2-headroom-len = 14
+
+  -- | Default gRPC maximum message size (4 MiB = 4,194,304 bytes).
+  #[inline(always)]
+  #[no-alloc]
+  grpc-default-max-message-size :: U32
+  grpc-default-max-message-size = 4194304
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-decode-ok :: U8
+  grpc-decode-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-decode-need-more :: U8
+  grpc-decode-need-more = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-decode-error :: U8
+  grpc-decode-error = 2
+
+  -- | 12-byte POD result from `grpc-frame-encode-raw`.
+  #[repr(C, value)]
+  record GrpcFrameWriteResult where
+    gfw-status :: U8
+    gfw-pad0 :: U8
+    gfw-pad1 :: U16
+    gfw-next-pos :: U32
+    gfw-bytes-written :: U32
+
+  -- | 24-byte POD result from `grpc-frame-decode-raw` and `grpc-frame-decode-incremental`.
+  #[repr(C, value)]
+  record GrpcFrameDecodeResult where
+    gfd-state :: U8
+    gfd-grpc-status :: U8
+    gfd-compressed :: U8
+    gfd-pad :: U8
+    gfd-consumed :: U32
+    gfd-msg-len :: U32
+    gfd-msg-off :: U32
+    gfd-msg-addr :: I64
+
+  -- | 16-byte POD handle to an incremental gRPC frame reassembler backed by a
+  -- caller-owned DMA scratch buffer (`>= 64` bytes).
+  -- Slab layout:
+  --   +0  : buffered     :: U32
+  --   +4  : expected-len :: U32
+  --   +8  : hdr-parsed   :: U8
+  --   +9  : compressed   :: U8
+  --   +10..31 : reserved
+  --   +32..   : reassembly payload buffer (`[5B gRPC hdr][message payload]`)
+  #[repr(C, value)]
+  record GrpcFrameAssembler where
+    gfa-slab-addr :: I64
+    gfa-buf-cap :: U32
+    gfa-max-msg-size :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  gfa-hdr-size :: U32
+  gfa-hdr-size = 32
+
+  -- | Encode a 5-byte gRPC length-prefixed message (`compressed:1B | len:4B BE | payload`)
+  -- into DMA `[dst + pos, dst + cap)`.
+  #[no-alloc]
+  grpc-frame-encode-raw :: I64 -> U32 -> U32 -> U8 -> I64 -> U32 ->{MVar} GrpcFrameWriteResult
+  grpc-frame-encode-raw dst pos cap compressed msg-addr msg-len =
+    if eq-i64 dst 0 then GrpcFrameWriteResult grpc-code-internal 0 0 pos 0
+    else if gt-u8 compressed 1 then GrpcFrameWriteResult grpc-code-internal 0 0 pos 0
+    else
+      let avail = saturating-sub-u32 cap pos in
+      let need-u64 = wrapping-add-u64 (u32-to-u64 msg-len) 5 in
+      if gt-u64 need-u64 (u32-to-u64 avail) then
+        GrpcFrameWriteResult grpc-code-resource-exhausted 0 0 pos 0
+      else
+        let p = wrapping-add-i64 dst (u32-to-i64 pos) in
+        let _ = raw-store-u8 p compressed in
+        let _ = h2-write-be32 (wrapping-add-i64 p 1) msg-len in
+        let _ = (if gt-u32 msg-len 0 then dma-copy (wrapping-add-i64 p 5) msg-addr msg-len else ()) in
+        let total = wrapping-u64-to-u32 need-u64 in
+        GrpcFrameWriteResult grpc-code-ok 0 0 (wrapping-add-u32 pos total) total
+
+  -- | Zero-copy 5-byte headroom framing: writes `compressed:1B | msg_len:4B BE`
+  -- directly at `payload-addr - 5` ahead of an already-serialized message payload.
+  #[inline(always)]
+  #[no-alloc]
+  grpc-frame-encode-headroom-raw :: I64 -> U8 -> U32 ->{MVar} Bool
+  grpc-frame-encode-headroom-raw payload-addr compressed msg-len =
+    if eq-i64 payload-addr 0 then b-false
+    else if gt-u8 compressed 1 then b-false
+    else
+      let hdr-addr = wrapping-sub-i64 payload-addr 5 in
+      let _ = raw-store-u8 hdr-addr compressed in
+      let _ = h2-write-be32 (wrapping-add-i64 hdr-addr 1) msg-len in
+      b-true
+
+  -- | Zero-copy 5-byte headroom framing on a `DmaSlice` (with `slice-off >= 5`,
+  -- e.g. reserved with `dma-slice-reserve-headroom sl 14` so 9 bytes still remain
+  -- for `h2-conn-frame-data-slice`). Returns combined `DmaSlice` or `dma-slice-empty ()`.
+  #[no-alloc]
+  grpc-frame-encode-headroom :: DmaSlice -> U8 -> U32 ->{MVar} DmaSlice
+  grpc-frame-encode-headroom payload-slice compressed msg-len =
+    if eq-i64 payload-slice.slice-addr 0 then dma-slice-empty ()
+    else if gt-u8 compressed 1 then dma-slice-empty ()
+    else if lt-u32 payload-slice.slice-off grpc-frame-header-len then dma-slice-empty ()
+    else if gt-u32 msg-len payload-slice.slice-cap then dma-slice-empty ()
+    else
+      let hdr-addr = wrapping-sub-i64 payload-slice.slice-addr 5 in
+      let hdr-off = wrapping-sub-u32 payload-slice.slice-off grpc-frame-header-len in
+      let _ = raw-store-u8 hdr-addr compressed in
+      let _ = h2-write-be32 (wrapping-add-i64 hdr-addr 1) msg-len in
+      DmaSlice
+        payload-slice.slice-buf-id
+        hdr-off
+        (wrapping-add-u32 msg-len grpc-frame-header-len)
+        (wrapping-add-u32 payload-slice.slice-cap grpc-frame-header-len)
+        hdr-addr
+
+  -- | Decode one 5-byte length-prefixed gRPC frame from DMA `[src + off, src + end)`.
+  -- Enforces `compressed <= 1` (`GrpcInternal = 13`) and `msg-len <= max-msg-size`
+  -- (`GrpcResourceExhausted = 8`) immediately once the 5-byte prefix is present.
+  #[no-alloc]
+  grpc-frame-decode-raw :: I64 -> U32 -> U32 -> U32 ->{MVar} GrpcFrameDecodeResult
+  grpc-frame-decode-raw src off end max-msg-size =
+    if eq-i64 src 0 then GrpcFrameDecodeResult grpc-decode-error grpc-code-internal 0 0 0 0 0 0
+    else
+      let avail = saturating-sub-u32 end off in
+      if lt-u32 avail grpc-frame-header-len then
+        GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok 0 0 0 0 0 0
+      else
+        let p = wrapping-add-i64 src (u32-to-i64 off) in
+        let comp = raw-load-u8 p in
+        let mlen = h2-read-be32 (wrapping-add-i64 p 1) in
+        if gt-u8 comp 1 then
+          GrpcFrameDecodeResult grpc-decode-error grpc-code-internal comp 0 0 mlen 0 0
+        else if gt-u32 mlen max-msg-size then
+          GrpcFrameDecodeResult grpc-decode-error grpc-code-resource-exhausted comp 0 0 mlen 0 0
+        else
+          let need-u64 = wrapping-add-u64 (u32-to-u64 mlen) 5 in
+          if gt-u64 need-u64 (u32-to-u64 avail) then
+            GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok comp 0 0 mlen 0 0
+          else
+            let msg-off = wrapping-add-u32 off grpc-frame-header-len in
+            let msg-addr = wrapping-add-i64 src (u32-to-i64 msg-off) in
+            GrpcFrameDecodeResult
+              grpc-decode-ok
+              grpc-code-ok
+              comp
+              0
+              (wrapping-u64-to-u32 need-u64)
+              mlen
+              msg-off
+              msg-addr
+
+  -- | Initialize an incremental gRPC frame reassembler in caller-owned DMA memory
+  -- `[slab-addr, slab-addr + slab-len)` (`slab-len >= 64`).
+  #[no-alloc]
+  grpc-assembler-init :: I64 -> U32 -> U32 ->{MVar} GrpcFrameAssembler
+  grpc-assembler-init slab-addr slab-len max-msg-size =
+    if either (eq-i64 slab-addr 0) (lt-u32 slab-len 64) then GrpcFrameAssembler 0 0 0
+    else
+      let _ = raw-store-u32 slab-addr 0 in
+      let _ = raw-store-u32 (wrapping-add-i64 slab-addr 4) 0 in
+      let _ = raw-store-u8 (wrapping-add-i64 slab-addr 8) 0 in
+      let _ = raw-store-u8 (wrapping-add-i64 slab-addr 9) 0 in
+      GrpcFrameAssembler slab-addr (wrapping-sub-u32 slab-len gfa-hdr-size) max-msg-size
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-assembler-valid :: GrpcFrameAssembler -> Bool
+  grpc-assembler-valid asm =
+    both (ne-i64 asm.gfa-slab-addr 0) (ge-u32 asm.gfa-buf-cap 32)
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-assembler-reset :: GrpcFrameAssembler ->{MVar} Unit
+  grpc-assembler-reset asm =
+    if grpc-assembler-valid asm then
+      let base = asm.gfa-slab-addr in
+      let _ = raw-store-u32 base 0 in
+      let _ = raw-store-u32 (wrapping-add-i64 base 4) 0 in
+      let _ = raw-store-u8 (wrapping-add-i64 base 8) 0 in
+      raw-store-u8 (wrapping-add-i64 base 9) 0
+    else ()
+
+  -- | Incremental gRPC frame decoder supporting arbitrary byte splits across
+  -- multiple HTTP/2 `DATA` frames (including splits inside the 5-byte prefix).
+  -- Zero-copy fast path when a complete frame sits directly in `[src + off, src + end)`.
+  #[no-alloc]
+  grpc-frame-decode-incremental :: GrpcFrameAssembler -> I64 -> U32 -> U32 ->{MVar} GrpcFrameDecodeResult
+  grpc-frame-decode-incremental asm src off end =
+    if not-bool (grpc-assembler-valid asm) then
+      GrpcFrameDecodeResult grpc-decode-error grpc-code-internal 0 0 0 0 0 0
+    else if eq-i64 src 0 then
+      GrpcFrameDecodeResult grpc-decode-error grpc-code-internal 0 0 0 0 0 0
+    else
+      let base = asm.gfa-slab-addr in
+      let buf = wrapping-add-i64 base (u32-to-i64 gfa-hdr-size) in
+      let avail = saturating-sub-u32 end off in
+      let buffered = raw-load-u32 base in
+      if eq-u32 avail 0 then
+        GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok 0 0 0 0 0 0
+      else if eq-u32 buffered 0 then
+        -- Fast path: try zero-copy decode directly from input buffer!
+        let r0 = grpc-frame-decode-raw src off end asm.gfa-max-msg-size in
+        if eq-u8 r0.gfd-state grpc-decode-ok then r0
+        else if eq-u8 r0.gfd-state grpc-decode-error then r0
+        else
+          -- Partial frame in input: copy available bytes into reassembly slab.
+          if gt-u32 avail asm.gfa-buf-cap then
+            GrpcFrameDecodeResult grpc-decode-error grpc-code-resource-exhausted 0 0 0 0 0 0
+          else
+            let _ = dma-copy buf (wrapping-add-i64 src (u32-to-i64 off)) avail in
+            let _ = raw-store-u32 base avail in
+            if ge-u32 avail grpc-frame-header-len then
+              let comp = raw-load-u8 buf in
+              let mlen = h2-read-be32 (wrapping-add-i64 buf 1) in
+              let total-u64 = wrapping-add-u64 (u32-to-u64 mlen) 5 in
+              if gt-u64 total-u64 (u32-to-u64 asm.gfa-buf-cap) then
+                let _ = grpc-assembler-reset asm in
+                GrpcFrameDecodeResult grpc-decode-error grpc-code-resource-exhausted comp 0 avail mlen 0 0
+              else
+                let _ = raw-store-u32 (wrapping-add-i64 base 4) mlen in
+                let _ = raw-store-u8 (wrapping-add-i64 base 8) 1 in
+                let _ = raw-store-u8 (wrapping-add-i64 base 9) comp in
+                GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok comp 0 avail mlen 0 0
+            else
+              GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok 0 0 avail 0 0 0
+      else
+        -- Continuation path: we already have `buffered > 0` bytes in `buf`.
+        let parsed = raw-load-u8 (wrapping-add-i64 base 8) in
+        if eq-u8 parsed 0 then
+          -- Still finishing the 5-byte gRPC prefix.
+          let hdr-need = wrapping-sub-u32 grpc-frame-header-len buffered in
+          let take-hdr = if lt-u32 avail hdr-need then avail else hdr-need in
+          let _ = dma-copy (wrapping-add-i64 buf (u32-to-i64 buffered)) (wrapping-add-i64 src (u32-to-i64 off)) take-hdr in
+          let new-buf = wrapping-add-u32 buffered take-hdr in
+          let _ = raw-store-u32 base new-buf in
+          if lt-u32 new-buf grpc-frame-header-len then
+            GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok 0 0 take-hdr 0 0 0
+          else
+            -- Just completed the 5-byte prefix! Validate immediately.
+            let comp = raw-load-u8 buf in
+            let mlen = h2-read-be32 (wrapping-add-i64 buf 1) in
+            if gt-u8 comp 1 then
+              let _ = grpc-assembler-reset asm in
+              GrpcFrameDecodeResult grpc-decode-error grpc-code-internal comp 0 take-hdr mlen 0 0
+            else if gt-u32 mlen asm.gfa-max-msg-size then
+              let _ = grpc-assembler-reset asm in
+              GrpcFrameDecodeResult grpc-decode-error grpc-code-resource-exhausted comp 0 take-hdr mlen 0 0
+            else
+              let total-u64 = wrapping-add-u64 (u32-to-u64 mlen) 5 in
+              if gt-u64 total-u64 (u32-to-u64 asm.gfa-buf-cap) then
+                let _ = grpc-assembler-reset asm in
+                GrpcFrameDecodeResult grpc-decode-error grpc-code-resource-exhausted comp 0 take-hdr mlen 0 0
+              else
+                let _ = raw-store-u32 (wrapping-add-i64 base 4) mlen in
+                let _ = raw-store-u8 (wrapping-add-i64 base 8) 1 in
+                let _ = raw-store-u8 (wrapping-add-i64 base 9) comp in
+                let rem-in = wrapping-sub-u32 avail take-hdr in
+                let take-body = if lt-u32 rem-in mlen then rem-in else mlen in
+                let _ = (if gt-u32 take-body 0 then dma-copy (wrapping-add-i64 buf 5) (wrapping-add-i64 src (u32-to-i64 (wrapping-add-u32 off take-hdr))) take-body else ()) in
+                let total-cons = wrapping-add-u32 take-hdr take-body in
+                if eq-u32 take-body mlen then
+                  let _ = grpc-assembler-reset asm in
+                  GrpcFrameDecodeResult grpc-decode-ok grpc-code-ok comp 0 total-cons mlen 0 (wrapping-add-i64 buf 5)
+                else
+                  let _ = raw-store-u32 base (wrapping-add-u32 5 take-body) in
+                  GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok comp 0 total-cons mlen 0 0
+        else
+          -- Header already parsed; collecting remaining payload bytes.
+          let mlen = raw-load-u32 (wrapping-add-i64 base 4) in
+          let comp = raw-load-u8 (wrapping-add-i64 base 9) in
+          let total-frame = wrapping-add-u32 mlen grpc-frame-header-len in
+          let rem-need = saturating-sub-u32 total-frame buffered in
+          let take = if lt-u32 avail rem-need then avail else rem-need in
+          let _ = (if gt-u32 take 0 then dma-copy (wrapping-add-i64 buf (u32-to-i64 buffered)) (wrapping-add-i64 src (u32-to-i64 off)) take else ()) in
+          let new-buf = wrapping-add-u32 buffered take in
+          if ge-u32 new-buf total-frame then
+            let _ = grpc-assembler-reset asm in
+            GrpcFrameDecodeResult grpc-decode-ok grpc-code-ok comp 0 take mlen 0 (wrapping-add-i64 buf 5)
+          else
+            let _ = raw-store-u32 base new-buf in
+            GrpcFrameDecodeResult grpc-decode-need-more grpc-code-ok comp 0 take mlen 0 0
+
+  #[inline(always)]
+  #[no-alloc]
+  not-bool :: Bool -> Bool
+  not-bool b = if b then b-false else b-true
+
+  -- =========================================================================
+  -- 3. `grpc-timeout` Header Parser & Formatter (`H/M/S/m/u/n`, `#[no-alloc]`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-timeout-ok :: U8
+  grpc-timeout-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-timeout-err-short :: U8
+  grpc-timeout-err-short = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-timeout-err-too-long :: U8
+  grpc-timeout-err-too-long = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-timeout-err-bad-digit :: U8
+  grpc-timeout-err-bad-digit = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-timeout-err-bad-unit :: U8
+  grpc-timeout-err-bad-unit = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-timeout-err-overflow :: U8
+  grpc-timeout-err-overflow = 5
+
+  -- | 16-byte POD result from `grpc-parse-timeout-dma`.
+  #[repr(C, value)]
+  record GrpcTimeoutResult where
+    gt-ok :: U8
+    gt-unit :: U8
+    gt-err :: U8
+    gt-pad0 :: U8
+    gt-pad1 :: U32
+    gt-nanos :: U64
+
+  #[no-alloc]
+  timeout-unit-mult :: U8 -> U64
+  timeout-unit-mult u =
+    if eq-u8 u 110 then 1                  -- 'n' nanoseconds
+    else if eq-u8 u 117 then 1000          -- 'u' microseconds
+    else if eq-u8 u 109 then 1000000       -- 'm' milliseconds
+    else if eq-u8 u 83 then 1000000000     -- 'S' seconds
+    else if eq-u8 u 77 then 60000000000    -- 'M' minutes
+    else if eq-u8 u 72 then 3600000000000  -- 'H' hours
+    else 0
+
+  -- Max safe numeric value `<= U64::MAX / mult` for each unit.
+  #[no-alloc]
+  timeout-unit-max-val :: U8 -> U64
+  timeout-unit-max-val u =
+    if eq-u8 u 72 then 5124095 -- floor((2^64 - 1) / 3_600_000_000_000)
+    else 99999999              -- max 8-digit value fits in U64 for M/S/m/u/n
+
+  #[no-alloc]
+  parse-timeout-digits :: I64 -> U32 -> U32 -> U64 ->{MVar} U64
+  parse-timeout-digits addr i n acc =
+    if ge-u32 i n then acc
+    else
+      let b = dma-byte-at addr i in
+      let d = wrapping-sub-u8 b 48 in
+      if ge-u8 d 10 then max-bound-u64
+      else parse-timeout-digits addr (wrapping-add-u32 i 1) n (wrapping-add-u64 (wrapping-mul-u64 acc 10) (u8-to-u64 d))
+
+  -- | Parse a gRPC `grpc-timeout` header value (`<1..8 ASCII digits><H|M|S|m|u|n>`)
+  -- from DMA `[addr, addr + len)` into `U64` nanoseconds (`#[no-alloc]`).
+  #[no-alloc]
+  grpc-parse-timeout-dma :: I64 -> U32 ->{MVar} GrpcTimeoutResult
+  grpc-parse-timeout-dma addr len =
+    if either (eq-i64 addr 0) (lt-u32 len 2) then
+      GrpcTimeoutResult 0 0 grpc-timeout-err-short 0 0 0
+    else
+      let num-len = wrapping-sub-u32 len 1 in
+      if gt-u32 num-len 8 then
+        GrpcTimeoutResult 0 0 grpc-timeout-err-too-long 0 0 0
+      else
+        let unit = dma-byte-at addr num-len in
+        let mult = timeout-unit-mult unit in
+        if eq-u64 mult 0 then
+          GrpcTimeoutResult 0 unit grpc-timeout-err-bad-unit 0 0 0
+        else
+          let val = parse-timeout-digits addr 0 num-len 0 in
+          if eq-u64 val max-bound-u64 then
+            GrpcTimeoutResult 0 unit grpc-timeout-err-bad-digit 0 0 0
+          else if gt-u64 val (timeout-unit-max-val unit) then
+            GrpcTimeoutResult 0 unit grpc-timeout-err-overflow 0 0 0
+          else
+            GrpcTimeoutResult 1 unit grpc-timeout-ok 0 0 (wrapping-mul-u64 val mult)
+
+  #[no-alloc]
+  count-u64-digits :: U64 -> U32
+  count-u64-digits v =
+    if lt-u64 v 10 then 1
+    else if lt-u64 v 100 then 2
+    else if lt-u64 v 1000 then 3
+    else if lt-u64 v 10000 then 4
+    else if lt-u64 v 100000 then 5
+    else if lt-u64 v 1000000 then 6
+    else if lt-u64 v 10000000 then 7
+    else if lt-u64 v 100000000 then 8
+    else 9
+
+  #[no-alloc]
+  write-u64-digits-rev :: I64 -> U32 -> U64 ->{MVar} Unit
+  write-u64-digits-rev dst end-idx v =
+    let d = wrapping-add-u8 48 (wrapping-u64-to-u8 (rem-u64 v 10)) in
+    let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 end-idx)) d in
+    let q = div-u64 v 10 in
+    if eq-u64 q 0 then ()
+    else write-u64-digits-rev dst (wrapping-sub-u32 end-idx 1) q
+
+  #[no-alloc]
+  write-timeout-pair :: I64 -> U32 -> U32 -> U64 -> U8 ->{MVar} U32
+  write-timeout-pair dst pos cap val unit =
+    let ndig = count-u64-digits val in
+    let need = wrapping-add-u32 ndig 1 in
+    if lt-u32 (saturating-sub-u32 cap pos) need then 0
+    else
+      let _ = write-u64-digits-rev dst (wrapping-sub-u32 (wrapping-add-u32 pos ndig) 1) val in
+      let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 (wrapping-add-u32 pos ndig))) unit in
+      wrapping-add-u32 pos need
+
+  -- | Format `U64` nanoseconds into compact valid gRPC wire timeout syntax
+  -- (`<= 8` digits + unit `H|M|S|m|u|n`) into `[dst + pos, dst + cap)`.
+  -- Returns `next-pos`, or `0` on insufficient capacity.
+  #[no-alloc]
+  grpc-format-timeout-dma :: U64 -> I64 -> U32 -> U32 ->{MVar} U32
+  grpc-format-timeout-dma ns dst pos cap =
+    if eq-i64 dst 0 then 0
+    else if eq-u64 ns 0 then write-timeout-pair dst pos cap 0 110 -- "0n"
+    else if both (eq-u64 (rem-u64 ns 3600000000000) 0) (le-u64 (div-u64 ns 3600000000000) 99999999) then
+      write-timeout-pair dst pos cap (div-u64 ns 3600000000000) 72 -- 'H'
+    else if both (eq-u64 (rem-u64 ns 60000000000) 0) (le-u64 (div-u64 ns 60000000000) 99999999) then
+      write-timeout-pair dst pos cap (div-u64 ns 60000000000) 77 -- 'M'
+    else if both (eq-u64 (rem-u64 ns 1000000000) 0) (le-u64 (div-u64 ns 1000000000) 99999999) then
+      write-timeout-pair dst pos cap (div-u64 ns 1000000000) 83 -- 'S'
+    else if both (eq-u64 (rem-u64 ns 1000000) 0) (le-u64 (div-u64 ns 1000000) 99999999) then
+      write-timeout-pair dst pos cap (div-u64 ns 1000000) 109 -- 'm'
+    else if both (eq-u64 (rem-u64 ns 1000) 0) (le-u64 (div-u64 ns 1000) 99999999) then
+      write-timeout-pair dst pos cap (div-u64 ns 1000) 117 -- 'u'
+    else if le-u64 ns 99999999 then
+      write-timeout-pair dst pos cap ns 110 -- 'n'
+    else
+      -- Non-exact > 99,999,999 ns: round up to finest unit fitting in <= 8 digits.
+      let us = div-u64 (saturating-add-u64 ns 999) 1000 in
+      if le-u64 us 99999999 then write-timeout-pair dst pos cap us 117
+      else
+        let ms = div-u64 (saturating-add-u64 ns 999999) 1000000 in
+        if le-u64 ms 99999999 then write-timeout-pair dst pos cap ms 109
+        else
+          let secs = div-u64 (saturating-add-u64 ns 999999999) 1000000000 in
+          if le-u64 secs 99999999 then write-timeout-pair dst pos cap secs 83
+          else
+            let mins = div-u64 (saturating-add-u64 ns 59999999999) 60000000000 in
+            if le-u64 mins 99999999 then write-timeout-pair dst pos cap mins 77
+            else
+              let hrs = div-u64 (saturating-add-u64 ns 3599999999999) 3600000000000 in
+              let clamped = if gt-u64 hrs 99999999 then 99999999 else hrs in
+              write-timeout-pair dst pos cap clamped 72
+
+  -- =========================================================================
+  -- 4. `grpc-message` Percent-Encoder & Decoder (RFC 3986 / gRPC spec)
+  -- =========================================================================
+
+  -- | 16-byte POD result from `grpc-message-encode-dma` / `grpc-message-decode-dma`.
+  #[repr(C, value)]
+  record GrpcCodecResult where
+    gc-ok :: U8
+    gc-had-invalid :: U8
+    gc-pad :: U16
+    gc-next-pos :: U32
+    gc-written :: U32
+    gc-pad2 :: U32
+
+  -- Per gRPC over HTTP/2 spec: unencoded bytes are `%x20-%x24 / %x26-%x7E`.
+  #[inline(always)]
+  #[no-alloc]
+  is-grpc-msg-unencoded :: U8 -> Bool
+  is-grpc-msg-unencoded b =
+    both (both (ge-u8 b 32) (le-u8 b 126)) (ne-u8 b 37)
+
+  #[inline(always)]
+  #[no-alloc]
+  hex-upper-nibble :: U8 -> U8
+  hex-upper-nibble n =
+    let nib = bit-and-u8 n 15 in
+    if lt-u8 nib 10 then wrapping-add-u8 48 nib
+    else wrapping-add-u8 55 nib -- 'A' - 10 = 55
+
+  #[inline(always)]
+  #[no-alloc]
+  hex-decode-nibble :: U8 -> U8
+  hex-decode-nibble b =
+    if lt-u8 (wrapping-sub-u8 b 48) 10 then wrapping-sub-u8 b 48
+    else if lt-u8 (wrapping-sub-u8 b 65) 6 then wrapping-add-u8 (wrapping-sub-u8 b 65) 10
+    else if lt-u8 (wrapping-sub-u8 b 97) 6 then wrapping-add-u8 (wrapping-sub-u8 b 97) 10
+    else 255
+
+  #[no-alloc]
+  msg-encoded-len-loop :: I64 -> U32 -> U32 -> U32 ->{MVar} U32
+  msg-encoded-len-loop src i len acc =
+    if ge-u32 i len then acc
+    else
+      let b = dma-byte-at src i in
+      let add = if is-grpc-msg-unencoded b then 1 else 3 in
+      msg-encoded-len-loop src (wrapping-add-u32 i 1) len (wrapping-add-u32 acc add)
+
+  -- | Compute the exact percent-encoded byte length of `grpc-message` bytes.
+  #[no-alloc]
+  grpc-message-encoded-len-dma :: I64 -> U32 ->{MVar} U32
+  grpc-message-encoded-len-dma src src-len =
+    if either (eq-i64 src 0) (eq-u32 src-len 0) then 0
+    else msg-encoded-len-loop src 0 src-len 0
+
+  #[no-alloc]
+  msg-encode-loop :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 ->{MVar} GrpcCodecResult
+  msg-encode-loop src i src-len dst pos cap start-pos =
+    if ge-u32 i src-len then
+      GrpcCodecResult 1 0 0 pos (wrapping-sub-u32 pos start-pos) 0
+    else
+      let b = dma-byte-at src i in
+      if is-grpc-msg-unencoded b then
+        if ge-u32 pos cap then GrpcCodecResult 0 0 0 pos (wrapping-sub-u32 pos start-pos) 0
+        else
+          let p1 = dma-put-u8 dst pos b in
+          msg-encode-loop src (wrapping-add-u32 i 1) src-len dst p1 cap start-pos
+      else
+        if lt-u32 (saturating-sub-u32 cap pos) 3 then
+          GrpcCodecResult 0 0 0 pos (wrapping-sub-u32 pos start-pos) 0
+        else
+          let p1 = dma-put-u8 dst pos 37 in -- '%'
+          let p2 = dma-put-u8 dst p1 (hex-upper-nibble (wrapping-shr-u8 b 4)) in
+          let p3 = dma-put-u8 dst p2 (hex-upper-nibble b) in
+          msg-encode-loop src (wrapping-add-u32 i 1) src-len dst p3 cap start-pos
+
+  -- | Percent-encode `grpc-message` payload `[src, src + src-len)` into
+  -- `[dst + pos, dst + cap)` per gRPC over HTTP/2 (`%x20-%x24 / %x26-%x7E`
+  -- unencoded, all other bytes encoded as `%XX` uppercase hex).
+  #[no-alloc]
+  grpc-message-encode-dma :: I64 -> U32 -> I64 -> U32 -> U32 ->{MVar} GrpcCodecResult
+  grpc-message-encode-dma src src-len dst pos cap =
+    if eq-u32 src-len 0 then GrpcCodecResult 1 0 0 pos 0 0
+    else if either (eq-i64 src 0) (eq-i64 dst 0) then GrpcCodecResult 0 0 0 pos 0 0
+    else msg-encode-loop src 0 src-len dst pos cap pos
+
+  #[no-alloc]
+  msg-decode-loop :: I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U32 -> U8 ->{MVar} GrpcCodecResult
+  msg-decode-loop src i src-len dst pos cap start-pos had-inv =
+    if ge-u32 i src-len then
+      GrpcCodecResult 1 had-inv 0 pos (wrapping-sub-u32 pos start-pos) 0
+    else if ge-u32 pos cap then
+      GrpcCodecResult 0 had-inv 0 pos (wrapping-sub-u32 pos start-pos) 0
+    else
+      let b = dma-byte-at src i in
+      if eq-u8 b 37 then
+        if ge-u32 (saturating-sub-u32 src-len i) 3 then
+          let hi = hex-decode-nibble (dma-byte-at src (wrapping-add-u32 i 1)) in
+          let lo = hex-decode-nibble (dma-byte-at src (wrapping-add-u32 i 2)) in
+          if both (lt-u8 hi 16) (lt-u8 lo 16) then
+            let dec = bit-or-u8 (wrapping-shl-u8 hi 4) lo in
+            let p1 = dma-put-u8 dst pos dec in
+            msg-decode-loop src (wrapping-add-u32 i 3) src-len dst p1 cap start-pos had-inv
+          else
+            -- Per gRPC spec: leave invalid %-sequences verbatim, mark `gc-had-invalid = 1`.
+            let p1 = dma-put-u8 dst pos b in
+            msg-decode-loop src (wrapping-add-u32 i 1) src-len dst p1 cap start-pos 1
+        else
+          let p1 = dma-put-u8 dst pos b in
+          msg-decode-loop src (wrapping-add-u32 i 1) src-len dst p1 cap start-pos 1
+      else
+        let p1 = dma-put-u8 dst pos b in
+        msg-decode-loop src (wrapping-add-u32 i 1) src-len dst p1 cap start-pos had-inv
+
+  -- | Percent-decode a `grpc-message` header value from `[src, src + src-len)`
+  -- into `[dst + pos, dst + cap)`. Per gRPC spec, valid `%HH` escapes are
+  -- decoded and malformed `%` sequences are preserved verbatim with
+  -- `gc-had-invalid = 1`.
+  #[no-alloc]
+  grpc-message-decode-dma :: I64 -> U32 -> I64 -> U32 -> U32 ->{MVar} GrpcCodecResult
+  grpc-message-decode-dma src src-len dst pos cap =
+    if eq-u32 src-len 0 then GrpcCodecResult 1 0 0 pos 0 0
+    else if either (eq-i64 src 0) (eq-i64 dst 0) then GrpcCodecResult 0 0 0 pos 0 0
+    else msg-decode-loop src 0 src-len dst pos cap pos 0
+
+  -- =========================================================================
+  -- 5. Content-Type, Path (`/<pkg>.<Svc>/<Method>`), & Request/Response Validation
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-ct-invalid :: U8
+  grpc-ct-invalid = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-ct-default :: U8
+  grpc-ct-default = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-ct-proto :: U8
+  grpc-ct-proto = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-ct-json :: U8
+  grpc-ct-json = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-ct-other :: U8
+  grpc-ct-other = 4
+
+  -- | 36-byte POD spans extracted from a gRPC `:path` (`/<package>.<Service>/<Method>`).
+  #[repr(C, value)]
+  record GrpcPathSpans where
+    gp-valid :: U8
+    gp-has-package :: U8
+    gp-pad :: U16
+    gp-full-service-off :: U32
+    gp-full-service-len :: U32
+    gp-package-off :: U32
+    gp-package-len :: U32
+    gp-service-off :: U32
+    gp-service-len :: U32
+    gp-method-off :: U32
+    gp-method-len :: U32
+
+  -- | 48-byte POD metadata produced by `grpc-validate-request-headers`.
+  #[repr(C, value)]
+  record GrpcRequestMeta where
+    grm-valid :: U8
+    grm-err-status :: U8
+    grm-content-type :: U8
+    grm-has-timeout :: U8
+    grm-path-off :: U32
+    grm-path-len :: U32
+    grm-service-off :: U32
+    grm-service-len :: U32
+    grm-method-off :: U32
+    grm-method-len :: U32
+    grm-timeout-ns :: U64
+    grm-package-off :: U32
+    grm-package-len :: U32
+
+  -- | 24-byte POD metadata produced by `grpc-parse-response-headers`.
+  #[repr(C, value)]
+  record GrpcResponseMeta where
+    gres-http-status :: U16
+    gres-has-http-status :: U8
+    gres-content-type :: U8
+    gres-has-grpc-status :: U8
+    gres-grpc-status :: U8
+    gres-has-grpc-message :: U8
+    gres-pad :: U8
+    gres-msg-off :: U32
+    gres-msg-len :: U32
+    gres-pad2 :: U64
+
+  #[no-alloc]
+  eq-ci4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  eq-ci4 addr off c0 c1 c2 c3 =
+    both
+      (both (eq-u8 (ascii-lower (dma-byte-at addr off)) c0)
+            (eq-u8 (ascii-lower (dma-byte-at addr (wrapping-add-u32 off 1))) c1))
+      (both (eq-u8 (ascii-lower (dma-byte-at addr (wrapping-add-u32 off 2))) c2)
+            (eq-u8 (ascii-lower (dma-byte-at addr (wrapping-add-u32 off 3))) c3))
+
+  #[no-alloc]
+  eq-exact4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} Bool
+  eq-exact4 addr off c0 c1 c2 c3 =
+    both
+      (both (eq-u8 (dma-byte-at addr off) c0)
+            (eq-u8 (dma-byte-at addr (wrapping-add-u32 off 1)) c1))
+      (both (eq-u8 (dma-byte-at addr (wrapping-add-u32 off 2)) c2)
+            (eq-u8 (dma-byte-at addr (wrapping-add-u32 off 3)) c3))
+
+  -- | Validate `content-type` for gRPC (`application/grpc`, `application/grpc+proto`,
+  -- `application/grpc+json`, or `application/grpc+<sub|;params>`).
+  #[no-alloc]
+  grpc-validate-content-type-dma :: I64 -> U32 ->{MVar} U8
+  grpc-validate-content-type-dma addr len =
+    if either (eq-i64 addr 0) (lt-u32 len 16) then grpc-ct-invalid
+    else
+      -- Match "application/grpc" (16 bytes, ASCII case-insensitive)
+      let p0 = eq-ci4 addr 0 97 112 112 108 in  -- "appl"
+      let p1 = eq-ci4 addr 4 105 99 97 116 in  -- "icat"
+      let p2 = eq-ci4 addr 8 105 111 110 47 in -- "ion/"
+      let p3 = eq-ci4 addr 12 103 114 112 99 in -- "grpc"
+      if not-bool (both (both p0 p1) (both p2 p3)) then grpc-ct-invalid
+      else if eq-u32 len 16 then grpc-ct-default
+      else
+        let sep = dma-byte-at addr 16 in
+        if eq-u8 sep 59 then grpc-ct-default -- ';' parameter after application/grpc
+        else if eq-u8 sep 43 then            -- '+' subtype
+          if eq-u32 len 17 then grpc-ct-invalid
+          else if both (ge-u32 len 22)
+                       (both (eq-ci4 addr 17 112 114 111 116)
+                             (eq-u8 (ascii-lower (dma-byte-at addr 21)) 111)) then
+            -- "+proto" followed by end or ';'
+            if either (eq-u32 len 22) (eq-u8 (dma-byte-at addr 22) 59) then grpc-ct-proto
+            else grpc-ct-other
+          else if both (ge-u32 len 21) (eq-ci4 addr 17 106 115 111 110) then
+            -- "+json" followed by end or ';'
+            if either (eq-u32 len 21) (eq-u8 (dma-byte-at addr 21) 59) then grpc-ct-json
+            else grpc-ct-other
+          else grpc-ct-other
+        else grpc-ct-invalid
+
+  #[no-alloc]
+  scan-path-loop :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} U64
+  scan-path-loop addr i len slash2 last-dot =
+    if ge-u32 i len then
+      bit-or-u64 (wrapping-shl-u64 (u32-to-u64 slash2) 32) (u32-to-u64 last-dot)
+    else
+      let b = dma-byte-at addr i in
+      -- Reject control chars & space
+      if either (le-u8 b 32) (ge-u8 b 127) then max-bound-u64
+      else if eq-u8 b 47 then -- '/'
+        if ne-u32 slash2 0 then max-bound-u64 -- extra 3rd slash!
+        else scan-path-loop addr (wrapping-add-u32 i 1) len i last-dot
+      else if both (eq-u8 b 46) (eq-u32 slash2 0) then -- '.' inside service segment
+        scan-path-loop addr (wrapping-add-u32 i 1) len slash2 i
+      else
+        scan-path-loop addr (wrapping-add-u32 i 1) len slash2 last-dot
+
+  -- | Parse and validate a gRPC `:path` (`/<package>.<Service>/<Method>` or
+  -- `/<Service>/<Method>`), returning zero-copy byte offsets & lengths.
+  #[no-alloc]
+  grpc-parse-path-dma :: I64 -> U32 ->{MVar} GrpcPathSpans
+  grpc-parse-path-dma addr len =
+    if either (eq-i64 addr 0) (lt-u32 len 4) then
+      GrpcPathSpans 0 0 0 0 0 0 0 0 0 0 0
+    else if ne-u8 (dma-byte-at addr 0) 47 then
+      GrpcPathSpans 0 0 0 0 0 0 0 0 0 0 0
+    else
+      let res = scan-path-loop addr 1 len 0 0 in
+      if eq-u64 res max-bound-u64 then
+        GrpcPathSpans 0 0 0 0 0 0 0 0 0 0 0
+      else
+        let slash2 = wrapping-u64-to-u32 (wrapping-shr-u64 res 32) in
+        let last-dot = wrapping-u64-to-u32 res in
+        if either (le-u32 slash2 1) (ge-u32 (wrapping-add-u32 slash2 1) len) then
+          GrpcPathSpans 0 0 0 0 0 0 0 0 0 0 0
+        else
+          let full-svc-off = 1 in
+          let full-svc-len = wrapping-sub-u32 slash2 1 in
+          let meth-off = wrapping-add-u32 slash2 1 in
+          let meth-len = wrapping-sub-u32 len meth-off in
+          if eq-u32 last-dot 0 then
+            GrpcPathSpans 1 0 0 full-svc-off full-svc-len 0 0 full-svc-off full-svc-len meth-off meth-len
+          else
+            -- Dot present: require non-empty package before dot & non-empty service after dot
+            let pkg-len = wrapping-sub-u32 last-dot 1 in
+            let svc-off = wrapping-add-u32 last-dot 1 in
+            let svc-len = saturating-sub-u32 slash2 svc-off in
+            if either (eq-u32 pkg-len 0) (eq-u32 svc-len 0) then
+              GrpcPathSpans 0 0 0 0 0 0 0 0 0 0 0
+            else
+              GrpcPathSpans 1 1 0 full-svc-off full-svc-len 1 pkg-len svc-off svc-len meth-off meth-len
+
+  #[no-alloc]
+  is-name-grpc-timeout :: I64 -> U32 ->{MVar} Bool
+  is-name-grpc-timeout addr len =
+    if ne-u32 len 12 then b-false
+    else
+      both
+        (eq-exact4 addr 0 103 114 112 99)   -- "grpc"
+        (both (eq-exact4 addr 4 45 116 105 109) -- "-tim"
+              (eq-exact4 addr 8 101 111 117 116)) -- "eout"
+
+  #[no-alloc]
+  is-name-grpc-status :: I64 -> U32 ->{MVar} Bool
+  is-name-grpc-status addr len =
+    if ne-u32 len 11 then b-false
+    else
+      both
+        (eq-exact4 addr 0 103 114 112 99)   -- "grpc"
+        (both (eq-exact4 addr 4 45 115 116 97) -- "-sta"
+              (both (eq-u8 (dma-byte-at addr 8) 116)
+                    (both (eq-u8 (dma-byte-at addr 9) 117)
+                          (eq-u8 (dma-byte-at addr 10) 115)))) -- "tus"
+
+  #[no-alloc]
+  is-name-grpc-message :: I64 -> U32 ->{MVar} Bool
+  is-name-grpc-message addr len =
+    if ne-u32 len 12 then b-false
+    else
+      both
+        (eq-exact4 addr 0 103 114 112 99)   -- "grpc"
+        (both (eq-exact4 addr 4 45 109 101 115) -- "-mes"
+              (eq-exact4 addr 8 115 97 103 101)) -- "sage"
+
+  #[no-alloc]
+  is-val-trailers :: I64 -> U32 ->{MVar} Bool
+  is-val-trailers addr len =
+    if ne-u32 len 8 then b-false
+    else
+      both
+        (eq-ci4 addr 0 116 114 97 105) -- "trai"
+        (eq-ci4 addr 4 108 101 114 115) -- "lers"
+
+  #[no-alloc]
+  is-val-post :: I64 -> U32 ->{MVar} Bool
+  is-val-post addr len =
+    if ne-u32 len 4 then b-false
+    else eq-exact4 addr 0 80 79 83 84 -- "POST"
+
+  #[no-alloc]
+  parse-u8-decimal :: I64 -> U32 ->{MVar} U8
+  parse-u8-decimal addr len =
+    if eq-u32 len 1 then
+      let d0 = wrapping-sub-u8 (dma-byte-at addr 0) 48 in
+      if lt-u8 d0 10 then d0 else 255
+    else if eq-u32 len 2 then
+      let d0 = wrapping-sub-u8 (dma-byte-at addr 0) 48 in
+      let d1 = wrapping-sub-u8 (dma-byte-at addr 1) 48 in
+      if both (lt-u8 d0 10) (lt-u8 d1 10) then
+        wrapping-add-u8 (wrapping-mul-u8 d0 10) d1
+      else 255
+    else 255
+
+  #[no-alloc]
+  parse-http-status-u16 :: I64 -> U32 ->{MVar} U16
+  parse-http-status-u16 addr len =
+    if ne-u32 len 3 then 0
+    else
+      let d0 = wrapping-sub-u8 (dma-byte-at addr 0) 48 in
+      let d1 = wrapping-sub-u8 (dma-byte-at addr 1) 48 in
+      let d2 = wrapping-sub-u8 (dma-byte-at addr 2) 48 in
+      if both (lt-u8 d0 10) (both (lt-u8 d1 10) (lt-u8 d2 10)) then
+        wrapping-add-u16
+          (wrapping-mul-u16 (u8-to-u16 d0) 100)
+          (wrapping-add-u16 (wrapping-mul-u16 (u8-to-u16 d1) 10) (u8-to-u16 d2))
+      else 0
+
+  #[no-alloc]
+  validate-req-loop
+    :: I64 -> I64 -> U32 -> U32
+    -> U8 -> U8 -> U8 -> U8 -> U8
+    -> U32 -> U32 -> U64
+    ->{MVar} GrpcRequestMeta
+  validate-req-loop hdrs-addr text-addr i count has-post ct-kind has-te has-to bad-to path-off path-len timeout-ns =
+    if ge-u32 i count then
+      if eq-u8 has-post 0 then
+        GrpcRequestMeta 0 grpc-code-internal ct-kind has-to path-off path-len 0 0 0 0 timeout-ns 0 0
+      else if eq-u8 ct-kind grpc-ct-invalid then
+        GrpcRequestMeta 0 grpc-code-internal ct-kind has-to path-off path-len 0 0 0 0 timeout-ns 0 0
+      else if eq-u8 has-te 0 then
+        GrpcRequestMeta 0 grpc-code-internal ct-kind has-to path-off path-len 0 0 0 0 timeout-ns 0 0
+      else if ne-u8 bad-to 0 then
+        GrpcRequestMeta 0 grpc-code-invalid-argument ct-kind has-to path-off path-len 0 0 0 0 timeout-ns 0 0
+      else if eq-u32 path-len 0 then
+        GrpcRequestMeta 0 grpc-code-unimplemented ct-kind has-to path-off path-len 0 0 0 0 timeout-ns 0 0
+      else
+        let ps = grpc-parse-path-dma (wrapping-add-i64 text-addr (u32-to-i64 path-off)) path-len in
+        if eq-u8 ps.gp-valid 0 then
+          GrpcRequestMeta 0 grpc-code-unimplemented ct-kind has-to path-off path-len 0 0 0 0 timeout-ns 0 0
+        else
+          let abs-svc-off = wrapping-add-u32 path-off ps.gp-full-service-off in
+          let abs-meth-off = wrapping-add-u32 path-off ps.gp-method-off in
+          let abs-pkg-off = if ne-u8 ps.gp-has-package 0 then wrapping-add-u32 path-off ps.gp-package-off else 0 in
+          GrpcRequestMeta
+            1
+            grpc-code-ok
+            ct-kind
+            has-to
+            path-off
+            path-len
+            abs-svc-off
+            ps.gp-full-service-len
+            abs-meth-off
+            ps.gp-method-len
+            timeout-ns
+            abs-pkg-off
+            ps.gp-package-len
+    else
+      let h = hpack-header-read-at hdrs-addr i in
+      let nptr = wrapping-add-i64 text-addr (u32-to-i64 h.hh-name-off) in
+      let vptr = wrapping-add-i64 text-addr (u32-to-i64 h.hh-val-off) in
+      let nxt = wrapping-add-u32 i 1 in
+      if eq-u8 h.hh-known hdr-method then
+        let hp = if is-val-post vptr h.hh-val-len then 1 else 0 in
+        validate-req-loop hdrs-addr text-addr nxt count hp ct-kind has-te has-to bad-to path-off path-len timeout-ns
+      else if eq-u8 h.hh-known hdr-path then
+        validate-req-loop hdrs-addr text-addr nxt count has-post ct-kind has-te has-to bad-to h.hh-val-off h.hh-val-len timeout-ns
+      else if eq-u8 h.hh-known hdr-content-type then
+        let ct = grpc-validate-content-type-dma vptr h.hh-val-len in
+        validate-req-loop hdrs-addr text-addr nxt count has-post ct has-te has-to bad-to path-off path-len timeout-ns
+      else if eq-u8 h.hh-known hdr-te then
+        let te = if is-val-trailers vptr h.hh-val-len then 1 else 0 in
+        validate-req-loop hdrs-addr text-addr nxt count has-post ct-kind te has-to bad-to path-off path-len timeout-ns
+      else if is-name-grpc-timeout nptr h.hh-name-len then
+        let tr = grpc-parse-timeout-dma vptr h.hh-val-len in
+        if ne-u8 tr.gt-ok 0 then
+          validate-req-loop hdrs-addr text-addr nxt count has-post ct-kind has-te 1 bad-to path-off path-len tr.gt-nanos
+        else
+          validate-req-loop hdrs-addr text-addr nxt count has-post ct-kind has-te 0 1 path-off path-len 0
+      else
+        validate-req-loop hdrs-addr text-addr nxt count has-post ct-kind has-te has-to bad-to path-off path-len timeout-ns
+
+  -- | Validate decoded HTTP/2 request headers (`h2-conn-decoded-hdrs-addr`,
+  -- `h2-conn-decoded-text-addr`, `h2-conn-decoded-hdr-count`) for gRPC over
+  -- HTTP/2 conformance (`POST`, `application/grpc*`, `te: trailers`, valid
+  -- `/<package>.<Service>/<Method>` path, optional `grpc-timeout`).
+  #[no-alloc]
+  grpc-validate-request-headers :: I64 -> I64 -> U32 ->{MVar} GrpcRequestMeta
+  grpc-validate-request-headers hdrs-addr text-addr hdr-count =
+    if either (eq-i64 hdrs-addr 0) (eq-i64 text-addr 0) then
+      GrpcRequestMeta 0 grpc-code-internal 0 0 0 0 0 0 0 0 0 0 0
+    else
+      validate-req-loop hdrs-addr text-addr 0 hdr-count 0 grpc-ct-invalid 0 0 0 0 0 0
+
+  #[no-alloc]
+  parse-resp-loop
+    :: I64 -> I64 -> U32 -> U32
+    -> U16 -> U8 -> U8 -> U8 -> U8 -> U8 -> U32 -> U32
+    ->{MVar} GrpcResponseMeta
+  parse-resp-loop hdrs-addr text-addr i count hstat has-hs ct has-gs gs has-gm gm-off gm-len =
+    if ge-u32 i count then
+      GrpcResponseMeta hstat has-hs ct has-gs gs has-gm 0 gm-off gm-len 0
+    else
+      let h = hpack-header-read-at hdrs-addr i in
+      let nptr = wrapping-add-i64 text-addr (u32-to-i64 h.hh-name-off) in
+      let vptr = wrapping-add-i64 text-addr (u32-to-i64 h.hh-val-off) in
+      let nxt = wrapping-add-u32 i 1 in
+      if eq-u8 h.hh-known hdr-status then
+        let st = parse-http-status-u16 vptr h.hh-val-len in
+        parse-resp-loop hdrs-addr text-addr nxt count st 1 ct has-gs gs has-gm gm-off gm-len
+      else if eq-u8 h.hh-known hdr-content-type then
+        let nct = grpc-validate-content-type-dma vptr h.hh-val-len in
+        parse-resp-loop hdrs-addr text-addr nxt count hstat has-hs nct has-gs gs has-gm gm-off gm-len
+      else if is-name-grpc-status nptr h.hh-name-len then
+        let code = parse-u8-decimal vptr h.hh-val-len in
+        if le-u8 code 16 then
+          parse-resp-loop hdrs-addr text-addr nxt count hstat has-hs ct 1 code has-gm gm-off gm-len
+        else
+          parse-resp-loop hdrs-addr text-addr nxt count hstat has-hs ct 1 grpc-code-unknown has-gm gm-off gm-len
+      else if is-name-grpc-message nptr h.hh-name-len then
+        parse-resp-loop hdrs-addr text-addr nxt count hstat has-hs ct has-gs gs 1 h.hh-val-off h.hh-val-len
+      else
+        parse-resp-loop hdrs-addr text-addr nxt count hstat has-hs ct has-gs gs has-gm gm-off gm-len
+
+  -- | Parse decoded HTTP/2 response headers / trailers (`:status`, `content-type`,
+  -- `grpc-status`, `grpc-message`).
+  #[no-alloc]
+  grpc-parse-response-headers :: I64 -> I64 -> U32 ->{MVar} GrpcResponseMeta
+  grpc-parse-response-headers hdrs-addr text-addr hdr-count =
+    if either (eq-i64 hdrs-addr 0) (eq-i64 text-addr 0) then
+      GrpcResponseMeta 0 0 0 0 grpc-code-unknown 0 0 0 0 0
+    else
+      parse-resp-loop hdrs-addr text-addr 0 hdr-count 0 0 grpc-ct-invalid 0 grpc-code-unknown 0 0 0
+
+  -- =========================================================================
+  -- 6. Zero-Alloc HPACK Header Block Emitters for gRPC Wire Headers & Trailers
+  -- =========================================================================
+
+  -- Emit HPACK literal-without-indexing with static name index `name-idx` and raw bytes value.
+  #[no-alloc]
+  hpack-put-indexed-name-raw :: I64 -> U32 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  hpack-put-indexed-name-raw dst pos cap name-idx val-addr val-len =
+    let r0 = hpack-encode-int-raw dst pos cap 4 0 (u32-to-u64 name-idx) in
+    if ne-u32 r0.hw-status hpack-ok then 0
+    else
+      let r1 = hpack-encode-int-raw dst r0.hw-next-pos cap 7 0 (u32-to-u64 val-len) in
+      if ne-u32 r1.hw-status hpack-ok then 0
+      else if lt-u32 (saturating-sub-u32 cap r1.hw-next-pos) val-len then 0
+      else
+        let _ = (if gt-u32 val-len 0 then dma-copy (wrapping-add-i64 dst (u32-to-i64 r1.hw-next-pos)) val-addr val-len else ()) in
+        wrapping-add-u32 r1.hw-next-pos val-len
+
+  -- Emit `content-type: application/grpc` (static name index 31 -> 19 bytes total).
+  #[no-alloc]
+  hpack-put-ct-grpc :: I64 -> U32 -> U32 ->{MVar} U32
+  hpack-put-ct-grpc dst pos cap =
+    if lt-u32 (saturating-sub-u32 cap pos) 19 then 0
+    else
+      let p0 = dma-put-u8 dst pos 15 in    -- 0000 1111 (4-bit prefix = 15)
+      let p1 = dma-put-u8 dst p0 16 in     -- 15 + 16 = 31 (`content-type`)
+      let p2 = dma-put-u8 dst p1 16 in     -- raw string len = 16
+      let p3 = dma-put-u8 dst p2 97 in     -- 'a'
+      let p4 = dma-put-u8 dst p3 112 in    -- 'p'
+      let p5 = dma-put-u8 dst p4 112 in    -- 'p'
+      let p6 = dma-put-u8 dst p5 108 in    -- 'l'
+      let p7 = dma-put-u8 dst p6 105 in    -- 'i'
+      let p8 = dma-put-u8 dst p7 99 in     -- 'c'
+      let p9 = dma-put-u8 dst p8 97 in     -- 'a'
+      let p10 = dma-put-u8 dst p9 116 in   -- 't'
+      let p11 = dma-put-u8 dst p10 105 in  -- 'i'
+      let p12 = dma-put-u8 dst p11 111 in  -- 'o'
+      let p13 = dma-put-u8 dst p12 110 in  -- 'n'
+      let p14 = dma-put-u8 dst p13 47 in   -- '/'
+      let p15 = dma-put-u8 dst p14 103 in  -- 'g'
+      let p16 = dma-put-u8 dst p15 114 in  -- 'r'
+      let p17 = dma-put-u8 dst p16 112 in  -- 'p'
+      dma-put-u8 dst p17 99                -- 'c'
+
+  -- Emit `te: trailers` (literal without indexing -> 13 bytes total).
+  #[no-alloc]
+  hpack-put-te-trailers :: I64 -> U32 -> U32 ->{MVar} U32
+  hpack-put-te-trailers dst pos cap =
+    if lt-u32 (saturating-sub-u32 cap pos) 13 then 0
+    else
+      let p0 = dma-put-u8 dst pos 0 in     -- literal without indexing, new name
+      let p1 = dma-put-u8 dst p0 2 in      -- name len = 2
+      let p2 = dma-put-u8 dst p1 116 in    -- 't'
+      let p3 = dma-put-u8 dst p2 101 in    -- 'e'
+      let p4 = dma-put-u8 dst p3 8 in      -- val len = 8
+      let p5 = dma-put-u8 dst p4 116 in    -- 't'
+      let p6 = dma-put-u8 dst p5 114 in    -- 'r'
+      let p7 = dma-put-u8 dst p6 97 in     -- 'a'
+      let p8 = dma-put-u8 dst p7 105 in    -- 'i'
+      let p9 = dma-put-u8 dst p8 108 in    -- 'l'
+      let p10 = dma-put-u8 dst p9 101 in   -- 'e'
+      let p11 = dma-put-u8 dst p10 114 in  -- 'r'
+      dma-put-u8 dst p11 115               -- 's'
+
+  -- Emit `grpc-timeout: <formatted>` (if `timeout-ns > 0`).
+  #[no-alloc]
+  hpack-put-grpc-timeout :: I64 -> U32 -> U32 -> U64 ->{MVar} U32
+  hpack-put-grpc-timeout dst pos cap timeout-ns =
+    if eq-u64 timeout-ns 0 then pos
+    else if lt-u32 (saturating-sub-u32 cap pos) 25 then 0
+    else
+      let p0 = dma-put-u8 dst pos 0 in
+      let p1 = dma-put-u8 dst p0 12 in
+      let p2 = dma-put-u8 dst p1 103 in    -- 'g'
+      let p3 = dma-put-u8 dst p2 114 in    -- 'r'
+      let p4 = dma-put-u8 dst p3 112 in    -- 'p'
+      let p5 = dma-put-u8 dst p4 99 in     -- 'c'
+      let p6 = dma-put-u8 dst p5 45 in     -- '-'
+      let p7 = dma-put-u8 dst p6 116 in    -- 't'
+      let p8 = dma-put-u8 dst p7 105 in    -- 'i'
+      let p9 = dma-put-u8 dst p8 109 in    -- 'm'
+      let p10 = dma-put-u8 dst p9 101 in   -- 'e'
+      let p11 = dma-put-u8 dst p10 111 in  -- 'o'
+      let p12 = dma-put-u8 dst p11 117 in  -- 'u'
+      let p13 = dma-put-u8 dst p12 116 in  -- 't'
+      -- Reserve 1 byte at p13 for raw string length (timeout is always 2..9 bytes < 127)
+      let val-start = wrapping-add-u32 p13 1 in
+      let val-end = grpc-format-timeout-dma timeout-ns dst val-start cap in
+      if eq-u32 val-end 0 then 0
+      else
+        let vlen = wrapping-sub-u32 val-end val-start in
+        let _ = raw-store-u8 (wrapping-add-i64 dst (u32-to-i64 p13)) (wrapping-u32-to-u8 vlen) in
+        val-end
+
+  -- Emit `grpc-status: <code>` (`0..16`).
+  #[no-alloc]
+  hpack-put-grpc-status :: I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  hpack-put-grpc-status dst pos cap code =
+    let clamped = if gt-u8 code 16 then grpc-code-unknown else code in
+    let vlen = if lt-u8 clamped 10 then (1 :: U32) else (2 :: U32) in
+    let need = wrapping-add-u32 14 vlen in
+    if lt-u32 (saturating-sub-u32 cap pos) need then 0
+    else
+      let p0 = dma-put-u8 dst pos 0 in
+      let p1 = dma-put-u8 dst p0 11 in
+      let p2 = dma-put-u8 dst p1 103 in    -- 'g'
+      let p3 = dma-put-u8 dst p2 114 in    -- 'r'
+      let p4 = dma-put-u8 dst p3 112 in    -- 'p'
+      let p5 = dma-put-u8 dst p4 99 in     -- 'c'
+      let p6 = dma-put-u8 dst p5 45 in     -- '-'
+      let p7 = dma-put-u8 dst p6 115 in    -- 's'
+      let p8 = dma-put-u8 dst p7 116 in    -- 't'
+      let p9 = dma-put-u8 dst p8 97 in     -- 'a'
+      let p10 = dma-put-u8 dst p9 116 in   -- 't'
+      let p11 = dma-put-u8 dst p10 117 in  -- 'u'
+      let p12 = dma-put-u8 dst p11 115 in  -- 's'
+      let p13 = dma-put-u8 dst p12 (wrapping-u32-to-u8 vlen) in
+      if lt-u8 clamped 10 then
+        dma-put-u8 dst p13 (wrapping-add-u8 48 clamped)
+      else
+        let p14 = dma-put-u8 dst p13 49 in -- '1'
+        dma-put-u8 dst p14 (wrapping-add-u8 48 (wrapping-sub-u8 clamped 10))
+
+  -- Emit `grpc-message: <percent-encoded>` if `msg-len > 0`.
+  #[no-alloc]
+  hpack-put-grpc-message :: I64 -> U32 -> U32 -> I64 -> U32 ->{MVar} U32
+  hpack-put-grpc-message dst pos cap msg-addr msg-len =
+    if either (eq-u32 msg-len 0) (eq-i64 msg-addr 0) then pos
+    else
+      let enc-len = grpc-message-encoded-len-dma msg-addr msg-len in
+      if lt-u32 (saturating-sub-u32 cap pos) (wrapping-add-u32 16 enc-len) then 0
+      else
+        let p0 = dma-put-u8 dst pos 0 in
+        let p1 = dma-put-u8 dst p0 12 in
+        let p2 = dma-put-u8 dst p1 103 in    -- 'g'
+        let p3 = dma-put-u8 dst p2 114 in    -- 'r'
+        let p4 = dma-put-u8 dst p3 112 in    -- 'p'
+        let p5 = dma-put-u8 dst p4 99 in     -- 'c'
+        let p6 = dma-put-u8 dst p5 45 in     -- '-'
+        let p7 = dma-put-u8 dst p6 109 in    -- 'm'
+        let p8 = dma-put-u8 dst p7 101 in    -- 'e'
+        let p9 = dma-put-u8 dst p8 115 in    -- 's'
+        let p10 = dma-put-u8 dst p9 115 in   -- 's'
+        let p11 = dma-put-u8 dst p10 97 in   -- 'a'
+        let p12 = dma-put-u8 dst p11 103 in  -- 'g'
+        let p13 = dma-put-u8 dst p12 101 in  -- 'e'
+        let rl = hpack-encode-int-raw dst p13 cap 7 0 (u32-to-u64 enc-len) in
+        if ne-u32 rl.hw-status hpack-ok then 0
+        else
+          let cr = grpc-message-encode-dma msg-addr msg-len dst rl.hw-next-pos cap in
+          if eq-u8 cr.gc-ok 0 then 0 else cr.gc-next-pos
+
+  -- =========================================================================
+  -- 7. Wire Emitters & Client Frame Dispatcher over `Net.Http.V2.Conn`
+  -- =========================================================================
+
+  -- | Client: open odd stream `sid` on `conn` and emit gRPC request `HEADERS`
+  -- (`:method: POST`, `:scheme: http`, `:path`, `:authority`,
+  -- `content-type: application/grpc`, `te: trailers`, optional `grpc-timeout`).
+  #[no-alloc]
+  grpc-send-request-headers
+    :: H2Conn -> U32
+    -> I64 -> U32 -> I64 -> U32 -> U64
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  grpc-send-request-headers conn sid path-addr path-len auth-addr auth-len timeout-ns tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then H2WriteResult h2-err-internal-error tx-pos sid 0
+    else if either (eq-u32 sid 0) (eq-u32 (bit-and-u32 sid 1) 0) then
+      H2WriteResult h2-err-protocol-error tx-pos sid 0
+    else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 48 then
+      H2WriteResult h2-err-internal-error tx-pos sid 0
+    else
+      let st = h2-conn-streams conn in
+      let send-init = u32-to-i64 (h2-conn-peer-initial-window conn) in
+      let recv-init = u32-to-i64 h2-default-initial-window-size in
+      let slot = h2-stream-open st sid send-init recv-init in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-refused-stream tx-pos sid 0
+      else
+        let hdr-start = wrapping-add-u32 tx-pos h2-frame-header-len in
+        let enc = h2-conn-hpack-encoder conn in
+        let r-sz = hpack-encoder-flush-size-updates enc tx-addr hdr-start tx-cap in
+        if ne-u32 r-sz.hw-status hpack-ok then
+          let _ = h2-stream-close st sid in
+          H2WriteResult h2-err-internal-error tx-pos sid 0
+        else
+          -- `:method: POST` (idx 3), `:scheme: http` (idx 6)
+          let r-m = hpack-encode-indexed tx-addr r-sz.hw-next-pos tx-cap 3 in
+          let r-s = if eq-u32 r-m.hw-status hpack-ok then hpack-encode-indexed tx-addr r-m.hw-next-pos tx-cap 6 else r-m in
+          if ne-u32 r-s.hw-status hpack-ok then
+            let _ = h2-stream-close st sid in
+            H2WriteResult h2-err-internal-error tx-pos sid 0
+          else
+            let p1 = hpack-put-indexed-name-raw tx-addr r-s.hw-next-pos tx-cap 4 path-addr path-len in
+            let p2 = if ne-u32 p1 0 then hpack-put-indexed-name-raw tx-addr p1 tx-cap 1 auth-addr auth-len else 0 in
+            let p3 = if ne-u32 p2 0 then hpack-put-ct-grpc tx-addr p2 tx-cap else 0 in
+            let p4 = if ne-u32 p3 0 then hpack-put-te-trailers tx-addr p3 tx-cap else 0 in
+            let p5 = if ne-u32 p4 0 then hpack-put-grpc-timeout tx-addr p4 tx-cap timeout-ns else 0 in
+            if eq-u32 p5 0 then
+              let _ = h2-stream-close st sid in
+              H2WriteResult h2-err-internal-error tx-pos sid 0
+            else
+              let hlen = wrapping-sub-u32 p5 hdr-start in
+              let _ = h2-frame-write-headroom-raw (wrapping-add-i64 tx-addr (u32-to-i64 hdr-start)) h2-frame-headers h2-flag-end-headers sid hlen in
+              H2WriteResult h2-err-no-error p5 sid 0
+
+  -- | Server: emit initial gRPC response `HEADERS` (`:status: 200`,
+  -- `content-type: application/grpc`, `END_HEADERS`, NO `END_STREAM`).
+  #[no-alloc]
+  grpc-send-response-headers :: H2Conn -> U32 -> I64 -> U32 -> U32 ->{MVar} H2WriteResult
+  grpc-send-response-headers conn sid tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then H2WriteResult h2-err-internal-error tx-pos sid 0
+    else
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else
+        let cur-st = h2-stream-slot-state st slot in
+        if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-remote) then
+          H2WriteResult h2-err-stream-closed tx-pos sid 0
+        else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 32 then
+          H2WriteResult h2-err-internal-error tx-pos sid 0
+        else
+          let hdr-start = wrapping-add-u32 tx-pos h2-frame-header-len in
+          let enc = h2-conn-hpack-encoder conn in
+          let r-sz = hpack-encoder-flush-size-updates enc tx-addr hdr-start tx-cap in
+          if ne-u32 r-sz.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+          else
+            let r-st = hpack-encode-indexed tx-addr r-sz.hw-next-pos tx-cap 8 in -- `:status: 200`
+            if ne-u32 r-st.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+            else
+              let p1 = hpack-put-ct-grpc tx-addr r-st.hw-next-pos tx-cap in
+              if eq-u32 p1 0 then H2WriteResult h2-err-internal-error tx-pos sid 0
+              else
+                let hlen = wrapping-sub-u32 p1 hdr-start in
+                let _ = h2-frame-write-headroom-raw (wrapping-add-i64 tx-addr (u32-to-i64 hdr-start)) h2-frame-headers h2-flag-end-headers sid hlen in
+                H2WriteResult h2-err-no-error p1 sid 0
+
+  -- Internal loop: emit remaining message payload chunks across one or more
+  -- HTTP/2 `DATA` frames respecting `peer-max-frame-size` and flow control.
+  #[no-alloc]
+  send-msg-chunks
+    :: H2Conn -> U32 -> U8
+    -> I64 -> U32 -> U32 -> U8
+    -> I64 -> U32 -> U32 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  send-msg-chunks conn sid compressed msg-addr msg-off msg-len end-stream tx-addr tx-pos tx-cap sent-hdr total-sent =
+    let rem-body = saturating-sub-u32 msg-len msg-off in
+    let hdr-bytes = if eq-u32 sent-hdr 0 then grpc-frame-header-len else 0 in
+    let rem-total = wrapping-add-u32 hdr-bytes rem-body in
+    if both (ne-u32 sent-hdr 0) (eq-u32 rem-body 0) then
+      H2WriteResult h2-err-no-error tx-pos sid total-sent
+    else
+      let avail-tx = saturating-sub-u32 tx-cap tx-pos in
+      if le-u32 avail-tx h2-frame-header-len then
+        H2WriteResult h2-err-internal-error tx-pos sid total-sent
+      else
+        let peer-mfs = h2-conn-peer-max-frame-size conn in
+        let cap-chunk = wrapping-sub-u32 avail-tx h2-frame-header-len in
+        let max-c0 = if lt-u32 peer-mfs cap-chunk then peer-mfs else cap-chunk in
+        let chunk = if lt-u32 rem-total max-c0 then rem-total else max-c0 in
+        if both (eq-u32 sent-hdr 0) (lt-u32 chunk grpc-frame-header-len) then
+          H2WriteResult h2-err-internal-error tx-pos sid total-sent
+        else
+          let is-final = eq-u32 chunk rem-total in
+          let frame-es = if both is-final (ne-u8 end-stream 0) then (1 :: U8) else (0 :: U8) in
+          let payload-pos = wrapping-add-u32 tx-pos h2-frame-header-len in
+          let payload-addr = wrapping-add-i64 tx-addr (u32-to-i64 payload-pos) in
+          let body-chunk = wrapping-sub-u32 chunk hdr-bytes in
+          let _ = (
+            if eq-u32 sent-hdr 0 then
+              let _ = raw-store-u8 payload-addr compressed in
+              let _ = h2-write-be32 (wrapping-add-i64 payload-addr 1) msg-len in
+              if gt-u32 body-chunk 0 then
+                dma-copy (wrapping-add-i64 payload-addr 5) (wrapping-add-i64 msg-addr (u32-to-i64 msg-off)) body-chunk
+              else ()
+            else
+              if gt-u32 body-chunk 0 then
+                dma-copy payload-addr (wrapping-add-i64 msg-addr (u32-to-i64 msg-off)) body-chunk
+              else ()) in
+          -- Construct a DmaSlice with >= 9B headroom pointing at `payload-addr`
+          -- so `h2-conn-frame-data-slice` writes the 9B DATA header AND updates
+          -- both connection + stream flow-control windows & stream state!
+          let sl = DmaSlice 0 payload-pos chunk cap-chunk payload-addr in
+          let framed = h2-conn-frame-data-slice conn sid sl chunk frame-es in
+          if eq-i64 framed.slice-addr 0 then
+            H2WriteResult h2-err-flow-control-error tx-pos sid total-sent
+          else
+            let next-tx = wrapping-add-u32 payload-pos chunk in
+            let next-off = wrapping-add-u32 msg-off body-chunk in
+            let next-sent = wrapping-add-u32 total-sent chunk in
+            if is-final then
+              H2WriteResult h2-err-no-error next-tx sid next-sent
+            else
+              send-msg-chunks conn sid compressed msg-addr next-off msg-len end-stream tx-addr next-tx tx-cap 1 next-sent
+
+  -- | Frame and emit a 5-byte length-prefixed gRPC message as HTTP/2 `DATA`
+  -- frame(s) on `conn` stream `sid`, deducting flow-control windows via
+  -- `h2-conn-frame-data-slice` (`#[no-alloc]`).
+  #[no-alloc]
+  grpc-send-message
+    :: H2Conn -> U32 -> U8
+    -> I64 -> U32 -> U8
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  grpc-send-message conn sid compressed msg-addr msg-len end-stream tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then H2WriteResult h2-err-internal-error tx-pos sid 0
+    else if gt-u8 compressed 1 then H2WriteResult h2-err-protocol-error tx-pos sid 0
+    else
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else
+        let cur-st = h2-stream-slot-state st slot in
+        if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-remote) then
+          H2WriteResult h2-err-stream-closed tx-pos sid 0
+        else
+          send-msg-chunks conn sid compressed msg-addr 0 msg-len end-stream tx-addr tx-pos tx-cap 0 0
+
+  -- | True zero-copy 14-byte headroom framing (`9B H2 DATA + 5B gRPC prefix`)
+  -- directly on a `DmaSlice` (with `slice-off >= 14`). Writes zero payload copies
+  -- and deducts HTTP/2 flow-control windows via `h2-conn-frame-data-slice`.
+  #[no-alloc]
+  grpc-send-message-slice :: H2Conn -> U32 -> U8 -> DmaSlice -> U32 -> U8 ->{MVar} DmaSlice
+  grpc-send-message-slice conn sid compressed payload-slice msg-len end-stream =
+    let grpc-sl = grpc-frame-encode-headroom payload-slice compressed msg-len in
+    if eq-i64 grpc-sl.slice-addr 0 then dma-slice-empty ()
+    else h2-conn-frame-data-slice conn sid grpc-sl grpc-sl.slice-len end-stream
+
+  -- | Emit a 0-length HTTP/2 `DATA` frame with `END_STREAM` to half-close the
+  -- local send side of stream `sid` (used by Client-Streaming / Bidi-Streaming).
+  #[no-alloc]
+  grpc-send-end-stream :: H2Conn -> U32 -> I64 -> U32 -> U32 ->{MVar} H2WriteResult
+  grpc-send-end-stream conn sid tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then H2WriteResult h2-err-internal-error tx-pos sid 0
+    else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) h2-frame-header-len then
+      H2WriteResult h2-err-internal-error tx-pos sid 0
+    else
+      let payload-pos = wrapping-add-u32 tx-pos h2-frame-header-len in
+      let payload-addr = wrapping-add-i64 tx-addr (u32-to-i64 payload-pos) in
+      let sl = DmaSlice 0 payload-pos 0 (saturating-sub-u32 tx-cap payload-pos) payload-addr in
+      let framed = h2-conn-frame-data-slice conn sid sl 0 1 in
+      if eq-i64 framed.slice-addr 0 then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else H2WriteResult h2-err-no-error payload-pos sid 0
+
+  -- Internal helper: transition stream state on local END_STREAM and close if Closed.
+  #[no-alloc]
+  close-local-stream :: H2StreamTable -> U32 -> U32 ->{MVar} Unit
+  close-local-stream st slot sid =
+    let cur-st = h2-stream-slot-state st slot in
+    let nxt-st = h2-stream-transition cur-st h2-sev-send-end-stream in
+    let _ = h2-stream-slot-set-state st slot nxt-st in
+    if eq-u8 nxt-st h2-st-closed then
+      let _ = h2-stream-close st sid in
+      ()
+    else ()
+
+  -- | Server: emit trailing `HEADERS` (`END_HEADERS | END_STREAM`) with
+  -- `grpc-status` + optional percent-encoded `grpc-message`, closing stream `sid`
+  -- once both sides are finished.
+  #[no-alloc]
+  grpc-send-trailers
+    :: H2Conn -> U32 -> U8
+    -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  grpc-send-trailers conn sid grpc-status msg-addr msg-len tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then H2WriteResult h2-err-internal-error tx-pos sid 0
+    else
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else
+        let cur-st = h2-stream-slot-state st slot in
+        if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-remote) then
+          H2WriteResult h2-err-stream-closed tx-pos sid 0
+        else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 32 then
+          H2WriteResult h2-err-internal-error tx-pos sid 0
+        else
+          let hdr-start = wrapping-add-u32 tx-pos h2-frame-header-len in
+          let enc = h2-conn-hpack-encoder conn in
+          let r-sz = hpack-encoder-flush-size-updates enc tx-addr hdr-start tx-cap in
+          if ne-u32 r-sz.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+          else
+            let p1 = hpack-put-grpc-status tx-addr r-sz.hw-next-pos tx-cap grpc-status in
+            let p2 = if ne-u32 p1 0 then hpack-put-grpc-message tx-addr p1 tx-cap msg-addr msg-len else 0 in
+            if eq-u32 p2 0 then H2WriteResult h2-err-internal-error tx-pos sid 0
+            else
+              let hlen = wrapping-sub-u32 p2 hdr-start in
+              let hflags = bit-or-u8 h2-flag-end-headers h2-flag-end-stream in
+              let _ = h2-frame-write-headroom-raw (wrapping-add-i64 tx-addr (u32-to-i64 hdr-start)) h2-frame-headers hflags sid hlen in
+              let _ = close-local-stream st slot sid in
+              H2WriteResult h2-err-no-error p2 sid 0
+
+  -- | Server: emit a Trailers-Only single `HEADERS` (`END_HEADERS | END_STREAM`)
+  -- frame containing `:status: 200`, `content-type: application/grpc`,
+  -- `grpc-status`, and optional percent-encoded `grpc-message` for immediate
+  -- zero-body error responses (`Unimplemented`, `DeadlineExceeded`,
+  -- `InvalidArgument`, etc.).
+  #[no-alloc]
+  grpc-send-trailers-only
+    :: H2Conn -> U32 -> U8
+    -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} H2WriteResult
+  grpc-send-trailers-only conn sid grpc-status msg-addr msg-len tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then H2WriteResult h2-err-internal-error tx-pos sid 0
+    else
+      let st = h2-conn-streams conn in
+      let slot = h2-stream-lookup st sid in
+      if eq-u32 slot h2-slot-none then H2WriteResult h2-err-stream-closed tx-pos sid 0
+      else
+        let cur-st = h2-stream-slot-state st slot in
+        if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-remote) then
+          H2WriteResult h2-err-stream-closed tx-pos sid 0
+        else if lt-u32 (saturating-sub-u32 tx-cap tx-pos) 48 then
+          H2WriteResult h2-err-internal-error tx-pos sid 0
+        else
+          let hdr-start = wrapping-add-u32 tx-pos h2-frame-header-len in
+          let enc = h2-conn-hpack-encoder conn in
+          let r-sz = hpack-encoder-flush-size-updates enc tx-addr hdr-start tx-cap in
+          if ne-u32 r-sz.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+          else
+            let r-st = hpack-encode-indexed tx-addr r-sz.hw-next-pos tx-cap 8 in -- `:status: 200`
+            if ne-u32 r-st.hw-status hpack-ok then H2WriteResult h2-err-internal-error tx-pos sid 0
+            else
+              let p1 = hpack-put-ct-grpc tx-addr r-st.hw-next-pos tx-cap in
+              let p2 = if ne-u32 p1 0 then hpack-put-grpc-status tx-addr p1 tx-cap grpc-status else 0 in
+              let p3 = if ne-u32 p2 0 then hpack-put-grpc-message tx-addr p2 tx-cap msg-addr msg-len else 0 in
+              if eq-u32 p3 0 then H2WriteResult h2-err-internal-error tx-pos sid 0
+              else
+                let hlen = wrapping-sub-u32 p3 hdr-start in
+                let hflags = bit-or-u8 h2-flag-end-headers h2-flag-end-stream in
+                let _ = h2-frame-write-headroom-raw (wrapping-add-i64 tx-addr (u32-to-i64 hdr-start)) h2-frame-headers hflags sid hlen in
+                let _ = close-local-stream st slot sid in
+                H2WriteResult h2-err-no-error p3 sid 0
+
+  -- =========================================================================
+  -- 8. Client-Side HTTP/2 Frame Feed over `H2Conn` (`#[no-alloc]`)
+  -- =========================================================================
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-ok :: U32
+  grpc-cf-ok = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-need-more :: U32
+  grpc-cf-need-more = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-response-headers :: U32
+  grpc-cf-response-headers = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-data :: U32
+  grpc-cf-data = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-trailers :: U32
+  grpc-cf-trailers = 4
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-trailers-only :: U32
+  grpc-cf-trailers-only = 5
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-stream-reset :: U32
+  grpc-cf-stream-reset = 6
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-goaway :: U32
+  grpc-cf-goaway = 7
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-cf-error :: U32
+  grpc-cf-error = 8
+
+  -- | 32-byte POD result returned by `grpc-client-feed`.
+  #[repr(C, value)]
+  record GrpcClientFeedResult where
+    gcfr-kind :: U32
+    gcfr-consumed :: U32
+    gcfr-tx-pos :: U32
+    gcfr-stream-id :: U32
+    gcfr-error :: U32
+    gcfr-data-off :: U32
+    gcfr-data-len :: U32
+    gcfr-hdr-count :: U16
+    gcfr-end-stream :: U8
+    gcfr-pad :: U8
+
+  -- | Client-side HTTP/2 frame dispatcher over `H2Conn` (`h2-role-client`).
+  -- Delegates connection-level control frames (`SETTINGS`, `PING`, `GOAWAY`,
+  -- connection `WINDOW_UPDATE`) to `h2-conn-feed`, and dispatches server
+  -- responses (`HEADERS`, `DATA`, trailers, Trailers-Only, `RST_STREAM`,
+  -- stream `WINDOW_UPDATE`) on client-initiated odd streams using `conn`'s
+  -- `H2StreamTable` and `HpackDecoder` (`#[no-alloc]`).
+  #[no-alloc]
+  grpc-client-feed
+    :: H2Conn
+    -> I64 -> U32 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} GrpcClientFeedResult
+  grpc-client-feed conn rx-addr rx-off rx-len tx-addr tx-pos tx-cap =
+    if not-bool (h2-conn-valid conn) then
+      GrpcClientFeedResult grpc-cf-error 0 tx-pos 0 h2-err-internal-error 0 0 0 0 0
+    else
+      let avail = saturating-sub-u32 rx-len rx-off in
+      if lt-u32 avail h2-frame-header-len then
+        GrpcClientFeedResult grpc-cf-need-more 0 tx-pos 0 h2-err-no-error 0 0 0 0 0
+      else
+        let hdr = h2-frame-read-header-dma rx-addr rx-off in
+        let verr = h2-frame-validate-header hdr h2-default-max-frame-size in
+        if ne-u32 verr h2-err-no-error then
+          GrpcClientFeedResult grpc-cf-error 0 tx-pos hdr.fh-stream-id verr 0 0 0 0 0
+        else
+          let total = wrapping-add-u32 h2-frame-header-len hdr.fh-length in
+          if lt-u32 avail total then
+            GrpcClientFeedResult grpc-cf-need-more 0 tx-pos 0 h2-err-no-error 0 0 0 0 0
+          else
+            let ftype = hdr.fh-type in
+            let flags = hdr.fh-flags in
+            let sid = hdr.fh-stream-id in
+            let plen = hdr.fh-length in
+            let payload-off = wrapping-add-u32 rx-off h2-frame-header-len in
+            -- Connection-level control frames -> delegate straight to `h2-conn-feed`!
+            if either (eq-u8 ftype h2-frame-settings)
+                      (either (eq-u8 ftype h2-frame-ping)
+                              (either (eq-u8 ftype h2-frame-goaway)
+                                      (both (eq-u8 ftype h2-frame-window-update) (eq-u32 sid 0)))) then
+              let fr = h2-conn-feed conn rx-addr rx-off rx-len tx-addr tx-pos tx-cap in
+              let kind = (
+                if eq-u32 fr.fr-status h2-feed-goaway then grpc-cf-goaway
+                else if eq-u32 fr.fr-status h2-feed-error then grpc-cf-error
+                else grpc-cf-ok) in
+              GrpcClientFeedResult kind fr.fr-consumed fr.fr-tx-pos fr.fr-stream-id fr.fr-error 0 0 0 0 0
+            -- Stream WINDOW_UPDATE (sid > 0)
+            else if eq-u8 ftype h2-frame-window-update then
+              let inc = bit-and-u32 (h2-read-be32 (wrapping-add-i64 rx-addr (u32-to-i64 payload-off))) h2-max-window-size in
+              if eq-u32 inc 0 then
+                GrpcClientFeedResult grpc-cf-error total tx-pos sid h2-err-protocol-error 0 0 0 0 0
+              else
+                let st = h2-conn-streams conn in
+                let slot = h2-stream-lookup st sid in
+                if eq-u32 slot h2-slot-none then
+                  GrpcClientFeedResult grpc-cf-ok total tx-pos sid h2-err-no-error 0 0 0 0 0
+                else
+                  let werr = h2-stream-add-send-window st slot inc in
+                  if ne-u32 werr h2-err-no-error then
+                    GrpcClientFeedResult grpc-cf-error total tx-pos sid werr 0 0 0 0 0
+                  else
+                    GrpcClientFeedResult grpc-cf-ok total tx-pos sid h2-err-no-error 0 0 0 0 0
+            -- RST_STREAM (sid > 0)
+            else if eq-u8 ftype h2-frame-rst-stream then
+              let rst-err = h2-read-be32 (wrapping-add-i64 rx-addr (u32-to-i64 payload-off)) in
+              let st = h2-conn-streams conn in
+              let _ = h2-stream-close st sid in
+              GrpcClientFeedResult grpc-cf-stream-reset total tx-pos sid rst-err 0 0 0 1 0
+            -- HEADERS (response headers, trailers, or Trailers-Only)
+            else if eq-u8 ftype h2-frame-headers then
+              let st = h2-conn-streams conn in
+              let slot = h2-stream-lookup st sid in
+              if eq-u32 slot h2-slot-none then
+                GrpcClientFeedResult grpc-cf-error total tx-pos sid h2-err-stream-closed 0 0 0 0 0
+              else
+                let pb = h2-frame-strip-padding-dma rx-addr payload-off plen flags in
+                if ne-u32 pb.pb-err h2-err-no-error then
+                  GrpcClientFeedResult grpc-cf-error total tx-pos sid pb.pb-err 0 0 0 0 0
+                else
+                  let has-prio = ne-u8 (bit-and-u8 flags h2-flag-priority) 0 in
+                  if both has-prio (lt-u32 pb.pb-data-len 5) then
+                    GrpcClientFeedResult grpc-cf-error total tx-pos sid h2-err-frame-size-error 0 0 0 0 0
+                  else
+                    let frag-off = if has-prio then wrapping-add-u32 pb.pb-data-off 5 else pb.pb-data-off in
+                    let frag-len = if has-prio then wrapping-sub-u32 pb.pb-data-len 5 else pb.pb-data-len in
+                    let dec = h2-conn-hpack-decoder conn in
+                    let hdrs-addr = h2-conn-decoded-hdrs-addr conn in
+                    let text-addr = h2-conn-decoded-text-addr conn in
+                    let dr = hpack-decode-block dec (wrapping-add-i64 rx-addr (u32-to-i64 frag-off)) frag-len hdrs-addr 128 text-addr 8192 in
+                    if ne-u32 dr.hd-status hpack-ok then
+                      GrpcClientFeedResult grpc-cf-error total tx-pos sid h2-err-compression-error 0 0 0 0 0
+                    else
+                      let es = if ne-u8 (bit-and-u8 flags h2-flag-end-stream) 0 then (1 :: U8) else (0 :: U8) in
+                      let old-fl = h2-stream-slot-flags st slot in
+                      let had-hdrs = ne-u8 (bit-and-u8 old-fl h2-sflag-headers-recv) 0 in
+                      let new-fl = bit-or-u8 (bit-or-u8 old-fl h2-sflag-headers-recv) (if ne-u8 es 0 then h2-sflag-end-stream-recv else 0) in
+                      let _ = h2-stream-slot-set-flags st slot new-fl in
+                      let _ = (
+                        if ne-u8 es 0 then
+                          let cur-st = h2-stream-slot-state st slot in
+                          let nxt-st = h2-stream-transition cur-st h2-sev-recv-end-stream in
+                          let _ = h2-stream-slot-set-state st slot nxt-st in
+                          if eq-u8 nxt-st h2-st-closed then
+                            let _ = h2-stream-close st sid in
+                            ()
+                          else ()
+                        else ()) in
+                      let kind = (
+                        if had-hdrs then
+                          if ne-u8 es 0 then grpc-cf-trailers else grpc-cf-error
+                        else
+                          if ne-u8 es 0 then grpc-cf-trailers-only else grpc-cf-response-headers) in
+                      let err = if eq-u32 kind grpc-cf-error then h2-err-protocol-error else h2-err-no-error in
+                      GrpcClientFeedResult kind total tx-pos sid err 0 0 (wrapping-u32-to-u16 dr.hd-header-count) es 0
+            -- DATA (server response payload)
+            else if eq-u8 ftype h2-frame-data then
+              let st = h2-conn-streams conn in
+              let slot = h2-stream-lookup st sid in
+              if eq-u32 slot h2-slot-none then
+                GrpcClientFeedResult grpc-cf-error total tx-pos sid h2-err-stream-closed 0 0 0 0 0
+              else
+                let cur-st = h2-stream-slot-state st slot in
+                if both (ne-u8 cur-st h2-st-open) (ne-u8 cur-st h2-st-half-closed-local) then
+                  GrpcClientFeedResult grpc-cf-error total tx-pos sid h2-err-stream-closed 0 0 0 0 0
+                else
+                  let serr = h2-stream-consume-recv-window st slot plen in
+                  if ne-u32 serr h2-err-no-error then
+                    GrpcClientFeedResult grpc-cf-error total tx-pos sid serr 0 0 0 0 0
+                  else
+                    let pb = h2-frame-strip-padding-dma rx-addr payload-off plen flags in
+                    if ne-u32 pb.pb-err h2-err-no-error then
+                      GrpcClientFeedResult grpc-cf-error total tx-pos sid pb.pb-err 0 0 0 0 0
+                    else
+                      let es = if ne-u8 (bit-and-u8 flags h2-flag-end-stream) 0 then (1 :: U8) else (0 :: U8) in
+                      let out-tx = (
+                        if ne-u8 es 0 then tx-pos
+                        else
+                          let scons = h2-stream-slot-recv-consumed st slot in
+                          if ge-u32 scons 32767 then
+                            let wt1 = h2-write-window-update-dma tx-addr tx-pos tx-cap 0 scons in
+                            let tx1 = if ne-u32 wt1 0 then wt1 else tx-pos in
+                            let wt2 = h2-write-window-update-dma tx-addr tx1 tx-cap sid scons in
+                            if ne-u32 wt2 0 then
+                              let _ = h2-stream-credit-recv-window st slot scons in
+                              wt2
+                            else tx1
+                          else tx-pos) in
+                      let _ = (
+                        if ne-u8 es 0 then
+                          let nxt-st = h2-stream-transition cur-st h2-sev-recv-end-stream in
+                          let _ = h2-stream-slot-set-state st slot nxt-st in
+                          if eq-u8 nxt-st h2-st-closed then
+                            let _ = h2-stream-close st sid in
+                            ()
+                          else ()
+                        else ()) in
+                      GrpcClientFeedResult grpc-cf-data total out-tx sid h2-err-no-error pb.pb-data-off pb.pb-data-len 0 es 0
+            else
+              GrpcClientFeedResult grpc-cf-ok total tx-pos sid h2-err-no-error 0 0 0 0 0
+
+  -- =========================================================================
+  -- 9. All 4 RPC Streaming Modes & Full Client+Server `GrpcCallState` Machine
+  -- =========================================================================
+
+  -- | All 4 gRPC RPC streaming modes (auto-niched single-word Raw enum).
+  data GrpcRpcMode where
+    GrpcUnary :: GrpcRpcMode
+    GrpcServerStreaming :: GrpcRpcMode
+    GrpcClientStreaming :: GrpcRpcMode
+    GrpcBidiStreaming :: GrpcRpcMode
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-mode-unary :: U8
+  grpc-mode-unary = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-mode-server-streaming :: U8
+  grpc-mode-server-streaming = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-mode-client-streaming :: U8
+  grpc-mode-client-streaming = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-mode-bidi-streaming :: U8
+  grpc-mode-bidi-streaming = 3
+
+  #[no-alloc]
+  grpc-rpc-mode-to-u8 :: GrpcRpcMode -> U8
+  grpc-rpc-mode-to-u8 m = case m of
+    GrpcUnary -> 0
+    GrpcServerStreaming -> 1
+    GrpcClientStreaming -> 2
+    GrpcBidiStreaming -> 3
+
+  grpc-rpc-mode-from-u8 :: U8 -> GrpcRpcMode
+  grpc-rpc-mode-from-u8 c =
+    if eq-u8 c 0 then GrpcUnary
+    else if eq-u8 c 1 then GrpcServerStreaming
+    else if eq-u8 c 2 then GrpcClientStreaming
+    else GrpcBidiStreaming
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-rpc-mode-eq :: GrpcRpcMode -> GrpcRpcMode -> Bool
+  grpc-rpc-mode-eq a b = eq-u8 (grpc-rpc-mode-to-u8 a) (grpc-rpc-mode-to-u8 b)
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-role-server :: U8
+  grpc-role-server = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-role-client :: U8
+  grpc-role-client = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-phase-idle :: U8
+  grpc-phase-idle = 0
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-phase-active :: U8
+  grpc-phase-active = 1
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-phase-half-closed-req :: U8
+  grpc-phase-half-closed-req = 2
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-phase-closed :: U8
+  grpc-phase-closed = 3
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-phase-failed :: U8
+  grpc-phase-failed = 4
+
+  -- | 40-byte POD call state machine for both server and client gRPC calls
+  -- across all 4 streaming modes (`GrpcUnary`, `GrpcServerStreaming`,
+  -- `GrpcClientStreaming`, `GrpcBidiStreaming`).
+  #[repr(C, value)]
+  record GrpcCallState where
+    gcs-stream-id :: U32
+    gcs-mode :: U8
+    gcs-role :: U8
+    gcs-phase :: U8
+    gcs-status :: U8
+    gcs-resp-headers-done :: U8
+    gcs-trailers-only :: U8
+    gcs-pad :: U16
+    gcs-req-count :: U32
+    gcs-resp-count :: U32
+    gcs-max-msg-size :: U32
+    gcs-deadline-ns :: U64
+    gcs-last-tx-pos :: U32
+    gcs-last-err :: U32
+
+  #[inline(always)]
+  #[no-alloc]
+  mode-allows-multi-req :: U8 -> Bool
+  mode-allows-multi-req mode =
+    either (eq-u8 mode grpc-mode-client-streaming) (eq-u8 mode grpc-mode-bidi-streaming)
+
+  #[inline(always)]
+  #[no-alloc]
+  mode-allows-multi-resp :: U8 -> Bool
+  mode-allows-multi-resp mode =
+    either (eq-u8 mode grpc-mode-server-streaming) (eq-u8 mode grpc-mode-bidi-streaming)
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-call-new-server :: U32 -> U8 -> U32 -> U64 -> GrpcCallState
+  grpc-call-new-server sid mode max-msg-size deadline-ns =
+    GrpcCallState sid mode grpc-role-server grpc-phase-active grpc-code-ok 0 0 0 0 0 max-msg-size deadline-ns 0 h2-err-no-error
+
+  #[inline(always)]
+  #[no-alloc]
+  grpc-call-new-client :: U32 -> U8 -> U32 -> U64 -> GrpcCallState
+  grpc-call-new-client sid mode max-msg-size deadline-ns =
+    GrpcCallState sid mode grpc-role-client grpc-phase-idle grpc-code-ok 0 0 0 0 0 max-msg-size deadline-ns 0 h2-err-no-error
+
+  #[inline(always)]
+  #[no-alloc]
+  call-fail :: GrpcCallState -> U8 -> U32 -> U32 -> GrpcCallState
+  call-fail st grpc-err h2-err tx-pos =
+    GrpcCallState
+      st.gcs-stream-id
+      st.gcs-mode
+      st.gcs-role
+      grpc-phase-failed
+      grpc-err
+      st.gcs-resp-headers-done
+      st.gcs-trailers-only
+      0
+      st.gcs-req-count
+      st.gcs-resp-count
+      st.gcs-max-msg-size
+      st.gcs-deadline-ns
+      tx-pos
+      h2-err
+
+  -- | Server: validate the just-decoded `H2Conn` request headers and initialize
+  -- a `GrpcCallState` in `grpc-phase-active` (or `grpc-phase-failed` with exact
+  -- gRPC error status on invalid request headers).
+  #[no-alloc]
+  grpc-server-accept-call :: H2Conn -> U32 -> U8 -> U32 ->{MVar} GrpcCallState
+  grpc-server-accept-call conn sid mode max-msg-size =
+    let hdrs = h2-conn-decoded-hdrs-addr conn in
+    let text = h2-conn-decoded-text-addr conn in
+    let cnt = h2-conn-decoded-hdr-count conn in
+    let meta = grpc-validate-request-headers hdrs text cnt in
+    if eq-u8 meta.grm-valid 0 then
+      GrpcCallState sid mode grpc-role-server grpc-phase-failed meta.grm-err-status 0 0 0 0 0 max-msg-size 0 0 h2-err-protocol-error
+    else
+      GrpcCallState sid mode grpc-role-server grpc-phase-active grpc-code-ok 0 0 0 0 0 max-msg-size meta.grm-timeout-ns 0 h2-err-no-error
+
+  -- | Server: record one received request message, enforcing Unary / Server-Streaming
+  -- single-request cardinality (`req-count <= 1`).
+  #[no-alloc]
+  grpc-server-on-req-message :: GrpcCallState -> GrpcCallState
+  grpc-server-on-req-message st =
+    if ne-u8 st.gcs-phase grpc-phase-active then
+      call-fail st grpc-code-internal h2-err-protocol-error st.gcs-last-tx-pos
+    else if both (not-bool (mode-allows-multi-req st.gcs-mode)) (ge-u32 st.gcs-req-count 1) then
+      call-fail st grpc-code-internal h2-err-protocol-error st.gcs-last-tx-pos
+    else
+      GrpcCallState
+        st.gcs-stream-id st.gcs-mode st.gcs-role st.gcs-phase st.gcs-status
+        st.gcs-resp-headers-done st.gcs-trailers-only 0
+        (wrapping-add-u32 st.gcs-req-count 1) st.gcs-resp-count
+        st.gcs-max-msg-size st.gcs-deadline-ns st.gcs-last-tx-pos h2-err-no-error
+
+  -- | Server: record client `END_STREAM` (half-closing the request side).
+  #[no-alloc]
+  grpc-server-on-req-end :: GrpcCallState -> GrpcCallState
+  grpc-server-on-req-end st =
+    if eq-u8 st.gcs-phase grpc-phase-active then
+      GrpcCallState
+        st.gcs-stream-id st.gcs-mode st.gcs-role grpc-phase-half-closed-req st.gcs-status
+        st.gcs-resp-headers-done st.gcs-trailers-only 0
+        st.gcs-req-count st.gcs-resp-count
+        st.gcs-max-msg-size st.gcs-deadline-ns st.gcs-last-tx-pos h2-err-no-error
+    else st
+
+  -- | Server: emit initial gRPC response `HEADERS` (`:status: 200`,
+  -- `content-type: application/grpc`) on `conn`.
+  #[no-alloc]
+  grpc-server-send-headers :: H2Conn -> GrpcCallState -> I64 -> U32 -> U32 ->{MVar} GrpcCallState
+  grpc-server-send-headers conn st tx-addr tx-pos tx-cap =
+    if both (ne-u8 st.gcs-phase grpc-phase-active) (ne-u8 st.gcs-phase grpc-phase-half-closed-req) then
+      call-fail st grpc-code-internal h2-err-stream-closed tx-pos
+    else if ne-u8 st.gcs-resp-headers-done 0 then
+      call-fail st grpc-code-internal h2-err-protocol-error tx-pos
+    else
+      let wr = grpc-send-response-headers conn st.gcs-stream-id tx-addr tx-pos tx-cap in
+      if ne-u32 wr.wr-error h2-err-no-error then
+        call-fail st grpc-code-internal wr.wr-error wr.wr-tx-pos
+      else
+        GrpcCallState
+          st.gcs-stream-id st.gcs-mode st.gcs-role st.gcs-phase st.gcs-status
+          1 st.gcs-trailers-only 0
+          st.gcs-req-count st.gcs-resp-count
+          st.gcs-max-msg-size st.gcs-deadline-ns wr.wr-tx-pos h2-err-no-error
+
+  -- | Server: emit one gRPC response message (`DATA`, NO `END_STREAM`).
+  -- Auto-emits initial response `HEADERS` if not yet sent, and enforces
+  -- Unary / Client-Streaming single-response cardinality (`resp-count <= 1`).
+  #[no-alloc]
+  grpc-server-send-message
+    :: H2Conn -> GrpcCallState -> U8
+    -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} GrpcCallState
+  grpc-server-send-message conn st compressed msg-addr msg-len tx-addr tx-pos tx-cap =
+    if both (ne-u8 st.gcs-phase grpc-phase-active) (ne-u8 st.gcs-phase grpc-phase-half-closed-req) then
+      call-fail st grpc-code-internal h2-err-stream-closed tx-pos
+    else if both (not-bool (mode-allows-multi-resp st.gcs-mode)) (ge-u32 st.gcs-resp-count 1) then
+      call-fail st grpc-code-internal h2-err-protocol-error tx-pos
+    else if gt-u32 msg-len st.gcs-max-msg-size then
+      call-fail st grpc-code-resource-exhausted h2-err-no-error tx-pos
+    else
+      let st1 = (
+        if eq-u8 st.gcs-resp-headers-done 0 then
+          grpc-server-send-headers conn st tx-addr tx-pos tx-cap
+        else
+          GrpcCallState
+            st.gcs-stream-id st.gcs-mode st.gcs-role st.gcs-phase st.gcs-status
+            st.gcs-resp-headers-done st.gcs-trailers-only 0
+            st.gcs-req-count st.gcs-resp-count
+            st.gcs-max-msg-size st.gcs-deadline-ns tx-pos h2-err-no-error) in
+      if eq-u8 st1.gcs-phase grpc-phase-failed then st1
+      else
+        let wr = grpc-send-message conn st1.gcs-stream-id compressed msg-addr msg-len 0 tx-addr st1.gcs-last-tx-pos tx-cap in
+        if ne-u32 wr.wr-error h2-err-no-error then
+          call-fail st1 grpc-code-internal wr.wr-error wr.wr-tx-pos
+        else
+          GrpcCallState
+            st1.gcs-stream-id st1.gcs-mode st1.gcs-role st1.gcs-phase st1.gcs-status
+            1 st1.gcs-trailers-only 0
+            st1.gcs-req-count (wrapping-add-u32 st1.gcs-resp-count 1)
+            st1.gcs-max-msg-size st1.gcs-deadline-ns wr.wr-tx-pos h2-err-no-error
+
+  -- | Server: conclude an RPC call with `grpc-status` and optional `grpc-message`.
+  -- Automatically selects **Trailers-Only** (`grpc-send-trailers-only`) when no
+  -- response headers or messages have been sent yet, or normal **Trailers**
+  -- (`grpc-send-trailers`) otherwise.
+  #[no-alloc]
+  grpc-server-finish
+    :: H2Conn -> GrpcCallState -> U8
+    -> I64 -> U32
+    -> I64 -> U32 -> U32
+    ->{MVar} GrpcCallState
+  grpc-server-finish conn st grpc-status msg-addr msg-len tx-addr tx-pos tx-cap =
+    if both (ne-u8 st.gcs-phase grpc-phase-active) (ne-u8 st.gcs-phase grpc-phase-half-closed-req) then
+      call-fail st grpc-code-internal h2-err-stream-closed tx-pos
+    else if both (eq-u8 st.gcs-resp-headers-done 0) (eq-u32 st.gcs-resp-count 0) then
+      let wr = grpc-send-trailers-only conn st.gcs-stream-id grpc-status msg-addr msg-len tx-addr tx-pos tx-cap in
+      if ne-u32 wr.wr-error h2-err-no-error then
+        call-fail st grpc-code-internal wr.wr-error wr.wr-tx-pos
+      else
+        GrpcCallState
+          st.gcs-stream-id st.gcs-mode st.gcs-role grpc-phase-closed grpc-status
+          1 1 0
+          st.gcs-req-count st.gcs-resp-count
+          st.gcs-max-msg-size st.gcs-deadline-ns wr.wr-tx-pos h2-err-no-error
+    else
+      let wr = grpc-send-trailers conn st.gcs-stream-id grpc-status msg-addr msg-len tx-addr tx-pos tx-cap in
+      if ne-u32 wr.wr-error h2-err-no-error then
+        call-fail st grpc-code-internal wr.wr-error wr.wr-tx-pos
+      else
+        GrpcCallState
+          st.gcs-stream-id st.gcs-mode st.gcs-role grpc-phase-closed grpc-status
+          1 0 0
+          st.gcs-req-count st.gcs-resp-count
+          st.gcs-max-msg-size st.gcs-deadline-ns wr.wr-tx-pos h2-err-no-error
+
+  -- | Client: start an RPC call on `conn` stream `sid`, emitting gRPC request
+  -- `HEADERS` and returning `GrpcCallState` in `grpc-phase-active`.
+  #[no-alloc]
+  grpc-client-start-call
+    :: H2Conn -> U32 -> U8 -> U32
+    -> I64 -> U32 -> I64 -> U32 -> U64
+    -> I64 -> U32 -> U32
+    ->{MVar} GrpcCallState
+  grpc-client-start-call conn sid mode max-msg-size path-addr path-len auth-addr auth-len timeout-ns tx-addr tx-pos tx-cap =
+    let wr = grpc-send-request-headers conn sid path-addr path-len auth-addr auth-len timeout-ns tx-addr tx-pos tx-cap in
+    if ne-u32 wr.wr-error h2-err-no-error then
+      GrpcCallState sid mode grpc-role-client grpc-phase-failed grpc-code-internal 0 0 0 0 0 max-msg-size timeout-ns wr.wr-tx-pos wr.wr-error
+    else
+      GrpcCallState sid mode grpc-role-client grpc-phase-active grpc-code-ok 0 0 0 0 0 max-msg-size timeout-ns wr.wr-tx-pos h2-err-no-error
+
+  -- | Client: send one gRPC request message on `conn`, enforcing Unary /
+  -- Server-Streaming single-request cardinality (`req-count <= 1`).
+  #[no-alloc]
+  grpc-client-send-message
+    :: H2Conn -> GrpcCallState -> U8
+    -> I64 -> U32 -> U8
+    -> I64 -> U32 -> U32
+    ->{MVar} GrpcCallState
+  grpc-client-send-message conn st compressed msg-addr msg-len end-stream tx-addr tx-pos tx-cap =
+    if ne-u8 st.gcs-phase grpc-phase-active then
+      call-fail st grpc-code-internal h2-err-stream-closed tx-pos
+    else if both (not-bool (mode-allows-multi-req st.gcs-mode)) (ge-u32 st.gcs-req-count 1) then
+      call-fail st grpc-code-internal h2-err-protocol-error tx-pos
+    else if gt-u32 msg-len st.gcs-max-msg-size then
+      call-fail st grpc-code-resource-exhausted h2-err-no-error tx-pos
+    else
+      let wr = grpc-send-message conn st.gcs-stream-id compressed msg-addr msg-len end-stream tx-addr tx-pos tx-cap in
+      if ne-u32 wr.wr-error h2-err-no-error then
+        call-fail st grpc-code-internal wr.wr-error wr.wr-tx-pos
+      else
+        let next-phase = if ne-u8 end-stream 0 then grpc-phase-half-closed-req else grpc-phase-active in
+        GrpcCallState
+          st.gcs-stream-id st.gcs-mode st.gcs-role next-phase st.gcs-status
+          st.gcs-resp-headers-done st.gcs-trailers-only 0
+          (wrapping-add-u32 st.gcs-req-count 1) st.gcs-resp-count
+          st.gcs-max-msg-size st.gcs-deadline-ns wr.wr-tx-pos h2-err-no-error
+
+  -- | Client: half-close the request stream (emits empty `DATA(END_STREAM)`).
+  #[no-alloc]
+  grpc-client-half-close :: H2Conn -> GrpcCallState -> I64 -> U32 -> U32 ->{MVar} GrpcCallState
+  grpc-client-half-close conn st tx-addr tx-pos tx-cap =
+    if ne-u8 st.gcs-phase grpc-phase-active then
+      call-fail st grpc-code-internal h2-err-stream-closed tx-pos
+    else
+      let wr = grpc-send-end-stream conn st.gcs-stream-id tx-addr tx-pos tx-cap in
+      if ne-u32 wr.wr-error h2-err-no-error then
+        call-fail st grpc-code-internal wr.wr-error wr.wr-tx-pos
+      else
+        GrpcCallState
+          st.gcs-stream-id st.gcs-mode st.gcs-role grpc-phase-half-closed-req st.gcs-status
+          st.gcs-resp-headers-done st.gcs-trailers-only 0
+          st.gcs-req-count st.gcs-resp-count
+          st.gcs-max-msg-size st.gcs-deadline-ns wr.wr-tx-pos h2-err-no-error
+
+  -- | Client: record one decoded server response message, enforcing Unary /
+  -- Client-Streaming single-response cardinality (`resp-count <= 1`).
+  #[no-alloc]
+  grpc-client-on-resp-message :: GrpcCallState -> GrpcCallState
+  grpc-client-on-resp-message st =
+    if both (ne-u8 st.gcs-phase grpc-phase-active) (ne-u8 st.gcs-phase grpc-phase-half-closed-req) then
+      call-fail st grpc-code-internal h2-err-protocol-error st.gcs-last-tx-pos
+    else if both (not-bool (mode-allows-multi-resp st.gcs-mode)) (ge-u32 st.gcs-resp-count 1) then
+      call-fail st grpc-code-internal h2-err-protocol-error st.gcs-last-tx-pos
+    else
+      GrpcCallState
+        st.gcs-stream-id st.gcs-mode st.gcs-role st.gcs-phase st.gcs-status
+        st.gcs-resp-headers-done st.gcs-trailers-only 0
+        st.gcs-req-count (wrapping-add-u32 st.gcs-resp-count 1)
+        st.gcs-max-msg-size st.gcs-deadline-ns st.gcs-last-tx-pos h2-err-no-error
+
+  -- | Client: apply a `GrpcClientFeedResult` event from `grpc-client-feed` to
+  -- `GrpcCallState`, parsing `:status`, `content-type`, and `grpc-status` from
+  -- `conn`'s decoded header arrays.
+  #[no-alloc]
+  grpc-client-apply-feed :: H2Conn -> GrpcCallState -> GrpcClientFeedResult ->{MVar} GrpcCallState
+  grpc-client-apply-feed conn st fr =
+    if ne-u32 fr.gcfr-stream-id st.gcs-stream-id then st
+    else if eq-u32 fr.gcfr-kind grpc-cf-response-headers then
+      let meta = grpc-parse-response-headers (h2-conn-decoded-hdrs-addr conn) (h2-conn-decoded-text-addr conn) (u16-to-u32 fr.gcfr-hdr-count) in
+      if both (ne-u8 meta.gres-has-http-status 0) (ne-u16 meta.gres-http-status 200) then
+        call-fail st (grpc-status-code-from-http meta.gres-http-status) h2-err-no-error fr.gcfr-tx-pos
+      else if eq-u8 meta.gres-content-type grpc-ct-invalid then
+        call-fail st grpc-code-unknown h2-err-protocol-error fr.gcfr-tx-pos
+      else
+        GrpcCallState
+          st.gcs-stream-id st.gcs-mode st.gcs-role st.gcs-phase st.gcs-status
+          1 0 0
+          st.gcs-req-count st.gcs-resp-count
+          st.gcs-max-msg-size st.gcs-deadline-ns fr.gcfr-tx-pos h2-err-no-error
+    else if eq-u32 fr.gcfr-kind grpc-cf-trailers-only then
+      let meta = grpc-parse-response-headers (h2-conn-decoded-hdrs-addr conn) (h2-conn-decoded-text-addr conn) (u16-to-u32 fr.gcfr-hdr-count) in
+      let final-st = (
+        if ne-u8 meta.gres-has-grpc-status 0 then meta.gres-grpc-status
+        else if ne-u8 meta.gres-has-http-status 0 then grpc-status-code-from-http meta.gres-http-status
+        else grpc-code-unknown) in
+      GrpcCallState
+        st.gcs-stream-id st.gcs-mode st.gcs-role grpc-phase-closed final-st
+        1 1 0
+        st.gcs-req-count st.gcs-resp-count
+        st.gcs-max-msg-size st.gcs-deadline-ns fr.gcfr-tx-pos h2-err-no-error
+    else if eq-u32 fr.gcfr-kind grpc-cf-trailers then
+      let meta = grpc-parse-response-headers (h2-conn-decoded-hdrs-addr conn) (h2-conn-decoded-text-addr conn) (u16-to-u32 fr.gcfr-hdr-count) in
+      let final-st = if ne-u8 meta.gres-has-grpc-status 0 then meta.gres-grpc-status else grpc-code-unknown in
+      GrpcCallState
+        st.gcs-stream-id st.gcs-mode st.gcs-role grpc-phase-closed final-st
+        1 0 0
+        st.gcs-req-count st.gcs-resp-count
+        st.gcs-max-msg-size st.gcs-deadline-ns fr.gcfr-tx-pos h2-err-no-error
+    else if eq-u32 fr.gcfr-kind grpc-cf-stream-reset then
+      let gst = grpc-status-from-rst-error fr.gcfr-error in
+      call-fail st gst fr.gcfr-error fr.gcfr-tx-pos
+    else if eq-u32 fr.gcfr-kind grpc-cf-error then
+      call-fail st grpc-code-internal fr.gcfr-error fr.gcfr-tx-pos
+    else st
