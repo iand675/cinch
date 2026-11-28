@@ -1579,6 +1579,18 @@
     {
       "name": "Store.Kv.Resp",
       "path": "Store/Kv/Resp.cinch"
+    },
+    {
+      "name": "Store.Kv.Engine",
+      "path": "Store/Kv/Engine.cinch"
+    },
+    {
+      "name": "Store.Kv.Server",
+      "path": "Store/Kv/Server.cinch"
+    },
+    {
+      "name": "Store.Kv.Spec",
+      "path": "Store/Kv/Spec.cinch"
     }
   ],
   "order": [
@@ -1975,6 +1987,9 @@
     "Store.Wal.Format",
     "Store.Wal.Engine",
     "Store.Wal.Spec",
-    "Store.Kv.Resp"
+    "Store.Kv.Resp",
+    "Store.Kv.Engine",
+    "Store.Kv.Server",
+    "Store.Kv.Spec"
   ]
 }

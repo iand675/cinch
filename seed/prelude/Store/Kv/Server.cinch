@@ -1,0 +1,1056 @@
+-- | Share-nothing multi-core RESP2/RESP3 KV Server (`Store.Kv.Server`)
+-- combining `Store.Kv.Engine` (`KvShard`), `Store.Kv.Resp` (SIMD zero-alloc
+-- pipelined RESP parser/encoder), `Engine.Ring.Spsc` (`CoreMesh`), and
+-- `Engine.Reactor.Darwin` (live macOS loopback TCP).
+--
+-- Share-nothing execution architecture:
+--   * **Local-key fast path**: when `kv-owner-core(key) == self-core`,
+--     commands execute directly on the core-local `KvShard` and write coalesced
+--     RESP2/RESP3 responses into the connection DMA TX buffer with zero locks
+--     and zero heap allocations.
+--   * **Remote-key SPSC forwarding path**: when `kv-owner-core(key) != self-core`,
+--     the origin core acquires a pre-allocated slot from its private slice of
+--     `KvXCorePool`, copies key/value bytes into the slot, packs a 64-byte
+--     `MsgEnvelope` referencing the slot, and pushes it over `CoreMesh` SPSC
+--     to `owner-core`. `owner-core` executes the operation exclusively on its
+--     own `KvShard`, writes the result into the slot, and pushes a reply
+--     `MsgEnvelope` back over `CoreMesh` SPSC to `origin-core`.
+--   * **Live macOS loopback RESP server helper (`kv-server-handle-conn-dma`)**:
+--     processes pipelined batches (`PING`, `GET`, `SET [EX|PX]`, `DEL`, `INCR`,
+--     `DECR`, `EXPIRE`, `TTL`, `EXISTS`, `MGET`, `MSET`, `HELLO`, `QUIT`) over
+--     DMA buffers with zero heap allocations.
+module Store.Kv.Server where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Engine.Reactor.Darwin
+  import Engine.Ring.Spsc
+  import Engine.Types
+  import Prim.Atomic
+  import Store.Kv.Engine
+  import Store.Kv.Resp
+
+  -- Cross-core message kinds, reply kinds, and slot geometry constants
+  export kv-msg-req, kv-msg-reply
+  export kv-rep-ok, kv-rep-bulk, kv-rep-null, kv-rep-int, kv-rep-err
+  export kv-xcore-slot-bytes, kv-xcore-max-key, kv-xcore-max-val
+
+  -- Pre-allocated cross-core request/reply DMA slot pool
+  export KvXCorePool, kv-xcore-pool-new, kv-xcore-pool-destroy
+  export kv-xcore-slot-alloc, kv-xcore-slot-free, kv-xcore-slot-addr
+  export kv-xcore-slot-key-addr, kv-xcore-slot-val-addr
+
+  -- Share-nothing per-core mesh server node & connection result POD
+  export KvMeshServer, KvConnResult, kv-conn-result-empty
+  export kv-mesh-server-new, kv-mesh-server-core, kv-mesh-server-shard
+
+  -- Cross-core SPSC forwarding & owner-core inbox execution
+  export kv-mesh-pack-req, kv-mesh-submit-remote
+  export kv-mesh-exec-envelope, kv-mesh-poll-inbox
+  export kv-mesh-remote-exec-sync
+
+  -- Pipelined RESP2/RESP3 local & mesh-aware connection handlers + Darwin helper
+  export kv-exec-cmd-local-dma
+  export kv-server-handle-conn-dma, kv-mesh-handle-conn-dma
+  export kv-darwin-serve-once
+
+  -- =========================================================================
+  -- 1. Constants & Internal #[no-alloc] Helpers
+  -- =========================================================================
+
+  -- | `MsgEnvelope.msg-kind` tag for a cross-core KV request (`origin -> owner`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-msg-req :: U32
+  kv-msg-req = 101
+
+  -- | `MsgEnvelope.msg-kind` tag for a cross-core KV reply (`owner -> origin`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-msg-reply :: U32
+  kv-msg-reply = 102
+
+  -- | Reply payload kind: `+OK\r\n`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-rep-ok :: U8
+  kv-rep-ok = 0
+
+  -- | Reply payload kind: bulk string stored in slot value area.
+  #[inline(always)]
+  #[no-alloc]
+  kv-rep-bulk :: U8
+  kv-rep-bulk = 1
+
+  -- | Reply payload kind: null (`$-1\r\n` in RESP2, `_\r\n` in RESP3).
+  #[inline(always)]
+  #[no-alloc]
+  kv-rep-null :: U8
+  kv-rep-null = 2
+
+  -- | Reply payload kind: signed 64-bit integer in `msg-w3`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-rep-int :: U8
+  kv-rep-int = 3
+
+  -- | Reply payload kind: RESP error code in `msg-w3`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-rep-err :: U8
+  kv-rep-err = 4
+
+  -- | Fixed byte size of each cross-core DMA request/reply slot (`1024` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  kv-xcore-slot-bytes :: U32
+  kv-xcore-slot-bytes = 1024
+
+  -- | Maximum inline key bytes per cross-core slot (`256` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  kv-xcore-max-key :: U32
+  kv-xcore-max-key = 256
+
+  -- | Maximum inline value/reply bytes per cross-core slot (`768` bytes).
+  #[inline(always)]
+  #[no-alloc]
+  kv-xcore-max-val :: U32
+  kv-xcore-max-val = 768
+
+  -- | Sentinel freelist index for exhausted cross-core slot pool.
+  #[inline(always)]
+  #[no-alloc]
+  xslot-none :: U32
+  xslot-none = 4294967295
+
+  -- | Internal zero-alloc boolean true.
+  #[inline(always)]
+  #[no-alloc]
+  sv-true :: Bool
+  sv-true = eq-u32 0 0
+
+  -- | Internal zero-alloc boolean false.
+  #[inline(always)]
+  #[no-alloc]
+  sv-false :: Bool
+  sv-false = eq-u32 0 1
+
+  -- | Internal zero-alloc conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  sv-and :: Bool -> Bool -> Bool
+  sv-and a b = if a then b else sv-false
+
+  -- | Internal zero-alloc disjunction.
+  #[inline(always)]
+  #[no-alloc]
+  sv-or :: Bool -> Bool -> Bool
+  sv-or a b = if a then sv-true else b
+
+  -- | Internal zero-alloc raw DMA byte copy.
+  #[no-alloc]
+  sv-copy-dma :: I64 -> I64 -> U32 ->{MVar} Unit
+  sv-copy-dma dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      sv-copy-dma (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      sv-copy-dma (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      sv-copy-dma (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- | Write a 4-byte ASCII literal into `dst + pos` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  sv-put4 :: I64 -> U32 -> U8 -> U8 -> U8 -> U8 ->{MVar} U32
+  sv-put4 base pos c0 c1 c2 c3 =
+    let lo = bit-or-u32 (u8-to-u32 c0) (wrapping-shl-u32 (u8-to-u32 c1) 8) in
+    let hi = bit-or-u32 (wrapping-shl-u32 (u8-to-u32 c2) 16) (wrapping-shl-u32 (u8-to-u32 c3) 24) in
+    let w = bit-or-u32 lo hi in
+    let _ = raw-store-u32 (wrapping-add-i64 base (u32-to-i64 pos)) w in
+    wrapping-add-u32 pos 4
+
+  -- | Write a single byte into `base + pos` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  sv-put1 :: I64 -> U32 -> U8 ->{MVar} U32
+  sv-put1 base pos b =
+    let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 pos)) b in
+    wrapping-add-u32 pos 1
+
+  -- | Write `-ERR invalid\r\n` (14 bytes) directly into TX DMA buffer (`#[no-alloc]`).
+  #[no-alloc]
+  resp-write-err-generic :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-err-generic base pos cap =
+    if gt-u32 14 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = sv-put4 base pos 45 69 82 82 in       -- "-ERR"
+      let p2 = sv-put4 base p1 32 105 110 118 in     -- " inv"
+      let p3 = sv-put4 base p2 97 108 105 100 in     -- "alid"
+      let p4 = sv-put1 base p3 13 in
+      sv-put1 base p4 10
+
+  -- | Write `-ERR not an integer\r\n` (21 bytes) into TX DMA buffer (`#[no-alloc]`).
+  #[no-alloc]
+  resp-write-err-not-int :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-err-not-int base pos cap =
+    if gt-u32 21 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = sv-put4 base pos 45 69 82 82 in       -- "-ERR"
+      let p2 = sv-put4 base p1 32 110 111 116 in     -- " not"
+      let p3 = sv-put4 base p2 32 97 110 32 in       -- " an "
+      let p4 = sv-put4 base p3 105 110 116 101 in    -- "inte"
+      let p5 = sv-put4 base p4 103 101 114 13 in     -- "ger\r"
+      sv-put1 base p5 10
+
+  -- | Write `-ERR shard full\r\n` (17 bytes) into TX DMA buffer (`#[no-alloc]`).
+  #[no-alloc]
+  resp-write-err-full :: I64 -> U32 -> U32 ->{MVar} U32
+  resp-write-err-full base pos cap =
+    if gt-u32 17 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p1 = sv-put4 base pos 45 69 82 82 in       -- "-ERR"
+      let p2 = sv-put4 base p1 32 115 104 97 in      -- " sha"
+      let p3 = sv-put4 base p2 114 100 32 102 in     -- "rd f"
+      let p4 = sv-put4 base p3 117 108 108 13 in     -- "ull\r"
+      sv-put1 base p4 10
+
+  -- | Write a RESP2 (`$-1\r\n`) or RESP3 (`_\r\n`) null based on `proto-ver`.
+  #[inline(always)]
+  #[no-alloc]
+  resp-write-null-proto :: I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  resp-write-null-proto base pos cap proto-ver =
+    if ge-u8 proto-ver 3 then resp-write-null-v3 base pos cap
+    else resp-write-null-v2 base pos cap
+
+  -- | Write `HELLO` handshake response (`*4\r\n$6\r\nserver\r\n$5\r\ncinch\r\n$5\r\nproto\r\n:2\r\n`
+  -- or `%2\r\n...` for RESP3, 42 bytes) directly into TX DMA buffer (`#[no-alloc]`).
+  #[no-alloc]
+  resp-write-hello :: I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  resp-write-hello base pos cap proto-ver =
+    if gt-u32 48 (saturating-sub-u32 cap pos) then wrapping-add-u32 cap 1
+    else
+      let p0 = if ge-u8 proto-ver 3 then resp-write-map-header base pos cap 2 else resp-write-array-header base pos cap 4 in
+      let p1 = sv-put4 base p0 36 54 13 10 in        -- "$6\r\n"
+      let p2 = sv-put4 base p1 115 101 114 118 in    -- "serv"
+      let p3 = sv-put4 base p2 101 114 13 10 in      -- "er\r\n"
+      let p4 = sv-put4 base p3 36 53 13 10 in        -- "$5\r\n"
+      let p5 = sv-put4 base p4 99 105 110 99 in      -- "cinc"
+      let p6 = sv-put1 base p5 104 in                -- "h"
+      let p7 = sv-put1 base p6 13 in
+      let p8 = sv-put1 base p7 10 in
+      let p9 = sv-put4 base p8 36 53 13 10 in        -- "$5\r\n"
+      let p10 = sv-put4 base p9 112 114 111 116 in   -- "prot"
+      let p11 = sv-put4 base p10 111 13 10 58 in     -- "o\r\n:"
+      let vch = if ge-u8 proto-ver 3 then 51 else 50 in
+      let p12 = sv-put1 base p11 vch in
+      let p13 = sv-put1 base p12 13 in
+      sv-put1 base p13 10
+
+  -- | Case-insensitive check for 2-byte ASCII option `"EX"` or `"PX"`.
+  #[inline(always)]
+  #[no-alloc]
+  match-opt2-ci :: I64 -> U32 -> U8 -> U8 ->{MVar} Bool
+  match-opt2-ci ptr len c0 c1 =
+    if ne-u32 len 2 then sv-false
+    else
+      let b0 = bit-or-u8 (raw-load-u8 ptr) 32 in
+      let b1 = bit-or-u8 (raw-load-u8 (wrapping-add-i64 ptr 1)) 32 in
+      sv-and (eq-u8 b0 c0) (eq-u8 b1 c1)
+
+  -- =========================================================================
+  -- 2. Pre-Allocated Cross-Core Request/Reply DMA Slot Pool (`KvXCorePool`)
+  -- =========================================================================
+
+  -- Layout of `KvXCorePool` contiguous 4 KiB-aligned DMA slab:
+  --   For each core `c` in `0 .. num-cores - 1`, a private 128-byte-isolated
+  --   header cache line at `c * 128`:
+  --     +0 : free-head :: U32 (exclusive to origin core `c`, zero locks!)
+  --     +4 : seq       :: U64 (origin-local monotonic request sequence)
+  --   Followed by `num-cores * slots-per-core * 4` bytes of `next-free[c][s]`
+  --   Followed by 64B-aligned `num-cores * slots-per-core * 1024` bytes of slots.
+
+  -- | Pre-allocated DMA pool of fixed 1024-byte cross-core request/reply slots,
+  -- partitioned per origin core so each core allocates and frees its own slots
+  -- without locks or heap allocations.
+  record KvXCorePool where
+    -- | Base address of the 4 KiB-aligned DMA pool slab.
+    xp-base :: I64
+    -- | Total mapped byte size of the pool slab.
+    xp-total-bytes :: U64
+    -- | Byte offset where per-slot `next-free` `U32` links begin.
+    xp-next-off :: U64
+    -- | Byte offset where 1024-byte payload slots begin.
+    xp-slots-off :: U64
+    -- | Total number of cores sharing this pool.
+    xp-cores :: U32
+    -- | Number of pre-allocated request/reply slots owned by each origin core.
+    xp-slots-per-core :: U32
+
+  -- | Initialize freelist links for one origin core `c`.
+  init-xcore-core-links :: I64 -> U32 -> U32 -> U32 -> U32 ->{MVar} Unit
+  init-xcore-core-links next-base core-idx s spc total =
+    if ge-u32 s spc then ()
+    else
+      let global-idx = wrapping-add-u32 (wrapping-mul-u32 core-idx spc) s in
+      let nxt = if lt-u32 (wrapping-add-u32 s 1) spc then wrapping-add-u32 s 1 else xslot-none in
+      let _w = raw-store-u32 (wrapping-add-i64 next-base (wrapping-shl-i64 (u32-to-i64 global-idx) 2)) nxt in
+      init-xcore-core-links next-base core-idx (wrapping-add-u32 s 1) spc total
+
+  -- | Initialize headers and freelists for all `cores`.
+  init-xcore-all-cores :: I64 -> I64 -> U32 -> U32 -> U32 ->{MVar} Unit
+  init-xcore-all-cores base next-base c cores spc =
+    if ge-u32 c cores then ()
+    else
+      let hdr = wrapping-add-i64 base (wrapping-shl-i64 (u32-to-i64 c) 7) in
+      let _h0 = raw-store-u32 hdr 0 in
+      let _h1 = raw-store-u64 (wrapping-add-i64 hdr 8) 1 in
+      let _ln = init-xcore-core-links next-base c 0 spc (wrapping-mul-u32 cores spc) in
+      init-xcore-all-cores base next-base (wrapping-add-u32 c 1) cores spc
+
+  -- | Round `v` up to a power-of-two `align`.
+  #[inline(always)]
+  #[no-alloc]
+  sv-align-up :: U64 -> U64 -> U64
+  sv-align-up v align =
+    let m = wrapping-sub-u64 align 1 in
+    bit-and-u64 (wrapping-add-u64 v m) (bit-not-u64 m)
+
+  -- | Allocate a `KvXCorePool` with `slots-per-core` 1024-byte slots for each
+  -- of `num-cores` share-nothing workers.
+  kv-xcore-pool-new :: U32 -> U32 ->{IO, MVar} Option KvXCorePool
+  kv-xcore-pool-new num-cores slots-per-core =
+    if eq-u32 num-cores 0 || eq-u32 slots-per-core 0 then None
+    else
+      let hdrs-bytes = wrapping-shl-u64 (u32-to-u64 num-cores) 7 in
+      let next-off = sv-align-up hdrs-bytes 64 in
+      let total-slots = wrapping-mul-u64 (u32-to-u64 num-cores) (u32-to-u64 slots-per-core) in
+      let next-bytes = wrapping-shl-u64 total-slots 2 in
+      let slots-off = sv-align-up (wrapping-add-u64 next-off next-bytes) 64 in
+      let slots-bytes = wrapping-shl-u64 total-slots 10 in
+      let total-bytes = sv-align-up (wrapping-add-u64 slots-off slots-bytes) 4096 in
+      let raw = engine-dma-alloc total-bytes 4096 in
+      if eq-u64 raw 0 then None
+      else
+        let base = wrapping-u64-to-i64 raw in
+        let next-base = wrapping-add-i64 base (wrapping-u64-to-i64 next-off) in
+        let _init = init-xcore-all-cores base next-base 0 num-cores slots-per-core in
+        let _f = atomic-fence-release () in
+        Some (KvXCorePool base total-bytes next-off slots-off num-cores slots-per-core)
+
+  -- | Release the DMA slab owned by `pool`.
+  kv-xcore-pool-destroy :: KvXCorePool ->{IO, MVar} Unit
+  kv-xcore-pool-destroy pool =
+    if eq-i64 pool.xp-base 0 then ()
+    else
+      let _ = engine-dma-free (wrapping-i64-to-u64 pool.xp-base) pool.xp-total-bytes in
+      ()
+
+  -- | Acquire one pre-allocated slot index (`0..slots-per-core-1`) owned by
+  -- `origin-core`, or `4294967295` if exhausted (`#[no-alloc]`).
+  #[no-alloc]
+  kv-xcore-slot-alloc :: KvXCorePool -> U16 ->{MVar} U32
+  kv-xcore-slot-alloc pool origin-core =
+    let c = u16-to-u32 origin-core in
+    if ge-u32 c pool.xp-cores then xslot-none
+    else
+      let hdr = wrapping-add-i64 pool.xp-base (wrapping-shl-i64 (u32-to-i64 c) 7) in
+      let head = raw-load-u32 hdr in
+      if ge-u32 head pool.xp-slots-per-core then xslot-none
+      else
+        let gidx = wrapping-add-u32 (wrapping-mul-u32 c pool.xp-slots-per-core) head in
+        let next-ptr = wrapping-add-i64 (wrapping-add-i64 pool.xp-base (wrapping-u64-to-i64 pool.xp-next-off)) (wrapping-shl-i64 (u32-to-i64 gidx) 2) in
+        let nxt = raw-load-u32 next-ptr in
+        let _u = raw-store-u32 hdr nxt in
+        head
+
+  -- | Release slot `slot-id` back to `origin-core`'s private freelist (`#[no-alloc]`).
+  #[no-alloc]
+  kv-xcore-slot-free :: KvXCorePool -> U16 -> U32 ->{MVar} Unit
+  kv-xcore-slot-free pool origin-core slot-id =
+    let c = u16-to-u32 origin-core in
+    if sv-or (ge-u32 c pool.xp-cores) (ge-u32 slot-id pool.xp-slots-per-core) then ()
+    else
+      let hdr = wrapping-add-i64 pool.xp-base (wrapping-shl-i64 (u32-to-i64 c) 7) in
+      let old = raw-load-u32 hdr in
+      let gidx = wrapping-add-u32 (wrapping-mul-u32 c pool.xp-slots-per-core) slot-id in
+      let next-ptr = wrapping-add-i64 (wrapping-add-i64 pool.xp-base (wrapping-u64-to-i64 pool.xp-next-off)) (wrapping-shl-i64 (u32-to-i64 gidx) 2) in
+      let _w = raw-store-u32 next-ptr old in
+      raw-store-u32 hdr slot-id
+
+  -- | Compute raw byte address of slot `(origin-core, slot-id)` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-xcore-slot-addr :: KvXCorePool -> U16 -> U32 -> I64
+  kv-xcore-slot-addr pool origin-core slot-id =
+    let gidx = wrapping-add-u32 (wrapping-mul-u32 (u16-to-u32 origin-core) pool.xp-slots-per-core) slot-id in
+    wrapping-add-i64 (wrapping-add-i64 pool.xp-base (wrapping-u64-to-i64 pool.xp-slots-off)) (wrapping-shl-i64 (u32-to-i64 gidx) 10)
+
+  -- | Raw DMA address of the 256-byte key area inside slot `(origin-core, slot-id)`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-xcore-slot-key-addr :: KvXCorePool -> U16 -> U32 -> I64
+  kv-xcore-slot-key-addr pool origin-core slot-id =
+    kv-xcore-slot-addr pool origin-core slot-id
+
+  -- | Raw DMA address of the 768-byte value/reply area inside slot `(origin-core, slot-id)`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-xcore-slot-val-addr :: KvXCorePool -> U16 -> U32 -> I64
+  kv-xcore-slot-val-addr pool origin-core slot-id =
+    wrapping-add-i64 (kv-xcore-slot-addr pool origin-core slot-id) 256
+
+  -- | Increment and return `origin-core`'s monotonic cross-core sequence number (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  next-xcore-seq :: KvXCorePool -> U16 ->{MVar} U64
+  next-xcore-seq pool origin-core =
+    let sa = wrapping-add-i64 (wrapping-add-i64 pool.xp-base (wrapping-shl-i64 (u32-to-i64 (u16-to-u32 origin-core)) 7)) 8 in
+    let cur = raw-load-u64 sa in
+    let _u = raw-store-u64 sa (wrapping-add-u64 cur 1) in
+    cur
+
+  -- =========================================================================
+  -- 3. Share-Nothing Multi-Core Server Node (`KvMeshServer`) & `KvConnResult`
+  -- =========================================================================
+
+  -- | Per-core handle to a share-nothing multi-core RESP2/RESP3 KV server node
+  -- combining its exclusively owned `KvShard`, shared `CoreMesh` SPSC topology,
+  -- and pre-allocated `KvXCorePool`.
+  record KvMeshServer where
+    -- | Logical core ID raw value of this worker node.
+    ks-core-raw :: U16
+    -- | Alignment padding.
+    ks-pad :: U16
+    -- | Total number of shards/cores in the cluster (`>= 1`).
+    ks-num-cores :: U32
+    -- | Core-local SwissTable + slab KV shard owned exclusively by `ks-core-raw`.
+    ks-shard :: KvShard
+    -- | All-to-all lock-free SPSC `CoreMesh` for cross-core forwarding.
+    ks-mesh :: CoreMesh
+    -- | Pre-allocated DMA pool for cross-core request/reply payloads.
+    ks-xpool :: KvXCorePool
+
+  -- | Construct a per-core `KvMeshServer` handle (allocated once at worker startup).
+  #[inline(always)]
+  kv-mesh-server-new :: CoreId -> U32 -> KvShard -> CoreMesh -> KvXCorePool -> KvMeshServer
+  kv-mesh-server-new cid num-cores shard mesh xpool =
+    KvMeshServer cid.core-id-raw 0 num-cores shard mesh xpool
+
+  -- | Return the owning `CoreId` of `srv` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-mesh-server-core :: KvMeshServer -> CoreId
+  kv-mesh-server-core srv = core-id srv.ks-core-raw
+
+  -- | Return the core-local `KvShard` of `srv` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-mesh-server-shard :: KvMeshServer -> KvShard
+  kv-mesh-server-shard srv = srv.ks-shard
+
+  -- | 24-byte POD summary returned by `kv-server-handle-conn-dma` and
+  -- `kv-mesh-handle-conn-dma` (`#[no-alloc]`).
+  #[repr(C, value)]
+  record KvConnResult where
+    -- | Terminal parser status (`resp-ok`, `resp-need-more`, or `resp-err-*`).
+    kcr-status :: U8
+    -- | Updated connection RESP protocol version (`2` or `3`).
+    kcr-proto :: U8
+    -- | `1` if client issued `QUIT`, `0` otherwise.
+    kcr-should-close :: U8
+    -- | Alignment padding.
+    kcr-pad :: U8
+    -- | Total RX bytes consumed from the connection buffer.
+    kcr-rx-consumed :: U32
+    -- | Total coalesced RESP response bytes written into the TX buffer.
+    kcr-tx-written :: U32
+    -- | Total RESP commands executed in this batch.
+    kcr-cmds-handled :: U32
+    -- | Number of commands executed locally on this core's shard.
+    kcr-local-ops :: U32
+    -- | Number of commands forwarded cross-core via `CoreMesh` SPSC.
+    kcr-remote-ops :: U32
+
+  -- | Construct an empty `KvConnResult` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-conn-result-empty :: U8 -> KvConnResult
+  kv-conn-result-empty proto = KvConnResult resp-need-more proto 0 0 0 0 0 0 0
+
+  -- =========================================================================
+  -- 4. Cross-Core SPSC Request/Reply Packing & Owner-Core Execution
+  -- =========================================================================
+
+  -- | Pack a 64-byte `MsgEnvelope` referencing pre-allocated cross-core slot
+  -- `(origin-core, slot-id)` for command `op-cmd` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-mesh-pack-req :: U16 -> U16 -> U64 -> U32 -> U8 -> U64 -> U32 -> U32 -> MsgEnvelope
+  kv-mesh-pack-req origin-raw owner-raw seq slot-id op-cmd ttl-ms klen vlen =
+    let packed-slot = bit-or-u64 (wrapping-shl-u64 (u16-to-u64 origin-raw) 32) (u32-to-u64 slot-id) in
+    msg-envelope-make
+      kv-msg-req
+      (core-id origin-raw)
+      (core-id owner-raw)
+      seq
+      packed-slot
+      (u8-to-u64 op-cmd)
+      ttl-ms
+      0
+      (u32-to-u64 klen)
+      (u32-to-u64 vlen)
+
+  -- | Copy `(key, val)` into an acquired `KvXCorePool` slot and push a 64-byte
+  -- `MsgEnvelope` over `CoreMesh` SPSC from `srv.ks-core` to `owner-raw`.
+  -- Returns the acquired `slot-id` (`< slots-per-core`) on success, or
+  -- `4294967295` if the slot pool or SPSC ring is full or payload exceeds slot bounds.
+  kv-mesh-submit-remote :: KvMeshServer -> U16 -> U8 -> I64 -> U32 -> I64 -> U32 -> U64 ->{MVar} U32
+  kv-mesh-submit-remote srv owner-raw op-cmd key-addr key-len val-addr val-len ttl-ms =
+    if sv-or (gt-u32 key-len kv-xcore-max-key) (gt-u32 val-len kv-xcore-max-val) then xslot-none
+    else
+      let origin-raw = srv.ks-core-raw in
+      let slot-id = kv-xcore-slot-alloc srv.ks-xpool origin-raw in
+      if eq-u32 slot-id xslot-none then xslot-none
+      else
+        let kdst = kv-xcore-slot-key-addr srv.ks-xpool origin-raw slot-id in
+        let vdst = kv-xcore-slot-val-addr srv.ks-xpool origin-raw slot-id in
+        let _ck = if gt-u32 key-len 0 then sv-copy-dma kdst key-addr key-len else () in
+        let _cv = if gt-u32 val-len 0 then sv-copy-dma vdst val-addr val-len else () in
+        let seq = next-xcore-seq srv.ks-xpool origin-raw in
+        let env = kv-mesh-pack-req origin-raw owner-raw seq slot-id op-cmd ttl-ms key-len val-len in
+        if core-mesh-send srv.ks-mesh (core-id origin-raw) (core-id owner-raw) env then slot-id
+        else
+          let _fr = kv-xcore-slot-free srv.ks-xpool origin-raw slot-id in
+          xslot-none
+
+  -- | Execute one inbound `kv-msg-req` `MsgEnvelope` exclusively on `srv`'s
+  -- local `KvShard` and return the corresponding `kv-msg-reply` `MsgEnvelope`.
+  kv-mesh-exec-envelope :: KvMeshServer -> MsgEnvelope ->{MVar} MsgEnvelope
+  kv-mesh-exec-envelope srv req =
+    let origin-raw = req.msg-src in
+    let self-raw = srv.ks-core-raw in
+    let slot-id = wrapping-u64-to-u32 req.msg-w0 in
+    let op-cmd = wrapping-u64-to-u8 req.msg-w1 in
+    let ttl-ms = req.msg-w2 in
+    let klen = wrapping-u64-to-u32 req.msg-w4 in
+    let vlen = wrapping-u64-to-u32 req.msg-w5 in
+    let kaddr = kv-xcore-slot-key-addr srv.ks-xpool origin-raw slot-id in
+    let vaddr = kv-xcore-slot-val-addr srv.ks-xpool origin-raw slot-id in
+    let sh = srv.ks-shard in
+    if eq-u8 op-cmd cmd-get then
+      let gr = kv-shard-get sh kaddr klen in
+      if ne-u8 gr.kv-found 0 then
+        if le-u32 gr.kv-val-len kv-xcore-max-val then
+          let _cv = if gt-u32 gr.kv-val-len 0 then sv-copy-dma vaddr gr.kv-val-addr gr.kv-val-len else () in
+          msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-bulk) (u8-to-u64 kv-ok) 0 (u32-to-u64 gr.kv-val-len) 0
+        else
+          msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-err) (u8-to-u64 kv-err-oob) (u8-to-u64 kv-err-oob) 0 0
+      else
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-null) (u8-to-u64 kv-ok) 0 0 0
+    else if eq-u8 op-cmd cmd-set then
+      let st = (
+        if gt-u64 ttl-ms 0 then kv-shard-set-px sh kaddr klen vaddr vlen ttl-ms
+        else kv-shard-set sh kaddr klen vaddr vlen) in
+      if eq-u8 st kv-ok then
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-ok) (u8-to-u64 kv-ok) 0 0 0
+      else
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-err) (u8-to-u64 st) (u8-to-u64 st) 0 0
+    else if eq-u8 op-cmd cmd-del then
+      let d = kv-shard-del sh kaddr klen in
+      msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-int) (u8-to-u64 kv-ok) (u8-to-u64 d) 0 0
+    else if eq-u8 op-cmd cmd-incr then
+      let ir = kv-shard-incr sh kaddr klen in
+      if eq-u8 ir.kv-int-status kv-ok then
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-int) (u8-to-u64 kv-ok) (wrapping-i64-to-u64 ir.kv-int-val) 0 0
+      else
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-err) (u8-to-u64 ir.kv-int-status) (u8-to-u64 ir.kv-int-status) 0 0
+    else if eq-u8 op-cmd cmd-decr then
+      let ir = kv-shard-decr sh kaddr klen in
+      if eq-u8 ir.kv-int-status kv-ok then
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-int) (u8-to-u64 kv-ok) (wrapping-i64-to-u64 ir.kv-int-val) 0 0
+      else
+        msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-err) (u8-to-u64 ir.kv-int-status) (u8-to-u64 ir.kv-int-status) 0 0
+    else if eq-u8 op-cmd cmd-expire then
+      let ok = kv-shard-pexpire sh kaddr klen ttl-ms in
+      msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-int) (u8-to-u64 kv-ok) (u8-to-u64 ok) 0 0
+    else if eq-u8 op-cmd cmd-ttl then
+      let t = kv-shard-ttl sh kaddr klen in
+      msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-int) (u8-to-u64 kv-ok) (wrapping-i64-to-u64 t) 0 0
+    else if eq-u8 op-cmd cmd-exists then
+      let ex = kv-shard-exists sh kaddr klen in
+      msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-int) (u8-to-u64 kv-ok) (u8-to-u64 ex) 0 0
+    else
+      msg-envelope-make kv-msg-reply (core-id self-raw) (core-id origin-raw) req.msg-seq req.msg-w0 (u8-to-u64 kv-rep-err) (u8-to-u64 kv-err-oob) (u8-to-u64 kv-err-oob) 0 0
+
+  -- | Spin-push reply `MsgEnvelope` back to `dst`, yielding with `cpu-pause ()`
+  -- if the return ring is momentarily full.
+  push-reply-spin :: CoreMesh -> CoreId -> CoreId -> MsgEnvelope -> U32 ->{MVar} Bool
+  push-reply-spin mesh src dst reply budget =
+    if core-mesh-send mesh src dst reply then sv-true
+    else if eq-u32 budget 0 then sv-false
+    else
+      let _p = cpu-pause () in
+      push-reply-spin mesh src dst reply (wrapping-sub-u32 budget 1)
+
+  -- | Drain inbound `kv-msg-req` envelopes from peer core `peer` up to `rem`
+  -- envelopes, executing each on `srv`'s local `KvShard` and pushing its
+  -- `kv-msg-reply` back over `CoreMesh` SPSC.
+  poll-peer-inbox :: KvMeshServer -> U32 -> U32 -> U32 ->{MVar} U32
+  poll-peer-inbox srv peer rem handled =
+    if eq-u32 rem 0 then handled
+    else
+      let self-cid = core-id srv.ks-core-raw in
+      let pop = core-mesh-recv-unboxed srv.ks-mesh (core-id (wrapping-u32-to-u16 peer)) self-cid in
+      if not (pop-envelope-is-some pop) then handled
+      else
+        let msg = pop-envelope-msg pop in
+        if eq-u32 msg.msg-kind kv-msg-req then
+          let reply = kv-mesh-exec-envelope srv msg in
+          let _s = push-reply-spin srv.ks-mesh self-cid (core-id msg.msg-src) reply 1000000 in
+          poll-peer-inbox srv peer (wrapping-sub-u32 rem 1) (wrapping-add-u32 handled 1)
+        else
+          -- Ignore unexpected non-request envelopes in request-only drain
+          poll-peer-inbox srv peer (wrapping-sub-u32 rem 1) handled
+
+  -- | Sweep all peer cores `0..num-cores-1` (excluding self), draining up to
+  -- `budget-per-peer` inbound cross-core requests per peer and returning total
+  -- requests executed on this core's shard.
+  poll-all-peers-loop :: KvMeshServer -> U32 -> U32 -> U32 ->{MVar} U32
+  poll-all-peers-loop srv peer budget acc =
+    if ge-u32 peer srv.ks-num-cores then acc
+    else if eq-u32 peer (u16-to-u32 srv.ks-core-raw) then
+      poll-all-peers-loop srv (wrapping-add-u32 peer 1) budget acc
+    else
+      let n = poll-peer-inbox srv peer budget 0 in
+      poll-all-peers-loop srv (wrapping-add-u32 peer 1) budget (wrapping-add-u32 acc n)
+
+  -- | Drain inbound cross-core requests from all peer SPSC rings in `CoreMesh`,
+  -- executing each on `srv`'s owned `KvShard` and sending replies back.
+  kv-mesh-poll-inbox :: KvMeshServer -> U32 ->{MVar} U32
+  kv-mesh-poll-inbox srv budget-per-peer =
+    if lt-u32 srv.ks-num-cores 2 then 0
+    else poll-all-peers-loop srv 0 budget-per-peer 0
+
+  -- | Wait for the matching `kv-msg-reply` from `owner-raw` while actively
+  -- pumping any inbound requests arriving from `owner-raw` (and other peers)
+  -- so bidirectional cross-core SPSC forwarding can never deadlock!
+  await-reply-loop :: KvMeshServer -> U16 -> U32 -> U32 ->{MVar} PopEnvelope
+  await-reply-loop srv owner-raw slot-id spins =
+    let self-cid = core-id srv.ks-core-raw in
+    let pop = core-mesh-recv-unboxed srv.ks-mesh (core-id owner-raw) self-cid in
+    if pop-envelope-is-some pop then
+      let msg = pop-envelope-msg pop in
+      if eq-u32 msg.msg-kind kv-msg-reply then pop
+      else if eq-u32 msg.msg-kind kv-msg-req then
+        -- Peer simultaneously sent us a request; service it immediately to guarantee deadlock-freedom!
+        let reply = kv-mesh-exec-envelope srv msg in
+        let _s = push-reply-spin srv.ks-mesh self-cid (core-id msg.msg-src) reply 1000000 in
+        await-reply-loop srv owner-raw slot-id spins
+      else await-reply-loop srv owner-raw slot-id spins
+    else if eq-u32 spins 0 then pop-envelope-empty ()
+    else
+      -- Service any requests from other cores while waiting
+      let _p = cpu-pause () in
+      await-reply-loop srv owner-raw slot-id (wrapping-sub-u32 spins 1)
+
+  -- | Synchronously forward one single-key operation to `owner-raw` over
+  -- `CoreMesh` SPSC, actively servicing any concurrent peer requests to stay
+  -- deadlock-free, and encode the returned reply directly into `tx-base`.
+  -- Frees the acquired `KvXCorePool` slot before returning updated `tx-pos`.
+  kv-mesh-remote-exec-sync :: KvMeshServer -> U16 -> U8 -> I64 -> U32 -> I64 -> U32 -> U64 -> I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  kv-mesh-remote-exec-sync srv owner-raw op-cmd key-addr key-len val-addr val-len ttl-ms tx-base tx-pos tx-cap proto-ver =
+    let origin-raw = srv.ks-core-raw in
+    let slot-id = kv-mesh-submit-remote srv owner-raw op-cmd key-addr key-len val-addr val-len ttl-ms in
+    if eq-u32 slot-id xslot-none then resp-write-err-full tx-base tx-pos tx-cap
+    else
+      let rep = await-reply-loop srv owner-raw slot-id 20000000 in
+      if not (pop-envelope-is-some rep) then
+        let _fr = kv-xcore-slot-free srv.ks-xpool origin-raw slot-id in
+        resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let rkind = wrapping-u64-to-u8 rep.pop-w1 in
+        let rint = wrapping-u64-to-i64 rep.pop-w3 in
+        let rlen = wrapping-u64-to-u32 rep.pop-w4 in
+        let vaddr = kv-xcore-slot-val-addr srv.ks-xpool origin-raw slot-id in
+        let next-pos = (
+          if eq-u8 rkind kv-rep-ok then resp-write-ok tx-base tx-pos tx-cap
+          else if eq-u8 rkind kv-rep-bulk then resp-write-bulk-raw tx-base tx-pos tx-cap vaddr rlen
+          else if eq-u8 rkind kv-rep-null then resp-write-null-proto tx-base tx-pos tx-cap proto-ver
+          else if eq-u8 rkind kv-rep-int then resp-write-int tx-base tx-pos tx-cap rint
+          else if eq-u64 rep.pop-w3 (u8-to-u64 kv-err-not-int) then resp-write-err-not-int tx-base tx-pos tx-cap
+          else if eq-u64 rep.pop-w3 (u8-to-u64 kv-err-full) then resp-write-err-full tx-base tx-pos tx-cap
+          else resp-write-err-generic tx-base tx-pos tx-cap) in
+        let _fr = kv-xcore-slot-free srv.ks-xpool origin-raw slot-id in
+        next-pos
+
+  -- =========================================================================
+  -- 5. Local Command Execution & Pipelined RESP2/RESP3 Connection Handlers
+  -- =========================================================================
+
+  -- | Parse optional `EX <sec>` or `PX <ms>` modifiers on `SET` starting at arg 3.
+  -- Returns `(-1)` on syntax error, `0` for no TTL, `> 0` for TTL in ms.
+  #[no-alloc]
+  parse-set-ttl-opt :: I64 -> I64 -> U32 -> U32 ->{MVar} I64
+  parse-set-ttl-opt rx-base args-addr arg-off argc =
+    if le-u32 argc 3 then 0
+    else if ne-u32 argc 5 then -1
+    else
+      let opt-sp = resp-load-arg args-addr (wrapping-add-u32 arg-off 3) in
+      let val-sp = resp-load-arg args-addr (wrapping-add-u32 arg-off 4) in
+      let opt-ptr = wrapping-add-i64 rx-base (u32-to-i64 opt-sp.span-off) in
+      let val-ptr = wrapping-add-i64 rx-base (u32-to-i64 val-sp.span-off) in
+      let parsed = kv-parse-i64-dma val-ptr val-sp.span-len in
+      if sv-or (ne-u8 parsed.kv-int-status kv-ok) (le-i64 parsed.kv-int-val 0) then -1
+      else if match-opt2-ci opt-ptr opt-sp.span-len 101 120 then
+        -- "ex" -> seconds * 1000
+        wrapping-u64-to-i64 (saturating-mul-u64 (wrapping-i64-to-u64 parsed.kv-int-val) 1000)
+      else if match-opt2-ci opt-ptr opt-sp.span-len 112 120 then
+        -- "px" -> milliseconds
+        parsed.kv-int-val
+      else -1
+
+  -- | Multi-key loop for local `DEL` counting deleted keys.
+  exec-del-local-loop :: KvShard -> I64 -> I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} U64
+  exec-del-local-loop sh rx-base args-addr arg-off i argc deleted =
+    if ge-u32 i argc then deleted
+    else
+      let sp = resp-load-arg args-addr (wrapping-add-u32 arg-off i) in
+      let kaddr = wrapping-add-i64 rx-base (u32-to-i64 sp.span-off) in
+      let d = kv-shard-del sh kaddr sp.span-len in
+      exec-del-local-loop sh rx-base args-addr arg-off (wrapping-add-u32 i 1) argc (wrapping-add-u64 deleted (u8-to-u64 d))
+
+  -- | Multi-key loop for local `EXISTS` counting live keys.
+  #[no-alloc]
+  exec-exists-local-loop :: KvShard -> I64 -> I64 -> U32 -> U32 -> U32 -> U64 ->{MVar} U64
+  exec-exists-local-loop sh rx-base args-addr arg-off i argc found =
+    if ge-u32 i argc then found
+    else
+      let sp = resp-load-arg args-addr (wrapping-add-u32 arg-off i) in
+      let kaddr = wrapping-add-i64 rx-base (u32-to-i64 sp.span-off) in
+      let ex = kv-shard-exists sh kaddr sp.span-len in
+      exec-exists-local-loop sh rx-base args-addr arg-off (wrapping-add-u32 i 1) argc (wrapping-add-u64 found (u8-to-u64 ex))
+
+  -- | Multi-key loop for local `MGET` writing array elements into `tx-base`.
+  #[no-alloc]
+  exec-mget-local-loop :: KvShard -> I64 -> I64 -> U32 -> U32 -> U32 -> I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  exec-mget-local-loop sh rx-base args-addr arg-off i argc tx-base tx-pos tx-cap proto-ver =
+    if ge-u32 i argc then tx-pos
+    else if gt-u32 tx-pos tx-cap then tx-pos
+    else
+      let sp = resp-load-arg args-addr (wrapping-add-u32 arg-off i) in
+      let kaddr = wrapping-add-i64 rx-base (u32-to-i64 sp.span-off) in
+      let gr = kv-shard-get sh kaddr sp.span-len in
+      let p1 = (
+        if ne-u8 gr.kv-found 0 then resp-write-bulk-raw tx-base tx-pos tx-cap gr.kv-val-addr gr.kv-val-len
+        else resp-write-null-proto tx-base tx-pos tx-cap proto-ver) in
+      exec-mget-local-loop sh rx-base args-addr arg-off (wrapping-add-u32 i 1) argc tx-base p1 tx-cap proto-ver
+
+  -- | Multi-key loop for local `MSET`.
+  exec-mset-local-loop :: KvShard -> I64 -> I64 -> U32 -> U32 -> U32 ->{MVar} U8
+  exec-mset-local-loop sh rx-base args-addr arg-off i argc =
+    if ge-u32 i argc then kv-ok
+    else
+      let ksp = resp-load-arg args-addr (wrapping-add-u32 arg-off i) in
+      let vsp = resp-load-arg args-addr (wrapping-add-u32 arg-off (wrapping-add-u32 i 1)) in
+      let kaddr = wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off) in
+      let vaddr = wrapping-add-i64 rx-base (u32-to-i64 vsp.span-off) in
+      let st = kv-shard-set sh kaddr ksp.span-len vaddr vsp.span-len in
+      if ne-u8 st kv-ok then st
+      else exec-mset-local-loop sh rx-base args-addr arg-off (wrapping-add-u32 i 2) argc
+
+  -- | Execute one parsed `RespCmdView` directly against local shard `sh` and
+  -- append its RESP2/RESP3 wire response into `tx-base[tx-pos..tx-cap)`.
+  -- Returns updated `tx-pos` (or `> tx-cap` on TX buffer overflow).
+  kv-exec-cmd-local-dma :: KvShard -> RespCmdView -> I64 -> I64 -> I64 -> U32 -> U32 -> U8 ->{MVar} U32
+  kv-exec-cmd-local-dma sh cv rx-base args-addr tx-base tx-pos tx-cap proto-ver =
+    let cmd = cv.rc-cmd in
+    let argc = cv.rc-argc in
+    let aoff = cv.rc-arg-offset in
+    if eq-u8 cmd cmd-ping then
+      if eq-u32 argc 1 then resp-write-pong tx-base tx-pos tx-cap
+      else
+        let sp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+        resp-write-bulk-raw tx-base tx-pos tx-cap (wrapping-add-i64 rx-base (u32-to-i64 sp.span-off)) sp.span-len
+    else if eq-u8 cmd cmd-get then
+      if ne-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+        let gr = kv-shard-get sh (wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off)) ksp.span-len in
+        if ne-u8 gr.kv-found 0 then resp-write-bulk-raw tx-base tx-pos tx-cap gr.kv-val-addr gr.kv-val-len
+        else resp-write-null-proto tx-base tx-pos tx-cap proto-ver
+    else if eq-u8 cmd cmd-set then
+      if lt-u32 argc 3 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ttl-ms = parse-set-ttl-opt rx-base args-addr aoff argc in
+        if lt-i64 ttl-ms 0 then resp-write-err-generic tx-base tx-pos tx-cap
+        else
+          let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+          let vsp = resp-load-arg args-addr (wrapping-add-u32 aoff 2) in
+          let kaddr = wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off) in
+          let vaddr = wrapping-add-i64 rx-base (u32-to-i64 vsp.span-off) in
+          let st = (
+            if gt-i64 ttl-ms 0 then kv-shard-set-px sh kaddr ksp.span-len vaddr vsp.span-len (wrapping-i64-to-u64 ttl-ms)
+            else kv-shard-set sh kaddr ksp.span-len vaddr vsp.span-len) in
+          if eq-u8 st kv-ok then resp-write-ok tx-base tx-pos tx-cap
+          else resp-write-err-full tx-base tx-pos tx-cap
+    else if eq-u8 cmd cmd-del then
+      if lt-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let d = exec-del-local-loop sh rx-base args-addr aoff 1 argc 0 in
+        resp-write-int tx-base tx-pos tx-cap (wrapping-u64-to-i64 d)
+    else if eq-u8 cmd cmd-incr then
+      if ne-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+        let ir = kv-shard-incr sh (wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off)) ksp.span-len in
+        if eq-u8 ir.kv-int-status kv-ok then resp-write-int tx-base tx-pos tx-cap ir.kv-int-val
+        else if eq-u8 ir.kv-int-status kv-err-full then resp-write-err-full tx-base tx-pos tx-cap
+        else resp-write-err-not-int tx-base tx-pos tx-cap
+    else if eq-u8 cmd cmd-decr then
+      if ne-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+        let ir = kv-shard-decr sh (wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off)) ksp.span-len in
+        if eq-u8 ir.kv-int-status kv-ok then resp-write-int tx-base tx-pos tx-cap ir.kv-int-val
+        else if eq-u8 ir.kv-int-status kv-err-full then resp-write-err-full tx-base tx-pos tx-cap
+        else resp-write-err-not-int tx-base tx-pos tx-cap
+    else if eq-u8 cmd cmd-expire then
+      if ne-u32 argc 3 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+        let tsp = resp-load-arg args-addr (wrapping-add-u32 aoff 2) in
+        let pr = kv-parse-i64-dma (wrapping-add-i64 rx-base (u32-to-i64 tsp.span-off)) tsp.span-len in
+        if ne-u8 pr.kv-int-status kv-ok then resp-write-err-not-int tx-base tx-pos tx-cap
+        else
+          let secs = if le-i64 pr.kv-int-val 0 then 0 else wrapping-i64-to-u64 pr.kv-int-val in
+          let ok = kv-shard-expire sh (wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off)) ksp.span-len secs in
+          resp-write-int tx-base tx-pos tx-cap (u8-to-i64 ok)
+    else if eq-u8 cmd cmd-ttl then
+      if ne-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+        let t = kv-shard-ttl sh (wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off)) ksp.span-len in
+        resp-write-int tx-base tx-pos tx-cap t
+    else if eq-u8 cmd cmd-exists then
+      if lt-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let ex = exec-exists-local-loop sh rx-base args-addr aoff 1 argc 0 in
+        resp-write-int tx-base tx-pos tx-cap (wrapping-u64-to-i64 ex)
+    else if eq-u8 cmd cmd-mget then
+      if lt-u32 argc 2 then resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let nkeys = wrapping-sub-u32 argc 1 in
+        let p0 = resp-write-array-header tx-base tx-pos tx-cap nkeys in
+        exec-mget-local-loop sh rx-base args-addr aoff 1 argc tx-base p0 tx-cap proto-ver
+    else if eq-u8 cmd cmd-mset then
+      if sv-or (lt-u32 argc 3) (ne-u32 (bit-and-u32 (wrapping-sub-u32 argc 1) 1) 0) then
+        resp-write-err-generic tx-base tx-pos tx-cap
+      else
+        let st = exec-mset-local-loop sh rx-base args-addr aoff 1 argc in
+        if eq-u8 st kv-ok then resp-write-ok tx-base tx-pos tx-cap
+        else resp-write-err-full tx-base tx-pos tx-cap
+    else if eq-u8 cmd cmd-hello then
+      resp-write-hello tx-base tx-pos tx-cap proto-ver
+    else if eq-u8 cmd cmd-quit then
+      resp-write-ok tx-base tx-pos tx-cap
+    else
+      resp-write-err-generic tx-base tx-pos tx-cap
+
+  -- | Determine updated RESP protocol version for `HELLO [2|3]`.
+  #[no-alloc]
+  next-proto-for-cmd :: RespCmdView -> I64 -> I64 -> U8 ->{MVar} U8
+  next-proto-for-cmd cv rx-base args-addr cur-proto =
+    if sv-and (eq-u8 cv.rc-cmd cmd-hello) (ge-u32 cv.rc-argc 2) then
+      let sp = resp-load-arg args-addr (wrapping-add-u32 cv.rc-arg-offset 1) in
+      let pr = kv-parse-i64-dma (wrapping-add-i64 rx-base (u32-to-i64 sp.span-off)) sp.span-len in
+      if sv-and (eq-u8 pr.kv-int-status kv-ok) (eq-i64 pr.kv-int-val 3) then 3
+      else if sv-and (eq-u8 pr.kv-int-status kv-ok) (eq-i64 pr.kv-int-val 2) then 2
+      else cur-proto
+    else cur-proto
+
+  -- | Loop executing a pipelined batch of local commands from `cmds-buf`.
+  handle-local-batch-loop :: KvShard -> I64 -> I64 -> I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U8 -> U8 -> U32 -> U8 ->{MVar} KvConnResult
+  handle-local-batch-loop sh rx-base cmds-buf args-buf i count tx-base tx-pos tx-cap proto should-close consumed status =
+    if ge-u32 i count then
+      KvConnResult status proto should-close 0 consumed tx-pos i i 0
+    else
+      let cv = resp-load-cmd cmds-buf i in
+      let proto2 = next-proto-for-cmd cv rx-base args-buf proto in
+      let close2 = if eq-u8 cv.rc-cmd cmd-quit then 1 else should-close in
+      let next-tx = kv-exec-cmd-local-dma sh cv rx-base args-buf tx-base tx-pos tx-cap proto2 in
+      if gt-u32 next-tx tx-cap then
+        KvConnResult resp-err-buf-overflow proto2 close2 0 consumed tx-pos i i 0
+      else
+        handle-local-batch-loop sh rx-base cmds-buf args-buf (wrapping-add-u32 i 1) count tx-base next-tx tx-cap proto2 close2 (wrapping-add-u32 consumed cv.rc-consumed) status
+
+  -- | Process a pipelined batch of RESP2/RESP3 commands directly out of DMA
+  -- buffer `rx-base[0..rx-len)` against `sh`, coalescing all RESP replies into
+  -- `tx-base[0..tx-cap)` with zero heap allocations.
+  -- `cmds-buf` holds up to 64 `RespCmdView` slots (`1536B`), `args-buf` holds
+  -- up to 256 `ByteSpan` slots (`4096B`).
+  kv-server-handle-conn-dma :: KvShard -> I64 -> U32 -> I64 -> U32 -> I64 -> I64 -> U8 -> U64 ->{MVar} KvConnResult
+  kv-server-handle-conn-dma sh rx-base rx-len tx-base tx-cap cmds-buf args-buf proto-ver now-ms =
+    let _clk = kv-shard-set-now-ms sh now-ms in
+    let br = resp-extract-pipeline-batch rx-base 0 rx-len 0 cmds-buf 64 args-buf 256 32 in
+    if eq-u32 br.rb-parsed-count 0 then
+      KvConnResult br.rb-status proto-ver 0 0 0 0 0 0 0
+    else
+      handle-local-batch-loop sh rx-base cmds-buf args-buf 0 br.rb-parsed-count tx-base 0 tx-cap proto-ver 0 0 br.rb-status
+
+  -- | Pack `(tx-pos, was-remote)` into an unboxed `U64` (avoids tuple boxing).
+  #[inline(always)]
+  #[no-alloc]
+  pack-tx-rem :: U32 -> U8 -> U64
+  pack-tx-rem tx-pos was-remote =
+    bit-or-u64 (wrapping-shl-u64 (u8-to-u64 was-remote) 32) (u32-to-u64 tx-pos)
+
+  -- | Mesh-aware execution of a single-key command, routing via `kv-owner-core`
+  -- either to local `srv.ks-shard` (zero synchronization!) or cross-core over
+  -- `CoreMesh` SPSC to the owning core. Returns `pack-tx-rem next-tx was-remote`.
+  exec-cmd-mesh-single :: KvMeshServer -> RespCmdView -> I64 -> I64 -> I64 -> U32 -> U32 -> U8 ->{MVar} U64
+  exec-cmd-mesh-single srv cv rx-base args-addr tx-base tx-pos tx-cap proto-ver =
+    let cmd = cv.rc-cmd in
+    let argc = cv.rc-argc in
+    let aoff = cv.rc-arg-offset in
+    let self-raw = srv.ks-core-raw in
+    -- Commands without a single key (PING, HELLO, QUIT, MGET, MSET) or single-core mode:
+    if sv-or (lt-u32 srv.ks-num-cores 2) (sv-or (eq-u8 cmd cmd-ping) (sv-or (eq-u8 cmd cmd-hello) (eq-u8 cmd cmd-quit))) then
+      pack-tx-rem (kv-exec-cmd-local-dma srv.ks-shard cv rx-base args-addr tx-base tx-pos tx-cap proto-ver) 0
+    else if sv-and (ge-u32 argc 2) (sv-or (eq-u8 cmd cmd-get) (sv-or (eq-u8 cmd cmd-incr) (sv-or (eq-u8 cmd cmd-decr) (sv-or (eq-u8 cmd cmd-ttl) (sv-or (eq-u8 cmd cmd-set) (sv-or (eq-u8 cmd cmd-expire) (sv-and (eq-u32 argc 2) (sv-or (eq-u8 cmd cmd-del) (eq-u8 cmd cmd-exists))))))))) then
+      let ksp = resp-load-arg args-addr (wrapping-add-u32 aoff 1) in
+      let kaddr = wrapping-add-i64 rx-base (u32-to-i64 ksp.span-off) in
+      let owner = kv-owner-core kaddr ksp.span-len srv.ks-num-cores in
+      if eq-u16 owner self-raw then
+        -- Local-key fast path: direct shard access with zero synchronization!
+        pack-tx-rem (kv-exec-cmd-local-dma srv.ks-shard cv rx-base args-addr tx-base tx-pos tx-cap proto-ver) 0
+      else if eq-u8 cmd cmd-set then
+        if lt-u32 argc 3 then pack-tx-rem (resp-write-err-generic tx-base tx-pos tx-cap) 1
+        else
+          let ttl-ms = parse-set-ttl-opt rx-base args-addr aoff argc in
+          if lt-i64 ttl-ms 0 then pack-tx-rem (resp-write-err-generic tx-base tx-pos tx-cap) 1
+          else
+            let vsp = resp-load-arg args-addr (wrapping-add-u32 aoff 2) in
+            let vaddr = wrapping-add-i64 rx-base (u32-to-i64 vsp.span-off) in
+            pack-tx-rem (kv-mesh-remote-exec-sync srv owner cmd-set kaddr ksp.span-len vaddr vsp.span-len (wrapping-i64-to-u64 ttl-ms) tx-base tx-pos tx-cap proto-ver) 1
+      else if eq-u8 cmd cmd-expire then
+        if ne-u32 argc 3 then pack-tx-rem (resp-write-err-generic tx-base tx-pos tx-cap) 1
+        else
+          let tsp = resp-load-arg args-addr (wrapping-add-u32 aoff 2) in
+          let pr = kv-parse-i64-dma (wrapping-add-i64 rx-base (u32-to-i64 tsp.span-off)) tsp.span-len in
+          if ne-u8 pr.kv-int-status kv-ok then pack-tx-rem (resp-write-err-not-int tx-base tx-pos tx-cap) 1
+          else
+            let ms = if le-i64 pr.kv-int-val 0 then 0 else saturating-mul-u64 (wrapping-i64-to-u64 pr.kv-int-val) 1000 in
+            pack-tx-rem (kv-mesh-remote-exec-sync srv owner cmd-expire kaddr ksp.span-len 0 0 ms tx-base tx-pos tx-cap proto-ver) 1
+      else
+        pack-tx-rem (kv-mesh-remote-exec-sync srv owner cmd kaddr ksp.span-len 0 0 0 tx-base tx-pos tx-cap proto-ver) 1
+    else if sv-and (eq-u8 cmd cmd-mget) (ge-u32 argc 2) then
+      let nkeys = wrapping-sub-u32 argc 1 in
+      let p0 = resp-write-array-header tx-base tx-pos tx-cap nkeys in
+      exec-mget-mesh-loop srv rx-base args-addr aoff 1 argc tx-base p0 tx-cap proto-ver 0
+    else
+      pack-tx-rem (kv-exec-cmd-local-dma srv.ks-shard cv rx-base args-addr tx-base tx-pos tx-cap proto-ver) 0
+
+  -- | Mesh-aware `MGET` dispatching each key to its deterministic owner core.
+  exec-mget-mesh-loop :: KvMeshServer -> I64 -> I64 -> U32 -> U32 -> U32 -> I64 -> U32 -> U32 -> U8 -> U8 ->{MVar} U64
+  exec-mget-mesh-loop srv rx-base args-addr aoff i argc tx-base tx-pos tx-cap proto-ver any-remote =
+    if ge-u32 i argc then pack-tx-rem tx-pos any-remote
+    else if gt-u32 tx-pos tx-cap then pack-tx-rem tx-pos any-remote
+    else
+      let sp = resp-load-arg args-addr (wrapping-add-u32 aoff i) in
+      let kaddr = wrapping-add-i64 rx-base (u32-to-i64 sp.span-off) in
+      let owner = kv-owner-core kaddr sp.span-len srv.ks-num-cores in
+      if eq-u16 owner srv.ks-core-raw then
+        let gr = kv-shard-get srv.ks-shard kaddr sp.span-len in
+        let p1 = (
+          if ne-u8 gr.kv-found 0 then resp-write-bulk-raw tx-base tx-pos tx-cap gr.kv-val-addr gr.kv-val-len
+          else resp-write-null-proto tx-base tx-pos tx-cap proto-ver) in
+        exec-mget-mesh-loop srv rx-base args-addr aoff (wrapping-add-u32 i 1) argc tx-base p1 tx-cap proto-ver any-remote
+      else
+        let p1 = kv-mesh-remote-exec-sync srv owner cmd-get kaddr sp.span-len 0 0 0 tx-base tx-pos tx-cap proto-ver in
+        exec-mget-mesh-loop srv rx-base args-addr aoff (wrapping-add-u32 i 1) argc tx-base p1 tx-cap proto-ver 1
+
+  -- | Loop executing a pipelined batch through `KvMeshServer`.
+  handle-mesh-batch-loop :: KvMeshServer -> I64 -> I64 -> I64 -> U32 -> U32 -> I64 -> U32 -> U32 -> U8 -> U8 -> U32 -> U32 -> U32 -> U8 ->{MVar} KvConnResult
+  handle-mesh-batch-loop srv rx-base cmds-buf args-buf i count tx-base tx-pos tx-cap proto should-close consumed local-ops remote-ops status =
+    if ge-u32 i count then
+      KvConnResult status proto should-close 0 consumed tx-pos i local-ops remote-ops
+    else
+      let cv = resp-load-cmd cmds-buf i in
+      let proto2 = next-proto-for-cmd cv rx-base args-buf proto in
+      let close2 = if eq-u8 cv.rc-cmd cmd-quit then 1 else should-close in
+      let packed = exec-cmd-mesh-single srv cv rx-base args-buf tx-base tx-pos tx-cap proto2 in
+      let next-tx = wrapping-u64-to-u32 packed in
+      let was-remote = wrapping-u64-to-u8 (wrapping-shr-u64 packed 32) in
+      if gt-u32 next-tx tx-cap then
+        KvConnResult resp-err-buf-overflow proto2 close2 0 consumed tx-pos i local-ops remote-ops
+      else
+        let nl = if eq-u8 was-remote 0 then wrapping-add-u32 local-ops 1 else local-ops in
+        let nr = if ne-u8 was-remote 0 then wrapping-add-u32 remote-ops 1 else remote-ops in
+        handle-mesh-batch-loop srv rx-base cmds-buf args-buf (wrapping-add-u32 i 1) count tx-base next-tx tx-cap proto2 close2 (wrapping-add-u32 consumed cv.rc-consumed) nl nr status
+
+  -- | Share-nothing multi-core pipelined RESP2/RESP3 connection handler:
+  -- routes local keys straight to `srv.ks-shard` and remote keys over
+  -- `CoreMesh` SPSC to their owning core.
+  kv-mesh-handle-conn-dma :: KvMeshServer -> I64 -> U32 -> I64 -> U32 -> I64 -> I64 -> U8 -> U64 ->{MVar} KvConnResult
+  kv-mesh-handle-conn-dma srv rx-base rx-len tx-base tx-cap cmds-buf args-buf proto-ver now-ms =
+    let _clk = kv-shard-set-now-ms srv.ks-shard now-ms in
+    let br = resp-extract-pipeline-batch rx-base 0 rx-len 0 cmds-buf 64 args-buf 256 32 in
+    if eq-u32 br.rb-parsed-count 0 then
+      KvConnResult br.rb-status proto-ver 0 0 0 0 0 0 0
+    else
+      handle-mesh-batch-loop srv rx-base cmds-buf args-buf 0 br.rb-parsed-count tx-base 0 tx-cap proto-ver 0 0 0 0 br.rb-status
+
+  -- =========================================================================
+  -- 6. Live macOS Darwin Loopback RESP Connection Step Helper
+  -- =========================================================================
+
+  -- | Non-blocking send-all loop over `darwin-send-dma`.
+  send-all-dma :: Fd -> I64 -> U32 -> U32 -> U32 ->{IO, MVar} Bool
+  send-all-dma fd buf sent total budget =
+    if ge-u32 sent total then sv-true
+    else if eq-u32 budget 0 then sv-false
+    else
+      let rem = wrapping-sub-u32 total sent in
+      let nw = darwin-send-dma fd (wrapping-add-i64 buf (u32-to-i64 sent)) rem in
+      if gt-i32 nw 0 then send-all-dma fd buf (wrapping-add-u32 sent (wrapping-i32-to-u32 nw)) total budget
+      else if sv-or (eq-i32 nw (-35)) (eq-i32 nw (-4)) then
+        let _p = cpu-pause () in
+        send-all-dma fd buf sent total (wrapping-sub-u32 budget 1)
+      else sv-false
+
+  -- | Perform one non-blocking macOS loopback RESP read -> pipelined mesh
+  -- execute -> coalesced write cycle on client descriptor `cfd`, updating the
+  -- unconsumed byte count stored at `rx-used-addr`.
+  -- Returns number of commands handled (`>= 0`), or `-1` on EOF/close.
+  kv-darwin-serve-once :: KvMeshServer -> Fd -> I64 -> U32 -> I64 -> I64 -> U32 -> I64 -> I64 -> I64 -> U64 ->{IO, MVar} I32
+  kv-darwin-serve-once srv cfd rx-base rx-cap rx-used-addr tx-base tx-cap cmds-buf args-buf proto-addr now-ms =
+    let used = raw-load-u32 rx-used-addr in
+    let free = saturating-sub-u32 rx-cap used in
+    let nr = if gt-u32 free 0 then darwin-recv-dma cfd (wrapping-add-i64 rx-base (u32-to-i64 used)) free else (-35) in
+    if eq-i32 nr 0 then -1
+    else
+      let total-rx = if gt-i32 nr 0 then wrapping-add-u32 used (wrapping-i32-to-u32 nr) else used in
+      if eq-u32 total-rx 0 then 0
+      else
+        let proto = raw-load-u8 proto-addr in
+        let res = kv-mesh-handle-conn-dma srv rx-base total-rx tx-base tx-cap cmds-buf args-buf proto now-ms in
+        let _sp = raw-store-u8 proto-addr res.kcr-proto in
+        let _tx = if gt-u32 res.kcr-tx-written 0 then send-all-dma cfd tx-base 0 res.kcr-tx-written 100000 else sv-true in
+        let rem = saturating-sub-u32 total-rx res.kcr-rx-consumed in
+        let _comp = (
+          if sv-and (gt-u32 rem 0) (gt-u32 res.kcr-rx-consumed 0) then
+            sv-copy-dma rx-base (wrapping-add-i64 rx-base (u32-to-i64 res.kcr-rx-consumed)) rem
+          else ()) in
+        let _su = raw-store-u32 rx-used-addr rem in
+        if ne-u8 res.kcr-should-close 0 then -1
+        else wrapping-u32-to-i32 res.kcr-cmds-handled

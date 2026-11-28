@@ -1,0 +1,1620 @@
+-- | Zero-allocation (`#[no-alloc]` hot-path) Core-Sharded SwissTable + Slab
+-- Key-Value Engine (`Store.Kv.Engine`) with integrated hierarchical
+-- `Engine.Timer.TimerWheel` TTL expiration and optional `Store.Wal.Engine`
+-- binary AOF durability & crash recovery.
+--
+-- Architecture:
+--   * **Deterministic shard routing (`kv-owner-core`)**: 128-bit wyhash-style
+--     64-bit hash over raw DMA key bytes modulo `num-cores`, guaranteeing every
+--     key maps deterministically to exactly one owning CPU core.
+--   * **4 KiB-aligned DMA SwissTable index**: power-of-two slot capacity
+--     grouped into 16-byte SIMD control groups (`0x80` Empty, `0xFE` Deleted
+--     tombstone, `0x00..0x7F` 7-bit H2 fingerprint) searched via 128-bit SIMD
+--     `Engine.Simd.Scan.simd-mask-eq-byte` and triangular group probing.
+--   * **Flat DMA value/key slab arena**: 8 power-of-two size-class intrusive
+--     freelists (`32B .. 4096B`) plus in-place value overwrite when
+--     `new-len <= val-cap`, delivering zero heap allocations and zero atomic RC
+--     traffic across steady-state `GET`/`SET`/`DEL`/`INCR`/`DECR`/`EXISTS`/
+--     `EXPIRE`/`TTL` hot loops.
+--   * **Active + passive TTL expiration**: `kv-shard-set-px`/`kv-shard-expire`
+--     schedule O(1) `TimerWheel` entries keyed by generation-checked `IoToken`s;
+--     `kv-shard-tick` expires due keys automatically, and every read/update
+--     enforces passive expiration so expired keys are never observed.
+--   * **Optional `Store.Wal` AOF durability**: mutating helpers append compact
+--     binary records (`SET`/`DEL`/`EXPIRE`) into a per-shard `WalEngine` and
+--     replay cleanly on `kv-shard-recover-wal`.
+module Store.Kv.Engine where
+
+  import Data.Bool
+  import Data.Core
+  import Data.Machine
+  import Data.Option
+  import Data.Result
+  import Data.Wide
+  import Engine.Simd.Scan
+  import Engine.Timer
+  import Engine.Types
+  import Prim.Atomic
+  import Store.Wal.Format
+  import Store.Wal.Engine
+
+  -- SwissTable sentinels, status codes & WAL AOF opcodes
+  export kv-ctrl-empty, kv-ctrl-deleted, kv-invalid-off
+  export kv-ok, kv-err-full, kv-err-not-int, kv-err-overflow, kv-err-missing, kv-err-oob
+  export kv-wal-op-set, kv-wal-op-del, kv-wal-op-expire
+
+  -- Core handle & unboxed POD result records
+  export KvShard, KvGetResult, KvIntResult
+  export kv-get-miss, kv-int-ok, kv-int-err
+
+  -- Fast 64-bit DMA hashing & deterministic core routing
+  export kv-hash-dma, kv-owner-core-hash, kv-owner-core
+
+  -- Shard lifecycle & telemetry
+  export kv-shard-new, kv-shard-destroy, kv-shard-is-valid
+  export kv-shard-capacity, kv-shard-live-count, kv-shard-tombstone-count
+  export kv-shard-expired-count, kv-shard-ops-count
+  export kv-shard-arena-used, kv-shard-arena-cap
+  export kv-shard-now-ms, kv-shard-set-now-ms, kv-shard-core-id, kv-shard-timers
+
+  -- Compile-time #[no-alloc] SwissTable + DMA slab hot-path operations
+  export kv-parse-i64-dma, kv-format-i64-dma
+  export kv-shard-get, kv-shard-exists, kv-shard-ttl, kv-shard-pttl
+  export kv-shard-set-raw, kv-shard-del-raw
+  export kv-shard-incr, kv-shard-decr
+
+  -- TimerWheel-integrated TTL operations (zero runtime heap allocs)
+  export kv-shard-set, kv-shard-set-px, kv-shard-set-ex
+  export kv-shard-del, kv-shard-pexpire, kv-shard-expire, kv-shard-tick
+
+  -- Optional Store.Wal AOF durability & crash recovery
+  export kv-wal-log-set, kv-wal-log-del, kv-wal-log-expire
+  export kv-shard-set-wal, kv-shard-set-px-wal, kv-shard-del-wal
+  export kv-shard-incr-wal, kv-shard-decr-wal, kv-shard-expire-wal
+  export kv-shard-replay-wal-record, kv-shard-recover-wal
+
+  -- =========================================================================
+  -- 1. Constants, Header Layout & Internal #[no-alloc] Combinators
+  -- =========================================================================
+
+  -- | SwissTable control byte indicating an empty slot (stops probe chains).
+  #[inline(always)]
+  #[no-alloc]
+  kv-ctrl-empty :: U8
+  kv-ctrl-empty = 0x80
+
+  -- | SwissTable control byte indicating a deleted tombstone (reusable on insert).
+  #[inline(always)]
+  #[no-alloc]
+  kv-ctrl-deleted :: U8
+  kv-ctrl-deleted = 0xFE
+
+  -- | Sentinel `U32` index/offset representing "not found" or exhausted arena.
+  #[inline(always)]
+  #[no-alloc]
+  kv-invalid-off :: U32
+  kv-invalid-off = 4294967295
+
+  -- | Operation status: success.
+  #[inline(always)]
+  #[no-alloc]
+  kv-ok :: U8
+  kv-ok = 0
+
+  -- | Operation status: hash table or DMA value arena is full.
+  #[inline(always)]
+  #[no-alloc]
+  kv-err-full :: U8
+  kv-err-full = 1
+
+  -- | Operation status: value is not a valid base-10 signed 64-bit integer.
+  #[inline(always)]
+  #[no-alloc]
+  kv-err-not-int :: U8
+  kv-err-not-int = 2
+
+  -- | Operation status: signed 64-bit integer arithmetic overflow or underflow.
+  #[inline(always)]
+  #[no-alloc]
+  kv-err-overflow :: U8
+  kv-err-overflow = 3
+
+  -- | Operation status: target key does not exist or has expired.
+  #[inline(always)]
+  #[no-alloc]
+  kv-err-missing :: U8
+  kv-err-missing = 4
+
+  -- | Operation status: key/value exceeds scratch or WAL framing bounds.
+  #[inline(always)]
+  #[no-alloc]
+  kv-err-oob :: U8
+  kv-err-oob = 5
+
+  -- | Binary WAL AOF opcode for `SET` / `INCR` / `DECR` state mutation.
+  #[inline(always)]
+  #[no-alloc]
+  kv-wal-op-set :: U8
+  kv-wal-op-set = 1
+
+  -- | Binary WAL AOF opcode for `DEL` key deletion.
+  #[inline(always)]
+  #[no-alloc]
+  kv-wal-op-del :: U8
+  kv-wal-op-del = 2
+
+  -- | Binary WAL AOF opcode for `EXPIRE` / `PEXPIRE` deadline update.
+  #[inline(always)]
+  #[no-alloc]
+  kv-wal-op-expire :: U8
+  kv-wal-op-expire = 3
+
+  -- | Zero-alloc boolean true (internal helper avoiding `Con(True)`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-true :: Bool
+  kv-true = eq-u32 0 0
+
+  -- | Zero-alloc boolean false.
+  #[inline(always)]
+  #[no-alloc]
+  kv-false :: Bool
+  kv-false = eq-u32 0 1
+
+  -- | Zero-alloc conjunction.
+  #[inline(always)]
+  #[no-alloc]
+  kv-and :: Bool -> Bool -> Bool
+  kv-and a b = if a then b else kv-false
+
+  -- | Zero-alloc disjunction.
+  #[inline(always)]
+  #[no-alloc]
+  kv-or :: Bool -> Bool -> Bool
+  kv-or a b = if a then kv-true else b
+
+  -- | Zero-alloc negation.
+  #[inline(always)]
+  #[no-alloc]
+  kv-not :: Bool -> Bool
+  kv-not a = if a then kv-false else kv-true
+
+  -- Shard DMA header offsets (bytes 0..4096):
+  --   +0   : destroyed      :: U32
+  --   +4   : live-count     :: U32
+  --   +8   : used-slots     :: U32
+  --   +12  : tombstones     :: U32
+  --   +16  : arena-bump     :: U32
+  --   +20  : exp-staged-len :: U32
+  --   +24  : now-ms         :: U64
+  --   +32  : expired-total  :: U64
+  --   +40  : ops-total      :: U64
+  --   +48  : slot-gen-seq   :: U32
+  --   +64  : free-heads[8]  :: [U32; 8]
+  --   +128 : int-scratch[32]:: [U8; 32]
+  --   +512 : exp-buf[256]   :: [U64; 256]
+  --   +4096..12288 : wal-scratch (8192B)
+
+  -- | Header offset of the destroyed flag.
+  #[no-alloc]
+  kh-off-destroyed :: I64
+  kh-off-destroyed = 0
+
+  -- | Header offset of live key count.
+  #[no-alloc]
+  kh-off-live :: I64
+  kh-off-live = 4
+
+  -- | Header offset of occupied + tombstone slot count.
+  #[no-alloc]
+  kh-off-used :: I64
+  kh-off-used = 8
+
+  -- | Header offset of active tombstone count.
+  #[no-alloc]
+  kh-off-tombs :: I64
+  kh-off-tombs = 12
+
+  -- | Header offset of the flat DMA arena bump cursor.
+  #[no-alloc]
+  kh-off-arena-bump :: I64
+  kh-off-arena-bump = 16
+
+  -- | Header offset of staged expired timer token count.
+  #[no-alloc]
+  kh-off-exp-len :: I64
+  kh-off-exp-len = 20
+
+  -- | Header offset of cached shard monotonic clock in milliseconds.
+  #[no-alloc]
+  kh-off-now-ms :: I64
+  kh-off-now-ms = 24
+
+  -- | Header offset of cumulative expired key counter.
+  #[no-alloc]
+  kh-off-expired-total :: I64
+  kh-off-expired-total = 32
+
+  -- | Header offset of cumulative shard operation counter.
+  #[no-alloc]
+  kh-off-ops-total :: I64
+  kh-off-ops-total = 40
+
+  -- | Header offset of monotonic 24-bit slot generation counter.
+  #[no-alloc]
+  kh-off-gen-seq :: I64
+  kh-off-gen-seq = 48
+
+  -- | Header offset of the 8 size-class arena freelist heads (`32B..4096B`).
+  #[no-alloc]
+  kh-off-free-heads :: I64
+  kh-off-free-heads = 64
+
+  -- | Header offset of the 32-byte scratch buffer for `INCR`/`DECR` formatting.
+  #[no-alloc]
+  kh-off-int-scratch :: I64
+  kh-off-int-scratch = 128
+
+  -- | Header offset of the 256-entry expired `IoToken` staging buffer.
+  #[no-alloc]
+  kh-off-exp-buf :: I64
+  kh-off-exp-buf = 512
+
+  -- | Maximum expired `IoToken`s staged per `kv-shard-tick` batch.
+  #[no-alloc]
+  kh-exp-cap :: U32
+  kh-exp-cap = 256
+
+  -- | Header offset of the 8 KiB WAL AOF record encode scratch buffer.
+  #[no-alloc]
+  kh-off-wal-scratch :: I64
+  kh-off-wal-scratch = 4096
+
+  -- | Byte capacity of the per-shard WAL AOF record encode scratch buffer.
+  #[no-alloc]
+  kh-wal-scratch-cap :: U32
+  kh-wal-scratch-cap = 8192
+
+  -- | Offset where SwissTable control bytes begin inside the shard DMA slab.
+  #[no-alloc]
+  kh-off-ctrl-start :: U64
+  kh-off-ctrl-start = 12288
+
+  -- Slot descriptor offsets (64 bytes per slot = 1 cache line):
+  --   +0  : key-off      :: U32
+  --   +4  : key-len      :: U32
+  --   +8  : key-cap      :: U32
+  --   +12 : val-off      :: U32
+  --   +16 : val-len      :: U32
+  --   +20 : val-cap      :: U32
+  --   +24 : expire-ms    :: U64
+  --   +32 : timer-handle :: U64
+  --   +40 : key-hash     :: U64
+  --   +48 : slot-gen     :: U32
+  --   +52 : flags        :: U32  (bit 0 = has-ttl)
+
+  -- | Slot flag bit indicating an active TTL deadline in `expire-ms`.
+  #[no-alloc]
+  slot-flag-has-ttl :: U32
+  slot-flag-has-ttl = 1
+
+  -- =========================================================================
+  -- 2. Core Types & Unboxed POD Results
+  -- =========================================================================
+
+  -- | Share-nothing core-local SwissTable + flat DMA arena KV shard with
+  -- integrated `Engine.Timer.TimerWheel` TTL engine.
+  record KvShard where
+    -- | 4 KiB-aligned base address of the contiguous shard DMA slab.
+    kv-slab-base :: I64
+    -- | Total mapped byte length of the shard DMA slab.
+    kv-slab-bytes :: U64
+    -- | Base address of the 16-byte-aligned SwissTable control byte array.
+    kv-ctrl-addr :: I64
+    -- | Base address of the 64-byte-strided slot metadata table.
+    kv-slots-addr :: I64
+    -- | Base address of the flat DMA key/value arena.
+    kv-arena-addr :: I64
+    -- | Base address of the 8 KiB DMA scratch buffer for WAL AOF encoding.
+    kv-wal-scratch :: I64
+    -- | Power-of-two SwissTable slot capacity (`>= 16`).
+    kv-cap :: U32
+    -- | Bitmask `(kv-cap / 16) - 1` for 16-slot SIMD control groups.
+    kv-group-mask :: U32
+    -- | Capacity in bytes of the flat DMA key/value arena.
+    kv-arena-bytes :: U32
+    -- | Logical CPU core ID owning this shard.
+    kv-core-raw :: U16
+    -- | Alignment padding.
+    kv-pad :: U16
+    -- | Integrated 4-level hierarchical `TimerWheel` for O(1) TTL scheduling.
+    kv-timers :: TimerWheel
+
+  -- | 16-byte register-fit POD result of `kv-shard-get` (`#[no-alloc]`).
+  #[repr(C, value)]
+  record KvGetResult where
+    -- | `1` if the key exists and has not expired, `0` otherwise.
+    kv-found :: U8
+    -- | Status code (`kv-ok` on hit/miss, error code otherwise).
+    kv-status :: U8
+    -- | Alignment padding.
+    kv-pad-get :: U16
+    -- | Value payload length in bytes (`0` on miss).
+    kv-val-len :: U32
+    -- | Direct raw DMA address of the value bytes inside the shard arena.
+    kv-val-addr :: I64
+
+  -- | 16-byte register-fit POD result for integer operations (`INCR`/`DECR`/`TTL`).
+  #[repr(C, value)]
+  record KvIntResult where
+    -- | Status code (`kv-ok` or `kv-err-*`).
+    kv-int-status :: U8
+    -- | Alignment padding byte.
+    kv-int-pad0 :: U8
+    -- | Alignment padding halfword.
+    kv-int-pad1 :: U16
+    -- | Alignment padding word.
+    kv-int-pad2 :: U32
+    -- | Resulting signed 64-bit integer value.
+    kv-int-val :: I64
+
+  -- | Internal 12-byte POD probe outcome for SwissTable insert/upsert.
+  #[repr(C, value)]
+  record ProbeInsertRes where
+    -- | `1` if existing matching key was found, `0` if inserting into empty/tombstone.
+    pi-found :: U8
+    -- | `1` if target insertion slot is a reusable tombstone (`0xFE`), `0` if empty (`0x80`).
+    pi-was-tomb :: U8
+    -- | Alignment padding.
+    pi-pad :: U16
+    -- | Target slot index (`kv-invalid-off` if table is full).
+    pi-slot :: U32
+
+  -- | Construct a cache-miss `KvGetResult`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-get-miss :: Unit -> KvGetResult
+  kv-get-miss _ = KvGetResult 0 kv-ok 0 0 0
+
+  -- | Construct a successful `KvIntResult`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-int-ok :: I64 -> KvIntResult
+  kv-int-ok v = KvIntResult kv-ok 0 0 0 v
+
+  -- | Construct a failed `KvIntResult` with status code `code`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-int-err :: U8 -> KvIntResult
+  kv-int-err code = KvIntResult code 0 0 0 0
+
+  -- =========================================================================
+  -- 3. Fast 64-Bit Wyhash over Raw DMA Bytes & Deterministic Core Routing
+  -- =========================================================================
+
+  -- | 128-bit wyhash multiply-xor mix (`lo(a*b) ^ hi(a*b)`).
+  #[inline(always)]
+  #[no-alloc]
+  wy-mix :: U64 -> U64 -> U64
+  wy-mix a b =
+    let p = wrapping-mul-u128 (u64-to-u128 a) (u64-to-u128 b) in
+    bit-xor-u64 (wrapping-u128-to-u64 p) (wrapping-u128-to-u64 (wrapping-shr-u128 p 64))
+
+  -- | Tail byte mixer for `kv-hash-dma` handling 1..7 trailing bytes.
+  #[no-alloc]
+  kv-hash-tail :: I64 -> U32 -> U64 ->{MVar} U64
+  kv-hash-tail ptr rem acc =
+    if eq-u32 rem 0 then acc
+    else
+      let b = u8-to-u64 (raw-load-u8 ptr) in
+      let next = wy-mix (bit-xor-u64 acc (wrapping-mul-u64 b 0xA0761D6478BD642F)) 0xE7037ED1A0B428DB in
+      kv-hash-tail (wrapping-add-i64 ptr 1) (wrapping-sub-u32 rem 1) next
+
+  -- | 8-byte-strided wyhash body loop over raw DMA bytes.
+  #[no-alloc]
+  kv-hash-loop8 :: I64 -> U32 -> U64 ->{MVar} U64
+  kv-hash-loop8 ptr rem acc =
+    if ge-u32 rem 8 then
+      let w = raw-load-u64 ptr in
+      let next = wy-mix (bit-xor-u64 acc w) 0xE7037ED1A0B428DB in
+      kv-hash-loop8 (wrapping-add-i64 ptr 8) (wrapping-sub-u32 rem 8) next
+    else kv-hash-tail ptr rem acc
+
+  -- | Fast 64-bit wyhash over `key-len` raw DMA bytes at `key-addr` (`#[no-alloc]`).
+  #[no-alloc]
+  kv-hash-dma :: I64 -> U32 ->{MVar} U64
+  kv-hash-dma key-addr key-len =
+    let seed = bit-xor-u64 0x9E3779B97F4A7C15 (u32-to-u64 key-len) in
+    let h1 = kv-hash-loop8 key-addr key-len seed in
+    wy-mix h1 (bit-xor-u64 (u32-to-u64 key-len) 0x8EBC6AF09C88C6E3)
+
+  -- | Pure deterministic shard routing from a 64-bit key hash to `[0, num-cores)`.
+  #[inline(always)]
+  #[no-alloc]
+  kv-owner-core-hash :: U64 -> U32 -> U16
+  kv-owner-core-hash h num-cores =
+    if le-u32 num-cores 1 then 0
+    else
+      let n64 = u32-to-u64 num-cores in
+      -- Fast power-of-two mask or exact 64-bit unsigned remainder
+      if eq-u32 (bit-and-u32 num-cores (wrapping-sub-u32 num-cores 1)) 0 then
+        wrapping-u64-to-u16 (bit-and-u64 h (wrapping-sub-u64 n64 1))
+      else
+        case decide (n64 /= 0) of
+          Yes _ -> wrapping-u64-to-u16 (rem-u64 h n64)
+          No _ -> 0
+
+  -- | Deterministic shard routing (`wyhash(key) mod num-cores`) over raw key
+  -- DMA bytes at `(key-addr, key-len)` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-owner-core :: I64 -> U32 -> U32 ->{MVar} U16
+  kv-owner-core key-addr key-len num-cores =
+    if le-u32 num-cores 1 then 0
+    else kv-owner-core-hash (kv-hash-dma key-addr key-len) num-cores
+
+  -- =========================================================================
+  -- 4. Raw DMA Byte Equality, Copy, Alignment & Int Parsing/Formatting
+  -- =========================================================================
+
+  -- | Zero-alloc 16-byte/8-byte/1-byte raw DMA memory copy.
+  #[no-alloc]
+  kv-copy-dma :: I64 -> I64 -> U32 ->{MVar} Unit
+  kv-copy-dma dst src rem =
+    if ge-u32 rem 16 then
+      let v = raw-load-u128 src in
+      let _ = raw-store-u128 dst v in
+      kv-copy-dma (wrapping-add-i64 dst 16) (wrapping-add-i64 src 16) (wrapping-sub-u32 rem 16)
+    else if ge-u32 rem 8 then
+      let v = raw-load-u64 src in
+      let _ = raw-store-u64 dst v in
+      kv-copy-dma (wrapping-add-i64 dst 8) (wrapping-add-i64 src 8) (wrapping-sub-u32 rem 8)
+    else if gt-u32 rem 0 then
+      let v = raw-load-u8 src in
+      let _ = raw-store-u8 dst v in
+      kv-copy-dma (wrapping-add-i64 dst 1) (wrapping-add-i64 src 1) (wrapping-sub-u32 rem 1)
+    else ()
+
+  -- | Zero-alloc exact binary equality over two DMA spans of length `rem`.
+  #[no-alloc]
+  kv-bytes-eq-dma :: I64 -> I64 -> U32 ->{MVar} Bool
+  kv-bytes-eq-dma a b rem =
+    if ge-u32 rem 16 then
+      if eq-u128 (raw-load-u128 a) (raw-load-u128 b) then
+        kv-bytes-eq-dma (wrapping-add-i64 a 16) (wrapping-add-i64 b 16) (wrapping-sub-u32 rem 16)
+      else kv-false
+    else if ge-u32 rem 8 then
+      if eq-u64 (raw-load-u64 a) (raw-load-u64 b) then
+        kv-bytes-eq-dma (wrapping-add-i64 a 8) (wrapping-add-i64 b 8) (wrapping-sub-u32 rem 8)
+      else kv-false
+    else if gt-u32 rem 0 then
+      if eq-u8 (raw-load-u8 a) (raw-load-u8 b) then
+        kv-bytes-eq-dma (wrapping-add-i64 a 1) (wrapping-add-i64 b 1) (wrapping-sub-u32 rem 1)
+      else kv-false
+    else kv-true
+
+  -- | Round `v` up to a power-of-two alignment `align`.
+  #[inline(always)]
+  #[no-alloc]
+  align-up-u64 :: U64 -> U64 -> U64
+  align-up-u64 v align =
+    let m = wrapping-sub-u64 align 1 in
+    bit-and-u64 (wrapping-add-u64 v m) (bit-not-u64 m)
+
+  -- | Decimal digit loop for `kv-parse-i64-dma`.
+  #[no-alloc]
+  parse-u64-digits :: I64 -> U32 -> U32 -> U64 -> U64 ->{MVar} KvIntResult
+  parse-u64-digits base pos len acc max-mag =
+    if ge-u32 pos len then kv-int-ok (wrapping-u64-to-i64 acc)
+    else
+      let ch = raw-load-u8 (wrapping-add-i64 base (u32-to-i64 pos)) in
+      if kv-or (lt-u8 ch 48) (gt-u8 ch 57) then kv-int-err kv-err-not-int
+      else
+        let d = u8-to-u64 (wrapping-sub-u8 ch 48) in
+        -- Check `acc * 10 + d <= max-mag` without overflow
+        if gt-u64 acc 1844674407370955161 then kv-int-err kv-err-overflow
+        else
+          let a10 = wrapping-mul-u64 acc 10 in
+          if gt-u64 d (saturating-sub-u64 max-mag a10) then kv-int-err kv-err-overflow
+          else parse-u64-digits base (wrapping-add-u32 pos 1) len (wrapping-add-u64 a10 d) max-mag
+
+  -- | Parse a strict base-10 signed 64-bit integer from raw DMA bytes (`#[no-alloc]`).
+  -- Accepts optional leading `'-'` followed by 1+ ASCII digits; rejects spaces,
+  -- trailing characters, and out-of-range values.
+  #[no-alloc]
+  kv-parse-i64-dma :: I64 -> U32 ->{MVar} KvIntResult
+  kv-parse-i64-dma base len =
+    if eq-u32 len 0 then kv-int-err kv-err-not-int
+    else
+      let b0 = raw-load-u8 base in
+      if eq-u8 b0 45 then
+        -- Negative: max magnitude is 9223372036854775808 (I64::MIN)
+        if eq-u32 len 1 then kv-int-err kv-err-not-int
+        else
+          let r = parse-u64-digits base 1 len 0 9223372036854775808 in
+          if ne-u8 r.kv-int-status kv-ok then r
+          else
+            let mag = wrapping-i64-to-u64 r.kv-int-val in
+            kv-int-ok (wrapping-u64-to-i64 (wrapping-sub-u64 0 mag))
+      else
+        -- Non-negative: max magnitude is 9223372036854775807 (I64::MAX)
+        parse-u64-digits base 0 len 0 9223372036854775807
+
+  -- | Count decimal digits in an unsigned 64-bit integer (`1..20`).
+  #[no-alloc]
+  kv-u64-digits :: U64 -> U32
+  kv-u64-digits v =
+    if lt-u64 v 10 then 1
+    else if lt-u64 v 100 then 2
+    else if lt-u64 v 1000 then 3
+    else if lt-u64 v 10000 then 4
+    else if lt-u64 v 100000 then 5
+    else if lt-u64 v 1000000 then 6
+    else if lt-u64 v 10000000 then 7
+    else if lt-u64 v 100000000 then 8
+    else if lt-u64 v 1000000000 then 9
+    else if lt-u64 v 10000000000 then 10
+    else if lt-u64 v 100000000000 then 11
+    else if lt-u64 v 1000000000000 then 12
+    else if lt-u64 v 10000000000000 then 13
+    else if lt-u64 v 100000000000000 then 14
+    else if lt-u64 v 1000000000000000 then 15
+    else if lt-u64 v 10000000000000000 then 16
+    else if lt-u64 v 100000000000000000 then 17
+    else if lt-u64 v 1000000000000000000 then 18
+    else if lt-u64 v 10000000000000000000 then 19
+    else 20
+
+  -- | Write decimal digits backwards into DMA buffer `[end-pos - rem .. end-pos)`.
+  #[no-alloc]
+  kv-write-digits-back :: I64 -> U32 -> U64 -> U32 ->{MVar} Unit
+  kv-write-digits-back base end-pos v rem =
+    if eq-u32 rem 0 then ()
+    else
+      let p = wrapping-sub-u32 end-pos 1 in
+      let d = wrapping-add-u8 48 (wrapping-u64-to-u8 (rem-u64 v 10)) in
+      let _ = raw-store-u8 (wrapping-add-i64 base (u32-to-i64 p)) d in
+      kv-write-digits-back base p (div-u64 v 10) (wrapping-sub-u32 rem 1)
+
+  -- | Format signed 64-bit integer `val` as ASCII decimal bytes at `dst`
+  -- (requires >= 20 bytes), returning byte length (`1..20`, `#[no-alloc]`).
+  #[no-alloc]
+  kv-format-i64-dma :: I64 -> I64 ->{MVar} U32
+  kv-format-i64-dma dst val =
+    if lt-i64 val 0 then
+      let mag = wrapping-sub-u64 0 (wrapping-i64-to-u64 val) in
+      let nd = kv-u64-digits mag in
+      let _m = raw-store-u8 dst 45 in
+      let _d = kv-write-digits-back dst (wrapping-add-u32 nd 1) mag nd in
+      wrapping-add-u32 nd 1
+    else
+      let mag = wrapping-i64-to-u64 val in
+      let nd = kv-u64-digits mag in
+      let _d = kv-write-digits-back dst nd mag nd in
+      nd
+
+  -- =========================================================================
+  -- 5. Flat DMA Arena Size-Class Slab Allocator (8 Classes: 32B .. 4096B)
+  -- =========================================================================
+
+  -- | Map byte length `1..4096` to size-class index `0..7` (`8` for `> 4096`).
+  #[inline(always)]
+  #[no-alloc]
+  arena-size-class :: U32 -> U32
+  arena-size-class n =
+    if le-u32 n 32 then 0
+    else if le-u32 n 64 then 1
+    else if le-u32 n 128 then 2
+    else if le-u32 n 256 then 3
+    else if le-u32 n 512 then 4
+    else if le-u32 n 1024 then 5
+    else if le-u32 n 2048 then 6
+    else if le-u32 n 4096 then 7
+    else 8
+
+  -- | Byte capacity for an allocation of `n` bytes (`0` for `0`).
+  #[inline(always)]
+  #[no-alloc]
+  arena-alloc-cap :: U32 -> U32
+  arena-alloc-cap n =
+    if eq-u32 n 0 then 0
+    else
+      let cls = arena-size-class n in
+      if lt-u32 cls 8 then wrapping-shl-u32 32 cls
+      else bit-and-u32 (wrapping-add-u32 n 63) (bit-not-u32 63)
+
+  -- | Address of size-class `cls` freelist head in shard header.
+  #[inline(always)]
+  #[no-alloc]
+  free-head-addr :: KvShard -> U32 -> I64
+  free-head-addr sh cls =
+    wrapping-add-i64 (wrapping-add-i64 sh.kv-slab-base kh-off-free-heads) (wrapping-shl-i64 (u32-to-i64 cls) 2)
+
+  -- | Allocate a DMA chunk of at least `len` bytes from the shard's flat arena
+  -- (O(1) freelist pop or bump). Returns `0` for `len == 0` or `kv-invalid-off`
+  -- on arena exhaustion (`#[no-alloc]`).
+  #[no-alloc]
+  arena-alloc :: KvShard -> U32 ->{MVar} U32
+  arena-alloc sh len =
+    if eq-u32 len 0 then 0
+    else
+      let cls = arena-size-class len in
+      if lt-u32 cls 8 then
+        let fha = free-head-addr sh cls in
+        let head = raw-load-u32 fha in
+        if ne-u32 head kv-invalid-off then
+          let nxt = raw-load-u32 (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 head)) in
+          let _u = raw-store-u32 fha nxt in
+          head
+        else
+          let sz = wrapping-shl-u32 32 cls in
+          let bump = raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-arena-bump) in
+          if gt-u32 sz (saturating-sub-u32 sh.kv-arena-bytes bump) then kv-invalid-off
+          else
+            let _u = raw-store-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-arena-bump) (wrapping-add-u32 bump sz) in
+            bump
+      else
+        let sz = bit-and-u32 (wrapping-add-u32 len 63) (bit-not-u32 63) in
+        let bump = raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-arena-bump) in
+        if gt-u32 sz (saturating-sub-u32 sh.kv-arena-bytes bump) then kv-invalid-off
+        else
+          let _u = raw-store-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-arena-bump) (wrapping-add-u32 bump sz) in
+          bump
+
+  -- | Recycle a freed DMA chunk `(off, cap)` back onto its size-class freelist
+  -- in O(1) (`#[no-alloc]`).
+  #[no-alloc]
+  arena-free :: KvShard -> U32 -> U32 ->{MVar} Unit
+  arena-free sh off cap =
+    if kv-or (eq-u32 cap 0) (eq-u32 off kv-invalid-off) then ()
+    else
+      let cls = arena-size-class cap in
+      if lt-u32 cls 8 then
+        let fha = free-head-addr sh cls in
+        let old = raw-load-u32 fha in
+        let _w = raw-store-u32 (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 off)) old in
+        raw-store-u32 fha off
+      else ()
+
+  -- =========================================================================
+  -- 6. SwissTable Slot Accessors & Internal Erase / Probe Helpers (#[no-alloc])
+  -- =========================================================================
+
+  -- | Byte address of 64-byte slot descriptor `idx`.
+  #[inline(always)]
+  #[no-alloc]
+  slot-ptr :: KvShard -> U32 -> I64
+  slot-ptr sh idx =
+    wrapping-add-i64 sh.kv-slots-addr (wrapping-shl-i64 (u32-to-i64 idx) 6)
+
+  -- | Extract 7-bit SwissTable H2 fingerprint (`0x00..0x7F`) from 64-bit hash `h`.
+  #[inline(always)]
+  #[no-alloc]
+  hash-h2 :: U64 -> U8
+  hash-h2 h = wrapping-u64-to-u8 (bit-and-u64 (wrapping-shr-u64 h 57) 127)
+
+  -- | Extract initial 16-slot group index from 64-bit hash `h`.
+  #[inline(always)]
+  #[no-alloc]
+  hash-group :: KvShard -> U64 -> U32
+  hash-group sh h = bit-and-u32 (wrapping-u64-to-u32 h) sh.kv-group-mask
+
+  -- | Advance monotonic 24-bit slot generation counter (never returns 0).
+  #[inline(always)]
+  #[no-alloc]
+  next-slot-gen :: KvShard ->{MVar} U32
+  next-slot-gen sh =
+    let ga = wrapping-add-i64 sh.kv-slab-base kh-off-gen-seq in
+    let g0 = wrapping-add-u32 (raw-load-u32 ga) 1 in
+    let g1 = bit-and-u32 g0 16777215 in
+    let g2 = if eq-u32 g1 0 then 1 else g1 in
+    let _w = raw-store-u32 ga g2 in
+    g2
+
+  -- | Increment cumulative shard operation counter (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  bump-ops :: KvShard ->{MVar} Unit
+  bump-ops sh =
+    let oa = wrapping-add-i64 sh.kv-slab-base kh-off-ops-total in
+    raw-store-u64 oa (wrapping-add-u64 (raw-load-u64 oa) 1)
+
+  -- | Increment cumulative shard expired-key counter (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  bump-expired :: KvShard ->{MVar} Unit
+  bump-expired sh =
+    let ea = wrapping-add-i64 sh.kv-slab-base kh-off-expired-total in
+    raw-store-u64 ea (wrapping-add-u64 (raw-load-u64 ea) 1)
+
+  -- | Return `True` iff slot `sp` has a TTL and its deadline `<= now-ms`.
+  #[inline(always)]
+  #[no-alloc]
+  slot-is-expired :: I64 -> U64 ->{MVar} Bool
+  slot-is-expired sp now-ms =
+    let fl = raw-load-u32 (wrapping-add-i64 sp 52) in
+    if eq-u32 (bit-and-u32 fl slot-flag-has-ttl) 0 then kv-false
+    else
+      let exp = raw-load-u64 (wrapping-add-i64 sp 24) in
+      le-u64 exp now-ms
+
+  -- | Erase live slot `idx` from the SwissTable and recycle its DMA arena chunks.
+  -- Uses SwissTable `EraseMetaOnly`: writes `0x80` Empty if the group already
+  -- has an Empty byte, otherwise writes `0xFE` Deleted tombstone (`#[no-alloc]`).
+  -- Returns the slot's previous raw `GenHandle` timer handle (`0` if none).
+  #[no-alloc]
+  erase-slot-raw :: KvShard -> U32 ->{MVar} U64
+  erase-slot-raw sh idx =
+    let sp = slot-ptr sh idx in
+    let koff = raw-load-u32 sp in
+    let kcap = raw-load-u32 (wrapping-add-i64 sp 8) in
+    let voff = raw-load-u32 (wrapping-add-i64 sp 12) in
+    let vcap = raw-load-u32 (wrapping-add-i64 sp 20) in
+    let old-th = raw-load-u64 (wrapping-add-i64 sp 32) in
+    let _fk = arena-free sh koff kcap in
+    let _fv = arena-free sh voff vcap in
+    let _g = next-slot-gen sh in
+    let _s0 = raw-store-u32 (wrapping-add-i64 sp 48) _g in
+    let _s1 = raw-store-u32 (wrapping-add-i64 sp 52) 0 in
+    let _s2 = raw-store-u64 (wrapping-add-i64 sp 24) 0 in
+    let _s3 = raw-store-u64 (wrapping-add-i64 sp 32) 0 in
+    let grp = wrapping-shr-u32 idx 4 in
+    let gvec = raw-load-u128 (wrapping-add-i64 sh.kv-ctrl-addr (wrapping-shl-i64 (u32-to-i64 grp) 4)) in
+    let em = simd-mask-eq-byte gvec kv-ctrl-empty in
+    let live-a = wrapping-add-i64 sh.kv-slab-base kh-off-live in
+    let _dl = raw-store-u32 live-a (saturating-sub-u32 (raw-load-u32 live-a) 1) in
+    if ne-u32 em 0 then
+      let _sc = raw-store-u8 (wrapping-add-i64 sh.kv-ctrl-addr (u32-to-i64 idx)) kv-ctrl-empty in
+      let used-a = wrapping-add-i64 sh.kv-slab-base kh-off-used in
+      let _du = raw-store-u32 used-a (saturating-sub-u32 (raw-load-u32 used-a) 1) in
+      old-th
+    else
+      let _sc = raw-store-u8 (wrapping-add-i64 sh.kv-ctrl-addr (u32-to-i64 idx)) kv-ctrl-deleted in
+      let tomb-a = wrapping-add-i64 sh.kv-slab-base kh-off-tombs in
+      let _it = raw-store-u32 tomb-a (wrapping-add-u32 (raw-load-u32 tomb-a) 1) in
+      old-th
+
+  -- | Check every candidate lane in 16-bit H2 match mask `mm` for exact key match.
+  #[no-alloc]
+  check-group-matches :: KvShard -> U32 -> U32 -> U64 -> I64 -> U32 ->{MVar} U32
+  check-group-matches sh grp-base mm h key-addr key-len =
+    if eq-u32 mm 0 then kv-invalid-off
+    else
+      let lane = trailing-zeros-u32 mm in
+      let idx = wrapping-add-u32 grp-base lane in
+      let sp = slot-ptr sh idx in
+      let shash = raw-load-u64 (wrapping-add-i64 sp 40) in
+      let sklen = raw-load-u32 (wrapping-add-i64 sp 4) in
+      let matched = (
+        if kv-and (eq-u64 shash h) (eq-u32 sklen key-len) then
+          let skoff = raw-load-u32 sp in
+          kv-bytes-eq-dma (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 skoff)) key-addr key-len
+        else kv-false) in
+      if matched then idx
+      else check-group-matches sh grp-base (bit-and-u32 mm (wrapping-sub-u32 mm 1)) h key-addr key-len
+
+  -- | Triangular SIMD probe searching for existing key `(key-addr, key-len)`.
+  -- Returns matching slot index or `kv-invalid-off` (`#[no-alloc]`).
+  #[no-alloc]
+  probe-find-loop :: KvShard -> U32 -> U32 -> U64 -> U8 -> I64 -> U32 ->{MVar} U32
+  probe-find-loop sh grp step h h2 key-addr key-len =
+    let grp-base = wrapping-shl-u32 grp 4 in
+    let gvec = raw-load-u128 (wrapping-add-i64 sh.kv-ctrl-addr (u32-to-i64 grp-base)) in
+    let mm = simd-mask-eq-byte gvec h2 in
+    let hit = check-group-matches sh grp-base mm h key-addr key-len in
+    if ne-u32 hit kv-invalid-off then hit
+    else
+      let em = simd-mask-eq-byte gvec kv-ctrl-empty in
+      if ne-u32 em 0 then kv-invalid-off
+      else if ge-u32 step sh.kv-group-mask then kv-invalid-off
+      else
+        let next-step = wrapping-add-u32 step 1 in
+        let next-grp = bit-and-u32 (wrapping-add-u32 grp next-step) sh.kv-group-mask in
+        probe-find-loop sh next-grp next-step h h2 key-addr key-len
+
+  -- | Look up key `(key-addr, key-len)` in the SwissTable (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  probe-find :: KvShard -> U64 -> I64 -> U32 ->{MVar} U32
+  probe-find sh h key-addr key-len =
+    probe-find-loop sh (hash-group sh h) 0 h (hash-h2 h) key-addr key-len
+
+  -- | Triangular SIMD probe for insert/upsert, remembering the first reusable
+  -- tombstone (`0xFE`) or empty (`0x80`) slot encountered along the probe chain.
+  #[no-alloc]
+  probe-insert-loop :: KvShard -> U32 -> U32 -> U64 -> U8 -> I64 -> U32 -> U32 -> U8 ->{MVar} ProbeInsertRes
+  probe-insert-loop sh grp step h h2 key-addr key-len first-avail first-tomb =
+    let grp-base = wrapping-shl-u32 grp 4 in
+    let gvec = raw-load-u128 (wrapping-add-i64 sh.kv-ctrl-addr (u32-to-i64 grp-base)) in
+    let mm = simd-mask-eq-byte gvec h2 in
+    let hit = check-group-matches sh grp-base mm h key-addr key-len in
+    if ne-u32 hit kv-invalid-off then ProbeInsertRes 1 0 0 hit
+    else
+      let em = simd-mask-eq-byte gvec kv-ctrl-empty in
+      let dm = simd-mask-eq-byte gvec kv-ctrl-deleted in
+      let avail = bit-or-u32 em dm in
+      let next-avail = (
+        if ne-u32 first-avail kv-invalid-off then first-avail
+        else if ne-u32 avail 0 then wrapping-add-u32 grp-base (trailing-zeros-u32 avail)
+        else kv-invalid-off) in
+      let next-tomb = (
+        if ne-u32 first-avail kv-invalid-off then first-tomb
+        else if ne-u32 avail 0 then
+          let lane = trailing-zeros-u32 avail in
+          if ne-u32 (bit-and-u32 dm (wrapping-shl-u32 1 lane)) 0 then 1 else 0
+        else 0) in
+      if ne-u32 em 0 then
+        ProbeInsertRes 0 next-tomb 0 next-avail
+      else if ge-u32 step sh.kv-group-mask then
+        ProbeInsertRes 0 next-tomb 0 next-avail
+      else
+        let next-step = wrapping-add-u32 step 1 in
+        let next-grp = bit-and-u32 (wrapping-add-u32 grp next-step) sh.kv-group-mask in
+        probe-insert-loop sh next-grp next-step h h2 key-addr key-len next-avail next-tomb
+
+  -- | Probe for insert/upsert of key `(key-addr, key-len)` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  probe-insert :: KvShard -> U64 -> I64 -> U32 ->{MVar} ProbeInsertRes
+  probe-insert sh h key-addr key-len =
+    probe-insert-loop sh (hash-group sh h) 0 h (hash-h2 h) key-addr key-len kv-invalid-off 0
+
+  -- =========================================================================
+  -- 7. Shard Lifecycle & Telemetry
+  -- =========================================================================
+
+  -- | Stage one expired `IoToken` into the shard's DMA expiry buffer (`#[no-alloc]`).
+  #[no-alloc]
+  stage-shard-expired :: I64 -> IoToken ->{MVar} Unit
+  stage-shard-expired slab tok =
+    let la = wrapping-add-i64 slab kh-off-exp-len in
+    let cnt = raw-load-u32 la in
+    if ge-u32 cnt kh-exp-cap then ()
+    else
+      let dst = wrapping-add-i64 (wrapping-add-i64 slab kh-off-exp-buf) (wrapping-shl-i64 (u32-to-i64 cnt) 3) in
+      let _w = raw-store-u64 dst tok.io-token-raw in
+      raw-store-u32 la (wrapping-add-u32 cnt 1)
+
+  -- | Initialize all `cap` SwissTable control bytes to `0x80` (Empty) 16B at a time.
+  init-ctrl-empty :: I64 -> U32 -> U32 ->{MVar} Unit
+  init-ctrl-empty ctrl-addr off cap =
+    if ge-u32 off cap then ()
+    else
+      let _w = raw-store-u128 (wrapping-add-i64 ctrl-addr (u32-to-i64 off)) 0x80808080808080808080808080808080 in
+      init-ctrl-empty ctrl-addr (wrapping-add-u32 off 16) cap
+
+  -- | Initialize the 8 size-class arena freelist heads to `kv-invalid-off`.
+  init-free-heads :: I64 -> U32 ->{MVar} Unit
+  init-free-heads slab cls =
+    if ge-u32 cls 8 then ()
+    else
+      let p = wrapping-add-i64 (wrapping-add-i64 slab kh-off-free-heads) (wrapping-shl-i64 (u32-to-i64 cls) 2) in
+      let _w = raw-store-u32 p kv-invalid-off in
+      init-free-heads slab (wrapping-add-u32 cls 1)
+
+  -- | Non-inlined `Option` identity barrier keeping `CoreId`-taking constructors
+  -- on the uniform boxed `Option` ABI.
+  #[inline(never)]
+  id-opt-shard :: Option KvShard -> Option KvShard
+  id-opt-shard o = o
+
+  -- | Scalar worker for `kv-shard-new`.
+  #[inline(never)]
+  kv-shard-new-raw :: U16 -> U32 -> U32 -> U32 -> U64 ->{IO, MVar} Option KvShard
+  kv-shard-new-raw cid-raw slot-cap arena-bytes timer-cap start-now-ms =
+    let valid-cap = ge-u32 slot-cap 16 && eq-u32 (bit-and-u32 slot-cap (wrapping-sub-u32 slot-cap 1)) 0 in
+    if not valid-cap || lt-u32 arena-bytes 4096 || eq-u32 timer-cap 0 then None
+    else
+      let ctrl-off = kh-off-ctrl-start in
+      let slots-off = align-up-u64 (wrapping-add-u64 ctrl-off (u32-to-u64 slot-cap)) 64 in
+      let slots-bytes = wrapping-shl-u64 (u32-to-u64 slot-cap) 6 in
+      let arena-off = align-up-u64 (wrapping-add-u64 slots-off slots-bytes) 64 in
+      let total-bytes = align-up-u64 (wrapping-add-u64 arena-off (u32-to-u64 arena-bytes)) 4096 in
+      case timer-wheel-new timer-cap start-now-ms of
+        None -> None
+        Some tw ->
+          let slab-u = engine-dma-alloc total-bytes 4096 in
+          if eq-u64 slab-u 0 then
+            let _d = timer-wheel-destroy tw in
+            None
+          else
+            let slab = wrapping-u64-to-i64 slab-u in
+            let ctrl-addr = wrapping-add-i64 slab (wrapping-u64-to-i64 ctrl-off) in
+            let slots-addr = wrapping-add-i64 slab (wrapping-u64-to-i64 slots-off) in
+            let arena-addr = wrapping-add-i64 slab (wrapping-u64-to-i64 arena-off) in
+            let wal-scratch = wrapping-add-i64 slab kh-off-wal-scratch in
+            let _0 = raw-store-u32 (wrapping-add-i64 slab kh-off-destroyed) 0 in
+            let _1 = raw-store-u32 (wrapping-add-i64 slab kh-off-live) 0 in
+            let _2 = raw-store-u32 (wrapping-add-i64 slab kh-off-used) 0 in
+            let _3 = raw-store-u32 (wrapping-add-i64 slab kh-off-tombs) 0 in
+            let _4 = raw-store-u32 (wrapping-add-i64 slab kh-off-arena-bump) 0 in
+            let _5 = raw-store-u32 (wrapping-add-i64 slab kh-off-exp-len) 0 in
+            let _6 = raw-store-u64 (wrapping-add-i64 slab kh-off-now-ms) start-now-ms in
+            let _7 = raw-store-u64 (wrapping-add-i64 slab kh-off-expired-total) 0 in
+            let _8 = raw-store-u64 (wrapping-add-i64 slab kh-off-ops-total) 0 in
+            let _9 = raw-store-u32 (wrapping-add-i64 slab kh-off-gen-seq) 1 in
+            let _fh = init-free-heads slab 0 in
+            let _ic = init-ctrl-empty ctrl-addr 0 slot-cap in
+            let gmask = wrapping-sub-u32 (wrapping-shr-u32 slot-cap 4) 1 in
+            Some (KvShard slab total-bytes ctrl-addr slots-addr arena-addr wal-scratch slot-cap gmask arena-bytes cid-raw 0 tw)
+
+  -- | Allocate and initialize a core-sharded `KvShard` owned by `cid` with
+  -- power-of-two `slot-cap` (`>= 16`), flat DMA `arena-bytes` (`>= 4096`),
+  -- `TimerWheel` capacity `timer-cap` (`>= 1`), and starting clock `start-now-ms`.
+  kv-shard-new :: CoreId -> U32 -> U32 -> U32 -> U64 ->{IO, MVar} Option KvShard
+  kv-shard-new cid slot-cap arena-bytes timer-cap start-now-ms =
+    id-opt-shard (kv-shard-new-raw cid.core-id-raw slot-cap arena-bytes timer-cap start-now-ms)
+
+  -- | Destroy `sh`, releasing its `TimerWheel` and unmapping its 4 KiB-aligned
+  -- DMA slab. Idempotent.
+  kv-shard-destroy :: KvShard ->{IO, MVar} Unit
+  kv-shard-destroy sh =
+    let slab = sh.kv-slab-base in
+    if eq-i64 slab 0 then ()
+    else
+      let dead = raw-load-u32 (wrapping-add-i64 slab kh-off-destroyed) in
+      if ne-u32 dead 0 then ()
+      else
+        let _m = raw-store-u32 (wrapping-add-i64 slab kh-off-destroyed) 1 in
+        let _tw = timer-wheel-destroy sh.kv-timers in
+        let _f = engine-dma-free (wrapping-i64-to-u64 slab) sh.kv-slab-bytes in
+        ()
+
+  -- | Return `True` iff `sh` holds a live mapped DMA slab (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-is-valid :: KvShard ->{MVar} Bool
+  kv-shard-is-valid sh =
+    if eq-i64 sh.kv-slab-base 0 then kv-false
+    else eq-u32 (raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-destroyed)) 0
+
+  -- | Return the SwissTable slot capacity of `sh` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-capacity :: KvShard -> U32
+  kv-shard-capacity sh = sh.kv-cap
+
+  -- | Return the current number of live keys in `sh` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-live-count :: KvShard ->{MVar} U32
+  kv-shard-live-count sh = raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-live)
+
+  -- | Return the current number of SwissTable tombstones (`0xFE`) in `sh` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-tombstone-count :: KvShard ->{MVar} U32
+  kv-shard-tombstone-count sh = raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-tombs)
+
+  -- | Return the cumulative number of keys expired actively or passively (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-expired-count :: KvShard ->{MVar} U64
+  kv-shard-expired-count sh = raw-load-u64 (wrapping-add-i64 sh.kv-slab-base kh-off-expired-total)
+
+  -- | Return the cumulative number of KV operations executed on `sh` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-ops-count :: KvShard ->{MVar} U64
+  kv-shard-ops-count sh = raw-load-u64 (wrapping-add-i64 sh.kv-slab-base kh-off-ops-total)
+
+  -- | Return the high-water bump offset in bytes inside the flat DMA arena (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-arena-used :: KvShard ->{MVar} U32
+  kv-shard-arena-used sh = raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-arena-bump)
+
+  -- | Return the total capacity in bytes of the flat DMA arena (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-arena-cap :: KvShard -> U32
+  kv-shard-arena-cap sh = sh.kv-arena-bytes
+
+  -- | Return the shard's current monotonic clock in milliseconds (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-now-ms :: KvShard ->{MVar} U64
+  kv-shard-now-ms sh = raw-load-u64 (wrapping-add-i64 sh.kv-slab-base kh-off-now-ms)
+
+  -- | Update the shard's cached monotonic clock in milliseconds (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-set-now-ms :: KvShard -> U64 ->{MVar} Unit
+  kv-shard-set-now-ms sh now-ms =
+    raw-store-u64 (wrapping-add-i64 sh.kv-slab-base kh-off-now-ms) now-ms
+
+  -- | Return the owning `CoreId` of `sh` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-core-id :: KvShard -> CoreId
+  kv-shard-core-id sh = core-id sh.kv-core-raw
+
+  -- | Return the integrated `TimerWheel` handle owned by `sh` (`#[no-alloc]`).
+  #[inline(always)]
+  #[no-alloc]
+  kv-shard-timers :: KvShard -> TimerWheel
+  kv-shard-timers sh = sh.kv-timers
+
+  -- =========================================================================
+  -- 8. Compile-Time #[no-alloc] SwissTable + DMA Arena Hot-Path Operations
+  -- =========================================================================
+
+  -- | Internal helper updating an existing slot's value payload in place when
+  -- `val-len <= old-val-cap` or via O(1) size-class slab reallocation (`#[no-alloc]`).
+  #[no-alloc]
+  update-slot-value :: KvShard -> I64 -> I64 -> U32 ->{MVar} U8
+  update-slot-value sh sp val-addr val-len =
+    let old-voff = raw-load-u32 (wrapping-add-i64 sp 12) in
+    let old-vcap = raw-load-u32 (wrapping-add-i64 sp 20) in
+    if eq-u32 val-len 0 then
+      let _fv = arena-free sh old-voff old-vcap in
+      let _0 = raw-store-u32 (wrapping-add-i64 sp 12) 0 in
+      let _1 = raw-store-u32 (wrapping-add-i64 sp 16) 0 in
+      let _2 = raw-store-u32 (wrapping-add-i64 sp 20) 0 in
+      kv-ok
+    else if le-u32 val-len old-vcap then
+      -- In-place overwrite: zero arena growth and zero freelist traffic!
+      let _cp = kv-copy-dma (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 old-voff)) val-addr val-len in
+      let _vl = raw-store-u32 (wrapping-add-i64 sp 16) val-len in
+      kv-ok
+    else
+      let new-voff = arena-alloc sh val-len in
+      if eq-u32 new-voff kv-invalid-off then kv-err-full
+      else
+        let new-vcap = arena-alloc-cap val-len in
+        let _cp = kv-copy-dma (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 new-voff)) val-addr val-len in
+        let _fv = arena-free sh old-voff old-vcap in
+        let _0 = raw-store-u32 (wrapping-add-i64 sp 12) new-voff in
+        let _1 = raw-store-u32 (wrapping-add-i64 sp 16) val-len in
+        let _2 = raw-store-u32 (wrapping-add-i64 sp 20) new-vcap in
+        kv-ok
+
+  -- | Internal helper populating a fresh/tombstone slot `idx` (`#[no-alloc]`).
+  #[no-alloc]
+  insert-new-slot :: KvShard -> U32 -> U8 -> U64 -> I64 -> U32 -> I64 -> U32 ->{MVar} U8
+  insert-new-slot sh idx was-tomb h key-addr key-len val-addr val-len =
+    let koff = arena-alloc sh key-len in
+    if kv-and (gt-u32 key-len 0) (eq-u32 koff kv-invalid-off) then kv-err-full
+    else
+      let kcap = arena-alloc-cap key-len in
+      let voff = arena-alloc sh val-len in
+      if kv-and (gt-u32 val-len 0) (eq-u32 voff kv-invalid-off) then
+        let _fk = arena-free sh koff kcap in
+        kv-err-full
+      else
+        let vcap = arena-alloc-cap val-len in
+        let _ck = if gt-u32 key-len 0 then kv-copy-dma (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 koff)) key-addr key-len else () in
+        let _cv = if gt-u32 val-len 0 then kv-copy-dma (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 voff)) val-addr val-len else () in
+        let sp = slot-ptr sh idx in
+        let gen = next-slot-gen sh in
+        let _0 = raw-store-u32 sp koff in
+        let _1 = raw-store-u32 (wrapping-add-i64 sp 4) key-len in
+        let _2 = raw-store-u32 (wrapping-add-i64 sp 8) kcap in
+        let _3 = raw-store-u32 (wrapping-add-i64 sp 12) voff in
+        let _4 = raw-store-u32 (wrapping-add-i64 sp 16) val-len in
+        let _5 = raw-store-u32 (wrapping-add-i64 sp 20) vcap in
+        let _6 = raw-store-u64 (wrapping-add-i64 sp 24) 0 in
+        let _7 = raw-store-u64 (wrapping-add-i64 sp 32) 0 in
+        let _8 = raw-store-u64 (wrapping-add-i64 sp 40) h in
+        let _9 = raw-store-u32 (wrapping-add-i64 sp 48) gen in
+        let _10 = raw-store-u32 (wrapping-add-i64 sp 52) 0 in
+        let _sc = raw-store-u8 (wrapping-add-i64 sh.kv-ctrl-addr (u32-to-i64 idx)) (hash-h2 h) in
+        let live-a = wrapping-add-i64 sh.kv-slab-base kh-off-live in
+        let _il = raw-store-u32 live-a (wrapping-add-u32 (raw-load-u32 live-a) 1) in
+        let _ut = (
+          if ne-u8 was-tomb 0 then
+            let tomb-a = wrapping-add-i64 sh.kv-slab-base kh-off-tombs in
+            raw-store-u32 tomb-a (saturating-sub-u32 (raw-load-u32 tomb-a) 1)
+          else
+            let used-a = wrapping-add-i64 sh.kv-slab-base kh-off-used in
+            raw-store-u32 used-a (wrapping-add-u32 (raw-load-u32 used-a) 1)) in
+        kv-ok
+
+  -- | Look up key `(key-addr, key-len)` on `sh` with passive TTL expiration
+  -- enforcement (`#[no-alloc]`). Expired keys are evicted immediately and
+  -- never observed.
+  #[no-alloc]
+  kv-shard-get :: KvShard -> I64 -> U32 ->{MVar} KvGetResult
+  kv-shard-get sh key-addr key-len =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let idx = probe-find sh h key-addr key-len in
+    if eq-u32 idx kv-invalid-off then kv-get-miss ()
+    else
+      let sp = slot-ptr sh idx in
+      let now-ms = kv-shard-now-ms sh in
+      if slot-is-expired sp now-ms then
+        let _er = erase-slot-raw sh idx in
+        let _ex = bump-expired sh in
+        kv-get-miss ()
+      else
+        let voff = raw-load-u32 (wrapping-add-i64 sp 12) in
+        let vlen = raw-load-u32 (wrapping-add-i64 sp 16) in
+        let vaddr = if eq-u32 vlen 0 then sh.kv-arena-addr else wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 voff) in
+        KvGetResult 1 kv-ok 0 vlen vaddr
+
+  -- | Check whether key `(key-addr, key-len)` exists and has not expired
+  -- (`1` = exists, `0` = missing/expired, `#[no-alloc]`).
+  #[no-alloc]
+  kv-shard-exists :: KvShard -> I64 -> U32 ->{MVar} U8
+  kv-shard-exists sh key-addr key-len =
+    let res = kv-shard-get sh key-addr key-len in
+    res.kv-found
+
+  -- | Return remaining millisecond TTL (`>= 0`), `-1` if persistent, or `-2`
+  -- if missing/expired (`#[no-alloc]`).
+  #[no-alloc]
+  kv-shard-pttl :: KvShard -> I64 -> U32 ->{MVar} I64
+  kv-shard-pttl sh key-addr key-len =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let idx = probe-find sh h key-addr key-len in
+    if eq-u32 idx kv-invalid-off then -2
+    else
+      let sp = slot-ptr sh idx in
+      let fl = raw-load-u32 (wrapping-add-i64 sp 52) in
+      if eq-u32 (bit-and-u32 fl slot-flag-has-ttl) 0 then -1
+      else
+        let now-ms = kv-shard-now-ms sh in
+        let exp = raw-load-u64 (wrapping-add-i64 sp 24) in
+        if le-u64 exp now-ms then
+          let _er = erase-slot-raw sh idx in
+          let _ex = bump-expired sh in
+          -2
+        else
+          wrapping-u64-to-i64 (wrapping-sub-u64 exp now-ms)
+
+  -- | Return remaining TTL in seconds (`>= 0`), `-1` if persistent, or `-2`
+  -- if missing/expired (`#[no-alloc]`).
+  #[no-alloc]
+  kv-shard-ttl :: KvShard -> I64 -> U32 ->{MVar} I64
+  kv-shard-ttl sh key-addr key-len =
+    let p = kv-shard-pttl sh key-addr key-len in
+    if lt-i64 p 0 then p
+    else
+      let rem-u = wrapping-i64-to-u64 p in
+      wrapping-u64-to-i64 (div-u64 (saturating-add-u64 rem-u 500) 1000)
+
+  -- | Compile-time `#[no-alloc]` upsert of `(key-addr, key-len) -> (val-addr, val-len)`
+  -- clearing any TTL metadata (bumps `slot-gen` so stale wheel timers become no-ops).
+  -- Returns `kv-ok` or `kv-err-full`.
+  #[no-alloc]
+  kv-shard-set-raw :: KvShard -> I64 -> U32 -> I64 -> U32 ->{MVar} U8
+  kv-shard-set-raw sh key-addr key-len val-addr val-len =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let pr = probe-insert sh h key-addr key-len in
+    if eq-u32 pr.pi-slot kv-invalid-off then kv-err-full
+    else if ne-u8 pr.pi-found 0 then
+      let sp = slot-ptr sh pr.pi-slot in
+      let st = update-slot-value sh sp val-addr val-len in
+      if ne-u8 st kv-ok then st
+      else
+        let g = next-slot-gen sh in
+        let _0 = raw-store-u32 (wrapping-add-i64 sp 48) g in
+        let _1 = raw-store-u32 (wrapping-add-i64 sp 52) 0 in
+        let _2 = raw-store-u64 (wrapping-add-i64 sp 24) 0 in
+        let _3 = raw-store-u64 (wrapping-add-i64 sp 32) 0 in
+        kv-ok
+    else
+      insert-new-slot sh pr.pi-slot pr.pi-was-tomb h key-addr key-len val-addr val-len
+
+  -- | Compile-time `#[no-alloc]` delete of `(key-addr, key-len)` (returns `1`
+  -- if a live key was deleted, `0` if missing or already expired).
+  #[no-alloc]
+  kv-shard-del-raw :: KvShard -> I64 -> U32 ->{MVar} U8
+  kv-shard-del-raw sh key-addr key-len =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let idx = probe-find sh h key-addr key-len in
+    if eq-u32 idx kv-invalid-off then 0
+    else
+      let sp = slot-ptr sh idx in
+      let was-exp = slot-is-expired sp (kv-shard-now-ms sh) in
+      let _er = erase-slot-raw sh idx in
+      if was-exp then
+        let _ex = bump-expired sh in
+        0
+      else 1
+
+  -- | Internal `#[no-alloc]` atomic delta (`+1` for `INCR`, `-1` for `DECR`) on
+  -- shard `sh`, preserving existing live TTL and enforcing passive expiration.
+  #[no-alloc]
+  kv-shard-add-delta :: KvShard -> I64 -> U32 -> I64 ->{MVar} KvIntResult
+  kv-shard-add-delta sh key-addr key-len delta =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let pr = probe-insert sh h key-addr key-len in
+    if eq-u32 pr.pi-slot kv-invalid-off then kv-int-err kv-err-full
+    else
+      let scratch = wrapping-add-i64 sh.kv-slab-base kh-off-int-scratch in
+      if ne-u8 pr.pi-found 0 then
+        let sp = slot-ptr sh pr.pi-slot in
+        let now-ms = kv-shard-now-ms sh in
+        if slot-is-expired sp now-ms then
+          -- Expired key behaves as 0 + delta with no TTL
+          let _ex = bump-expired sh in
+          let slen = kv-format-i64-dma scratch delta in
+          let st = update-slot-value sh sp scratch slen in
+          if ne-u8 st kv-ok then kv-int-err st
+          else
+            let g = next-slot-gen sh in
+            let _0 = raw-store-u32 (wrapping-add-i64 sp 48) g in
+            let _1 = raw-store-u32 (wrapping-add-i64 sp 52) 0 in
+            let _2 = raw-store-u64 (wrapping-add-i64 sp 24) 0 in
+            let _3 = raw-store-u64 (wrapping-add-i64 sp 32) 0 in
+            kv-int-ok delta
+        else
+          let voff = raw-load-u32 (wrapping-add-i64 sp 12) in
+          let vlen = raw-load-u32 (wrapping-add-i64 sp 16) in
+          let parsed = kv-parse-i64-dma (wrapping-add-i64 sh.kv-arena-addr (u32-to-i64 voff)) vlen in
+          if ne-u8 parsed.kv-int-status kv-ok then parsed
+          else
+            let cur = parsed.kv-int-val in
+            let ov = (
+              if gt-i64 delta 0 then gt-i64 cur (wrapping-sub-i64 9223372036854775807 delta)
+              else lt-i64 cur (wrapping-sub-i64 (-9223372036854775808) delta)) in
+            if ov then kv-int-err kv-err-overflow
+            else
+              let next-v = wrapping-add-i64 cur delta in
+              let slen = kv-format-i64-dma scratch next-v in
+              let st = update-slot-value sh sp scratch slen in
+              if ne-u8 st kv-ok then kv-int-err st
+              else kv-int-ok next-v
+      else
+        let slen = kv-format-i64-dma scratch delta in
+        let st = insert-new-slot sh pr.pi-slot pr.pi-was-tomb h key-addr key-len scratch slen in
+        if ne-u8 st kv-ok then kv-int-err st
+        else kv-int-ok delta
+
+  -- | Increment integer value at `(key-addr, key-len)` by `1` (`#[no-alloc]`).
+  -- Missing or expired keys start at `0` and become `"1"`.
+  #[no-alloc]
+  kv-shard-incr :: KvShard -> I64 -> U32 ->{MVar} KvIntResult
+  kv-shard-incr sh key-addr key-len = kv-shard-add-delta sh key-addr key-len 1
+
+  -- | Decrement integer value at `(key-addr, key-len)` by `1` (`#[no-alloc]`).
+  -- Missing or expired keys start at `0` and become `"-1"`.
+  #[no-alloc]
+  kv-shard-decr :: KvShard -> I64 -> U32 ->{MVar} KvIntResult
+  kv-shard-decr sh key-addr key-len = kv-shard-add-delta sh key-addr key-len (-1)
+
+  -- =========================================================================
+  -- 9. Integrated Engine.Timer.TimerWheel TTL Operations (0 runtime allocs)
+  -- =========================================================================
+
+  -- | Cancel a raw timer handle if non-zero.
+  #[inline(always)]
+  cancel-timer-if-set :: KvShard -> U64 ->{MVar} Unit
+  cancel-timer-if-set sh raw-h =
+    if eq-u64 raw-h 0 then ()
+    else
+      let _ = timer-wheel-cancel sh.kv-timers (GenHandle raw-h) in
+      ()
+
+  -- | Attach an absolute millisecond expiration deadline `expire-ms` to live
+  -- slot `idx`, cancelling any prior timer and scheduling an O(1) `TimerWheel`
+  -- entry carrying `(gen, idx)`.
+  arm-slot-ttl :: KvShard -> U32 -> U64 ->{MVar} Unit
+  arm-slot-ttl sh idx expire-ms =
+    let sp = slot-ptr sh idx in
+    let old-th = raw-load-u64 (wrapping-add-i64 sp 32) in
+    let _c = cancel-timer-if-set sh old-th in
+    let gen = next-slot-gen sh in
+    let tok = io-token-pack 1 gen idx in
+    let h = timer-wheel-schedule sh.kv-timers expire-ms tok in
+    let _0 = raw-store-u32 (wrapping-add-i64 sp 48) gen in
+    let _1 = raw-store-u32 (wrapping-add-i64 sp 52) slot-flag-has-ttl in
+    let _2 = raw-store-u64 (wrapping-add-i64 sp 24) expire-ms in
+    raw-store-u64 (wrapping-add-i64 sp 32) h.gen-handle-raw
+
+  -- | Set persistent key `(key-addr, key-len) -> (val-addr, val-len)`,
+  -- cancelling any previously scheduled `TimerWheel` TTL timer.
+  kv-shard-set :: KvShard -> I64 -> U32 -> I64 -> U32 ->{MVar} U8
+  kv-shard-set sh key-addr key-len val-addr val-len =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let pr = probe-insert sh h key-addr key-len in
+    if eq-u32 pr.pi-slot kv-invalid-off then kv-err-full
+    else if ne-u8 pr.pi-found 0 then
+      let sp = slot-ptr sh pr.pi-slot in
+      let old-th = raw-load-u64 (wrapping-add-i64 sp 32) in
+      let st = update-slot-value sh sp val-addr val-len in
+      if ne-u8 st kv-ok then st
+      else
+        let _c = cancel-timer-if-set sh old-th in
+        let g = next-slot-gen sh in
+        let _0 = raw-store-u32 (wrapping-add-i64 sp 48) g in
+        let _1 = raw-store-u32 (wrapping-add-i64 sp 52) 0 in
+        let _2 = raw-store-u64 (wrapping-add-i64 sp 24) 0 in
+        let _3 = raw-store-u64 (wrapping-add-i64 sp 32) 0 in
+        kv-ok
+    else
+      insert-new-slot sh pr.pi-slot pr.pi-was-tomb h key-addr key-len val-addr val-len
+
+  -- | Set key with millisecond TTL `ttl-ms` (`SET key val PX ttl-ms`).
+  -- If `ttl-ms == 0`, key expires immediately (deleted if present).
+  kv-shard-set-px :: KvShard -> I64 -> U32 -> I64 -> U32 -> U64 ->{MVar} U8
+  kv-shard-set-px sh key-addr key-len val-addr val-len ttl-ms =
+    if eq-u64 ttl-ms 0 then
+      let _d = kv-shard-del sh key-addr key-len in
+      kv-ok
+    else
+      let _op = bump-ops sh in
+      let h = kv-hash-dma key-addr key-len in
+      let pr = probe-insert sh h key-addr key-len in
+      if eq-u32 pr.pi-slot kv-invalid-off then kv-err-full
+      else
+        let st = (
+          if ne-u8 pr.pi-found 0 then
+            update-slot-value sh (slot-ptr sh pr.pi-slot) val-addr val-len
+          else
+            insert-new-slot sh pr.pi-slot pr.pi-was-tomb h key-addr key-len val-addr val-len) in
+        if ne-u8 st kv-ok then st
+        else
+          let exp-ms = saturating-add-u64 (kv-shard-now-ms sh) ttl-ms in
+          let _a = arm-slot-ttl sh pr.pi-slot exp-ms in
+          kv-ok
+
+  -- | Set key with second TTL `ttl-sec` (`SET key val EX ttl-sec`).
+  kv-shard-set-ex :: KvShard -> I64 -> U32 -> I64 -> U32 -> U64 ->{MVar} U8
+  kv-shard-set-ex sh key-addr key-len val-addr val-len ttl-sec =
+    kv-shard-set-px sh key-addr key-len val-addr val-len (saturating-mul-u64 ttl-sec 1000)
+
+  -- | Delete key `(key-addr, key-len)` and cancel its active `TimerWheel` handle
+  -- if any. Returns `1` if a live key was deleted, `0` if missing or expired.
+  kv-shard-del :: KvShard -> I64 -> U32 ->{MVar} U8
+  kv-shard-del sh key-addr key-len =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let idx = probe-find sh h key-addr key-len in
+    if eq-u32 idx kv-invalid-off then 0
+    else
+      let sp = slot-ptr sh idx in
+      let was-exp = slot-is-expired sp (kv-shard-now-ms sh) in
+      let old-th = erase-slot-raw sh idx in
+      let _c = cancel-timer-if-set sh old-th in
+      if was-exp then
+        let _ex = bump-expired sh in
+        0
+      else 1
+
+  -- | Set/update millisecond TTL `ttl-ms` on an existing live key (`PEXPIRE`).
+  -- Returns `1` if timeout was set (or key immediately deleted for `ttl-ms == 0`),
+  -- `0` if key does not exist or already expired.
+  kv-shard-pexpire :: KvShard -> I64 -> U32 -> U64 ->{MVar} U8
+  kv-shard-pexpire sh key-addr key-len ttl-ms =
+    let _op = bump-ops sh in
+    let h = kv-hash-dma key-addr key-len in
+    let idx = probe-find sh h key-addr key-len in
+    if eq-u32 idx kv-invalid-off then 0
+    else
+      let sp = slot-ptr sh idx in
+      let now-ms = kv-shard-now-ms sh in
+      if slot-is-expired sp now-ms then
+        let old-th = erase-slot-raw sh idx in
+        let _c = cancel-timer-if-set sh old-th in
+        let _ex = bump-expired sh in
+        0
+      else if eq-u64 ttl-ms 0 then
+        let old-th = erase-slot-raw sh idx in
+        let _c = cancel-timer-if-set sh old-th in
+        let _ex = bump-expired sh in
+        1
+      else
+        let exp-ms = saturating-add-u64 now-ms ttl-ms in
+        let _a = arm-slot-ttl sh idx exp-ms in
+        1
+
+  -- | Set/update second TTL `ttl-sec` on an existing live key (`EXPIRE`).
+  -- Returns `1` if timeout was set, `0` if key does not exist or already expired.
+  kv-shard-expire :: KvShard -> I64 -> U32 -> U64 ->{MVar} U8
+  kv-shard-expire sh key-addr key-len ttl-sec =
+    kv-shard-pexpire sh key-addr key-len (saturating-mul-u64 ttl-sec 1000)
+
+  -- | Drain staged expired `IoToken`s from `kv-shard-tick`, verifying slot
+  -- occupancy, generation match, and deadline `<= now-ms` before evicting (`#[no-alloc]`).
+  #[no-alloc]
+  drain-expired-tokens :: KvShard -> U32 -> U32 -> U64 -> U32 ->{MVar} U32
+  drain-expired-tokens sh i count now-ms evicted =
+    if ge-u32 i count then evicted
+    else
+      let tok-raw = raw-load-u64 (wrapping-add-i64 (wrapping-add-i64 sh.kv-slab-base kh-off-exp-buf) (wrapping-shl-i64 (u32-to-i64 i) 3)) in
+      let tok = IoToken tok-raw in
+      let idx = io-token-slot tok in
+      let want-gen = io-token-gen tok in
+      let next-ev = (
+        if lt-u32 idx sh.kv-cap then
+          let ctrl = raw-load-u8 (wrapping-add-i64 sh.kv-ctrl-addr (u32-to-i64 idx)) in
+          if lt-u8 ctrl 128 then
+            let sp = slot-ptr sh idx in
+            let cur-gen = raw-load-u32 (wrapping-add-i64 sp 48) in
+            if kv-and (eq-u32 cur-gen want-gen) (slot-is-expired sp now-ms) then
+              let _er = erase-slot-raw sh idx in
+              let _ex = bump-expired sh in
+              wrapping-add-u32 evicted 1
+            else evicted
+          else evicted
+        else evicted) in
+      drain-expired-tokens sh (wrapping-add-u32 i 1) count now-ms next-ev
+
+  -- | Advance `sh`'s clock and integrated `TimerWheel` to `now-ms`, actively
+  -- expiring every due key in O(1) amortized time. Returns count of keys evicted.
+  kv-shard-tick :: KvShard -> U64 ->{MVar} U32
+  kv-shard-tick sh now-ms =
+    let _u = kv-shard-set-now-ms sh now-ms in
+    let _clr = raw-store-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-exp-len) 0 in
+    let _fired = timer-wheel-advance sh.kv-timers now-ms (stage-shard-expired sh.kv-slab-base) in
+    let staged = raw-load-u32 (wrapping-add-i64 sh.kv-slab-base kh-off-exp-len) in
+    drain-expired-tokens sh 0 staged now-ms 0
+
+  -- =========================================================================
+  -- 10. Optional Store.Wal AOF Binary Encoding & Crash Recovery
+  -- =========================================================================
+
+  -- | Encode a binary AOF `SET` record (`[op:1][pad:3][klen:4][vlen:4][exp:8][key][val]`)
+  -- into `scratch` (`scratch-cap` bytes) and stage it into `wal` via `wal-append-dma` (`#[no-alloc]`).
+  #[no-alloc]
+  kv-wal-log-set :: WalEngine -> I64 -> U32 -> I64 -> U32 -> U64 -> I64 -> U32 ->{MVar} U64
+  kv-wal-log-set wal key-addr key-len val-addr val-len expire-ms scratch scratch-cap =
+    let need = wrapping-add-u32 20 (wrapping-add-u32 key-len val-len) in
+    if kv-or (gt-u32 key-len scratch-cap) (kv-or (gt-u32 val-len scratch-cap) (gt-u32 need scratch-cap)) then 0
+    else
+      let _0 = raw-store-u32 scratch (u8-to-u32 kv-wal-op-set) in
+      let _1 = raw-store-u32 (wrapping-add-i64 scratch 4) key-len in
+      let _2 = raw-store-u32 (wrapping-add-i64 scratch 8) val-len in
+      let _3 = raw-store-u64 (wrapping-add-i64 scratch 12) expire-ms in
+      let _ck = if gt-u32 key-len 0 then kv-copy-dma (wrapping-add-i64 scratch 20) key-addr key-len else () in
+      let _cv = if gt-u32 val-len 0 then kv-copy-dma (wrapping-add-i64 scratch (u32-to-i64 (wrapping-add-u32 20 key-len))) val-addr val-len else () in
+      wal-append-dma wal wal-flag-data scratch need
+
+  -- | Encode a binary AOF `DEL` record (`[op:1][pad:3][klen:4][key]`) and stage
+  -- it into `wal` via `wal-append-dma` (`#[no-alloc]`).
+  #[no-alloc]
+  kv-wal-log-del :: WalEngine -> I64 -> U32 -> I64 -> U32 ->{MVar} U64
+  kv-wal-log-del wal key-addr key-len scratch scratch-cap =
+    let need = wrapping-add-u32 8 key-len in
+    if kv-or (gt-u32 key-len scratch-cap) (gt-u32 need scratch-cap) then 0
+    else
+      let _0 = raw-store-u32 scratch (u8-to-u32 kv-wal-op-del) in
+      let _1 = raw-store-u32 (wrapping-add-i64 scratch 4) key-len in
+      let _ck = if gt-u32 key-len 0 then kv-copy-dma (wrapping-add-i64 scratch 8) key-addr key-len else () in
+      wal-append-dma wal wal-flag-data scratch need
+
+  -- | Encode a binary AOF `EXPIRE` record (`[op:1][pad:3][klen:4][exp:8][key]`)
+  -- and stage it into `wal` via `wal-append-dma` (`#[no-alloc]`).
+  #[no-alloc]
+  kv-wal-log-expire :: WalEngine -> I64 -> U32 -> U64 -> I64 -> U32 ->{MVar} U64
+  kv-wal-log-expire wal key-addr key-len expire-ms scratch scratch-cap =
+    let need = wrapping-add-u32 16 key-len in
+    if kv-or (gt-u32 key-len scratch-cap) (gt-u32 need scratch-cap) then 0
+    else
+      let _0 = raw-store-u32 scratch (u8-to-u32 kv-wal-op-expire) in
+      let _1 = raw-store-u32 (wrapping-add-i64 scratch 4) key-len in
+      let _2 = raw-store-u64 (wrapping-add-i64 scratch 8) expire-ms in
+      let _ck = if gt-u32 key-len 0 then kv-copy-dma (wrapping-add-i64 scratch 16) key-addr key-len else () in
+      wal-append-dma wal wal-flag-data scratch need
+
+  -- | Execute `SET` on `sh` and append a binary AOF record to `wal`.
+  -- Returns pending WAL LSN (`0` on shard error or full WAL batch).
+  kv-shard-set-wal :: KvShard -> WalEngine -> I64 -> U32 -> I64 -> U32 ->{MVar} U64
+  kv-shard-set-wal sh wal key-addr key-len val-addr val-len =
+    let st = kv-shard-set sh key-addr key-len val-addr val-len in
+    if ne-u8 st kv-ok then 0
+    else kv-wal-log-set wal key-addr key-len val-addr val-len 0 sh.kv-wal-scratch kh-wal-scratch-cap
+
+  -- | Execute `SET ... PX ttl-ms` on `sh` and append a binary AOF record to `wal`.
+  kv-shard-set-px-wal :: KvShard -> WalEngine -> I64 -> U32 -> I64 -> U32 -> U64 ->{MVar} U64
+  kv-shard-set-px-wal sh wal key-addr key-len val-addr val-len ttl-ms =
+    if eq-u64 ttl-ms 0 then
+      let _d = kv-shard-del sh key-addr key-len in
+      kv-wal-log-del wal key-addr key-len sh.kv-wal-scratch kh-wal-scratch-cap
+    else
+      let st = kv-shard-set-px sh key-addr key-len val-addr val-len ttl-ms in
+      if ne-u8 st kv-ok then 0
+      else
+        let exp-ms = saturating-add-u64 (kv-shard-now-ms sh) ttl-ms in
+        kv-wal-log-set wal key-addr key-len val-addr val-len exp-ms sh.kv-wal-scratch kh-wal-scratch-cap
+
+  -- | Execute `DEL` on `sh` and append a binary AOF `DEL` record to `wal` if
+  -- a key was deleted.
+  kv-shard-del-wal :: KvShard -> WalEngine -> I64 -> U32 ->{MVar} U8
+  kv-shard-del-wal sh wal key-addr key-len =
+    let del = kv-shard-del sh key-addr key-len in
+    let _lg = if ne-u8 del 0 then kv-wal-log-del wal key-addr key-len sh.kv-wal-scratch kh-wal-scratch-cap else 0 in
+    del
+
+  -- | Execute `INCR` on `sh` and log the resulting canonical value + TTL to `wal`.
+  kv-shard-incr-wal :: KvShard -> WalEngine -> I64 -> U32 ->{MVar} KvIntResult
+  kv-shard-incr-wal sh wal key-addr key-len =
+    let res = kv-shard-incr sh key-addr key-len in
+    if ne-u8 res.kv-int-status kv-ok then res
+    else
+      let gr = kv-shard-get sh key-addr key-len in
+      let pttl = kv-shard-pttl sh key-addr key-len in
+      let exp-ms = if gt-i64 pttl 0 then saturating-add-u64 (kv-shard-now-ms sh) (wrapping-i64-to-u64 pttl) else 0 in
+      let _lg = kv-wal-log-set wal key-addr key-len gr.kv-val-addr gr.kv-val-len exp-ms sh.kv-wal-scratch kh-wal-scratch-cap in
+      res
+
+  -- | Execute `DECR` on `sh` and log the resulting canonical value + TTL to `wal`.
+  kv-shard-decr-wal :: KvShard -> WalEngine -> I64 -> U32 ->{MVar} KvIntResult
+  kv-shard-decr-wal sh wal key-addr key-len =
+    let res = kv-shard-decr sh key-addr key-len in
+    if ne-u8 res.kv-int-status kv-ok then res
+    else
+      let gr = kv-shard-get sh key-addr key-len in
+      let pttl = kv-shard-pttl sh key-addr key-len in
+      let exp-ms = if gt-i64 pttl 0 then saturating-add-u64 (kv-shard-now-ms sh) (wrapping-i64-to-u64 pttl) else 0 in
+      let _lg = kv-wal-log-set wal key-addr key-len gr.kv-val-addr gr.kv-val-len exp-ms sh.kv-wal-scratch kh-wal-scratch-cap in
+      res
+
+  -- | Execute `EXPIRE` (seconds) on `sh` and append a binary AOF `EXPIRE` record to `wal`.
+  kv-shard-expire-wal :: KvShard -> WalEngine -> I64 -> U32 -> U64 ->{MVar} U8
+  kv-shard-expire-wal sh wal key-addr key-len ttl-sec =
+    let ok = kv-shard-expire sh key-addr key-len ttl-sec in
+    if eq-u8 ok 0 then 0
+    else if eq-u64 ttl-sec 0 then
+      let _lg = kv-wal-log-del wal key-addr key-len sh.kv-wal-scratch kh-wal-scratch-cap in
+      1
+    else
+      let exp-ms = saturating-add-u64 (kv-shard-now-ms sh) (saturating-mul-u64 ttl-sec 1000) in
+      let _lg = kv-wal-log-expire wal key-addr key-len exp-ms sh.kv-wal-scratch kh-wal-scratch-cap in
+      1
+
+  -- | Decode and replay a single validated binary AOF record from `(payload-addr, payload-len)`
+  -- into `sh` at recovery timestamp `now-ms`.
+  kv-shard-replay-wal-record :: KvShard -> I64 -> U32 -> U64 ->{MVar} Unit
+  kv-shard-replay-wal-record sh payload-addr payload-len now-ms =
+    if lt-u32 payload-len 8 then ()
+    else
+      let op = wrapping-u32-to-u8 (raw-load-u32 payload-addr) in
+      let klen = raw-load-u32 (wrapping-add-i64 payload-addr 4) in
+      if eq-u8 op kv-wal-op-set then
+        if lt-u32 payload-len 20 then ()
+        else
+          let vlen = raw-load-u32 (wrapping-add-i64 payload-addr 8) in
+          let exp-ms = raw-load-u64 (wrapping-add-i64 payload-addr 12) in
+          if gt-u32 (wrapping-add-u32 20 (wrapping-add-u32 klen vlen)) payload-len then ()
+          else
+            let kaddr = wrapping-add-i64 payload-addr 20 in
+            let vaddr = wrapping-add-i64 kaddr (u32-to-i64 klen) in
+            if eq-u64 exp-ms 0 then
+              let _s = kv-shard-set sh kaddr klen vaddr vlen in
+              ()
+            else if le-u64 exp-ms now-ms then
+              -- Key already expired before recovery time -> ensure absent
+              let _d = kv-shard-del sh kaddr klen in
+              ()
+            else
+              let rem-ms = wrapping-sub-u64 exp-ms now-ms in
+              let _s = kv-shard-set-px sh kaddr klen vaddr vlen rem-ms in
+              ()
+      else if eq-u8 op kv-wal-op-del then
+        if gt-u32 (wrapping-add-u32 8 klen) payload-len then ()
+        else
+          let kaddr = wrapping-add-i64 payload-addr 8 in
+          let _d = kv-shard-del sh kaddr klen in
+          ()
+      else if eq-u8 op kv-wal-op-expire then
+        if lt-u32 payload-len 16 then ()
+        else if gt-u32 (wrapping-add-u32 16 klen) payload-len then ()
+        else
+          let exp-ms = raw-load-u64 (wrapping-add-i64 payload-addr 8) in
+          let kaddr = wrapping-add-i64 payload-addr 16 in
+          if le-u64 exp-ms now-ms then
+            let _d = kv-shard-del sh kaddr klen in
+            ()
+          else
+            let rem-ms = wrapping-sub-u64 exp-ms now-ms in
+            let _e = kv-shard-pexpire sh kaddr klen rem-ms in
+            ()
+      else ()
+
+  -- | Recover a `KvShard` from a `Store.Wal.Engine` AOF segment `fd` via
+  -- two-pass CRC32C-verified `wal-recover-with`, replaying every valid `SET`,
+  -- `DEL`, and `EXPIRE` mutation at recovery timestamp `now-ms`.
+  kv-shard-recover-wal :: forall (r :: Region). WalDiskOps r -> WalEngine -> Fd -> KvShard -> U64 ->{IO, IO r, MVar, Mut r} Result IoError WalRecoveryReport
+  kv-shard-recover-wal ops wal fd sh now-ms =
+    let _clk = kv-shard-set-now-ms sh now-ms in
+    wal-recover-with ops wal fd (\hdr paddr ->
+      kv-shard-replay-wal-record sh paddr hdr.wal-payload-len now-ms)
