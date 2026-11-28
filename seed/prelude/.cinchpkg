@@ -1519,6 +1519,10 @@
     {
       "name": "Net.Quic.Pacer",
       "path": "Net/Quic/Pacer.cinch"
+    },
+    {
+      "name": "Net.Http.Static",
+      "path": "Net/Http/Static.cinch"
     }
   ],
   "order": [
@@ -1900,6 +1904,7 @@
     "Net.Quic.AckMap",
     "Net.Quic.Recovery",
     "Net.Quic.Bbr",
-    "Net.Quic.Pacer"
+    "Net.Quic.Pacer",
+    "Net.Http.Static"
   ]
 }
